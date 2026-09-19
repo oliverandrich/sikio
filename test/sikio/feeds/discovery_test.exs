@@ -9,9 +9,14 @@ defmodule Sikio.Feeds.DiscoveryTest do
 
   test "a direct channel URL resolves straight to its Atom feed" do
     Req.Test.stub(HTTP, fn conn ->
-      assert conn.request_path == "/feeds/videos.xml"
-      assert conn.query_string == "channel_id=UCabcdefghijklmnopqrstuv"
-      Plug.Conn.send_resp(conn, 200, youtube())
+      case conn.request_path do
+        "/feeds/videos.xml" ->
+          assert conn.query_string == "channel_id=UCabcdefghijklmnopqrstuv"
+          Plug.Conn.send_resp(conn, 200, youtube())
+
+        "/channel/UCabcdefghijklmnopqrstuv" ->
+          Plug.Conn.send_resp(conn, 200, channel_page())
+      end
     end)
 
     assert {:ok, [%{kind: :youtube, title: "Good Channel"}]} =
@@ -57,6 +62,9 @@ defmodule Sikio.Feeds.DiscoveryTest do
 
         "/feeds/videos.xml" ->
           Plug.Conn.send_resp(conn, 200, youtube())
+
+        "/channel/UCabcdefghijklmnopqrstuv" ->
+          Plug.Conn.send_resp(conn, 200, channel_page())
       end
     end)
 
@@ -143,5 +151,78 @@ defmodule Sikio.Feeds.DiscoveryTest do
 
     assert {:ok, [%{kind: :podcast}]} =
              Discovery.discover("https://podcasts.apple.com/de/podcast/small-hours/id12345")
+  end
+
+  test "a channel's own page supplies the picture its feed does not carry" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/channel/UCabcdefghijklmnopqrstuv" ->
+          Plug.Conn.send_resp(conn, 200, channel_page())
+
+        "/feeds/videos.xml" ->
+          Plug.Conn.send_resp(conn, 200, youtube())
+      end
+    end)
+
+    assert {:ok, [feed]} =
+             Discovery.discover("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos")
+
+    assert feed.icon_url == "https://yt3.googleusercontent.com/picture=s900-c-k-no-rj"
+  end
+
+  test "a pasted feed URL reaches the channel page for its picture too" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/channel/UCabcdefghijklmnopqrstuv" -> Plug.Conn.send_resp(conn, 200, channel_page())
+        "/feeds/videos.xml" -> Plug.Conn.send_resp(conn, 200, youtube())
+      end
+    end)
+
+    assert {:ok, [feed]} =
+             Discovery.discover(
+               "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"
+             )
+
+    assert feed.icon_url == "https://yt3.googleusercontent.com/picture=s900-c-k-no-rj"
+  end
+
+  # The picture is decoration. A channel page that is slow, blocked or shaped differently must not
+  # cost somebody the subscription they asked for.
+  test "a channel without a reachable picture still subscribes" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/channel/UCabcdefghijklmnopqrstuv" -> Plug.Conn.send_resp(conn, 500, "nope")
+        "/feeds/videos.xml" -> Plug.Conn.send_resp(conn, 200, youtube())
+      end
+    end)
+
+    assert {:ok, [%{kind: :youtube, icon_url: nil}]} =
+             Discovery.discover("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv")
+  end
+
+  # The same rule the feed's own artwork follows: an href in a document belongs to that document.
+  test "a picture named relative to the channel page resolves against it" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/channel/UCabcdefghijklmnopqrstuv" ->
+          Plug.Conn.send_resp(
+            conn,
+            200,
+            String.replace(
+              channel_page(),
+              "https://yt3.googleusercontent.com/picture=s900-c-k-no-rj",
+              "/img/avatar.jpg"
+            )
+          )
+
+        "/feeds/videos.xml" ->
+          Plug.Conn.send_resp(conn, 200, youtube())
+      end
+    end)
+
+    assert {:ok, [feed]} =
+             Discovery.discover("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv")
+
+    assert feed.icon_url == "https://www.youtube.com/img/avatar.jpg"
   end
 end

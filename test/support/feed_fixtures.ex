@@ -36,6 +36,16 @@ defmodule Sikio.FeedFixtures do
     )
   end
 
+  @doc "A YouTube channel page, reduced to the two elements the discovery reads."
+  def channel_page do
+    """
+    <html><head>
+    <meta property="og:image" content="https://yt3.googleusercontent.com/picture=s900-c-k-no-rj">
+    <link rel="alternate" type="application/rss+xml" href="https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv">
+    </head></html>
+    """
+  end
+
   def youtube do
     """
     <feed xmlns="http://www.w3.org/2005/Atom" xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/">

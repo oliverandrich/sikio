@@ -117,10 +117,15 @@ defmodule Sikio.Feeds.Discovery do
 
   defp video_channel(_), do: {:error, :not_found}
 
-  defp channel_feed(id) when is_binary(id) do
+  # An Atom feed from YouTube names no artwork, so the picture comes from the channel's own page.
+  # A caller that already read that page passes what it found, including nothing: a page that
+  # states no picture is not a reason to load a second copy of the same channel.
+  defp channel_feed(id), do: channel_feed(id, :unread)
+
+  defp channel_feed(id, found) when is_binary(id) do
     if Regex.match?(@channel, id) do
       case fetch("https://www.youtube.com/feeds/videos.xml?channel_id=" <> id) do
-        {:ok, feed} -> {:ok, [feed]}
+        {:ok, feed} -> {:ok, [%{feed | icon_url: resolve_picture(id, found)}]}
         other -> other
       end
     else
@@ -128,16 +133,43 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  defp channel_feed(_), do: {:error, :not_found}
+  defp channel_feed(_, _), do: {:error, :not_found}
+
+  defp resolve_picture(id, :unread), do: channel_picture(id)
+  defp resolve_picture(_id, found), do: found
+
+  # Decoration, so every failure is the same failure: no picture, and the subscription proceeds.
+  defp channel_picture(id) do
+    url = "https://www.youtube.com/channel/" <> id
+
+    case page(url) do
+      {:ok, doc} -> picture(doc, url)
+      _ -> nil
+    end
+  end
 
   defp channel_page(url) do
-    with {:ok, %{status: 200, body: body}} <- HTTP.get(url),
-         {:ok, doc} <- Floki.parse_document(body),
+    with {:ok, doc} <- page(url),
          id when is_binary(id) <- channel_id(doc) do
-      channel_feed(id)
+      channel_feed(id, picture(doc, url))
     else
       _ -> {:error, :youtube_unavailable}
     end
+  end
+
+  defp page(url) do
+    case HTTP.get(url) do
+      {:ok, %{status: 200, body: body}} -> Floki.parse_document(body)
+      _ -> :error
+    end
+  end
+
+  # Two places the page states it. The value is an href in a document like any other, so it is
+  # resolved against the page rather than read as though somebody had pasted it.
+  defp picture(doc, page_url) do
+    Floki.attribute(doc, "meta[property='og:image']", "content")
+    |> Enum.concat(Floki.attribute(doc, "link[rel=image_src]", "href"))
+    |> Enum.find_value(&HTTP.resolve(&1, page_url))
   end
 
   # Three places the id may be, in the order they are worth trusting: the page's own feed link, the

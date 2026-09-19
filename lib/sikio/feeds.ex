@@ -14,22 +14,21 @@ defmodule Sikio.Feeds do
   alias Sikio.Library.Events
   alias Sikio.Repo
 
-  @feed_fields [
-    :title,
-    :icon_url,
-    :etag,
-    :last_modified,
-    :last_checked_at,
-    :last_error,
-    :updated_at
-  ]
+  @feed_fields [:title, :etag, :last_modified, :last_checked_at, :last_error, :updated_at]
+
+  # Everything the source just said replaces what was stored, except the picture. A YouTube
+  # refresh reads the Atom feed alone, which names no artwork, and an empty value there is the
+  # absence of a statement rather than a statement that the channel has no picture. One row is
+  # written here, so leaving the column out of the list says exactly that.
+  defp replaced_feed_fields(%{icon_url: url}) when is_binary(url), do: [:icon_url | @feed_fields]
+  defp replaced_feed_fields(_attrs), do: @feed_fields
 
   def store(preview) do
     Repo.transaction(fn ->
       attrs = Map.merge(preview, %{last_checked_at: DateTime.utc_now(), last_error: nil})
 
       case Repo.insert(Feed.changeset(%Feed{}, attrs),
-             on_conflict: {:replace, @feed_fields},
+             on_conflict: {:replace, replaced_feed_fields(attrs)},
              conflict_target: [:url],
              returning: true
            ) do

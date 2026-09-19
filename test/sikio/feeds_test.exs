@@ -176,4 +176,22 @@ defmodule Sikio.FeedsTest do
     assert entry.duration == 3723
     assert entry.excerpt == "Notes with a link."
   end
+
+  # A YouTube refresh fetches the Atom feed and nothing else, so it carries no picture. Replacing
+  # the stored one with that nothing would empty the sidebar on the first poll after subscribing.
+  test "a refresh that carries no picture keeps the stored one" do
+    {:ok, feed} =
+      Feeds.store(%{
+        url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv",
+        title: "Good Channel",
+        kind: :youtube,
+        icon_url: "https://yt3.googleusercontent.com/picture=s900-c-k-no-rj",
+        entries: []
+      })
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, youtube()) end)
+
+    assert {:ok, refreshed} = Feeds.refresh(feed.id)
+    assert refreshed.icon_url == "https://yt3.googleusercontent.com/picture=s900-c-k-no-rj"
+  end
 end
