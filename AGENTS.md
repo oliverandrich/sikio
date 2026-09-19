@@ -64,3 +64,17 @@ asking a stranger's server.
 The player's browser half is covered by node's own test runner over
 `assets/js/*.test.mjs`, and by Wallaby features for what only a browser can show. After
 changing JavaScript or CSS, check it in a browser with freshly built assets.
+
+## Deployment scope
+
+Ship the application as a Mix release with its runtime: unpack, configure, run.
+Keep explicit database migration commands and runtime configuration. Persistent
+application data and secrets belong outside the release directory.
+
+Database provisioning, process supervision, TLS, database dumps and OS-level
+file backups are the operator's responsibility. Do not add Dockerfiles, Compose
+stacks, deployment installers, self-updaters, or application-owned backup/restore
+commands, retention, remote copies or schedules unless explicitly requested.
+Database migration rollback and restoring user content are application concerns,
+not infrastructure backup automation. CI service containers are unaffected.
+Build and test for specific OS versions and architectures before claiming support.

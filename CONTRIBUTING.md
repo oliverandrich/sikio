@@ -65,11 +65,9 @@ expires sessions, abandoned challenges and unaccepted invitations. Tests set
 
 ## Operations
 
-`mise run release` builds a native release and copies the backup and restore scripts into
-`ops/` beside `bin/`, because a deployed instance has no checkout to run them from.
-[docs/operations.md](docs/operations.md) covers both the native and the container path, and
-[docs/backups.md](docs/backups.md) covers encrypted backups with retention and restore checks.
-Both documents state which parts have been verified in this repository and which have not.
+`mise run release` builds the application with its Erlang runtime.
+[docs/operations.md](docs/operations.md) covers configuration, explicit migrations,
+startup and updates. Database dumps and OS-level file backups are managed by the operator.
 
 Read AGENTS.md for TDD and commit review rules. Generated code belongs to this
 application. Re-running the same starter/profile does nothing; it does not upgrade

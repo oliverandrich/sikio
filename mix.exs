@@ -5,7 +5,6 @@ defmodule Sikio.MixProject do
     [
       app: :sikio,
       version: "0.1.0",
-      releases: [sikio: [steps: [:assemble, &copy_operations/1]]],
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -24,31 +23,6 @@ defmodule Sikio.MixProject do
       mod: {Sikio.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
-  end
-
-  # The backup and restore scripts have to travel with the release, because a deployed instance has
-  # no checkout to run them from. They land under `ops/` beside `bin/`.
-  defp copy_operations(release) do
-    destination = Path.join(release.path, "ops")
-    File.rm_rf!(destination)
-    File.mkdir_p!(destination)
-
-    for name <- ~w(backup restore backup_runner backup_runner.exs) do
-      File.cp!(Path.join("scripts", name), Path.join(destination, name))
-    end
-
-    File.mkdir_p!(Path.join(destination, "operations"))
-
-    for name <- ~w(backup_runner.exs support.exs) do
-      File.cp!(
-        Path.join("scripts/operations", name),
-        Path.join([destination, "operations", name])
-      )
-    end
-
-    File.cp_r!("deploy/systemd", Path.join(destination, "systemd"))
-    File.cp!("deploy/backup.env.example", Path.join(destination, "backup.env.example"))
-    release
   end
 
   def cli do

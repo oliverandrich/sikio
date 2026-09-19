@@ -5,9 +5,7 @@ defmodule Sikio.Operations.Smoke do
   alias Sikio.Operations.Support
   @root Path.expand("../..", __DIR__)
 
-  def root, do: @root
   def release, do: Path.join(@root, "_build/prod/rel/sikio/bin")
-  def script(name), do: Path.join([@root, "scripts", name])
   def run(args, env), do: args |> Support.run(env) |> String.trim()
   def query(sql, env), do: run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-Atc", sql], env)
 
@@ -38,12 +36,6 @@ defmodule Sikio.Operations.Smoke do
     after
       run(["dropdb", name], env)
     end
-  end
-
-  def with_databases([], _env, fun), do: fun.()
-
-  def with_databases([name | names], env, fun) do
-    with_database(name, env, fn -> with_databases(names, env, fun) end)
   end
 
   def eventually(fun, description, timeout \\ 60_000) do

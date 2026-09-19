@@ -106,12 +106,10 @@ mise run beans   # The local backlog
 
 ## Operations
 
-Sikio runs as a standalone Elixir release or as a Docker image with PostgreSQL. `mise run
-release` builds a native release; `Dockerfile` and `compose.yaml` build the container variant
-from the same base. Backup and restore use the same scripts, and restore only ever writes into
-an empty target database. The optional [backup runner](docs/backups.md) adds daily encryption,
-retention, weekly restore checks and a configurable external copy.
+Sikio runs as a standalone Mix release with its Erlang runtime. `mise run release`
+builds for the current OS and architecture. Unpack the release, configure an existing
+PostgreSQL database, run migrations explicitly, then start the application.
 
-Step by step, including HTTPS, updates and a restore check: [operations](docs/operations.md).
-Both documents say plainly which parts have been verified in this repository and which have not.
-Nothing has been deployed publicly yet.
+[Operations](docs/operations.md) documents configuration, startup and updates.
+Database dumps and OS-level backups belong to the operator; Sikio ships no backup
+runner, deployment installer or self-updater.
