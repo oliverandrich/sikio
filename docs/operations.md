@@ -27,9 +27,9 @@ these variables in the environment used for both migration and startup:
 | `SECRET_KEY_BASE` | Generate with `mix phx.gen.secret` on the build machine; keep permanently |
 | `PHX_HOST` | Stable public hostname without scheme or port |
 | `PORT` | Internal HTTP port, 4000 by default |
-| `PHX_BIND_IP` | Listen address, `127.0.0.1` by default |
 | `POOL_SIZE` | Database connections, 10 by default |
 
+The HTTP listener currently binds to `::` (all interfaces); `PORT` is configurable.
 The release does not automatically load a `.env` file. Use a protected network
 path for a remote database; the current configuration does not enable database TLS.
 From the unpacked release directory:

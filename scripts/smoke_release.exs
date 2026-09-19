@@ -1,10 +1,10 @@
 # Run with `mise exec -- elixir scripts/smoke_release.exs` after building the release.
 # Uses PG* credentials with CREATEDB; only creates/drops its own random database.
-Code.require_file("operations/smoke.exs", __DIR__)
+Code.require_file("support/smoke.exs", __DIR__)
 
-defmodule Sikio.Operations.ReleaseSmoke do
+defmodule Sikio.ReleaseSmoke do
   import ExUnit.Assertions
-  alias Sikio.Operations.{Smoke, Support}
+  alias Sikio.ReleaseSmoke.{Smoke, Support}
 
   def main do
     release = Smoke.release()
@@ -33,4 +33,4 @@ defmodule Sikio.Operations.ReleaseSmoke do
   end
 end
 
-Sikio.Operations.ReleaseSmoke.main()
+Sikio.ReleaseSmoke.main()

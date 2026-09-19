@@ -1,9 +1,9 @@
-Code.require_file("../../scripts/operations/support.exs", __DIR__)
+Code.require_file("../../scripts/support/support.exs", __DIR__)
 
-defmodule Sikio.Operations.SupportTest do
+defmodule Sikio.ReleaseSmoke.SupportTest do
   use ExUnit.Case, async: true
   import ExUnit.CaptureIO
-  alias Sikio.Operations.Support
+  alias Sikio.ReleaseSmoke.Support
 
   test "command failures never expose stderr or credential-bearing arguments" do
     output =

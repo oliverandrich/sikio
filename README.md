@@ -78,7 +78,7 @@ chromedriver for the browser tests.
 mise trust
 mise install
 mise run setup
-mise run dev
+mise dev
 ```
 
 Open **http://localhost:4000** and register your first passkey. Save the recovery codes; they
@@ -91,6 +91,11 @@ the connection. Use passkeys over **localhost** locally and over HTTPS once publ
 register the first account before opening a new deployment to anybody else.
 
 ## Development
+
+`mise dev` starts the server in the foreground. `mise reset` explicitly drops and
+recreates the development database with migrations and seeds; it deletes dev data.
+`mise migrate` applies pending development migrations. These tasks use `MIX_ENV=dev`.
+`mise release` builds for production. The longer `mise run …` spelling works too.
 
 ```sh
 mise run check   # The full local gate

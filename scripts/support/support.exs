@@ -1,4 +1,4 @@
-defmodule Sikio.Operations.Support do
+defmodule Sikio.ReleaseSmoke.Support do
   @moduledoc "Small standard-library helpers for standalone operational scripts."
 
   defmodule CommandError do

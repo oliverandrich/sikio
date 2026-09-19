@@ -40,6 +40,8 @@ Production uses `DATABASE_URL` and `SECRET_KEY_BASE`; see the release section be
 | `mise run credo` | Compile then strict Credo |
 | `mise run audit` | Dependency advisories and retired Hex packages |
 | `mise run migrate` | Explicit development migrations |
+| `mise run dev` | Start the development server in the foreground |
+| `mise run reset` | Drop and recreate the development database, migrate and seed |
 | `mise run debugserver` | IEx Phoenix server |
 | `mise run release` | A production release for this OS and architecture |
 
@@ -55,6 +57,11 @@ tests; no npm package is installed.
 Use Lucide components directly, for example `<Lucideicons.chevron_down class="size-4" aria-hidden="true" />`.
 Decorative icons are hidden from assistive technology; label icon-only buttons.
 The `lucide_icons` dependency supplies SVG components without a Tailwind icon plugin. The UI helpers use the CSP's inline-script/style allowances.
+
+`mise dev`, `mise reset`, `mise migrate` and `mise release` are the short forms
+of `mise run …`. Development tasks explicitly use `MIX_ENV=dev`; release builds
+use `prod`. `mise reset` deletes the development database and runs its migrations
+and seeds again. It is an explicit local action, never part of startup or checks.
 
 ## Background work
 
@@ -104,18 +111,16 @@ Build with the project's pinned Elixir/OTP versions on a system compatible with
 the deployment target:
 
 ```sh
-MIX_ENV=prod mix deps.get --only prod
-MIX_ENV=prod mix assets.deploy
-MIX_ENV=prod mix release
+mise run release
 ```
 
 The release is in `_build/prod/rel/sikio`. Set `DATABASE_URL`, `SECRET_KEY_BASE`,
 `PHX_HOST` and `PORT` for the deployment. Run migration once as an explicit deploy
-step, then start the application with `PHX_SERVER=true`:
+step, then start the application:
 
 ```sh
-bin/sikio eval 'Sikio.Release.migrate()'
-PHX_SERVER=true bin/sikio start
+bin/migrate
+bin/server
 ```
 
 The migration command starts the repo without the HTTP server. It is safe to run

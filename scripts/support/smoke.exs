@@ -1,8 +1,8 @@
 Code.require_file("support.exs", __DIR__)
 
-defmodule Sikio.Operations.Smoke do
+defmodule Sikio.ReleaseSmoke.Smoke do
   @moduledoc "Shared helpers for disposable operational smoke checks."
-  alias Sikio.Operations.Support
+  alias Sikio.ReleaseSmoke.Support
   @root Path.expand("../..", __DIR__)
 
   def release, do: Path.join(@root, "_build/prod/rel/sikio/bin")
