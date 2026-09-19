@@ -25,7 +25,7 @@ defmodule SikioWeb.InvitationTest do
   # or not at all.
   defp invite_link(session, username) do
     session
-    |> open("/")
+    |> open("/invitations")
     |> fill_in(css("input[name=username]"), with: username)
     |> click(button("Create a link"))
     |> find(css("code"))
@@ -56,7 +56,7 @@ defmodule SikioWeb.InvitationTest do
     # assertion further down holds whether or not this line did anything.
     session
     |> clear_cookies()
-    |> open("/")
+    |> open("/invitations")
     |> refute_has(css("p", text: "Signed in as"))
 
     session
@@ -70,7 +70,7 @@ defmodule SikioWeb.InvitationTest do
     |> assert_has(css("h1", text: "Save your recovery codes"))
 
     session
-    |> open("/")
+    |> open("/invitations")
     |> assert_has(css("p", text: "Signed in as grace."))
 
     assert Repo.get_by(User, username: "grace")
@@ -106,7 +106,7 @@ defmodule SikioWeb.InvitationTest do
     claim(session, "ada")
 
     session
-    |> open("/")
+    |> open("/invitations")
     |> assert_has(css("p", text: "Signed in as ada."))
     |> refute_has(css("#claim-form"))
   end

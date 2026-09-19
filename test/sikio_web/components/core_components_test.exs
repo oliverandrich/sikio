@@ -17,7 +17,7 @@ defmodule SikioWeb.CoreComponentsTest do
         )
 
       assert html =~ "border-red-600"
-      refute html =~ "border-zinc-400"
+      refute html =~ "border-stone-400"
     end
   end
 end

@@ -98,15 +98,15 @@ defmodule SikioWeb.CoreComponents do
   def button(%{rest: rest} = assigns) do
     variants = %{
       "primary" =>
-        "bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400",
+        "bg-teal-800 text-white hover:bg-teal-900 dark:bg-teal-600 dark:hover:bg-teal-500",
       nil =>
-        "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-200 dark:hover:bg-indigo-900"
+        "bg-teal-50 text-teal-900 hover:bg-teal-100 dark:bg-teal-950 dark:text-teal-100 dark:hover:bg-teal-900"
     }
 
     assigns =
       assign_new(assigns, :class, fn ->
         [
-          "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:focus-visible:outline-indigo-400",
+          "inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 dark:focus-visible:outline-teal-400",
           Map.fetch!(variants, assigns[:variant])
         ]
       end)
@@ -233,7 +233,7 @@ defmodule SikioWeb.CoreComponents do
             checked={@checked}
             class={
               @class ||
-                "size-4 rounded border-zinc-400 accent-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:focus-visible:outline-indigo-400"
+                "size-4 rounded border-stone-400 accent-teal-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 dark:focus-visible:outline-teal-400"
             }
             {@rest}
           />{@label}
@@ -254,8 +254,8 @@ defmodule SikioWeb.CoreComponents do
           name={@name}
           class={[
             @class ||
-              "block w-full rounded-md border bg-white px-3 py-2 text-zinc-950 shadow-sm placeholder:text-zinc-500 focus:border-indigo-600 focus:outline-2 focus:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-indigo-400 dark:focus:outline-indigo-400",
-            @errors == [] && "border-zinc-400 dark:border-zinc-600",
+              "block w-full rounded-md border bg-white px-3 py-2 text-stone-950 shadow-sm placeholder:text-stone-500 focus:border-teal-600 focus:outline-2 focus:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-teal-400 dark:focus:outline-teal-400",
+            @errors == [] && "border-stone-400 dark:border-stone-600",
             @errors != [] &&
               (@error_class ||
                  "border-red-600 outline-red-600 dark:border-red-400 dark:outline-red-400")
@@ -282,8 +282,8 @@ defmodule SikioWeb.CoreComponents do
           name={@name}
           class={[
             @class ||
-              "block w-full rounded-md border bg-white px-3 py-2 text-zinc-950 shadow-sm placeholder:text-zinc-500 focus:border-indigo-600 focus:outline-2 focus:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-indigo-400 dark:focus:outline-indigo-400 min-h-28",
-            @errors == [] && "border-zinc-400 dark:border-zinc-600",
+              "block w-full rounded-md border bg-white px-3 py-2 text-stone-950 shadow-sm placeholder:text-stone-500 focus:border-teal-600 focus:outline-2 focus:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-teal-400 dark:focus:outline-teal-400 min-h-28",
+            @errors == [] && "border-stone-400 dark:border-stone-600",
             @errors != [] &&
               (@error_class ||
                  "border-red-600 outline-red-600 dark:border-red-400 dark:outline-red-400")
@@ -309,8 +309,8 @@ defmodule SikioWeb.CoreComponents do
           value={Form.normalize_value(@type, @value)}
           class={[
             @class ||
-              "block w-full rounded-md border bg-white px-3 py-2 text-zinc-950 shadow-sm placeholder:text-zinc-500 focus:border-indigo-600 focus:outline-2 focus:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-indigo-400 dark:focus:outline-indigo-400",
-            @errors == [] && "border-zinc-400 dark:border-zinc-600",
+              "block w-full rounded-md border bg-white px-3 py-2 text-stone-950 shadow-sm placeholder:text-stone-500 focus:border-teal-600 focus:outline-2 focus:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-teal-400 dark:focus:outline-teal-400",
+            @errors == [] && "border-stone-400 dark:border-stone-600",
             @errors != [] &&
               (@error_class ||
                  "border-red-600 outline-red-600 dark:border-red-400 dark:outline-red-400")
@@ -344,10 +344,13 @@ defmodule SikioWeb.CoreComponents do
     ~H"""
     <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
       <div>
-        <h1 class="text-lg font-semibold leading-8">
+        <h1 class="font-display text-3xl tracking-tight sm:text-4xl">
           {render_slot(@inner_block)}
         </h1>
-        <p :if={@subtitle != []} class="text-sm text-zinc-600 dark:text-zinc-400">
+        <p
+          :if={@subtitle != []}
+          class="mt-3 max-w-xl leading-relaxed text-stone-600 dark:text-stone-400"
+        >
           {render_slot(@subtitle)}
         </p>
       </div>
@@ -388,7 +391,7 @@ defmodule SikioWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="w-full text-left text-sm [&_th]:px-4 [&_th]:py-3 [&_th]:font-semibold [&_td]:px-4 [&_td]:py-3 [&_tbody_tr:nth-child(odd)]:bg-zinc-100 dark:[&_tbody_tr:nth-child(odd)]:bg-zinc-900">
+    <table class="w-full text-left text-sm [&_th]:px-4 [&_th]:py-3 [&_th]:font-semibold [&_td]:px-4 [&_td]:py-3 [&_tbody_tr:nth-child(odd)]:bg-stone-100 dark:[&_tbody_tr:nth-child(odd)]:bg-stone-900">
       <thead>
         <tr>
           <th :for={col <- @col}>{col[:label]}</th>
@@ -435,7 +438,7 @@ defmodule SikioWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <ul class="divide-y divide-zinc-200 dark:divide-zinc-800">
+    <ul class="divide-y divide-stone-200 dark:divide-stone-800">
       <li :for={item <- @item} class="flex gap-4 py-4">
         <div class="min-w-0 flex-1">
           <div class="font-bold">{item.title}</div>

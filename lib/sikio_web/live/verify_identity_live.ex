@@ -46,7 +46,7 @@ defmodule SikioWeb.VerifyIdentityLive do
         phx-mounted={JS.ignore_attributes(["open"])}
         class="mt-6 text-sm"
       >
-        <summary class="cursor-pointer text-violet-600 dark:text-violet-400">
+        <summary class="cursor-pointer text-teal-800 dark:text-teal-300">
           {gettext("Use a recovery code instead")}
         </summary>
         <.form for={%{}} id="confirm-recovery" phx-change="validate" phx-submit="recover" class="mt-4">
@@ -62,7 +62,7 @@ defmodule SikioWeb.VerifyIdentityLive do
       </details>
       <.link
         navigate={~p"/account/passkeys"}
-        class="mt-6 block text-center text-sm text-violet-600 dark:text-violet-400"
+        class="mt-6 block text-center text-sm text-teal-800 dark:text-teal-300"
       >{gettext("Cancel")}</.link>
       <Layouts.passkey_ceremony />
     </Layouts.auth>

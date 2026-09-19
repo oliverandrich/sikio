@@ -16,7 +16,34 @@
 
 /* Tailwind dark utilities follow prefers-color-scheme automatically. */
 
+/* Sikio's two brand decisions, as theme tokens rather than repeated arbitrary values.
+   Everything else is a stock Tailwind palette: stone for surfaces, teal for the accent.
+   The display face is a system serif, so no font is fetched from anywhere. */
+@theme {
+  --color-paper: #f7f6f2;
+  --font-display: Georgia, "Times New Roman", serif;
+}
+
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* The player floats over the page, so the page needs room to scroll past it.
+   Keep the last items reachable above the persistent player on narrow screens. */
+body:has(#player-panel) #page-content { padding-bottom: 28rem; }
+
+/* Respect phone safe areas and keep native media controls mounted when compacting.
+   Compacting hides chrome with CSS rather than removing it from the DOM: unmounting the
+   audio element would stop playback, which is the opposite of what the button is for. */
+#player-panel { bottom: max(1rem, env(safe-area-inset-bottom)); max-height: 85dvh; }
+.compact-audio .player-source, .compact-audio .player-status, .compact-audio .player-speed { display: none; }
+.compact-audio .player-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compact-audio .player-heading { margin-bottom: .5rem; align-items: center; }
+body:has(.compact-audio) #page-content { padding-bottom: 14rem; }
+
+@media (max-width: 639px) {
+  #player-panel { padding: .75rem; }
+  #subscriptions article { align-items: flex-start; }
+  #subscriptions article > div:first-child { flex-basis: 100%; }
+}
 
 /* This file is for your main application CSS */

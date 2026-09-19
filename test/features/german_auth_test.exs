@@ -21,6 +21,7 @@ defmodule SikioWeb.GermanAuthTest do
     |> assert_has(css("#copy-status", text: "Wiederherstellungscodes kopiert."))
     |> click(link("Codes gespeichert. Weiter"))
     |> landed_on("/")
+    |> open("/invitations")
     |> assert_has(css("p", text: "Angemeldet als ada."))
     |> connected()
     |> click(css("#user-menu summary"))

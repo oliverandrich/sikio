@@ -38,9 +38,9 @@ defmodule SikioWeb.AuthNavigationTest do
     assert conn |> get("/setup") |> redirected_to() == "/login"
   end
 
-  test "members land on home and do not see login again" do
+  test "members land on the library and do not see login again" do
     conn = build_conn() |> Plug.Test.init_test_session(get_session(claim()))
-    assert conn |> get("/") |> html_response(200) =~ "Signed in as ada"
+    assert conn |> get("/") |> html_response(200) =~ "The personal library of ada"
     assert conn |> get("/login") |> redirected_to() == "/"
   end
 end

@@ -81,7 +81,7 @@ defmodule SikioWeb.SignInLive do
         <p class="mt-6 text-center text-sm">
           <.link
             navigate={~p"/recover"}
-            class="text-violet-600 underline-offset-4 hover:underline dark:text-violet-400"
+            class="text-teal-800 underline-offset-4 hover:underline dark:text-teal-300"
           >{gettext("Lost your passkey? Use a recovery code")}</.link>
         </p>
       </div>
@@ -115,7 +115,7 @@ defmodule SikioWeb.SignInLive do
         <p class="mt-6 text-center text-sm">
           <.link
             navigate={~p"/login"}
-            class="text-violet-600 underline-offset-4 hover:underline dark:text-violet-400"
+            class="text-teal-800 underline-offset-4 hover:underline dark:text-teal-300"
           >{gettext("Back to passkey sign-in")}</.link>
         </p>
       </div>

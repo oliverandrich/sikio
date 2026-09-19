@@ -26,6 +26,28 @@ defmodule SikioWeb.HardeningTest do
     refute Map.has_key?(conn.resp_cookies, "_starter_auth_key")
   end
 
+  # The player is the only reason this application talks to anybody else, so the policy names
+  # exactly what it needs: YouTube's embed and its API script, and audio from whichever server a
+  # podcast is published on. Everything else stays on 'self'.
+  test "the policy names the player's third parties and nothing wider", %{conn: conn} do
+    conn = get(conn, "/login")
+    [policy] = get_resp_header(conn, "content-security-policy")
+
+    assert policy =~ "default-src 'self'"
+    # `'self'` is in there because naming frame-src at all stops the fallback to default-src, and
+    # LiveReload frames a page of its own in development.
+    assert policy =~ "frame-src 'self' https://www.youtube-nocookie.com"
+    assert policy =~ "media-src 'self' https:"
+    assert policy =~ "script-src 'self' 'unsafe-inline' https://www.youtube.com"
+    assert policy =~ "object-src 'none'"
+    refute policy =~ "img-src *"
+    refute policy =~ "default-src *"
+
+    # Tighter than Phoenix's default, so no page tells a stranger's server which page linked to it.
+    # The embed and the API script opt back in per element, and nothing else does.
+    assert get_resp_header(conn, "referrer-policy") == ["no-referrer"]
+  end
+
   test "sensitive changes require a fresh confirmation" do
     {conn, account} = signed()
     conn = assign(conn, :current_account, account)

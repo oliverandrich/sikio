@@ -31,7 +31,7 @@ defmodule SikioWeb.AuthScreensTest do
     |> assert_has(css("#copy-status", text: "Copying was blocked"))
     |> click(link("I've saved my codes. Continue"))
     |> landed_on("/")
-    |> assert_has(css("h1", text: "Welcome home"))
+    |> assert_has(css("h1", text: "Your time."))
     |> open("/recovery-codes")
     |> landed_on("/")
     |> connected()
@@ -46,6 +46,7 @@ defmodule SikioWeb.AuthScreensTest do
     |> assert_has(button("Sign in with a passkey"))
     |> click(button("Sign in with a passkey"))
     |> landed_on("/")
+    |> open("/invitations")
     |> assert_has(css("p", text: "Signed in as ada."))
   end
 end

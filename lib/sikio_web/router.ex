@@ -14,9 +14,13 @@ defmodule SikioWeb.Router do
     plug :put_root_layout, html: {SikioWeb.Layouts, :root}
     plug :protect_from_forgery
 
+    # Three openings, each one the player's. `media-src` because a podcast streams from whichever
+    # server published it. `frame-src` and the extra `script-src` origin because the YouTube embed
+    # and its IFrame API come from YouTube, and only after somebody has pressed play.
     plug :put_secure_browser_headers, %{
       "content-security-policy" =>
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' https:; frame-src 'self' https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
+      "referrer-policy" => "no-referrer"
     }
 
     plug Ithibati.Web.Gate, :current_account
@@ -69,12 +73,17 @@ defmodule SikioWeb.Router do
 
     live_session :members,
       on_mount: [{Ithibati.Web.Gate, {:require_account, to: "/login"}}, {SikioWeb.Locale, :set}] do
-      live "/", InsideLive
+      live "/", LibraryLive
+      live "/library/:id", PlayerLive
+      live "/invitations", InvitationsLive
+      live "/subscriptions", SubscriptionsLive
+      live "/subscriptions/import", OPMLLive
       live "/account/verify", VerifyIdentityLive
       live "/account/passkeys", AccountSecurityLive, :passkeys
       live "/account/recovery-codes", AccountSecurityLive, :recovery_codes
     end
 
+    get "/subscriptions.opml", OPMLController, :export
     get "/recovery-codes", SessionController, :recovery_codes
     delete "/session", SessionController, :sign_out
   end

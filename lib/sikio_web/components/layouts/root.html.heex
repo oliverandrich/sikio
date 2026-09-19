@@ -4,12 +4,21 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Sikio" suffix=" · Phoenix Framework" phx-no-format>{assigns[:page_title]}</.live_title>
+    <meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)" />
+    <.live_title default={gettext("Your time. Your queue.")} suffix=" · Sikio" phx-no-format>{assigns[:page_title]}</.live_title>
+    <link rel="icon" type="image/svg+xml" href={~p"/images/sikio.svg"} />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
   </head>
-  <body class="min-h-screen bg-white text-zinc-950 antialiased scheme-light dark:bg-zinc-950 dark:text-zinc-100 dark:scheme-dark">
-    {@inner_content}
+  <body class="min-h-screen bg-paper text-stone-900 antialiased scheme-light dark:bg-stone-950 dark:text-stone-100 dark:scheme-dark">
+    <div id="page-content">{@inner_content}</div>
+    <%!-- Outside the navigated LiveView on purpose, so moving between pages never rebuilds the
+    element that holds the media. Only rendered for a signed-in visitor, since the dock requires
+    an account of its own. --%>
+    <div :if={@conn.assigns[:current_account]} id="player-dock">
+      {live_render(@conn, SikioWeb.PlayerDockLive)}
+    </div>
   </body>
 </html>

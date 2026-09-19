@@ -33,7 +33,7 @@ defmodule SikioWeb.InviteLive do
   def render(assigns) do
     ~H"""
     <Layouts.auth flash={@flash} title={gettext("You’re invited")}>
-      <p :if={@invitation} class="mb-6 text-center text-sm text-zinc-600 dark:text-zinc-400">
+      <p :if={@invitation} class="mb-6 text-center text-sm text-stone-600 dark:text-stone-400">
         {gettext("The account will be called %{username}.", username: @invitation.username)}
       </p>
 

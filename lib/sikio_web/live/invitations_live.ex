@@ -1,4 +1,4 @@
-defmodule SikioWeb.InsideLive do
+defmodule SikioWeb.InvitationsLive do
   @moduledoc """
   Manual invitation links behind `{:require_account, to: "/login"}`.
 
