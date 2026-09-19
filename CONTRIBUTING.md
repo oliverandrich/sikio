@@ -50,7 +50,8 @@ Keep migration history unchanged. Credo scans source, tests and all migrations;
 Jump inspects inline HEEx and files reached through embed_templates. ExSlop and
 Jump rules are explicitly selected. Audit findings are separate from PR gates.
 Tidewave runs only in development on loopback at /tidewave/mcp.
-Tailwind/esbuild are Mix-managed; Node is unnecessary.
+Tailwind and esbuild are Mix-managed. Node is needed only to run the player's JavaScript
+tests; no npm package is installed.
 Use Lucide components directly, for example `<Lucideicons.chevron_down class="size-4" aria-hidden="true" />`.
 Decorative icons are hidden from assistive technology; label icon-only buttons.
 The `lucide_icons` dependency supplies SVG components without a Tailwind icon plugin. The UI helpers use the CSP's inline-script/style allowances.
@@ -198,7 +199,7 @@ The passkey settings page provides **Sign out on all devices**, including the
 current session. Ithibati revokes stored sessions and broadcasts disconnects to
 live sockets. Passkeys remain valid for future logins.
 
-Run `mix auth.cleanup` explicitly in development or from your own scheduler.
+Run `mix auth.cleanup` explicitly in development when you want it to happen now.
 For an already-running release, call:
 
 ```sh
@@ -207,8 +208,8 @@ bin/sikio rpc 'Sikio.AuthCleanup.run()'
 
 It returns deletion counts for expired sessions, abandoned challenges and expired,
 unaccepted invitations. Valid credentials, recovery codes and accepted invitations
-are preserved. Nothing schedules this automatically: use Oban, cron or the hosting
-platform if the concrete application needs scheduled maintenance.
+are preserved. `Sikio.Accounts.Cleanup` runs it every fifteen minutes on Oban's
+maintenance queue, so a deployed instance needs no cron entry of its own.
 
 Phoenix request logs filter passwords, secrets, tokens, recovery codes and WebAuthn
 credentials through `:filter_parameters`. Preserve this filtering when adding logging.
