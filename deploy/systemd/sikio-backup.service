@@ -1,0 +1,14 @@
+[Unit]
+Description=Sikio encrypted database backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=sikio
+EnvironmentFile=/etc/sikio/backup.env
+ExecStart=/opt/sikio/current/ops/backup_runner backup
+UMask=0077
+PrivateTmp=true
+NoNewPrivileges=true
+TimeoutStartSec=6h

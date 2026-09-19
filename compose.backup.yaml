@@ -1,0 +1,25 @@
+# Explicit opt-in: docker compose -f compose.yaml -f compose.backup.yaml ...
+services:
+  backup:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.backup
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .backup.env
+    environment:
+      PGHOST: db
+      PGPORT: '5432'
+      PGUSER: sikio
+      PGDATABASE: ${POSTGRES_DB:-sikio}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      RESTIC_REPOSITORY: /backups/repository
+      RESTIC_PASSWORD_FILE: /secrets/local-password
+      SIKIO_BACKUP_STATE_DIR: /backups/state
+    volumes:
+      - ./backups:/backups
+      - ./.backup-secrets:/secrets:ro
+    tmpfs:
+      - /tmp:mode=1777

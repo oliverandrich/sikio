@@ -2,6 +2,7 @@
 elixir = "1.20.4-otp-29"
 erlang = "29.0.6"
 zizmor = "1.30.0"
+node = "24"
 
 [tasks.setup]
 description = "Install dependencies, create the development database and build assets"
@@ -17,11 +18,13 @@ run = "iex -S mix phx.server"
 [tasks.check]
 env.MIX_ENV = "test"
 description = "Check workflows, compile, format, lint, security, assets and tests"
-run = ["zizmor .github/", "mix precommit"]
+# The player's browser half is plain modules with no framework, so node's own runner covers it.
+# No npm package is needed for it, and none is installed.
+run = ["zizmor .github/", "mix precommit", "node --test assets/js/*.test.mjs"]
 
 [tasks.test]
 env.MIX_ENV = "test"
-run = "mix test"
+run = ["mix test", "node --test assets/js/*.test.mjs"]
 
 [tasks.format]
 run = "mix format"
@@ -38,3 +41,8 @@ run = "mix ecto.migrate"
 
 [tasks.beans]
 run = "beans list --no-status completed --no-status scrapped"
+
+[tasks.release]
+description = "Build a production release for the current OS and architecture"
+env.MIX_ENV = "prod"
+run = ["mix deps.get --only prod", "mix assets.setup", "mix compile --warnings-as-errors", "mix assets.deploy", "mix release --overwrite"]

@@ -22,7 +22,7 @@
         # In the latter case `**/*.{ex,exs}` will be used.
         #
         # HEEx is inspected through ~H and embed_templates in these modules.
-        included: ["lib/", "test/", "config/", "priv/repo/migrations/", "mix.exs"],
+        included: ["lib/", "test/", "config/", "priv/repo/migrations/", "scripts/", "mix.exs"],
         excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
       },
       #

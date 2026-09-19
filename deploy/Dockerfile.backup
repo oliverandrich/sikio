@@ -1,0 +1,12 @@
+FROM docker.io/hexpm/elixir:1.20.4-erlang-29.1-debian-trixie-20260824-slim AS elixir
+FROM postgres:18.6
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends restic openssh-client ca-certificates libstdc++6 libncurses6 libsctp1 util-linux \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=elixir /usr/local/lib/erlang /usr/local/lib/erlang
+COPY --from=elixir /usr/local/lib/elixir /usr/local/lib/elixir
+ENV PATH="/usr/local/lib/elixir/bin:/usr/local/lib/erlang/bin:${PATH}"
+COPY scripts/backup scripts/restore scripts/backup_runner scripts/backup_runner.exs /ops/
+COPY scripts/operations /ops/operations
+ENTRYPOINT ["/ops/backup_runner"]
+CMD ["backup"]
