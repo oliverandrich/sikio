@@ -72,4 +72,127 @@ defmodule Sikio.Feeds.ParserTest do
                "https://example.org/rss"
              )
   end
+
+  test "keeps the artwork, runtime and notes a podcast item publishes" do
+    assert {:ok, feed} = Parser.parse(podcast(), "https://example.org/rss")
+    assert feed.icon_url == "https://img.example.org/show.jpg"
+
+    assert [entry] = feed.entries
+    assert entry.image_url == "https://img.example.org/1.jpg"
+    assert entry.duration == 3723
+    assert entry.description =~ "<a href=\"https://example.org\">link</a>"
+    assert entry.excerpt == "Notes with a link."
+  end
+
+  test "keeps the thumbnail and description a YouTube entry publishes" do
+    assert {:ok, feed} =
+             Parser.parse(
+               youtube(),
+               "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"
+             )
+
+    assert [entry] = feed.entries
+    assert entry.image_url == "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg"
+    assert entry.description == "What the video is about."
+    assert entry.description_format == :text
+    assert entry.excerpt == "What the video is about."
+    assert entry.duration == nil
+  end
+
+  test "a plain seconds runtime is read as well as a stamped one" do
+    assert {:ok, %{entries: [entry]}} =
+             Parser.parse(podcast_lasting("742"), "https://example.org/rss")
+
+    assert entry.duration == 742
+  end
+
+  test "an item without artwork, runtime or notes yields nothing rather than empty strings" do
+    assert {:ok, %{entries: [entry]}} =
+             Parser.parse(thin_podcast(), "https://example.org/rss")
+
+    assert entry.image_url == nil
+    assert entry.duration == nil
+    assert entry.description == nil
+    assert entry.excerpt == nil
+  end
+
+  test "notes fall back to the plain description when no rich content is sent" do
+    body = String.replace(podcast(), ~r|<content:encoded>.*?</content:encoded>|s, "")
+    assert {:ok, %{entries: [entry]}} = Parser.parse(body, "https://example.org/rss")
+    assert entry.description == "Plain summary"
+  end
+
+  # The runtime comes from a stranger's document and lands in a four byte column. A number too
+  # large for it raised out of the importer and took the whole feed with it.
+  test "a runtime the column cannot hold is refused rather than stored" do
+    for value <- ["9999999999", "-30", "12:", "one", "1:2:3:4"] do
+      assert {:ok, %{entries: [entry]}} =
+               Parser.parse(podcast_lasting(value), "https://example.org/rss")
+
+      assert entry.duration == nil, "#{value} was accepted as #{inspect(entry.duration)}"
+    end
+  end
+
+  test "artwork named relative to the feed resolves against it" do
+    for {href, expected} <- [
+          {"art/1.jpg", "https://example.org/feeds/art/1.jpg"},
+          {"/art/1.jpg", "https://example.org/art/1.jpg"},
+          {"//img.example.org/1.jpg", "https://img.example.org/1.jpg"}
+        ] do
+      body =
+        String.replace(podcast(), ~s|href="https://img.example.org/1.jpg"|, ~s|href="#{href}"|)
+
+      assert {:ok, %{entries: [entry]}} =
+               Parser.parse(body, "https://example.org/feeds/rss.xml")
+
+      assert entry.image_url == expected, "#{href} became #{inspect(entry.image_url)}"
+    end
+  end
+
+  # YouTube writes plain text where a podcast writes markup. The column carries the publisher's
+  # own bytes and says which of the two it holds, so neither is read as the other.
+  test "a plain text description is stored as written and labelled as text" do
+    body =
+      String.replace(
+        youtube(),
+        "What the video is about.",
+        "Chapters:\n00:00 One &lt;not a tag&gt; and 5 &lt; 6\n01:00 Two"
+      )
+
+    assert {:ok, %{entries: [entry]}} =
+             Parser.parse(
+               body,
+               "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"
+             )
+
+    assert entry.description_format == :text
+    assert entry.description =~ "<not a tag>"
+    assert entry.description =~ "\n01:00 Two"
+    assert entry.excerpt =~ "<not a tag>"
+  end
+
+  test "markup a podcast publishes is stored as written and labelled as markup" do
+    assert {:ok, %{entries: [entry]}} = Parser.parse(podcast(), "https://example.org/rss")
+
+    assert entry.description_format == :html
+    assert entry.description =~ ~s(<a href="https://example.org">link</a>)
+  end
+
+  # `itunes:summary` is plain text by specification, so a summary saying `5 < 6` must not be
+  # read as a document whose first tag never closes.
+  test "a summary is text even though the description beside it is markup" do
+    body =
+      podcast()
+      |> String.replace(~r|<content:encoded>.*?</content:encoded>|s, "")
+      |> String.replace(
+        "<description>Plain summary</description>",
+        "<itunes:summary>5 &lt; 6 and counting</itunes:summary>"
+      )
+
+    assert {:ok, %{entries: [entry]}} = Parser.parse(body, "https://example.org/rss")
+
+    assert entry.description_format == :text
+    assert entry.description == "5 < 6 and counting"
+    assert entry.excerpt == "5 < 6 and counting"
+  end
 end

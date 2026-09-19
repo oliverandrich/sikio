@@ -8,6 +8,7 @@ defmodule Sikio.Feeds.Feed do
     field :url, :string
     field :title, :string
     field :kind, Ecto.Enum, values: [:youtube, :podcast]
+    field :icon_url, :string
     field :etag, :string
     field :last_modified, :string
     field :last_checked_at, :utc_datetime_usec
@@ -17,7 +18,16 @@ defmodule Sikio.Feeds.Feed do
 
   def changeset(feed, attrs) do
     feed
-    |> cast(attrs, [:url, :title, :kind, :etag, :last_modified, :last_checked_at, :last_error])
+    |> cast(attrs, [
+      :url,
+      :title,
+      :kind,
+      :icon_url,
+      :etag,
+      :last_modified,
+      :last_checked_at,
+      :last_error
+    ])
     |> validate_required([:url, :title, :kind])
     |> validate_length(:title, max: 512)
     |> unique_constraint(:url)

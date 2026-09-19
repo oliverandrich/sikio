@@ -58,6 +58,24 @@ defmodule Sikio.Feeds.HTTP do
 
   def normalize(_url), do: {:error, :unsafe_url}
 
+  @doc """
+  An address written inside a document, resolved against that document and then checked.
+
+  `normalize/1` answers for something somebody pasted, where a bare host is the likely intent.
+  An `href` is not pasted: `art/1.jpg` names a file beside the feed, and prefixing a scheme
+  turns it into a host called `art`. Answers the address, or `nil` when there is none to trust.
+  """
+  def resolve(href, base) when is_binary(href) and is_binary(base) do
+    case normalize(base |> URI.merge(String.trim(href)) |> URI.to_string()) do
+      {:ok, uri} -> URI.to_string(uri)
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  def resolve(_href, _base), do: nil
+
   def public_address?({a, b, c, d}) do
     ip = (a <<< 24) + (b <<< 16) + (c <<< 8) + d
 

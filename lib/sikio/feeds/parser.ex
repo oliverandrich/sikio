@@ -33,7 +33,12 @@ defmodule Sikio.Feeds.Parser do
   # namespace declaration is what tells them apart.
   defp feed({"rss", attrs, _} = root, url) do
     channel = child(root, "channel")
-    entries = channel |> children("item") |> Enum.map(&podcast_entry/1) |> Enum.reject(&is_nil/1)
+
+    entries =
+      channel
+      |> children("item")
+      |> Enum.map(&podcast_entry(&1, url))
+      |> Enum.reject(&is_nil/1)
 
     if entries != [] or
          Enum.any?(attrs, fn {name, _} -> name in ["xmlns:itunes", "xmlns:podcast"] end) do
@@ -42,6 +47,7 @@ defmodule Sikio.Feeds.Parser do
          url: url,
          title: value(channel, "title"),
          kind: :podcast,
+         icon_url: image_url(channel, url),
          entries: Enum.take(entries, 500)
        }}
     else
@@ -56,10 +62,20 @@ defmodule Sikio.Feeds.Parser do
 
     if Regex.match?(~r/\A(?:UC)?[\w-]{22}\z/, channel_id) and
          URI.parse(url).host in ["www.youtube.com", "youtube.com"] do
-      entries = root |> children("entry") |> Enum.map(&youtube_entry/1) |> Enum.reject(&is_nil/1)
+      entries =
+        root
+        |> children("entry")
+        |> Enum.map(&youtube_entry(&1, url))
+        |> Enum.reject(&is_nil/1)
 
       {:ok,
-       %{url: url, title: value(root, "title"), kind: :youtube, entries: Enum.take(entries, 500)}}
+       %{
+         url: url,
+         title: value(root, "title"),
+         kind: :youtube,
+         icon_url: nil,
+         entries: Enum.take(entries, 500)
+       }}
     else
       {:error, :invalid_feed}
     end
@@ -67,7 +83,7 @@ defmodule Sikio.Feeds.Parser do
 
   defp feed(_root, _url), do: {:error, :invalid_feed}
 
-  defp podcast_entry(item) do
+  defp podcast_entry(item, feed_url) do
     enclosure = child(item, "enclosure")
     url = attr(enclosure, "url")
     type = attr(enclosure, "type")
@@ -75,30 +91,119 @@ defmodule Sikio.Feeds.Parser do
     with true <- String.starts_with?(type, "audio/") or type == "application/ogg",
          {:ok, uri} <- HTTP.normalize(url),
          title when title != "" <- value(item, "title") do
+      {notes, format} =
+        notes(item, "content:encoded": :html, description: :html, "itunes:summary": :text)
+
       %{
         external_id: identifier(item, URI.to_string(uri)),
         title: title,
         media_url: URI.to_string(uri),
         video_id: nil,
-        published_at: date(value(item, "pubDate"))
+        published_at: date(value(item, "pubDate")),
+        image_url: image_url(item, feed_url),
+        duration: duration(value(item, "itunes:duration")),
+        description: notes,
+        description_format: format,
+        excerpt: excerpt(notes, format)
       }
     else
       _ -> nil
     end
   end
 
-  defp youtube_entry(item) do
+  defp youtube_entry(item, feed_url) do
     id = value(item, "yt:videoId")
 
     if Regex.match?(~r/\A[\w-]{11}\z/, id) do
+      group = child(item, "media:group")
+      {notes, format} = notes(group, "media:description": :text)
+
       %{
         external_id: "yt:video:" <> id,
         title: value(item, "title"),
         media_url: nil,
         video_id: id,
-        published_at: date(value(item, "published"))
+        published_at: date(value(item, "published")),
+        image_url: image_url(group, feed_url),
+        duration: nil,
+        description: notes,
+        description_format: format,
+        excerpt: excerpt(notes, format)
       }
     end
+  end
+
+  # Artwork is named three different ways depending on who is publishing. The URL still comes from
+  # a stranger, so it goes through the same check as a media URL rather than straight into a page.
+  defp image_url(node, feed_url) do
+    [
+      attr(child(node, "itunes:image"), "href"),
+      attr(child(node, "media:thumbnail"), "url"),
+      node |> child("image") |> value("url")
+    ]
+    |> Enum.find("", &(&1 != ""))
+    |> case do
+      "" -> nil
+      href -> HTTP.resolve(href, feed_url)
+    end
+  end
+
+  # `itunes:duration` is seconds, or minutes and seconds, or hours and minutes and seconds.
+  # The number is a stranger's and the column holds four bytes, so anything outside a week is
+  # treated as the nonsense it is rather than raised out of the importer.
+  @longest_runtime 7 * 24 * 60 * 60
+
+  defp duration(value) do
+    parts = String.split(value, ":")
+
+    with true <- length(parts) in 1..3 and Enum.all?(parts, &(&1 =~ ~r/\A\d+\z/)),
+         seconds when seconds in 1..@longest_runtime <-
+           Enum.reduce(parts, 0, &(&2 * 60 + String.to_integer(&1))) do
+      seconds
+    else
+      _ -> nil
+    end
+  end
+
+  # The first element that carries anything wins, so a show that sends both rich and plain notes
+  # keeps the rich one. Each name comes with the shape that element holds by specification, and
+  # the answer carries it: nothing here guesses whether a blob is markup by looking at it.
+  # Not truncated the way a title is, but still bounded: this is a stranger's document and the
+  # column it lands in is not a bucket.
+  defp notes(node, names) do
+    Enum.find_value(names, {nil, nil}, fn {name, format} ->
+      case node |> child(to_string(name)) |> text() |> String.trim() do
+        "" -> nil
+        value -> {String.slice(value, 0, 20_000), format}
+      end
+    end)
+  end
+
+  # What the list under a title shows. Tags come out, so the excerpt is text and nothing else.
+  # Separating the text nodes keeps two paragraphs from running into one word. Punctuation that
+  # followed a link would inherit that separator, so it is pulled back against the word. Plain
+  # text is already the answer and needs no parser.
+  defp excerpt(nil, _format), do: nil
+  defp excerpt(notes, :text), do: notes |> collapse() |> String.slice(0, 300) |> presence()
+
+  defp excerpt(notes, _html) do
+    notes
+    |> Floki.parse_fragment!()
+    |> Floki.text(sep: " ")
+    |> collapse()
+    |> String.slice(0, 300)
+    |> presence()
+  end
+
+  defp presence(""), do: nil
+  defp presence(value), do: value
+
+  defp collapse(text) do
+    text
+    |> String.slice(0, 400)
+    |> String.replace(~r/\s+/u, " ")
+    |> String.replace(~r/ ([.,;:!?)\]])/u, "\\1")
+    |> String.trim()
   end
 
   defp children({_, _, content}, name), do: Enum.filter(content, &match?({^name, _, _}, &1))

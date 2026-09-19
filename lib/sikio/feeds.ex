@@ -14,14 +14,22 @@ defmodule Sikio.Feeds do
   alias Sikio.Library.Events
   alias Sikio.Repo
 
+  @feed_fields [
+    :title,
+    :icon_url,
+    :etag,
+    :last_modified,
+    :last_checked_at,
+    :last_error,
+    :updated_at
+  ]
+
   def store(preview) do
     Repo.transaction(fn ->
       attrs = Map.merge(preview, %{last_checked_at: DateTime.utc_now(), last_error: nil})
 
       case Repo.insert(Feed.changeset(%Feed{}, attrs),
-             on_conflict:
-               {:replace,
-                [:title, :etag, :last_modified, :last_checked_at, :last_error, :updated_at]},
+             on_conflict: {:replace, @feed_fields},
              conflict_target: [:url],
              returning: true
            ) do
@@ -84,6 +92,9 @@ defmodule Sikio.Feeds do
     end
   end
 
+  @replaced_entry_fields [:title, :media_url, :video_id, :published_at]
+  @kept_entry_fields [:image_url, :duration, :description, :description_format, :excerpt]
+
   defp import_entries(feed_id, entries) do
     now = DateTime.utc_now()
 
@@ -92,14 +103,38 @@ defmodule Sikio.Feeds do
       |> Enum.uniq_by(& &1.external_id)
       |> Enum.map(fn entry ->
         entry
-        |> Map.take([:external_id, :title, :media_url, :video_id, :published_at])
+        |> Map.take([:external_id | @replaced_entry_fields ++ @kept_entry_fields])
         |> Map.merge(%{feed_id: feed_id, inserted_at: now, updated_at: now})
         |> Map.update(:published_at, nil, &microseconds/1)
       end)
 
     Repo.insert_all(Entry, rows,
-      on_conflict: {:replace, [:title, :media_url, :video_id, :published_at, :updated_at]},
+      on_conflict: keep_content(),
       conflict_target: [:feed_id, :external_id]
+    )
+  end
+
+  # What identifies and locates an episode is replaced outright, because a feed that moves its
+  # audio has moved it. Artwork, runtime and notes are not: a poll that leaves them out is a poll
+  # that said nothing about them, and a show that trims one document should not strip every
+  # episode it ever published. The same rule the feed's own picture follows.
+  defp keep_content do
+    from(e in Entry,
+      update: [
+        set: [
+          title: fragment("EXCLUDED.title"),
+          media_url: fragment("EXCLUDED.media_url"),
+          video_id: fragment("EXCLUDED.video_id"),
+          published_at: fragment("EXCLUDED.published_at"),
+          image_url: fragment("COALESCE(EXCLUDED.image_url, ?)", e.image_url),
+          duration: fragment("COALESCE(EXCLUDED.duration, ?)", e.duration),
+          description: fragment("COALESCE(EXCLUDED.description, ?)", e.description),
+          description_format:
+            fragment("COALESCE(EXCLUDED.description_format, ?)", e.description_format),
+          excerpt: fragment("COALESCE(EXCLUDED.excerpt, ?)", e.excerpt),
+          updated_at: fragment("EXCLUDED.updated_at")
+        ]
+      ]
     )
   end
 

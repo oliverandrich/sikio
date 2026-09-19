@@ -122,4 +122,58 @@ defmodule Sikio.FeedsTest do
     <enclosure url="https://audio.example.org/1.mp3" type="audio/mpeg" length="12" /></item>
     """
   end
+
+  test "artwork, runtime and notes reach the stored rows" do
+    assert {:ok, feed} = Feeds.store(preview())
+    assert feed.icon_url == "https://img.example.org/show.jpg"
+
+    entry = Repo.one(Entry)
+    assert entry.image_url == "https://img.example.org/1.jpg"
+    assert entry.duration == 3723
+    assert entry.description =~ "<a href=\"https://example.org\">link</a>"
+    assert entry.excerpt == "Notes with a link."
+  end
+
+  # A library imported before these columns existed has rows without them. The next poll carries
+  # what the publisher sends, so the backfill costs nothing beyond waiting for it.
+  test "a later poll fills in what an earlier import could not store" do
+    {:ok, feed} = Feeds.store(preview())
+    Repo.update_all(Entry, set: [image_url: nil, duration: nil, description: nil, excerpt: nil])
+    Repo.update_all(Feed, set: [icon_url: nil])
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
+    assert {:ok, refreshed} = Feeds.refresh(feed.id)
+
+    assert refreshed.icon_url == "https://img.example.org/show.jpg"
+    assert Repo.one(Entry).duration == 3723
+  end
+
+  # Graphemes are not codepoints. Three hundred family emoji are three hundred characters to
+  # Elixir and two thousand one hundred to Postgres, which refused them and took the import down.
+  test "an excerpt of emoji is stored rather than refused by its column" do
+    notes = String.duplicate("\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}", 300)
+
+    body =
+      String.replace(
+        podcast(),
+        ~r|<content:encoded>.*?</content:encoded>|s,
+        "<content:encoded><![CDATA[<p>#{notes}</p>]]></content:encoded>"
+      )
+
+    assert {:ok, _feed} = Feeds.store(preview(body))
+    assert Repo.one(Entry).excerpt != nil
+  end
+
+  # The feed keeps its picture when a poll carries none. The entries did the opposite and wiped
+  # artwork and notes off every episode of a show that left them out once.
+  test "a poll that omits artwork and notes keeps what was stored" do
+    {:ok, _feed} = Feeds.store(preview())
+
+    assert {:ok, _feed} = Feeds.store(preview(thin_podcast()))
+
+    entry = Repo.one(Entry)
+    assert entry.image_url == "https://img.example.org/1.jpg"
+    assert entry.duration == 3723
+    assert entry.excerpt == "Notes with a link."
+  end
 end
