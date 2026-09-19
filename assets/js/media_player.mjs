@@ -1,5 +1,5 @@
 // One request at a time; keep the newest sample while a save is in flight.
-export function createReporter({session, read, send, stop, message, now = Date.now}) {
+export function createReporter({session, read, send, stop, message, strings, now = Date.now}) {
   let sequence = 0, inFlight = null, pending = null, lastSave = -Infinity
   let connected = true, closed = false, completed = false
   let finishDone = null
@@ -21,11 +21,11 @@ export function createReporter({session, read, send, stop, message, now = Date.n
       if (!reply.saved) {
         closed = true
         stop()
-        message("Your progress changed elsewhere. Press Play to continue here.")
+        message(strings.stale)
         finishResult(false)
         return
       }
-      message("Saved in Sikio.")
+      message(strings.saved)
       flush()
       if (inFlight === null && !pending) finishResult(true)
     })
@@ -47,7 +47,7 @@ export function createReporter({session, read, send, stop, message, now = Date.n
       connected = false
       inFlight = null
       stop()
-      message("Connection lost. Playback paused; your latest position will save when reconnected.")
+      message(strings.disconnected)
       finishResult(false)
     },
     reconnect() {
@@ -59,7 +59,7 @@ export function createReporter({session, read, send, stop, message, now = Date.n
       if (closed) return done(true)
       stop()
       if (!connected) {
-        message("Reconnect before switching or closing, so your place can be saved.")
+        message(strings.reconnectFirst)
         return done(false)
       }
       finishDone = done
@@ -71,7 +71,7 @@ export function createReporter({session, read, send, stop, message, now = Date.n
 }
 
 let youtubeAPI
-function loadYouTube() {
+function loadYouTube(unavailable) {
   if (window.YT?.Player) return Promise.resolve(window.YT)
   if (youtubeAPI) return youtubeAPI
   youtubeAPI = new Promise((resolve, reject) => {
@@ -81,7 +81,7 @@ function loadYouTube() {
       clearTimeout(timeout)
       script.remove()
       youtubeAPI = null
-      reject(new Error("YouTube could not be loaded. Check your connection or content blocker."))
+      reject(new Error(unavailable))
     }
     window.onYouTubeIframeAPIReady = () => {clearTimeout(timeout); resolve(window.YT)}
     script.src = "https://www.youtube.com/iframe_api"
@@ -94,6 +94,9 @@ function loadYouTube() {
 
 export const MediaPlayer = {
   mounted() {
+    // Every sentence this hook can show is rendered by the server, so the player speaks the
+    // language the rest of the page speaks. Nothing here holds a second copy of the wording.
+    this.strings = {...this.el.dataset}
     this.cleanups = []
     this.closed = false
     this.ready = false
@@ -116,7 +119,7 @@ export const MediaPlayer = {
           : {position: this.youtube.getCurrentTime(), duration: this.youtube.getDuration()}
       },
       send: (sample, reply) => this.pushEvent("progress", sample, reply),
-      stop: this.stop, message: this.message})
+      stop: this.stop, message: this.message, strings: this.strings})
     this.listen(this.el, "sikio:flush", event => this.reporter.finish(event.detail.done))
     this.listen(document, "visibilitychange", () => {
       if (document.hidden) this.reporter.save(false, true)
@@ -132,8 +135,8 @@ export const MediaPlayer = {
       const position = Number(this.el.dataset.position)
       audio.currentTime = Number.isFinite(audio.duration) ? Math.min(position, audio.duration) : position
       this.ready = true
-      this.message("Ready. Your place is saved as you listen.")
-      audio.play().catch(() => this.message("Ready. Press play in the audio controls."))
+      this.message(this.strings.readyAudio)
+      audio.play().catch(() => this.message(this.strings.readyAudioManual))
     }
     this.listen(audio, "loadedmetadata", restore)
     this.listen(audio, "timeupdate", () => this.reporter.save())
@@ -141,7 +144,7 @@ export const MediaPlayer = {
       this.listen(audio, event, () => this.reporter.save(false, true))
     }
     this.listen(audio, "ended", () => this.reporter.save(true, true))
-    this.listen(audio, "error", () => this.message("This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."))
+    this.listen(audio, "error", () => this.message(this.strings.audioFailed))
     const speed = this.el.querySelector("#playback-speed")
     this.listen(speed, "change", () => {audio.playbackRate = Number(speed.value)})
     if (audio.readyState >= 1) restore()
@@ -149,13 +152,13 @@ export const MediaPlayer = {
 
   async mountYouTube() {
     try {
-      const YT = await loadYouTube()
+      const YT = await loadYouTube(this.strings.youtubeUnavailable)
       if (this.closed) return
       this.youtube = new YT.Player(this.el.querySelector("iframe"), {events: {
         onReady: () => {
           if (this.closed) return
           this.ready = true
-          this.message("Ready. Press play in the YouTube player.")
+          this.message(this.strings.readyYoutube)
           let previousPosition = this.youtube.getCurrentTime()
           this.poll = setInterval(() => {
             const state = this.youtube.getPlayerState()
@@ -172,12 +175,12 @@ export const MediaPlayer = {
         },
         onError: event => {
           const errors = {
-            100: "This video is private or has been removed.",
-            101: "This video cannot be embedded. You can open it on YouTube.",
-            150: "This video cannot be embedded. You can open it on YouTube.",
-            153: "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
+            100: this.strings.youtubeMissing,
+            101: this.strings.youtubeBlocked,
+            150: this.strings.youtubeBlocked,
+            153: this.strings.youtubeOrigin
           }
-          this.message(errors[event.data] || "YouTube cannot play this video. Try opening it on YouTube.")
+          this.message(errors[event.data] || this.strings.youtubeUnplayable)
         }
       }})
     } catch (error) {

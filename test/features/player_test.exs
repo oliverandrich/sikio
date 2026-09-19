@@ -7,7 +7,8 @@ defmodule SikioWeb.PlayerTest do
   what the page looks like once it is compacted. Those are the properties the dock exists for.
 
   The audio itself never loads here, because nothing serves it. That is deliberate: what is being
-  checked is the element and the page around it, not somebody else's media server.
+  checked is that the element is never replaced, not somebody else's media server. Whether sound
+  keeps coming out of a real speaker is a question for a real device, and it has its own bean.
   """
   use SikioWeb.FeatureCase
 
@@ -33,7 +34,7 @@ defmodule SikioWeb.PlayerTest do
     %{account: account, entry: entry}
   end
 
-  feature "an episode keeps playing while the pages around it change", context do
+  feature "the audio element itself survives navigating between pages", context do
     %{session: session, account: account, entry: entry} = context
 
     session
@@ -42,18 +43,12 @@ defmodule SikioWeb.PlayerTest do
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel", text: entry.title))
     |> assert_has(css("#player-panel audio"))
-
-    # The element that holds the media, identified before and after navigating. If the dock were
-    # inside the navigated view, this would be a different element afterwards, and a different
-    # element means the media started over.
-    playing = player_element_id(session)
-
-    session
+    |> mark_player()
     |> click(css("#subscriptions-link"))
     |> assert_has(css("h1", text: "Make room"))
     |> assert_has(css("#player-panel audio"))
+    |> assert_same_player()
 
-    assert player_element_id(session) == playing
     assert Library.entry(account, entry.id).playback.session_id
   end
 
@@ -64,10 +59,7 @@ defmodule SikioWeb.PlayerTest do
     |> open("/library/#{entry.id}")
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel audio"))
-
-    playing = player_element_id(session)
-
-    session
+    |> mark_player()
     |> click(css("#compact-player"))
     |> assert_has(css("#compact-player[aria-pressed='true']"))
     |> assert_has(css("#player-panel audio"))
@@ -75,8 +67,7 @@ defmodule SikioWeb.PlayerTest do
       "return getComputedStyle(document.querySelector('#player-panel .player-speed')).display",
       fn display -> assert display == "none" end
     )
-
-    assert player_element_id(session) == playing
+    |> assert_same_player()
   end
 
   feature "closing the player gives the page its scroll room back", context do
@@ -96,6 +87,21 @@ defmodule SikioWeb.PlayerTest do
     refute_has(session, css("#player-panel"))
   end
 
+  # A property, not an attribute. An attribute belongs to the markup, so an element rebuilt from
+  # the same template would carry it again and prove nothing. A property lives on the DOM node and
+  # cannot survive that node being replaced, which is the difference between the same-looking
+  # element and the same element.
+  defp mark_player(session),
+    do: execute_script(session, "document.querySelector('#player-panel audio').sikioKept = true")
+
+  defp assert_same_player(session) do
+    execute_script(
+      session,
+      "return document.querySelector('#player-panel audio').sikioKept === true",
+      fn kept -> assert kept, "the audio element was replaced" end
+    )
+  end
+
   defp settled(session) do
     result = execute_script(session, padding(), fn value -> Process.put(:padding, value) end)
 
@@ -107,10 +113,4 @@ defmodule SikioWeb.PlayerTest do
 
   defp padding,
     do: "return getComputedStyle(document.querySelector('#page-content')).paddingBottom"
-
-  defp player_element_id(session) do
-    session
-    |> find(css("#player-panel [phx-hook='MediaPlayer']"))
-    |> Element.attr("id")
-  end
 end

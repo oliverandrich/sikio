@@ -939,12 +939,12 @@ msgstr "Das Audio kommt direkt vom Anbieter des Podcasts. Deine Position wird in
 msgid "Clear filters"
 msgstr "Filter zurücksetzen"
 
-#: lib/sikio_web/live/player_dock_live.ex:193
+#: lib/sikio_web/live/player_dock_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Close player"
 msgstr "Player schließen"
 
-#: lib/sikio_web/live/player_dock_live.ex:184
+#: lib/sikio_web/live/player_dock_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Compact player"
 msgstr "Player verkleinern"
@@ -954,7 +954,7 @@ msgstr "Player verkleinern"
 msgid "Completed"
 msgstr "Abgeschlossen"
 
-#: lib/sikio_web/live/player_dock_live.ex:184
+#: lib/sikio_web/live/player_dock_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Expand player"
 msgstr "Player vergrößern"
@@ -986,7 +986,7 @@ msgstr "Mediathek"
 msgid "Listened"
 msgstr "Gehört"
 
-#: lib/sikio_web/live/player_dock_live.ex:253
+#: lib/sikio_web/live/player_dock_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "Loading player…"
 msgstr "Player wird geladen…"
@@ -1032,7 +1032,7 @@ msgstr "Neu"
 msgid "No items match this view. Try another filter, or wait for new episodes."
 msgstr "Zu dieser Ansicht passt nichts. Versuche einen anderen Filter oder warte auf neue Folgen."
 
-#: lib/sikio_web/live/player_dock_live.ex:158
+#: lib/sikio_web/live/player_dock_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "Now playing"
 msgstr "Läuft gerade"
@@ -1092,7 +1092,7 @@ msgstr "Quelle"
 msgid "Space for something good."
 msgstr "Platz für etwas Gutes."
 
-#: lib/sikio_web/live/player_dock_live.ex:228
+#: lib/sikio_web/live/player_dock_live.ex:263
 #, elixir-autogen, elixir-format
 msgid "Speed"
 msgstr "Geschwindigkeit"
@@ -1113,12 +1113,12 @@ msgid "The personal library of %{username}"
 msgstr "Die persönliche Mediathek von %{username}"
 
 #: lib/sikio_web/live/library_live.ex:52
-#: lib/sikio_web/live/player_dock_live.ex:101
+#: lib/sikio_web/live/player_dock_live.ex:105
 #, elixir-autogen, elixir-format
 msgid "This item is no longer in your library."
 msgstr "Dieser Eintrag ist nicht mehr in deiner Mediathek."
 
-#: lib/sikio_web/live/player_dock_live.ex:82
+#: lib/sikio_web/live/player_dock_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "This source is no longer in your library."
 msgstr "Diese Quelle ist nicht mehr in deiner Mediathek."
@@ -1143,7 +1143,7 @@ msgstr "Gesehen"
 msgid "YouTube video"
 msgstr "YouTube-Video"
 
-#: lib/sikio_web/live/player_dock_live.ex:128
+#: lib/sikio_web/live/player_dock_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Your progress changed in another player or was marked manually. Open the episode to continue here."
 msgstr "Dein Fortschritt hat sich in einem anderen Player geändert oder wurde von Hand gesetzt. Öffne die Folge, um hier weiterzuhören."
@@ -1162,3 +1162,68 @@ msgstr "Deine Zeit."
 #, elixir-autogen, elixir-format
 msgid "← Your library"
 msgstr "← Deine Mediathek"
+
+#: lib/sikio_web/live/player_dock_live.ex:222
+#, elixir-autogen, elixir-format
+msgid "Connection lost. Playback paused; your latest position will save when reconnected."
+msgstr "Verbindung verloren. Die Wiedergabe pausiert; deine letzte Position wird gespeichert, sobald die Verbindung zurück ist."
+
+#: lib/sikio_web/live/player_dock_live.ex:236
+#, elixir-autogen, elixir-format
+msgid "Ready. Press play in the YouTube player."
+msgstr "Bereit. Drücke Abspielen im YouTube-Player."
+
+#: lib/sikio_web/live/player_dock_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "Ready. Press play in the audio controls."
+msgstr "Bereit. Drücke Abspielen in der Audiosteuerung."
+
+#: lib/sikio_web/live/player_dock_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Ready. Your place is saved as you listen."
+msgstr "Bereit. Deine Position wird beim Hören gespeichert."
+
+#: lib/sikio_web/live/player_dock_live.ex:227
+#, elixir-autogen, elixir-format
+msgid "Reconnect before switching or closing, so your place can be saved."
+msgstr "Stelle die Verbindung wieder her, bevor du wechselst oder schließt, damit deine Position gespeichert werden kann."
+
+#: lib/sikio_web/live/player_dock_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "Saved in Sikio."
+msgstr "In Sikio gespeichert."
+
+#: lib/sikio_web/live/player_dock_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
+msgstr "Dieses Audio konnte nicht geladen werden. Der Anbieter ist eventuell nicht erreichbar oder das Format wird nicht unterstützt. Versuche es später erneut."
+
+#: lib/sikio_web/live/player_dock_live.ex:241
+#, elixir-autogen, elixir-format
+msgid "This video cannot be embedded. You can open it on YouTube."
+msgstr "Dieses Video lässt sich nicht einbetten. Du kannst es auf YouTube öffnen."
+
+#: lib/sikio_web/live/player_dock_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "This video is private or has been removed."
+msgstr "Dieses Video ist privat oder wurde entfernt."
+
+#: lib/sikio_web/live/player_dock_live.ex:248
+#, elixir-autogen, elixir-format
+msgid "YouTube cannot play this video. Try opening it on YouTube."
+msgstr "YouTube kann dieses Video nicht abspielen. Versuche, es auf YouTube zu öffnen."
+
+#: lib/sikio_web/live/player_dock_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "YouTube could not be loaded. Check your connection or content blocker."
+msgstr "YouTube konnte nicht geladen werden. Prüfe deine Verbindung oder deinen Inhaltsblocker."
+
+#: lib/sikio_web/live/player_dock_live.ex:243
+#, elixir-autogen, elixir-format
+msgid "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
+msgstr "YouTube konnte diese Seite nicht zuordnen. Prüfe die Datenschutzeinstellungen des Browsers oder öffne es auf YouTube."
+
+#: lib/sikio_web/live/player_dock_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "Your progress changed elsewhere. Press Play to continue here."
+msgstr "Dein Fortschritt hat sich anderswo geändert. Drücke Abspielen, um hier weiterzuhören."

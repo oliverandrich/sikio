@@ -18,7 +18,11 @@ defmodule SikioWeb.PlayerDockLive do
   alias Sikio.Library.Events
   alias Sikio.Playback
 
+  # Both hooks by hand, because rendering from the root layout means belonging to no live_session
+  # and inheriting nothing from one. Without the second, this dock answers a German session in
+  # English while the page around it is translated.
   on_mount {Ithibati.Web.Gate, {:require_account, to: "/login"}}
+  on_mount {SikioWeb.Locale, :set}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -212,6 +216,37 @@ defmodule SikioWeb.PlayerDockLive do
           data-kind={@entry.feed.kind}
           data-session={@player.session_id}
           data-position={@player.position}
+          data-stale={gettext("Your progress changed elsewhere. Press Play to continue here.")}
+          data-saved={gettext("Saved in Sikio.")}
+          data-disconnected={
+            gettext(
+              "Connection lost. Playback paused; your latest position will save when reconnected."
+            )
+          }
+          data-reconnect-first={
+            gettext("Reconnect before switching or closing, so your place can be saved.")
+          }
+          data-ready-audio={gettext("Ready. Your place is saved as you listen.")}
+          data-ready-audio-manual={gettext("Ready. Press play in the audio controls.")}
+          data-audio-failed={
+            gettext(
+              "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
+            )
+          }
+          data-ready-youtube={gettext("Ready. Press play in the YouTube player.")}
+          data-youtube-unavailable={
+            gettext("YouTube could not be loaded. Check your connection or content blocker.")
+          }
+          data-youtube-missing={gettext("This video is private or has been removed.")}
+          data-youtube-blocked={gettext("This video cannot be embedded. You can open it on YouTube.")}
+          data-youtube-origin={
+            gettext(
+              "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
+            )
+          }
+          data-youtube-unplayable={
+            gettext("YouTube cannot play this video. Try opening it on YouTube.")
+          }
         >
           <audio
             :if={@entry.feed.kind == :podcast}

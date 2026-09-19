@@ -2,11 +2,29 @@ import {test} from "node:test"
 import assert from "node:assert/strict"
 import {createReporter, MediaPlayer} from "./media_player.mjs"
 
+// The wording the server renders into the element's dataset. The tests assert on these, because
+// what the player says is what somebody reads when playback stops.
+const STRINGS = {
+  stale: "Your progress changed elsewhere. Press Play to continue here.",
+  saved: "Saved in Sikio.",
+  disconnected: "Connection lost. Playback paused; your latest position will save when reconnected.",
+  reconnectFirst: "Reconnect before switching or closing, so your place can be saved.",
+  readyAudio: "Ready. Your place is saved as you listen.",
+  readyAudioManual: "Ready. Press play in the audio controls.",
+  audioFailed: "This audio could not be loaded.",
+  readyYoutube: "Ready. Press play in the YouTube player.",
+  youtubeUnavailable: "YouTube could not be loaded.",
+  youtubeMissing: "This video is private or has been removed.",
+  youtubeBlocked: "This video cannot be embedded. You can open it on YouTube.",
+  youtubeOrigin: "YouTube could not identify this site.",
+  youtubeUnplayable: "YouTube cannot play this video."
+}
+
 function reporterFixture() {
   const calls = []
   let time = 10_000, position = 12, stopped = false, message = ""
   const reporter = createReporter({
-    session: "session-1", now: () => time,
+    session: "session-1", now: () => time, strings: STRINGS,
     read: () => ({position, duration: 100}),
     send: (sample, reply) => calls.push({sample, reply}),
     stop: () => { stopped = true }, message: value => { message = value }
@@ -67,7 +85,7 @@ test("unknown live duration is omitted and invalid positions are not persisted",
   const calls = []
   let position = NaN
   const reporter = createReporter({session: "live", read: () => ({position, duration: Infinity}),
-    send: sample => calls.push(sample), stop() {}, message() {}})
+    send: sample => calls.push(sample), stop() {}, message() {}, strings: STRINGS})
   reporter.save(false, true)
   assert.equal(calls.length, 0)
   position = 25
@@ -88,7 +106,7 @@ test("audio restores after metadata, offers speed control, saves end and cleans 
   const previousDocument = globalThis.document
   globalThis.document = doc
   const samples = []
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "podcast", session: "abc", position: "42"},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "podcast", session: "abc", position: "42", ...STRINGS},
     querySelector: selector => ({audio, "#playback-speed": speed, "[data-player-message]": message}[selector])}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
   try {
@@ -136,7 +154,7 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     destroy() {destroyed = true}
   }}}
   globalThis.setInterval = callback => {poll = callback; return 0}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "youtube", session: "video", position: "0"},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "youtube", session: "video", position: "0", ...STRINGS},
     querySelector: selector => selector === "[data-player-message]" ? message : selector === "iframe" ? {} : null}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
   try {

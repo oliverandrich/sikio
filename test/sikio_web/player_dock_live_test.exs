@@ -46,6 +46,17 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert Floki.find(Floki.parse_document!(html), "#player-dock") == []
   end
 
+  # The dock renders from the root layout, so it belongs to no live_session and inherits no hook
+  # from one. Without its own it answers a German session in English.
+  test "the dock speaks the language the session asked for", c do
+    conn = Plug.Conn.put_session(c.conn, "locale", "de")
+    {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+
+    assert has_element?(dock, "#compact-player[aria-label='Player verkleinern']")
+    assert has_element?(dock, "label", "Geschwindigkeit")
+  end
+
   test "one active player saves and closes without losing progress", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
