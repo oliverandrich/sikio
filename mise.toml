@@ -1,0 +1,40 @@
+[tools]
+elixir = "1.20.4-otp-29"
+erlang = "29.0.6"
+zizmor = "1.30.0"
+
+[tasks.setup]
+description = "Install dependencies, create the development database and build assets"
+run = "mix setup"
+
+[tasks.dev]
+run = "mix phx.server"
+
+[tasks.debugserver]
+raw = true
+run = "iex -S mix phx.server"
+
+[tasks.check]
+env.MIX_ENV = "test"
+description = "Check workflows, compile, format, lint, security, assets and tests"
+run = ["zizmor .github/", "mix precommit"]
+
+[tasks.test]
+env.MIX_ENV = "test"
+run = "mix test"
+
+[tasks.format]
+run = "mix format"
+
+[tasks.credo]
+run = ["mix compile --warnings-as-errors", "mix credo --strict"]
+
+[tasks.audit]
+description = "Audit dependency advisories and retired packages separately"
+run = ["mix deps.audit", "mix hex.audit"]
+
+[tasks.migrate]
+run = "mix ecto.migrate"
+
+[tasks.beans]
+run = "beans list --no-status completed --no-status scrapped"
