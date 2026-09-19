@@ -64,17 +64,19 @@ then start its `bin/server`. Check `/health` and application access. Keep the ol
 release until the update is verified. Returning to it is safe only if it supports
 the resulting database schema; replacing application files does not undo migrations.
 
-## Local verification
+
+## Migration rollback
+
+For an explicitly reviewed rollback, replace the example version below with the
+oldest migration version to undo (the boundary version is also rolled back):
 
 ```sh
-mise run check
-mise run release
-# Set PGHOST/PGPORT/PGUSER/PGPASSWORD for a local test server with CREATEDB rights:
-mise exec -- elixir scripts/smoke_release.exs
+bin/sikio eval 'Sikio.Release.rollback(Sikio.Repo, 20260918000000)'
 ```
 
-The smoke test checks that the package contains no backup operations, applies
-migrations twice to its own randomly named disposable database, checks the schema,
-and starts the release over HTTP on a free loopback port. It removes only that
-database afterward. It needs the build machine's Elixir and PostgreSQL client tools;
-these test tools are not runtime dependencies of the application.
+
+## Background work
+
+Oban runs on the application's own database, so no separate broker is needed. The `feeds`
+queue refreshes sources every 15 minutes and `maintenance` runs `Sikio.AuthCleanup`, which
+expires sessions, abandoned challenges and unaccepted invitations.
