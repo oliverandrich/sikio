@@ -1,7 +1,7 @@
 # Generated source notices
 
 The starter templates use the MIT license. Authentication sources, when included,
-derive from Ithibati 0.3.0; Phoenix conventions derive from Phoenix 1.8.14.
+derive from Ithibati 0.4.0; Phoenix conventions derive from Phoenix 1.8.14.
 These notices apply to the supplied sources, not to unrelated application code.
 
 ## Ithibati Starter

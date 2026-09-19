@@ -41,6 +41,10 @@ Production uses `DATABASE_URL` and `SECRET_KEY_BASE`; see the release section be
 | `mise run audit` | Dependency advisories and retired Hex packages |
 | `mise run migrate` | Explicit development migrations |
 | `mise run debugserver` | IEx Phoenix server |
+| `mise run release` | A production release for this OS and architecture |
+
+`mise run check` and `mise run test` also run the player's JavaScript tests through node's
+own runner over `assets/js/*.test.mjs`. No npm package is installed for them.
 
 Keep migration history unchanged. Credo scans source, tests and all migrations;
 Jump inspects inline HEEx and files reached through embed_templates. ExSlop and
@@ -50,6 +54,21 @@ Tailwind/esbuild are Mix-managed; Node is unnecessary.
 Use Lucide components directly, for example `<Lucideicons.chevron_down class="size-4" aria-hidden="true" />`.
 Decorative icons are hidden from assistive technology; label icon-only buttons.
 The `lucide_icons` dependency supplies SVG components without a Tailwind icon plugin. The UI helpers use the CSP's inline-script/style allowances.
+
+## Background work
+
+Oban runs on the application's own database, so no separate broker is needed. The `feeds`
+queue refreshes sources every 15 minutes and `maintenance` runs `Sikio.AuthCleanup`, which
+expires sessions, abandoned challenges and unaccepted invitations. Tests set
+`testing: :manual`, so a job runs only in the test that is about it.
+
+## Operations
+
+`mise run release` builds a native release and copies the backup and restore scripts into
+`ops/` beside `bin/`, because a deployed instance has no checkout to run them from.
+[docs/operations.md](docs/operations.md) covers both the native and the container path, and
+[docs/backups.md](docs/backups.md) covers encrypted backups with retention and restore checks.
+Both documents state which parts have been verified in this repository and which have not.
 
 Read AGENTS.md for TDD and commit review rules. Generated code belongs to this
 application. Re-running the same starter/profile does nothing; it does not upgrade
