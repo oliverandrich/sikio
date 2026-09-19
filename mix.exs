@@ -5,6 +5,7 @@ defmodule Sikio.MixProject do
     [
       app: :sikio,
       version: "0.1.0",
+      releases: [sikio: [steps: [:assemble, &copy_operations/1]]],
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -25,6 +26,31 @@ defmodule Sikio.MixProject do
     ]
   end
 
+  # The backup and restore scripts have to travel with the release, because a deployed instance has
+  # no checkout to run them from. They land under `ops/` beside `bin/`.
+  defp copy_operations(release) do
+    destination = Path.join(release.path, "ops")
+    File.rm_rf!(destination)
+    File.mkdir_p!(destination)
+
+    for name <- ~w(backup restore backup_runner backup_runner.exs) do
+      File.cp!(Path.join("scripts", name), Path.join(destination, name))
+    end
+
+    File.mkdir_p!(Path.join(destination, "operations"))
+
+    for name <- ~w(backup_runner.exs support.exs) do
+      File.cp!(
+        Path.join("scripts/operations", name),
+        Path.join([destination, "operations", name])
+      )
+    end
+
+    File.cp_r!("deploy/systemd", Path.join(destination, "systemd"))
+    File.cp!("deploy/backup.env.example", Path.join(destination, "backup.env.example"))
+    release
+  end
+
   def cli do
     [
       preferred_envs: [precommit: :test]
@@ -42,6 +68,10 @@ defmodule Sikio.MixProject do
     [
       {:wallaby, "~> 0.31.0", only: :test, runtime: false},
       {:ithibati, "== 0.4.0"},
+      {:oban, "~> 2.24"},
+      {:req, "~> 0.7.4"},
+      {:floki, "~> 0.38.4"},
+      {:saxy, "~> 1.6"},
       {:tidewave, "~> 0.9.0", only: :dev},
       {:mix_audit, "~> 2.1.5", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.15.0", only: [:dev, :test], runtime: false},
@@ -104,7 +134,10 @@ defmodule Sikio.MixProject do
         "format --check-formatted",
         "credo --strict",
         "xref graph --label compile-connected --fail-above 0",
-        "sobelow --exit",
+        # --skip honours the `sobelow_skip` attributes in the source. Each one names a single call
+        # and carries the reason above it, so an accepted false positive is reviewable in the diff
+        # rather than invisible in a configuration file.
+        "sobelow --exit --skip",
         "ecto.create --quiet",
         "ecto.migrate --quiet",
         "ithibati.doctor",

@@ -8,6 +8,16 @@ config :wallaby,
 
 config :sikio, sql_sandbox: true
 
+# Jobs are inserted and performed by the tests that are about them, never in the background of one
+# that is about something else.
+config :sikio, Oban, testing: :manual
+
+# No feed test uses real DNS or the network. Every request is answered by the stub its own test
+# installed, and a test that forgets to install one fails rather than reaching a stranger's server.
+config :sikio,
+  feed_resolver: &Sikio.FeedFixtures.resolve/1,
+  feed_http_plug: {Req.Test, Sikio.Feeds.HTTP}
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

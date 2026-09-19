@@ -14,6 +14,23 @@ config :ithibati,
   users_key_type: :id
 
 config :phoenix, filter_parameters: ["password", "secret", "token", "code", "credential"]
+
+# So an uploaded subscription list can be accepted by its own extension rather than only as XML.
+config :mime, :types, %{"text/x-opml" => ["opml"]}
+
+# Background work runs on the application's own database. The maintenance queue is separate from
+# the feed queue so a slow refresh cannot delay expiring a session.
+config :sikio, Oban,
+  repo: Sikio.Repo,
+  queues: [feeds: 3, maintenance: 1],
+  cron: [
+    crontab: [
+      {"*/15 * * * *", Sikio.Feeds.Scheduler},
+      {"*/15 * * * *", Sikio.Accounts.Cleanup}
+    ]
+  ],
+  pruner: [max_age: 86_400]
+
 config :sikio, SikioWeb.Gettext, default_locale: "en"
 
 config :sikio,

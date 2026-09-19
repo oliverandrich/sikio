@@ -13,8 +13,7 @@ defmodule Sikio.Application do
       Sikio.Repo,
       {DNSCluster, query: Application.get_env(:sikio, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Sikio.PubSub},
-      # Start a worker by calling: Sikio.Worker.start_link(arg)
-      # {Sikio.Worker, arg},
+      {Oban, Application.fetch_env!(:sikio, Oban)},
       # Start to serve requests, typically the last entry
       SikioWeb.Endpoint
     ]
