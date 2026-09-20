@@ -29,6 +29,7 @@ these variables in the environment used for both migration and startup:
 | `PORT` | Internal HTTP port, 4000 by default |
 | `POOL_SIZE` | Database connections, 10 by default |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
+| `TRUSTED_PROXIES` | Addresses that may forward a visitor's own; only needed for a proxy on another host |
 
 `SOURCE_URL` is what the footer links to, which AGPL §13 asks an operator to offer. Leave it
 unset to point at the upstream repository. A value that is not an absolute http or https URL
@@ -49,11 +50,19 @@ Migration does not create the database or start the HTTP server. Repeating it is
 safe once all migrations are applied. Startup never migrates automatically.
 `bin/server` enables Phoenix; when using `bin/sikio start`, set `PHX_SERVER=true`.
 
-The host or hosting provider manages process supervision and HTTPS. The reverse
-proxy must support WebSockets and set `X-Forwarded-Proto`; the public URL uses
-HTTPS on port 443. Expose only the proxy publicly. Configure edge rate limits for
-`/auth/*` as needed: the application's peer-address limits see the proxy when
-requests are proxied.
+The host manages process supervision and HTTPS. Caddy on the same machine is the
+tested shape: it terminates TLS, proxies to `PORT` on the loopback, and forwards
+the visitor's address. The proxy must support WebSockets and set
+`X-Forwarded-Proto`; the public URL uses HTTPS on port 443. Expose only the proxy
+publicly.
+
+Authentication limits count per visitor, taken from the forwarding header. That
+header is believed only on a connection from a trusted proxy. The loopback is
+trusted already, so a proxy on the same machine needs no configuration; one on
+another host is named in `TRUSTED_PROXIES`, comma separated. An address that is not
+an address stops the boot rather than being dropped quietly. Nothing forwarded is
+believed on a connection from anywhere else, so an instance exposed directly still
+counts the address it actually sees.
 
 `GET /health` checks HTTP liveness, not database readiness.
 

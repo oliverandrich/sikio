@@ -26,6 +26,20 @@ defmodule SikioWeb.SetupCodeTest do
   defp key_attrs,
     do: %{key_id: :crypto.strong_rand_bytes(16), public_key: :crypto.strong_rand_bytes(64)}
 
+  # An address of this test's own, private so `SikioWeb.ClientIp` leaves it as it finds it. The
+  # attempt counter is global and outlives a file: the browser suite spends the same default
+  # budget from the same loopback, so a test sharing it would be refused for what another file did.
+  defp own_peer do
+    n = System.unique_integer([:positive])
+    {10, n |> div(65_536) |> rem(256), n |> div(256) |> rem(256), rem(n, 256)}
+  end
+
+  defp exchange(conn, code, peer \\ nil) do
+    conn
+    |> Map.put(:remote_ip, peer || own_peer())
+    |> post(~p"/setup/code", %{"setup_code" => code})
+  end
+
   # The form is not the gate. Somebody who never loads it and posts straight at the ceremony has
   # to meet the same refusal, or the protection is decoration.
   test "a first-account challenge without a proof is refused", %{conn: conn} do
@@ -87,7 +101,7 @@ defmodule SikioWeb.SetupCodeTest do
     end
 
     test "asks for a name once the code has been spent", %{conn: conn, code: code} do
-      conn = post(conn, ~p"/setup/code", %{"setup_code" => code})
+      conn = exchange(conn, code)
       assert redirected_to(conn) == ~p"/setup"
 
       {:ok, _view, html} = live(conn, ~p"/setup")
@@ -98,7 +112,7 @@ defmodule SikioWeb.SetupCodeTest do
 
     # A wrong code and an invented one answer alike, and neither says which it was.
     test "a code it does not know changes nothing", %{conn: conn} do
-      conn = post(conn, ~p"/setup/code", %{"setup_code" => "not-the-code"})
+      conn = exchange(conn, "not-the-code")
 
       assert redirected_to(conn) == ~p"/setup"
       assert get_session(conn, :setup_authorization) == nil
@@ -112,12 +126,11 @@ defmodule SikioWeb.SetupCodeTest do
     test "too many attempts are refused with a wait, whatever the codes were", %{code: code} do
       TestConfig.put_env(:sikio, :auth_rate_limits, setup: {2, 60})
 
-      # Its own address, because the counter is global and every other test shares the default.
+      # One address for all three attempts, because what this asks is that they share a budget.
+      peer = own_peer()
+
       guessing = fn body ->
-        build_conn()
-        |> Map.put(:remote_ip, {198, 51, 100, 7})
-        |> Plug.Test.init_test_session(%{})
-        |> post(~p"/setup/code", %{"setup_code" => body})
+        build_conn() |> Plug.Test.init_test_session(%{}) |> exchange(body, peer)
       end
 
       guessing.("wrong-one")
@@ -143,14 +156,39 @@ defmodule SikioWeb.SetupCodeTest do
         rendered
         |> recycle()
         |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+        |> Map.put(:remote_ip, own_peer())
         |> post(~p"/setup/code", %{"setup_code" => code, "_csrf_token" => token})
 
       assert redirected_to(posted) == ~p"/setup"
       assert get_session(posted, :setup_authorization)
     end
 
+    # Behind a reverse proxy every request arrives from the same socket. Counting that would give
+    # one budget to everybody, and a stranger spending it would keep the operator out of their own
+    # instance. What is counted is the address the proxy forwarded.
+    test "two visitors behind one proxy do not spend each other's budget", %{code: code} do
+      TestConfig.put_env(:sikio, :auth_rate_limits, setup: {1, 60})
+
+      guessing = fn address, body ->
+        build_conn()
+        |> Plug.Conn.put_req_header("x-forwarded-for", address)
+        |> Plug.Test.init_test_session(%{})
+        |> post(~p"/setup/code", %{"setup_code" => body})
+      end
+
+      guessing.("203.0.113.7", "wrong-one")
+
+      assert [_wait] = guessing.("203.0.113.7", code) |> get_resp_header("retry-after")
+
+      # The other visitor never spent anything, so theirs is still there.
+      spent = guessing.("198.51.100.4", code)
+
+      assert get_resp_header(spent, "retry-after") == []
+      assert get_session(spent, :setup_authorization)
+    end
+
     test "the exchange is never cached", %{conn: conn, code: code} do
-      conn = post(conn, ~p"/setup/code", %{"setup_code" => code})
+      conn = exchange(conn, code)
 
       assert get_resp_header(conn, "cache-control") == ["no-store"]
     end

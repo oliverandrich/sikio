@@ -51,6 +51,10 @@ defmodule SikioWeb.Endpoint do
     param_key: "request_logger",
     cookie_key: "request_logger"
 
+  # Before the request id and the telemetry, so a log line names the visitor rather than the proxy
+  # that carried them.
+  plug SikioWeb.ClientIp
+
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 

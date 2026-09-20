@@ -45,11 +45,13 @@ message. Configure `:auth_rate_limits` on the application as
 seconds). A group the configured list omits keeps its default.
 
 The supervised in-memory counters are atomic and bounded to 10,000 keys per node;
-a restart resets them. They use `conn.remote_ip` and do not trust arbitrary
-`X-Forwarded-For` headers. Behind a reverse proxy, configure trusted proxy handling
-in the deployment or enforce client-IP limits at the edge. Multiple nodes require
-a shared edge limit for a cluster-wide budget. These defaults are not a distributed
-rate-limit service.
+a restart resets them. They count per visitor address, which `SikioWeb.ClientIp`
+resolves: behind a reverse proxy every request arrives from one socket, so the
+address comes from the forwarding header instead. That header is believed only on a
+connection from a trusted proxy, which is the loopback plus whatever
+`TRUSTED_PROXIES` names. Exposed directly, nothing forwarded is believed and the
+socket address stands. Multiple nodes require a shared edge limit for a cluster-wide
+budget. These defaults are not a distributed rate-limit service.
 
 The passkey settings page provides **Sign out on all devices**, including the
 current session. Ithibati revokes stored sessions and broadcasts disconnects to
