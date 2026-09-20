@@ -8,6 +8,7 @@ defmodule SikioWeb.OPMLLive do
   """
   use SikioWeb, :live_view
 
+  alias Sikio.Library
   alias Sikio.Library.OPML
 
   @impl true
@@ -66,7 +67,7 @@ defmodule SikioWeb.OPMLLive do
     else
       {:noreply,
        socket
-       |> assign(busy: true, error: nil)
+       |> assign(busy: true, error: nil, framed: Library.player_origins(account))
        |> start_async(:import, fn -> OPML.import_sources(account, sources) end)}
     end
   end
@@ -74,6 +75,7 @@ defmodule SikioWeb.OPMLLive do
   @impl true
   def handle_async(:import, {:ok, results}, socket) do
     counts = Enum.frequencies_by(results, & &1.status)
+    framed = socket.assigns.framed
 
     summary =
       gettext("%{imported} imported · %{existing} already subscribed · %{failed} failed",
@@ -82,8 +84,13 @@ defmodule SikioWeb.OPMLLive do
         failed: counts[:failed] || 0
       )
 
-    {:noreply,
-     socket |> assign(busy: false, pending: [], summary: summary) |> show_sources(results)}
+    socket = socket |> assign(busy: false, pending: [], summary: summary) |> show_sources(results)
+
+    # An instance imported here may now be played, and what may be framed is decided on a
+    # document. Moving inside a LiveView produces none, so this asks for one.
+    if Library.player_origins(socket.assigns.current_account) == framed,
+      do: {:noreply, socket},
+      else: {:noreply, redirect(socket, to: ~p"/subscriptions/import")}
   end
 
   def handle_async(:import, {:exit, _}, socket) do

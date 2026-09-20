@@ -62,6 +62,34 @@ defmodule Sikio.Library do
     )
   end
 
+  @doc """
+  The origins whose own players this account may be shown.
+
+  A PeerTube video is played by the instance that holds it, and there is no list of instances
+  to know in advance. What this account subscribed to is the list, so the policy that frames
+  them is derived from it rather than guessed at.
+  """
+  def player_origins(%User{id: user_id}) do
+    Repo.all(
+      from s in Subscription,
+        join: f in assoc(s, :feed),
+        where: s.user_id == ^user_id and f.kind == :peertube,
+        distinct: true,
+        select: f.url
+    )
+    |> Enum.map(&origin/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp origin(url) do
+    case URI.new(url) do
+      {:ok, %URI{scheme: scheme, host: host}} when is_binary(host) -> "#{scheme}://#{host}"
+      _ -> nil
+    end
+  end
+
   def entries(%User{id: user_id}, filters \\ %{}) do
     Repo.all(
       from e in filtered_entries(user_id, filters),

@@ -20,6 +20,16 @@ defmodule SikioWeb.HardeningTest do
     {init_test_session(build_conn(), get_session(conn)), Repo.get_by!(User, username: "ada")}
   end
 
+  defp peertube_preview(origin) do
+    %{
+      url: origin <> "/feeds/videos.xml",
+      title: "Good Instance Videos",
+      kind: :peertube,
+      icon_url: nil,
+      entries: []
+    }
+  end
+
   test "health is public, minimal and does not set a session", %{conn: conn} do
     conn = get(conn, "/health")
     assert json_response(conn, 200) == %{"status" => "ok"}
@@ -46,6 +56,30 @@ defmodule SikioWeb.HardeningTest do
     # Tighter than Phoenix's default, so no page tells a stranger's server which page linked to it.
     # The embed and the API script opt back in per element, and nothing else does.
     assert get_resp_header(conn, "referrer-policy") == ["no-referrer"]
+  end
+
+  # PeerTube is not one origin, it is as many as there are instances, and the operator cannot
+  # know them in advance. The policy is derived instead of guessed: it names the instances this
+  # account subscribed to and no others, so it stays as narrow as it was for YouTube.
+  test "the policy frames the instances this account subscribed to, and only those" do
+    {conn, account} = signed()
+    {:ok, _} = Sikio.Library.subscribe(account, peertube_preview("https://video.example.org"))
+
+    [policy] = conn |> get("/") |> get_resp_header("content-security-policy")
+
+    assert policy =~ "https://video.example.org"
+    assert policy =~ "https://www.youtube-nocookie.com"
+    refute policy =~ "https://other.example.org"
+  end
+
+  test "another account's instances are not framed by ours" do
+    {conn, _account} = signed()
+    stranger = Repo.insert!(User.changeset(%User{}, %{username: "grace"}))
+    {:ok, _} = Sikio.Library.subscribe(stranger, peertube_preview("https://other.example.org"))
+
+    [policy] = conn |> get("/") |> get_resp_header("content-security-policy")
+
+    refute policy =~ "https://other.example.org"
   end
 
   test "sensitive changes require a fresh confirmation" do

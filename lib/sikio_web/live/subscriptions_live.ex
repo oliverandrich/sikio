@@ -2,12 +2,18 @@ defmodule SikioWeb.SubscriptionsLive do
   @moduledoc """
   Turns a pasted link or a search into a source somebody can look at before subscribing.
 
+  An instance whose videos this account may now be shown has to reach the content security
+  policy before one of them is played, and that policy is written on a document. Subscribing to
+  one therefore asks for a page rather than patching this one.
+
   Nothing subscribes straight from an address. Discovery runs in the background, the result is
   shown with its title and how many items it carries, and only then is there a button. The
   candidates are held server-side under generated ids, so a forged id from the browser selects
   nothing.
   """
   use SikioWeb, :live_view
+
+  import SikioWeb.MediaComponents, only: [source_label: 1]
 
   alias Sikio.Feeds.Discovery
   alias Sikio.Library
@@ -105,14 +111,21 @@ defmodule SikioWeb.SubscriptionsLive do
   end
 
   defp subscribe(socket, preview) do
-    case Library.subscribe(socket.assigns.current_account, preview) do
+    account = socket.assigns.current_account
+    framed = Library.player_origins(account)
+
+    case Library.subscribe(account, preview) do
       {:ok, _} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, gettext("Subscribed to %{title}.", title: preview.title))
-         |> assign(candidates: %{}, searched: false)
-         |> stream(:sources, [], reset: true)
-         |> load_subscriptions()}
+        socket =
+          socket
+          |> put_flash(:info, gettext("Subscribed to %{title}.", title: preview.title))
+          |> assign(candidates: %{}, searched: false)
+          |> stream(:sources, [], reset: true)
+          |> load_subscriptions()
+
+        if Library.player_origins(account) == framed,
+          do: {:noreply, socket},
+          else: {:noreply, redirect(socket, to: ~p"/subscriptions")}
 
       {:error, _} ->
         {:noreply,
@@ -141,7 +154,10 @@ defmodule SikioWeb.SubscriptionsLive do
       )
 
   defp message(:not_found),
-    do: gettext("No podcast or YouTube feed found. Try the show's RSS URL or the channel's URL.")
+    do:
+      gettext(
+        "No podcast, YouTube or PeerTube feed found. Try the show's RSS URL or the channel's URL."
+      )
 
   defp message(:youtube_unavailable),
     do:
@@ -159,7 +175,7 @@ defmodule SikioWeb.SubscriptionsLive do
       )
 
   defp message(:invalid_feed),
-    do: gettext("This source is not a supported podcast or YouTube feed.")
+    do: gettext("This source is not a supported podcast, YouTube or PeerTube feed.")
 
   defp message(:too_large),
     do: gettext("This page or feed is too large to import. Try a direct feed URL.")
@@ -317,9 +333,7 @@ defmodule SikioWeb.SubscriptionsLive do
           >
             <div class="min-w-0 flex-1">
               <p class="text-xs font-medium text-teal-800 dark:text-teal-300">
-                {if subscription.feed.kind == :youtube,
-                  do: gettext("YouTube"),
-                  else: gettext("Podcast")} · {if subscription.paused,
+                {source_label(subscription.feed)} · {if subscription.paused,
                   do: gettext("Polling paused"),
                   else: gettext("Active")}
               </p>

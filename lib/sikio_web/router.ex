@@ -17,6 +17,10 @@ defmodule SikioWeb.Router do
     # Three openings, each one the player's. `media-src` because a podcast streams from whichever
     # server published it. `frame-src` and the extra `script-src` origin because the YouTube embed
     # and its IFrame API come from YouTube, and only after somebody has pressed play.
+    #
+    # A fourth cannot be written here. A PeerTube video is played by the instance that holds it,
+    # and any host may be one, so `SikioWeb.ContentSecurityPolicy` below adds the instances this
+    # account subscribed to. This is the policy every response carries before it does.
     plug :put_secure_browser_headers, %{
       "content-security-policy" =>
         "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' https:; frame-src 'self' https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
@@ -25,6 +29,8 @@ defmodule SikioWeb.Router do
 
     plug Ithibati.Web.Gate, :current_account
     plug SikioWeb.Locale
+    # After the gate, because what it may frame depends on who is asking.
+    plug SikioWeb.ContentSecurityPolicy
   end
 
   # Its own pipeline, not `:browser`. These endpoints answer JSON, and `:browser`'s

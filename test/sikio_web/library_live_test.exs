@@ -136,4 +136,15 @@ defmodule SikioWeb.LibraryLiveTest do
     refute page =~ "Audio streams directly from the podcast publisher"
     assert page =~ "video.example.org"
   end
+
+  test "a PeerTube source says what it is in the list of sources", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+    {:ok, _} = Library.subscribe(user, preview)
+
+    {:ok, _view, html} = live(conn, ~p"/subscriptions")
+
+    # The account also follows a podcast, so both words have to be there, each on its own source.
+    assert html =~ "PeerTube ·"
+    assert html =~ "Podcast ·"
+  end
 end
