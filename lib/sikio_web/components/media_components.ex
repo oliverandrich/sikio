@@ -7,6 +7,36 @@ defmodule SikioWeb.MediaComponents do
   """
   use Gettext, backend: SikioWeb.Gettext
 
+  @doc "Whether this is something somebody watches. Two of the three kinds are."
+  def video?(%{feed: %{kind: kind}}), do: kind in [:youtube, :peertube]
+
+  @doc "What a source is, in one word, for a list that shows all three kinds together."
+  def source_label(%{kind: :youtube}), do: gettext("YouTube")
+  def source_label(%{kind: :peertube}), do: gettext("PeerTube")
+  def source_label(%{kind: :podcast}), do: gettext("Podcast")
+
+  @doc """
+  What pressing play hands your connection to.
+
+  Each kind reaches a different stranger, and saying which is the point of the sentence.
+  """
+  def privacy_note(%{feed: %{kind: :youtube}}),
+    do:
+      gettext(
+        "Loads the YouTube player. YouTube receives your connection data when you press Play."
+      )
+
+  def privacy_note(%{feed: %{kind: :peertube}} = entry),
+    do:
+      gettext(
+        "Plays through %{host}, the instance holding this video. Your place is saved in Sikio.",
+        host: URI.parse(entry.embed_url || "").host || gettext("the instance")
+      )
+
+  def privacy_note(_entry),
+    do:
+      gettext("Audio streams directly from the podcast publisher. Your place is saved in Sikio.")
+
   def status(%{playback: nil}), do: :new
   def status(%{playback: state}), do: state.status
 
@@ -19,7 +49,7 @@ defmodule SikioWeb.MediaComponents do
         gettext("In progress")
 
       :completed ->
-        if entry.feed.kind == :youtube, do: gettext("Watched"), else: gettext("Listened")
+        if video?(entry), do: gettext("Watched"), else: gettext("Listened")
     end
   end
 
@@ -27,13 +57,14 @@ defmodule SikioWeb.MediaComponents do
   def play_label(%{playback: %{position: position}}) when position > 0, do: gettext("Resume")
   def play_label(_entry), do: gettext("Play")
 
-  def mark_done_label(%{feed: %{kind: :youtube}}), do: gettext("Mark as watched")
-  def mark_done_label(_entry), do: gettext("Mark as listened")
+  def mark_done_label(entry),
+    do: if(video?(entry), do: gettext("Mark as watched"), else: gettext("Mark as listened"))
 
-  def mark_new_label(%{feed: %{kind: :youtube}}), do: gettext("Mark as unwatched")
-  def mark_new_label(_entry), do: gettext("Mark as unlistened")
+  def mark_new_label(entry),
+    do: if(video?(entry), do: gettext("Mark as unwatched"), else: gettext("Mark as unlistened"))
 
   def kind_label(%{feed: %{kind: :youtube}}), do: gettext("YouTube video")
+  def kind_label(%{feed: %{kind: :peertube}}), do: gettext("PeerTube video")
   def kind_label(_entry), do: gettext("Podcast episode")
 
   def timestamp(seconds) do

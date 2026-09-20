@@ -116,4 +116,24 @@ defmodule SikioWeb.LibraryLiveTest do
     view |> element("#clear-filters") |> render_click()
     assert has_element?(view, "#entries article", "A good video")
   end
+
+  # A third kind arrived and the interface still asked whether something was YouTube. Everything
+  # that is not answered that way fell to the podcast side, so a PeerTube video was drawn with a
+  # microphone and described as audio from a publisher.
+  test "a PeerTube video is not dressed as a podcast", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+    {:ok, _} = Library.subscribe(user, preview)
+    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+
+    {:ok, view, _html} = live(conn, ~p"/")
+    row = element(view, "#entries-#{entry.id}") |> render()
+
+    assert row =~ "lucide-circle-play", "it is watched, so it carries the mark of a video"
+    refute row =~ "lucide-mic"
+
+    {:ok, _view, page} = live(conn, ~p"/library/#{entry.id}")
+    refute page =~ "YouTube receives your connection data"
+    refute page =~ "Audio streams directly from the podcast publisher"
+    assert page =~ "video.example.org"
+  end
 end

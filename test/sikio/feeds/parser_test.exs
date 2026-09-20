@@ -195,4 +195,64 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.description == "5 < 6 and counting"
     assert entry.excerpt == "5 < 6 and counting"
   end
+
+  # PeerTube declares the podcast namespace, which is what tells a show that has published
+  # nothing yet from a blog. Without a mark of its own, an instance would be subscribed to as a
+  # podcast with no episodes, because every video enclosure is refused as not being audio.
+  test "a PeerTube feed is not mistaken for a podcast that has published nothing" do
+    assert {:ok, feed} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+
+    assert feed.kind == :peertube
+    refute feed.entries == []
+  end
+
+  test "reads what a PeerTube item publishes" do
+    assert {:ok, feed} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+
+    assert feed.title == "Good Instance Videos"
+    assert feed.icon_url == "https://video.example.org/lazy-static/avatars/channel.jpg"
+
+    assert [entry] = feed.entries
+    assert entry.external_id == "https://video.example.org/w/mSh0rtUu1d"
+    assert entry.title == "A talk worth an hour"
+    assert entry.embed_url == "https://video.example.org/videos/embed/mSh0rtUu1d"
+    assert entry.image_url == "https://video.example.org/lazy-static/thumbnails/8b1f64dd.jpg"
+    assert entry.duration == 3600
+    assert entry.description_format == :html
+    assert entry.description =~ ~s(<a href="https://video.example.org/s">here</a>)
+  end
+
+  # An instance that has published nothing still declares who generated the feed.
+  test "an empty PeerTube feed is recognised by what generated it" do
+    body = String.replace(peertube(), ~r|<item>.*</item>|s, "")
+
+    assert {:ok, %{kind: :peertube, entries: []}} =
+             Parser.parse(body, "https://video.example.org/feeds/videos.xml")
+  end
+
+  # An href that is not there resolves to the document that does not carry it, because merging
+  # nothing against an address answers that address. An item with no embed is not playable, and
+  # an entry pointing at the feed it came from would have the dock frame the XML.
+  test "an item without an embed is refused rather than pointed at the feed" do
+    body = String.replace(peertube(), ~r|<media:embed[^>]*/>|, "")
+
+    assert {:ok, %{kind: :peertube, entries: []}} =
+             Parser.parse(body, "https://video.example.org/feeds/videos.xml")
+  end
+
+  # One video among audio does not make a show a video channel, and reading every episode with
+  # the wrong reader drops all of them.
+  test "a show that publishes one video is still a podcast" do
+    item = """
+    <item><guid>bonus</guid><title>A bonus clip</title>
+    <media:embed url="https://video.example.org/videos/embed/x" />
+    <enclosure url="https://video.example.org/x.mp4" type="video/mp4" /></item>
+    """
+
+    body = String.replace(podcast(), "</channel>", item <> "</channel>")
+
+    assert {:ok, feed} = Parser.parse(body, "https://example.org/rss")
+    assert feed.kind == :podcast
+    assert [%{media_url: "https://audio.example.org/1.mp3"}] = feed.entries
+  end
 end

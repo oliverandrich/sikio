@@ -18,7 +18,7 @@ defmodule Sikio.Feeds.Discovery do
       cond do
         uri.host in @youtube_hosts -> youtube(uri)
         uri.host in ["podcasts.apple.com", "itunes.apple.com"] -> apple_link(uri)
-        true -> webpage(URI.to_string(uri))
+        true -> webpage(uri)
       end
     end
   end
@@ -69,6 +69,118 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   defp first_header(response, name), do: response.headers |> Map.get(name, []) |> List.first()
+
+  # Any host may run PeerTube, so there is no list to check a name against. The instance states
+  # what it runs, and only that answer decides. A host that runs something else falls through to
+  # the ordinary search for a feed, which is what it deserves.
+  #
+  # This runs before the page is searched for links, and the reason is correctness. A PeerTube
+  # page does advertise feeds, but not the ones somebody means: a video page offers the feed of
+  # its own comments and the feed of the whole instance, and a channel page offers only its
+  # Podcasting 2.0 rendering. Searching the page first would subscribe somebody to a comment
+  # feed because they pasted a video.
+  #
+  # It runs after the address itself was tried as a feed, so a URL that already is one, from a
+  # directory or from somebody who knew it, costs nothing here.
+  defp peertube(url) when is_binary(url) do
+    case HTTP.normalize(url) do
+      {:ok, uri} -> peertube(uri)
+      _ -> nil
+    end
+  end
+
+  defp peertube(%URI{} = uri) do
+    if peertube?(uri) do
+      case peertube_feed(uri) do
+        {:ok, url} -> feed_only(url)
+        _ -> {:error, :not_found}
+      end
+    end
+  end
+
+  defp peertube?(uri) do
+    with {:ok, %{"links" => links}} <- json(origin(uri) <> "/.well-known/nodeinfo"),
+         href when is_binary(href) <- nodeinfo_href(links),
+         {:ok, %{host: host}} <- HTTP.normalize(href),
+         true <- host == uri.host,
+         {:ok, %{"software" => %{"name" => name}}} <- json(href) do
+      String.downcase(name) == "peertube"
+    else
+      _ -> false
+    end
+  end
+
+  # The document names several schema versions. Only the one this reads is followed, and only to
+  # the host that offered it, because a link in a stranger's document may name anywhere.
+  defp nodeinfo_href(links) when is_list(links) do
+    Enum.find_value(links, fn link ->
+      with %{"rel" => rel, "href" => href} <- link,
+           true <- String.ends_with?(rel, "/schema/2.0") do
+        href
+      else
+        _ -> nil
+      end
+    end)
+  end
+
+  defp nodeinfo_href(_links), do: nil
+
+  # The feed wants a numeric id, and a channel address carries a name. The instance's own API is
+  # what turns one into the other.
+  defp peertube_feed(uri) do
+    origin = origin(uri)
+
+    route(origin, String.split(uri.path || "", "/", trim: true))
+  end
+
+  # Each address an instance answers under, written as a person would copy it and as the
+  # application links to it.
+  defp route(origin, path) when path in [[], ["videos"]],
+    do: {:ok, origin <> "/feeds/videos.xml"}
+
+  defp route(origin, ["videos", "watch", id | _]), do: video_channel_feed(origin, id)
+  defp route(origin, ["w", id | _]), do: video_channel_feed(origin, id)
+
+  defp route(origin, [word, name | _]) when word in ["c", "video-channels"],
+    do: owner_feed(origin, "video-channels", "videoChannelId", name)
+
+  defp route(origin, [word, name | _]) when word in ["a", "accounts"],
+    do: owner_feed(origin, "accounts", "accountId", name)
+
+  defp route(_origin, _path), do: :error
+
+  # A channel and an account are the same shape under different words, and both are addressed
+  # twice: once as a person would write it and once as the application links to it.
+  defp owner_feed(origin, resource, param, name) do
+    case json("#{origin}/api/v1/#{resource}/#{URI.encode(name)}") do
+      {:ok, %{"id" => id}} when is_integer(id) ->
+        {:ok, "#{origin}/feeds/videos.xml?#{param}=#{id}"}
+
+      _ ->
+        :error
+    end
+  end
+
+  # A pasted video subscribes to the channel that published it, the same choice the YouTube path
+  # makes: what somebody wants is the source, not the one video they happened to open.
+  defp video_channel_feed(origin, id) do
+    case json(origin <> "/api/v1/videos/" <> URI.encode(id)) do
+      {:ok, %{"channel" => %{"id" => channel_id}}} when is_integer(channel_id) ->
+        {:ok, origin <> "/feeds/videos.xml?videoChannelId=" <> Integer.to_string(channel_id)}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp origin(%URI{scheme: scheme, host: host}), do: "#{scheme}://#{host}"
+
+  defp feed_only(url) do
+    case fetch(url) do
+      {:ok, feed} -> {:ok, [feed]}
+      other -> other
+    end
+  end
 
   defp youtube(uri) do
     parts = String.split(uri.path || "", "/", trim: true)
@@ -203,18 +315,30 @@ defmodule Sikio.Feeds.Discovery do
     end)
   end
 
-  defp webpage(url) do
-    case HTTP.get(url) do
+  defp webpage(uri) do
+    case HTTP.get(URI.to_string(uri)) do
       {:ok, %{status: 200} = response} -> webpage_response(response)
       {:error, reason} -> {:error, reason}
       _ -> {:error, :unavailable}
     end
   end
 
+  # Three answers in the order they cost. What already is a feed is one, whatever published it.
+  # What is not gets asked whether it runs PeerTube, because that answer names the right feed.
+  # Only then is the page searched for what it advertises, which is the least trustworthy of the
+  # three and the reason the PeerTube question comes before it.
   defp webpage_response(response) do
     case Parser.parse(response.body, response.url) do
-      {:ok, feed} -> {:ok, [Map.merge(feed, validators(response))]}
-      _ -> discover_links(response.body, response.url)
+      {:ok, feed} ->
+        {:ok, [Map.merge(feed, validators(response))]}
+
+      _ ->
+        # An instance that cannot name a feed for this address answers with its refusal rather
+        # than falling through: what its pages advertise is a comment feed, not what was meant.
+        case peertube(response.url) do
+          nil -> discover_links(response.body, response.url)
+          answer -> answer
+        end
     end
   end
 

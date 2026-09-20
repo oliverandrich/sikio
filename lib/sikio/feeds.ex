@@ -91,7 +91,7 @@ defmodule Sikio.Feeds do
     end
   end
 
-  @replaced_entry_fields [:title, :media_url, :video_id, :published_at]
+  @replaced_entry_fields [:title, :media_url, :video_id, :embed_url, :published_at]
   @kept_entry_fields [:image_url, :duration, :description, :description_format, :excerpt]
 
   defp import_entries(feed_id, entries) do
@@ -124,6 +124,7 @@ defmodule Sikio.Feeds do
           title: fragment("EXCLUDED.title"),
           media_url: fragment("EXCLUDED.media_url"),
           video_id: fragment("EXCLUDED.video_id"),
+          embed_url: fragment("EXCLUDED.embed_url"),
           published_at: fragment("EXCLUDED.published_at"),
           image_url: fragment("COALESCE(EXCLUDED.image_url, ?)", e.image_url),
           duration: fragment("COALESCE(EXCLUDED.duration, ?)", e.duration),

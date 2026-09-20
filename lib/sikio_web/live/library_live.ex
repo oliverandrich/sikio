@@ -189,16 +189,8 @@ defmodule SikioWeb.LibraryLive do
             class="flex flex-col rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900"
           >
             <span class="mb-5 flex size-10 items-center justify-center rounded-xl bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
-              <Lucideicons.circle_play
-                :if={entry.feed.kind == :youtube}
-                aria-hidden="true"
-                class="size-5"
-              />
-              <Lucideicons.mic
-                :if={entry.feed.kind == :podcast}
-                aria-hidden="true"
-                class="size-5"
-              />
+              <Lucideicons.circle_play :if={video?(entry)} aria-hidden="true" class="size-5" />
+              <Lucideicons.mic :if={!video?(entry)} aria-hidden="true" class="size-5" />
             </span>
             <p class="text-xs font-medium text-teal-800 dark:text-teal-300">{entry.feed.title}</p>
             <h3 class="mt-2 grow text-lg leading-snug font-semibold">{entry.title}</h3>

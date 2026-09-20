@@ -36,6 +36,36 @@ defmodule Sikio.FeedFixtures do
     )
   end
 
+  @doc "A PeerTube channel feed, carrying the elements an instance really publishes."
+  def peertube do
+    """
+    <?xml version="1.0" encoding="utf-8"?>
+    <rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+    <channel>
+    <title>Good Instance Videos</title>
+    <link>https://video.example.org/c/9f1b2c3d-0000-4444-8888-aaaabbbbcccc/videos</link>
+    <generator>PeerTube - https://video.example.org</generator>
+    <image><url>https://video.example.org/lazy-static/avatars/channel.jpg</url></image>
+    <item>
+    <title>A talk worth an hour</title>
+    <link>https://video.example.org/w/mSh0rtUu1d</link>
+    <guid>https://video.example.org/w/mSh0rtUu1d</guid>
+    <pubDate>Thu, 18 Jun 2026 15:43:13 GMT</pubDate>
+    <content:encoded><![CDATA[<p>Slides are <a href="https://video.example.org/s">here</a>.</p>]]></content:encoded>
+    <dc:creator>Good Channel</dc:creator>
+    <enclosure length="1004043852" type="video/mp4" url="https://video.example.org/download/videos/generate/99413b75?videoFileIds=1" />
+    <media:thumbnail url="https://video.example.org/lazy-static/thumbnails/8b1f64dd.jpg" height="1400" width="1400" />
+    <media:embed url="https://video.example.org/videos/embed/mSh0rtUu1d" />
+    <media:player url="https://video.example.org/w/mSh0rtUu1d" />
+    <media:group>
+    <media:content type="audio/mp4" medium="video" height="0" url="https://video.example.org/static/a.mp4" duration="3600" isDefault="true" />
+    <media:content type="video/mp4" medium="video" height="360" url="https://video.example.org/static/v.mp4" duration="3600" isDefault="false" />
+    </media:group>
+    </item>
+    </channel></rss>
+    """
+  end
+
   @doc "A YouTube channel page, reduced to the two elements the discovery reads."
   def channel_page do
     """

@@ -7,6 +7,17 @@ defmodule Sikio.Feeds.DiscoveryTest do
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.HTTP
 
+  # What an instance answers at any of its pages: an application shell that advertises feeds
+  # nobody asked for. Deliberately not a feed, so the discovery has to ask what runs here.
+  defp instance_page do
+    """
+    <html><head>
+    <link rel="alternate" type="application/rss+xml" title="Comments feed" href="https://video.example.org/feeds/video-comments.xml?videoId=99413b75" />
+    <link rel="alternate" type="application/rss+xml" title="Videos feed" href="https://video.example.org/feeds/videos.xml" />
+    </head><body></body></html>
+    """
+  end
+
   test "a direct channel URL resolves straight to its Atom feed" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
@@ -81,6 +92,9 @@ defmodule Sikio.Feeds.DiscoveryTest do
   test "a webpage discovers multiple podcast feeds and resolves relative links" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
+        "/.well-known/nodeinfo" ->
+          Plug.Conn.send_resp(conn, 404, "")
+
         "/shows" ->
           conn |> Plug.Conn.put_resp_header("location", "/shows/") |> Plug.Conn.send_resp(301, "")
 
@@ -224,5 +238,173 @@ defmodule Sikio.Feeds.DiscoveryTest do
              Discovery.discover("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv")
 
     assert feed.icon_url == "https://www.youtube.com/img/avatar.jpg"
+  end
+
+  # Any host may run PeerTube, so nothing can be recognised from a list of names. The instance
+  # says what it runs, and that answer is what decides.
+  test "a PeerTube instance is recognised by what it says it runs" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        path when path in [nil, "/", "/c/good/videos", "/w/mSh0rtUu1d"] ->
+          Plug.Conn.send_resp(conn, 200, instance_page())
+
+        "/.well-known/nodeinfo" ->
+          Req.Test.json(conn, %{
+            links: [
+              %{
+                rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
+                href: "https://video.example.org/nodeinfo/2.0.json"
+              }
+            ]
+          })
+
+        "/nodeinfo/2.0.json" ->
+          Req.Test.json(conn, %{software: %{name: "peertube", version: "8.3.0"}})
+
+        "/feeds/videos.xml" ->
+          Plug.Conn.send_resp(conn, 200, peertube())
+      end
+    end)
+
+    assert {:ok, [%{kind: :peertube, title: "Good Instance Videos"}]} =
+             Discovery.discover("https://video.example.org")
+  end
+
+  # A blog that happens to answer nodeinfo is not an instance of anything playable.
+  test "a host running something else is not treated as PeerTube" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        path when path in [nil, "/"] ->
+          Plug.Conn.send_resp(conn, 200, "<html><body>a blog</body></html>")
+
+        "/.well-known/nodeinfo" ->
+          Req.Test.json(conn, %{
+            links: [
+              %{
+                rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
+                href: "https://social.example.org/nodeinfo/2.0.json"
+              }
+            ]
+          })
+
+        "/nodeinfo/2.0.json" ->
+          Req.Test.json(conn, %{software: %{name: "mastodon", version: "4.3.0"}})
+      end
+    end)
+
+    assert {:error, :not_found} = Discovery.discover("https://social.example.org")
+  end
+
+  test "a PeerTube channel URL resolves to the feed of that channel" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        path when path in [nil, "/", "/c/good/videos", "/w/mSh0rtUu1d"] ->
+          Plug.Conn.send_resp(conn, 200, instance_page())
+
+        "/.well-known/nodeinfo" ->
+          Req.Test.json(conn, %{
+            links: [
+              %{
+                rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
+                href: "https://video.example.org/nodeinfo/2.0.json"
+              }
+            ]
+          })
+
+        "/nodeinfo/2.0.json" ->
+          Req.Test.json(conn, %{software: %{name: "peertube"}})
+
+        "/api/v1/video-channels/good" ->
+          Req.Test.json(conn, %{id: 7, displayName: "Good Channel"})
+
+        "/feeds/videos.xml" ->
+          assert conn.query_string == "videoChannelId=7"
+          Plug.Conn.send_resp(conn, 200, peertube())
+      end
+    end)
+
+    assert {:ok, [%{kind: :peertube}]} =
+             Discovery.discover("https://video.example.org/c/good/videos")
+  end
+
+  # A PeerTube video page advertises its own comment feed and the feed of the whole instance.
+  # Searching the page for links would take one of those. The channel that published the video
+  # is what somebody pasting a video means.
+  test "a pasted PeerTube video subscribes to its channel, not to its comments" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        path when path in [nil, "/", "/c/good/videos", "/w/mSh0rtUu1d"] ->
+          Plug.Conn.send_resp(conn, 200, instance_page())
+
+        "/.well-known/nodeinfo" ->
+          Req.Test.json(conn, %{
+            links: [
+              %{
+                rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
+                href: "https://video.example.org/nodeinfo/2.0.json"
+              }
+            ]
+          })
+
+        "/nodeinfo/2.0.json" ->
+          Req.Test.json(conn, %{software: %{name: "peertube"}})
+
+        "/api/v1/videos/mSh0rtUu1d" ->
+          Req.Test.json(conn, %{channel: %{id: 7, displayName: "Good Channel"}})
+
+        "/feeds/videos.xml" ->
+          assert conn.query_string == "videoChannelId=7"
+          Plug.Conn.send_resp(conn, 200, peertube())
+
+        "/feeds/video-comments.xml" ->
+          flunk("subscribed to the comments of a video")
+      end
+    end)
+
+    assert {:ok, [%{kind: :peertube, title: "Good Instance Videos"}]} =
+             Discovery.discover("https://video.example.org/w/mSh0rtUu1d")
+  end
+
+  # An instance serves every one of its routes as the same application shell, so the address
+  # somebody copied out of their browser may be any of them.
+  test "the other addresses an instance answers under also reach their feed" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/.well-known/nodeinfo" ->
+          Req.Test.json(conn, %{
+            links: [
+              %{
+                rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
+                href: "https://video.example.org/nodeinfo/2.0.json"
+              }
+            ]
+          })
+
+        "/nodeinfo/2.0.json" ->
+          Req.Test.json(conn, %{software: %{name: "peertube"}})
+
+        "/api/v1/video-channels/good" ->
+          Req.Test.json(conn, %{id: 7})
+
+        "/api/v1/accounts/somebody" ->
+          Req.Test.json(conn, %{id: 3})
+
+        "/feeds/videos.xml" ->
+          assert conn.query_string in ["videoChannelId=7", "accountId=3"]
+          Plug.Conn.send_resp(conn, 200, peertube())
+
+        _ ->
+          Plug.Conn.send_resp(conn, 200, instance_page())
+      end
+    end)
+
+    for url <- [
+          "https://video.example.org/video-channels/good",
+          "https://video.example.org/video-channels/good/videos",
+          "https://video.example.org/a/somebody",
+          "https://video.example.org/accounts/somebody/videos"
+        ] do
+      assert {:ok, [%{kind: :peertube}]} = Discovery.discover(url), "#{url} found no feed"
+    end
   end
 end

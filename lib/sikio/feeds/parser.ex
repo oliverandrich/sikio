@@ -28,30 +28,16 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # An empty podcast is a real thing, a show that has not published yet, but an empty document with
-  # a channel element is also what a blog feed looks like after its entries are rejected. The
-  # namespace declaration is what tells them apart.
+  # Two different things arrive as RSS. PeerTube declares the podcast namespace as well, so the
+  # namespace cannot tell them apart; what an item offers to play can, and an instance that has
+  # published nothing still says what generated its feed.
   defp feed({"rss", attrs, _} = root, url) do
     channel = child(root, "channel")
+    items = children(channel, "item")
 
-    entries =
-      channel
-      |> children("item")
-      |> Enum.map(&podcast_entry(&1, url))
-      |> Enum.reject(&is_nil/1)
-
-    if entries != [] or
-         Enum.any?(attrs, fn {name, _} -> name in ["xmlns:itunes", "xmlns:podcast"] end) do
-      {:ok,
-       %{
-         url: url,
-         title: value(channel, "title"),
-         kind: :podcast,
-         icon_url: image_url(channel, url),
-         entries: Enum.take(entries, 500)
-       }}
-    else
-      {:error, :invalid_feed}
+    case rss_kind(channel, items, attrs) do
+      nil -> {:error, :invalid_feed}
+      kind -> {:ok, rss_feed(kind, channel, items, url)}
     end
   end
 
@@ -83,12 +69,52 @@ defmodule Sikio.Feeds.Parser do
 
   defp feed(_root, _url), do: {:error, :invalid_feed}
 
-  defp podcast_entry(item, feed_url) do
-    enclosure = child(item, "enclosure")
-    url = attr(enclosure, "url")
-    type = attr(enclosure, "type")
+  defp rss_feed(kind, channel, items, url) do
+    reader = if kind == :peertube, do: &peertube_entry/2, else: &podcast_entry/2
+    entries = items |> Enum.map(&reader.(&1, url)) |> Enum.reject(&is_nil/1)
 
-    with true <- String.starts_with?(type, "audio/") or type == "application/ogg",
+    %{
+      url: url,
+      title: value(channel, "title"),
+      kind: kind,
+      icon_url: image_url(channel, url),
+      entries: Enum.take(entries, 500)
+    }
+  end
+
+  # What generated the document decides, because it is the one statement about the whole of it.
+  # Only when it says nothing does the shape of the items answer, and audio wins there: a show
+  # that publishes one video is still a show, and reading its episodes as videos drops them all.
+  #
+  # An empty podcast is a real thing, a show that has not published yet, but an empty document
+  # with a channel element is also what a blog feed looks like after its entries are rejected.
+  defp rss_kind(channel, items, attrs) do
+    cond do
+      String.starts_with?(value(channel, "generator"), "PeerTube") -> :peertube
+      Enum.any?(items, &podcast_item?/1) -> :podcast
+      Enum.any?(items, &peertube_item?/1) -> :peertube
+      Enum.any?(attrs, fn {name, _} -> name in ["xmlns:itunes", "xmlns:podcast"] end) -> :podcast
+      true -> nil
+    end
+  end
+
+  # An embed to play and a video to download. A podcast has neither.
+  defp peertube_item?(item) do
+    attr(child(item, "media:embed"), "url") != "" and
+      String.starts_with?(enclosure_type(item), "video/")
+  end
+
+  defp podcast_item?(item) do
+    type = enclosure_type(item)
+    String.starts_with?(type, "audio/") or type == "application/ogg"
+  end
+
+  defp enclosure_type(item), do: item |> child("enclosure") |> attr("type")
+
+  defp podcast_entry(item, feed_url) do
+    url = item |> child("enclosure") |> attr("url")
+
+    with true <- podcast_item?(item),
          {:ok, uri} <- HTTP.normalize(url),
          title when title != "" <- value(item, "title") do
       {notes, format} =
@@ -99,6 +125,7 @@ defmodule Sikio.Feeds.Parser do
         title: title,
         media_url: URI.to_string(uri),
         video_id: nil,
+        embed_url: nil,
         published_at: date(value(item, "pubDate")),
         image_url: image_url(item, feed_url),
         duration: duration(value(item, "itunes:duration")),
@@ -109,6 +136,41 @@ defmodule Sikio.Feeds.Parser do
     else
       _ -> nil
     end
+  end
+
+  # The instance holds the video and its own player shows it, so nothing here names a file. The
+  # embed is what the page will load, and the feed states it rather than it being built from
+  # parts that a future release may spell differently.
+  defp peertube_entry(item, feed_url) do
+    embed = HTTP.resolve(attr(child(item, "media:embed"), "url"), feed_url)
+    group = child(item, "media:group")
+    {notes, format} = notes(item, "content:encoded": :html, description: :html)
+
+    with true <- embed != nil,
+         title when title != "" <- value(item, "title") do
+      %{
+        external_id: identifier(item, embed),
+        title: title,
+        media_url: nil,
+        video_id: nil,
+        embed_url: embed,
+        published_at: date(value(item, "pubDate")),
+        image_url: image_url(item, feed_url),
+        duration: duration(playable_duration(group)),
+        description: notes,
+        description_format: format,
+        excerpt: excerpt(notes, format)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  # Every rendition states the same runtime, so the first one that states anything answers.
+  defp playable_duration(group) do
+    group
+    |> children("media:content")
+    |> Enum.find_value("", fn node -> nonempty(attr(node, "duration"), nil) end)
   end
 
   defp youtube_entry(item, feed_url) do
@@ -123,6 +185,7 @@ defmodule Sikio.Feeds.Parser do
         title: value(item, "title"),
         media_url: nil,
         video_id: id,
+        embed_url: nil,
         published_at: date(value(item, "published")),
         image_url: image_url(group, feed_url),
         duration: nil,

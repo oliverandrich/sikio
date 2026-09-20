@@ -194,4 +194,15 @@ defmodule Sikio.FeedsTest do
     assert {:ok, refreshed} = Feeds.refresh(feed.id)
     assert refreshed.icon_url == "https://yt3.googleusercontent.com/picture=s900-c-k-no-rj"
   end
+
+  test "a PeerTube channel is stored with the embed each video is played from" do
+    assert {:ok, feed} =
+             Feeds.store(preview(peertube(), "https://video.example.org/feeds/videos.xml"))
+
+    assert feed.kind == :peertube
+
+    entry = Repo.one(Entry)
+    assert entry.embed_url == "https://video.example.org/videos/embed/mSh0rtUu1d"
+    assert entry.duration == 3600
+  end
 end

@@ -66,7 +66,7 @@ defmodule Sikio.Feeds.HTTP do
   turns it into a host called `art`. Answers the address, or `nil` when there is none to trust.
   """
   def resolve(href, base) when is_binary(href) and is_binary(base) do
-    case normalize(base |> URI.merge(String.trim(href)) |> URI.to_string()) do
+    case href |> String.trim() |> merged(base) |> normalize() do
       {:ok, uri} -> URI.to_string(uri)
       _ -> nil
     end
@@ -75,6 +75,11 @@ defmodule Sikio.Feeds.HTTP do
   end
 
   def resolve(_href, _base), do: nil
+
+  # Merging nothing against an address answers that address, so an absent href would resolve to
+  # the document that does not carry it.
+  defp merged("", _base), do: ""
+  defp merged(href, base), do: base |> URI.merge(href) |> URI.to_string()
 
   def public_address?({a, b, c, d}) do
     ip = (a <<< 24) + (b <<< 16) + (c <<< 8) + d

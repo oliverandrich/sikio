@@ -95,15 +95,7 @@ defmodule SikioWeb.PlayerLive do
               {play_label(@entry)}
             </.button>
             <p class="mx-auto mt-5 max-w-sm text-sm leading-relaxed text-stone-500 dark:text-stone-400">
-              {if @entry.feed.kind == :youtube,
-                do:
-                  gettext(
-                    "Loads the YouTube player. YouTube receives your connection data when you press Play."
-                  ),
-                else:
-                  gettext(
-                    "Audio streams directly from the podcast publisher. Your place is saved in Sikio."
-                  )}
+              {privacy_note(@entry)}
             </p>
           </div>
         </section>
