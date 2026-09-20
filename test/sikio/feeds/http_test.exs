@@ -83,4 +83,13 @@ defmodule Sikio.Feeds.HTTPTest do
     assert {:ok, %{url: "https://example.org/rss"}} = HTTP.get("https://example.org/start")
     assert {:error, :too_large} = HTTP.get("https://example.org/rss", max_bytes: 4)
   end
+
+  # A stub that answers with the connection it was handed has sent nothing. Reading a status and
+  # a body off it yields nil, and nil bytes raise somewhere that reports an unsafe address, which
+  # is a lie about what went wrong.
+  test "a stub that never answers is reported as unavailable, not as an unsafe address" do
+    Req.Test.stub(HTTP, fn conn -> conn end)
+
+    assert {:error, :unavailable} = HTTP.get("https://feeds.example.org/rss")
+  end
 end

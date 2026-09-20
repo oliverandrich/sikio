@@ -12,6 +12,8 @@ defmodule Sikio.Feeds.HTTP do
   """
   import Bitwise
 
+  alias Sikio.Feeds.Transport
+
   # Unspecified, private, carrier-grade NAT, loopback, link-local, the three documentation ranges,
   # benchmarking, multicast and reserved. Written as network and prefix length rather than as CIDR
   # strings so the comparison is two shifts.
@@ -110,24 +112,18 @@ defmodule Sikio.Feeds.HTTP do
     _error in [ArgumentError, URI.Error] -> {:error, :unsafe_url}
   end
 
-  # Redirects are followed here rather than by Req, because every hop is a new destination and has
-  # to be resolved and checked like the first one.
+  # Followed here rather than below, because every hop is a new destination and has to be
+  # resolved and checked like the first one.
   defp received(%{status: status} = response, uri, opts, remaining)
        when status in [301, 302, 303, 307, 308] do
-    case Req.Response.get_header(response, "location") do
+    case Map.get(response.headers, "location", []) do
       [location] -> follow(uri |> URI.merge(location) |> URI.to_string(), opts, remaining - 1)
       _ -> {:error, :unavailable}
     end
   end
 
   defp received(response, uri, _opts, _remaining) do
-    {:ok,
-     %{
-       status: response.status,
-       headers: response.headers,
-       body: response.body,
-       url: URI.to_string(uri)
-     }}
+    {:ok, Map.put(response, :url, URI.to_string(uri))}
   end
 
   defp address(host) do
@@ -162,7 +158,6 @@ defmodule Sikio.Feeds.HTTP do
 
   defp request(uri, address, opts) do
     max_bytes = Keyword.get(opts, :max_bytes, 8_000_000)
-    pinned = %{uri | host: address |> :inet.ntoa() |> to_string()}
 
     headers =
       [
@@ -171,34 +166,8 @@ defmodule Sikio.Feeds.HTTP do
         {"user-agent", "Sikio/0.1 RSS reader"}
       ] ++ Keyword.get(opts, :headers, [])
 
-    options = [
-      redirect: false,
-      retry: false,
-      raw: true,
-      compressed: false,
-      receive_timeout: 10_000,
-      finch: [
-        pool_timeout: 5_000,
-        request_timeout: 15_000,
-        pool_max_idle_time: 60_000,
-        conn_opts: [
-          hostname: uri.host,
-          transport_opts: [timeout: 5_000, inet6: tuple_size(address) == 8]
-        ]
-      ],
-      headers: headers,
-      into: collector(max_bytes)
-    ]
-
-    options =
-      case Application.get_env(:sikio, :feed_http_plug) do
-        nil -> options
-        plug -> Keyword.put(options, :plug, plug)
-      end
-
-    case Req.get(URI.to_string(pinned), options) do
-      {:ok, response} -> check_response(response, max_bytes)
-      {:error, _reason} -> {:error, :unavailable}
+    with {:ok, response} <- Transport.fetch(uri, address, headers, max_bytes) do
+      check_response(response, max_bytes)
     end
   end
 
@@ -209,21 +178,11 @@ defmodule Sikio.Feeds.HTTP do
 
       # Identity encoding was asked for. A peer that compressed anyway would have its body decoded
       # by nobody, and a decompressor is a size limit's way around itself.
-      Req.Response.get_header(response, "content-encoding") not in [[], ["identity"]] ->
+      Map.get(response.headers, "content-encoding", []) not in [[], ["identity"]] ->
         {:error, :unsupported_encoding}
 
       true ->
         {:ok, response}
-    end
-  end
-
-  defp collector(limit) do
-    fn {:data, bytes}, {request, response} ->
-      # Retain only one overflow byte, even when a peer sends a large single chunk.
-      remaining = max(0, limit + 1 - byte_size(response.body))
-      body = response.body <> binary_part(bytes, 0, min(byte_size(bytes), remaining))
-      action = if byte_size(body) > limit, do: :halt, else: :cont
-      {action, {request, %{response | body: body}}}
     end
   end
 end
