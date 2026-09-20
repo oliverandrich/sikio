@@ -53,6 +53,8 @@ defmodule Sikio.MixProject do
       # is what every feed stub is, and for Igniter, which wants it in development.
       {:mint, "~> 1.10"},
       {:req, "~> 0.7.4", only: [:dev, :test]},
+      {:swoosh, "~> 1.28"},
+      {:gen_smtp, "~> 1.3"},
       {:floki, "~> 0.38.4"},
       {:html_sanitize_ex, "~> 1.4"},
       {:saxy, "~> 1.6"},

@@ -12,6 +12,8 @@ defmodule SikioWeb.CeremonyMessages do
 
   use Gettext, backend: SikioWeb.Gettext
 
+  alias Sikio.Identity
+
   @doc """
   A sentence for the `ithibati:failed` code, or an honest fallback for one nobody listed.
 
@@ -40,12 +42,27 @@ defmodule SikioWeb.CeremonyMessages do
   defp sentence("invitation_unknown"),
     do: gettext("That invitation has been used, or has expired.")
 
-  defp sentence("username_taken"), do: gettext("That username is taken.")
+  # An account here is named or addressed, and the library says `username` either way. Which of
+  # the two this instance means is what these three sentences have to know: telling somebody that
+  # a username may hold underscores, when what was wanted was an address, sends them nowhere.
+  defp sentence("username_taken") do
+    if Identity.email?(),
+      do: gettext("That address already has an account."),
+      else: gettext("That username is taken.")
+  end
 
-  defp sentence("invalid_username"),
-    do: gettext("A username is letters, digits and underscores, up to thirty characters.")
+  defp sentence("invalid_username") do
+    if Identity.email?(),
+      do: gettext("That is not an email address."),
+      else: gettext("A username is letters, digits and underscores, up to thirty characters.")
+  end
 
-  defp sentence("username_required"), do: gettext("Pick a username to claim this instance.")
+  defp sentence("username_required") do
+    if Identity.email?(),
+      do: gettext("Enter the address that will claim this instance."),
+      else: gettext("Pick a username to claim this instance.")
+  end
+
   defp sentence("no_credentials"), do: gettext("No passkey is registered here yet.")
   defp sentence("ceremony_cancelled"), do: gettext("The passkey prompt was dismissed.")
 
@@ -61,8 +78,11 @@ defmodule SikioWeb.CeremonyMessages do
   defp sentence("setup_authorization_required"),
     do: gettext("Enter the setup code again. The one you used has expired or been replaced.")
 
-  defp sentence("identifier_mismatch"),
-    do: gettext("That invitation was not addressed to that username.")
+  defp sentence("identifier_mismatch") do
+    if Identity.email?(),
+      do: gettext("That invitation was not addressed to that address."),
+      else: gettext("That invitation was not addressed to that username.")
+  end
 
   defp sentence("invalid_code"), do: gettext("That recovery code is not one we can use.")
   defp sentence("no_challenge"), do: gettext("That took too long. Start again.")

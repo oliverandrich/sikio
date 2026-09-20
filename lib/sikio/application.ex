@@ -12,6 +12,7 @@ defmodule Sikio.Application do
     # Before anything binds a port. An instance whose claim is not protected must not serve one
     # request, because the first stranger to arrive would be the one who claims it.
     Sikio.Claim.verify!()
+    Sikio.Identity.verify!()
 
     children = [
       Sikio.AuthRateLimiter,

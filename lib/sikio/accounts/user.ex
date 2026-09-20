@@ -7,13 +7,14 @@ defmodule Sikio.Accounts.User do
   """
   use Ecto.Schema
 
-  alias Ithibati.Schema.Identifier
   alias Ithibati.Schema.User
+  alias Sikio.Identity
 
-  # A username, not an address, and the library's own pattern for one — which is Mastodon's rule
-  # for a local account. Your own regex goes here just as well; this is what you get for not having
-  # an opinion, and not having one about impersonation is the expensive kind.
-  use User, identifier: :username, format: Identifier.username_format()
+  # The format is left off on purpose. An instance names its accounts or addresses them, and that
+  # is the only thing the two modes differ by, so it is asked of `Sikio.Identity` per changeset
+  # rather than fixed here when this compiles. Ithibati still requires, trims, lowercases and caps
+  # the value; `changeset/2` below adds the shape.
+  use User, identifier: :username
 
   import Ecto.Changeset
 
@@ -27,6 +28,7 @@ defmodule Sikio.Accounts.User do
   def changeset(user, attrs) do
     user
     |> identifier_changeset(attrs)
+    |> Identity.validate()
     |> cast(attrs, [:name])
   end
 end

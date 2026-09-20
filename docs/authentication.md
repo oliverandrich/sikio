@@ -9,7 +9,17 @@ any other way. See [Operations](operations.md) for the order an operator follows
 
 Later registrations require a valid invitation; every authenticated member can
 create links on `/`. Links are shown once, expire, and are accepted once. There is
-no administrator role or mail delivery; share links through your chosen channel.
+no administrator role.
+
+An account is named or addressed, which `Sikio.Identity` answers from
+`ACCOUNT_IDENTITY`. Named is the default: the link is shared through whatever
+channel its sender likes. Addressed means the invitee's identifier is an email
+address, the link is delivered to it, and that delivery is what proves the address.
+Both schemas leave Ithibati's `:format` off and take it from the mode instead,
+because the identifier field itself is fixed when the schema compiles. An instance
+that addresses accounts without a mail configuration does not start. A delivery
+that fails is reported and the link stays shareable by hand. See
+[Operations](operations.md) for the variables.
 
 Sessions are revocable and cookies are encrypted because they temporarily carry
 recovery codes. Recovery codes are displayed once after registration. Adapt the

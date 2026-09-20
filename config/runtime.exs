@@ -53,6 +53,63 @@ case "TRUSTED_PROXIES" |> System.get_env("") |> String.trim() do
            end)
 end
 
+# Mail is opt-in and an instance that addresses its accounts requires it, which `Sikio.Identity`
+# checks where the instance starts. Enabling it here means a working SMTP submission
+# configuration: a missing value stops the boot rather than failing at the first invitation.
+if config_env() != :test and System.get_env("MAIL_ENABLED") == "true" do
+  smtp_host = System.fetch_env!("SMTP_HOST")
+
+  config :sikio, :mail_enabled, true
+  config :sikio, :mail_from, {"Sikio", System.fetch_env!("MAIL_FROM")}
+
+  smtp_port = String.to_integer(System.get_env("SMTP_PORT", "587"))
+
+  config :sikio, Sikio.Mailer,
+    adapter: Swoosh.Adapters.SMTP,
+    relay: smtp_host,
+    port: smtp_port,
+    username: System.fetch_env!("SMTP_USERNAME"),
+    password: System.fetch_env!("SMTP_PASSWORD"),
+    auth: :always,
+    # 465 is implicit TLS and 587 is STARTTLS. Hardcoding either one against a port the operator
+    # sets means a client speaking the wrong thing, and finding out at the first invitation.
+    tls: if(smtp_port == 465, do: :never, else: :always),
+    ssl: smtp_port == 465,
+    retries: 0,
+    tls_options: [
+      verify: :verify_peer,
+      cacerts: :public_key.cacerts_get(),
+      server_name_indication: String.to_charlist(smtp_host),
+      depth: 99,
+      customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
+    ]
+end
+
+# An account is named or addressed. Addressing them requires the mail configuration above, and
+# `Sikio.Identity` refuses to start an instance that asks for one without the other.
+#
+# Not in tests, where a shell that happens to export this would otherwise decide what the suite
+# runs against.
+if config_env() != :test do
+  case "ACCOUNT_IDENTITY" |> System.get_env("") |> String.trim() do
+    "" ->
+      :ok
+
+    "username" ->
+      config :sikio, :account_identity, :username
+
+    "email" ->
+      config :sikio, :account_identity, :email
+
+    other ->
+      raise """
+      environment variable ACCOUNT_IDENTITY is neither: #{inspect(other)}
+
+      An account is named or addressed, so this is "username" or "email".
+      """
+  end
+end
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration

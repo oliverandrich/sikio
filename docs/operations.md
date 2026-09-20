@@ -30,6 +30,10 @@ these variables in the environment used for both migration and startup:
 | `POOL_SIZE` | Database connections, 10 by default |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
 | `TRUSTED_PROXIES` | Addresses that may forward a visitor's own; only needed for a proxy on another host |
+| `ACCOUNT_IDENTITY` | `username` (the default) or `email`; anything else stops the boot. `email` requires the mail settings below |
+| `MAIL_ENABLED` | `true` to deliver invitations; required by `ACCOUNT_IDENTITY=email` |
+| `MAIL_FROM` | The address invitations come from |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Submission server; the port defaults to 587 |
 
 `SOURCE_URL` is what the footer links to, which AGPL §13 asks an operator to offer. Leave it
 unset to point at the upstream repository. A value that is not an absolute http or https URL
@@ -65,6 +69,23 @@ believed on a connection from anywhere else, so an instance exposed directly sti
 counts the address it actually sees.
 
 `GET /health` checks HTTP liveness, not database readiness.
+
+## Naming or addressing accounts
+
+An account is called one of two things here, and the instance chooses which before anybody
+registers.
+
+By default it is a username, and an invitation is a link whoever made it passes on however they
+like. Nothing is sent and no mail is configured.
+
+`ACCOUNT_IDENTITY=email` makes it an address instead. The invitation is then addressed to that
+address and delivered to it, which is also what proves the address belongs to whoever answers.
+That requires the mail settings: `MAIL_ENABLED=true` and the `SMTP_*` variables beside it.
+Submission is authenticated and the server's certificate is verified. An instance that asks for
+addresses without being able to send any refuses to start and says so.
+
+Choose once, before the first account. Turning an instance that already has accounts from names
+to addresses would leave every identifier it holds failing the new format.
 
 ## Claim the instance
 

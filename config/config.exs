@@ -83,6 +83,9 @@ config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+# Swoosh talks to an SMTP server directly, so it needs no HTTP client of its own.
+config :swoosh, :api_client, false
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 

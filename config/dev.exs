@@ -76,3 +76,10 @@ config :phoenix_live_view,
   debug_attributes: true,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
+
+# Delivered to the local mailbox rather than to anybody, and counted as configured, so that
+# ACCOUNT_IDENTITY=email can be run in development without a submission server. Setting
+# MAIL_ENABLED in the environment replaces both at runtime.
+config :sikio, Sikio.Mailer, adapter: Swoosh.Adapters.Local
+config :sikio, :mail_enabled, true
+config :sikio, :mail_from, {"Sikio", "sikio@localhost"}

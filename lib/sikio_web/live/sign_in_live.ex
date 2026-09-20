@@ -12,12 +12,19 @@ defmodule SikioWeb.SignInLive do
   use SikioWeb, :live_view
 
   alias Ithibati.Identity.Instance
+  alias Sikio.Identity
   alias SikioWeb.Auth
   alias SikioWeb.CeremonyMessages
 
   @impl true
   def mount(_params, session, socket) do
-    {:ok, assign(socket, username: "", error: nil, claim_open?: claim_open?(socket, session))}
+    {:ok,
+     assign(socket,
+       username: "",
+       error: nil,
+       claim_open?: claim_open?(socket, session),
+       email?: Identity.email?()
+     )}
   end
 
   # Whether this visitor may be asked for a name yet. A proof that has run out sends somebody back
@@ -82,7 +89,7 @@ defmodule SikioWeb.SignInLive do
     <Layouts.auth
       flash={@flash}
       title={title(@live_action)}
-      subtitle={subtitle(@live_action, @claim_open?)}
+      subtitle={subtitle(@live_action, @claim_open?, @email?)}
     >
       <div
         :if={@error}
@@ -127,6 +134,7 @@ defmodule SikioWeb.SignInLive do
         phx-submit="register"
       >
         <.input
+          :if={not @email?}
           name="username"
           value={@username}
           label={gettext("Username")}
@@ -135,6 +143,16 @@ defmodule SikioWeb.SignInLive do
           pattern={Layouts.username_pattern()}
           title={gettext("Letters, digits and underscores, up to thirty")}
           placeholder={gettext("your_username")}
+        />
+        <.input
+          :if={@email?}
+          type="email"
+          name="username"
+          value={@username}
+          label={gettext("Email address")}
+          autocomplete="email"
+          required
+          placeholder="you@example.org"
         />
         <Layouts.auth_button>{gettext("Create your passkey")}</Layouts.auth_button>
       </form>
@@ -168,15 +186,18 @@ defmodule SikioWeb.SignInLive do
   defp title(:setup), do: gettext("Make yourself at home")
   defp title(:recover), do: gettext("Use a recovery code")
 
-  defp subtitle(:login, _claim_open?), do: nil
+  defp subtitle(:login, _claim_open?, _email?), do: nil
 
-  defp subtitle(:setup, true),
+  defp subtitle(:setup, true, true),
+    do: gettext("Enter your email address and create a passkey to set up your account.")
+
+  defp subtitle(:setup, true, false),
     do: gettext("Choose your username and create a passkey to set up your account.")
 
-  defp subtitle(:setup, false),
+  defp subtitle(:setup, false, _email?),
     do: gettext("This instance asks for a setup code before the first account is made.")
 
-  defp subtitle(:recover, _claim_open?),
+  defp subtitle(:recover, _claim_open?, _email?),
     do:
       gettext(
         "Enter one of the codes you saved when you set up your account. Each code works once."
