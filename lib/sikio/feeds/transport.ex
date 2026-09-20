@@ -56,10 +56,20 @@ defmodule Sikio.Feeds.Transport do
       {:ok, conn} -> request(conn, uri, headers, limit)
       {:error, _reason} -> {:error, :unavailable}
     end
+  rescue
+    # Connecting can raise rather than answer: a machine with no trust store for the system to
+    # read makes Mint say so by throwing. That is a feed this host cannot fetch, which is what
+    # the caller is told. Letting it through would end an Oban job with an exception, and the
+    # rescue above it would call it an unsafe address, which is the wrong cause.
+    _error -> {:error, :unavailable}
   end
 
   # The connection is built for the address the request would go to, carrying the headers it
   # would carry, so a stub may assert on the pinning without a socket being involved.
+  #
+  # Nothing here is rescued. A stub that raises is a test saying something, and the loudest
+  # thing it says is that somebody forgot to register one: swallowing that would let such a
+  # test read a plausible server failure and pass while proving nothing.
   defp through(plug, uri, headers) do
     {module, options} = if is_tuple(plug), do: plug, else: {plug, []}
 
@@ -68,8 +78,6 @@ defmodule Sikio.Feeds.Transport do
     |> put_headers(headers)
     |> module.call(module.init(options))
     |> answered()
-  rescue
-    _error -> {:error, :unavailable}
   end
 
   # Written onto the connection rather than through `put_req_header/3`, which refuses `host`: a

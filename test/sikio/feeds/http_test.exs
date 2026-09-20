@@ -92,4 +92,13 @@ defmodule Sikio.Feeds.HTTPTest do
 
     assert {:error, :unavailable} = HTTP.get("https://feeds.example.org/rss")
   end
+
+  # What keeps this suite from asking a stranger's server. Every request is answered by a stub,
+  # and a test that forgets to register one has to notice: an answer that reads like a peer
+  # being down would let it pass while proving nothing.
+  test "a request with no stub registered fails loudly rather than looking unavailable" do
+    assert_raise RuntimeError, ~r/stub/, fn ->
+      HTTP.get("https://nobody-stubbed-this.example.org/rss")
+    end
+  end
 end
