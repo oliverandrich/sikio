@@ -63,8 +63,9 @@ publicly.
 Authentication limits count per visitor, taken from the forwarding header. That
 header is believed only on a connection from a trusted proxy. The loopback is
 trusted already, so a proxy on the same machine needs no configuration; one on
-another host is named in `TRUSTED_PROXIES`, comma separated. An address that is not
-an address stops the boot rather than being dropped quietly. Nothing forwarded is
+another host is named in `TRUSTED_PROXIES`, comma separated, one address per entry
+rather than a range. An address that is not an address stops the boot rather than
+being dropped quietly. Nothing forwarded is
 believed on a connection from anywhere else, so an instance exposed directly still
 counts the address it actually sees.
 

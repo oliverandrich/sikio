@@ -100,6 +100,26 @@ defmodule SikioWeb.ClientIpTest do
     assert asked({10, 0, 0, 2}, forwarded) == {203, 0, 113, 7}
   end
 
+  # Two of ours in front, which is what an edge proxy plus an internal one looks like. Walking
+  # from the right has to pass both before it finds the visitor.
+  test "a chain of our own proxies is walked past, not stopped at" do
+    trusting([{10, 0, 0, 1}, {10, 0, 0, 2}])
+
+    forwarded = [{"x-forwarded-for", "203.0.113.7, 10.0.0.1"}]
+
+    assert asked({10, 0, 0, 2}, forwarded) == {203, 0, 113, 7}
+  end
+
+  # Nothing in the chain but our own machines: a health check from the proxy itself, or a probe
+  # that never came from anybody. There is no visitor to find, so the peer stands.
+  test "a chain holding nobody but us leaves the peer standing" do
+    trusting([{10, 0, 0, 1}, {10, 0, 0, 2}])
+
+    forwarded = [{"x-forwarded-for", "127.0.0.1, 10.0.0.1"}]
+
+    assert asked({10, 0, 0, 2}, forwarded) == {10, 0, 0, 2}
+  end
+
   # Giving each backend its own loopback address is an ordinary way to run several of them, and
   # the documentation promises a proxy on the same machine needs no configuration.
   test "a proxy on another loopback address is still the loopback" do
