@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.AuthNavigationTest do
   use SikioWeb.ConnCase
 

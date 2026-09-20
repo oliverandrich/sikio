@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Repo.Migrations.CreateFeedsAndSubscriptions do
   use Ecto.Migration
 

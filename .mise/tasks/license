@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#MISE description="Check that every source file we wrote states the license it is under"
+#
+# The license file says what the project is. A marker says what a single file is, which is the
+# only thing left once somebody copies one out of here. Nothing enforces that by itself, so a
+# repository drifts into stating it for most of its files and not the rest.
+#
+# Everything under these directories is ours, so everything under them is checked. Naming file
+# types or single scripts would mean a new one is quietly not covered, which is the drift this
+# exists to stop. Something that disappears from the list is an error rather than a smaller
+# scan, because a check that quietly covers less is worse than one that is not there.
+#
+# What somebody else wrote is excluded on purpose: assets/vendor holds third party code under
+# its own terms, and marking it would be a false claim rather than a tidy one.
+set -euo pipefail
+
+# Directories whose every file is ours, and the few of ours that sit on their own.
+paths=(
+  lib test config scripts priv/repo assets/js assets/css rel .mise/tasks
+  mix.exs .credo.exs .formatter.exs .igniter.exs
+)
+
+for path in "${paths[@]}"; do
+  if [ ! -e "$path" ]; then
+    echo "this checks something that is no longer there: $path"
+    echo "Either restore it or take it out of the list in $0."
+    exit 1
+  fi
+done
+
+missing=0
+
+while IFS= read -r -d '' file; do
+  # Read rather than pipe: `head | grep -q` lets grep leave first, and head dies of SIGPIPE
+  # under pipefail, which would report a marked file as missing one.
+  case "$(head -5 "$file")" in
+  *SPDX-License-Identifier*) ;;
+  *)
+    echo "  $file"
+    missing=$((missing + 1))
+    ;;
+  esac
+done < <(find "${paths[@]}" -type f -not -path '*/vendor/*' -print0)
+
+if [ "$missing" -gt 0 ]; then
+  echo ""
+  echo "$missing file(s) do not say which license they are under."
+  echo "Add: SPDX-License-Identifier: AGPL-3.0-or-later"
+  exit 1
+fi

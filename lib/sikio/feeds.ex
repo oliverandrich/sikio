@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Feeds do
   @moduledoc """
   Persistence and refresh of shared feed content.

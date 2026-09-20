@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Accounts.User do
   @moduledoc """
   The account table is ours. Ithibati contributes the identifier field, three associations and the

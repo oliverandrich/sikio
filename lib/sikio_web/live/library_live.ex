@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.LibraryLive do
   @moduledoc """
   The personal inbox: the newest items from the sources this account subscribed to.

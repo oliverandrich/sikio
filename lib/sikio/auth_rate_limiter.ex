@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.AuthRateLimiter do
   @moduledoc "Bounded per-node fixed-window counters. Use an edge limit across multiple nodes."
   use GenServer

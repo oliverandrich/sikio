@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Release do
   @moduledoc "Explicit database migration entry points for an assembled release."
   @app :sikio

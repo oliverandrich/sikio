@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.CoreComponentsTest do
   use ExUnit.Case, async: true
   import Phoenix.LiveViewTest

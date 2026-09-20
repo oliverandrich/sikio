@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb do
   @moduledoc """
   The entrypoint for defining your web interface, such

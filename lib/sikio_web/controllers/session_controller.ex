@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.SessionController do
   @moduledoc "Signing out is a plain request, because a LiveView cannot clear a session cookie."
   use SikioWeb, :controller

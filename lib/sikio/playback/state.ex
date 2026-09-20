@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Playback.State do
   @moduledoc """
   A single account's progress and current playback session for an entry.

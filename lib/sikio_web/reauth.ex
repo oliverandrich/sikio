@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.Reauth do
   @moduledoc "Five-minute confirmation bound to the current session account."
   import Plug.Conn

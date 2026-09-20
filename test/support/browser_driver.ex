@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.BrowserDriver do
   @moduledoc """
   Where the chromedriver the feature tests need comes from.

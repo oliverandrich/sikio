@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.CeremonyTest do
   @moduledoc """
   The pipeline this example and the library's README both insist on, driven rather than described.

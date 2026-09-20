@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Library.OPML do
   @moduledoc """
   Transfers subscription lists without account credentials or playback history.

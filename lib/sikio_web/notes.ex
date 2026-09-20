@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.Notes do
   @moduledoc """
   A publisher's show notes, reduced to what a reader needs.

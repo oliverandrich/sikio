@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.ConnCase do
   @moduledoc """
   This module defines the test case to be used by

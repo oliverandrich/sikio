@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Application do
   # See https://elixir.hexdocs.pm/Application.html
   # for more information on OTP Applications

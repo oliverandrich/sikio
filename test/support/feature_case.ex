@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.FeatureCase do
   @moduledoc """
   A real browser, driving the real pages — and with them `priv/static/ithibati.js`, the half of

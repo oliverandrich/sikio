@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.AccountSecurityController do
   @moduledoc "Account security mutations, authenticated again on every request."
   use SikioWeb, :controller

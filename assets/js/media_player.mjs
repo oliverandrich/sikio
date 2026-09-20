@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import {connect} from "./peertube_embed.mjs"
 
 // One request at a time; keep the newest sample while a save is in flight.

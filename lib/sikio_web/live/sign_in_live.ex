@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.SignInLive do
   @moduledoc """
   The LiveView says *when* a ceremony starts; the hook does the round-trips.

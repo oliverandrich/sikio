@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.HardeningTest do
   use SikioWeb.ConnCase
 

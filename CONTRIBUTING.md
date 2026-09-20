@@ -111,6 +111,16 @@ translations. Clipboard messages are translated on the server, not duplicated in
 Use focused regression tests for behavior changes and run `mise check` before
 submitting. Follow the TDD and Conventional Commit rules in [AGENTS.md](AGENTS.md).
 
+## License markers
+
+Every file we wrote carries `SPDX-License-Identifier: AGPL-3.0-or-later` in its first lines,
+in whatever comment its language uses. A file that leaves this repository on its own still
+says what it is; the license file does not travel with it.
+
+`.mise/tasks/license` checks this and `mise run check` runs it. The task answers to its own
+rule. Third party code under `assets/vendor` is excluded, because marking somebody else's
+file with our license would be a false claim.
+
 ## Further reading
 
 - [Operations](docs/operations.md): configuration, releases and migrations.

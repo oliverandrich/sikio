@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.AuthRateLimit do
   @moduledoc "Limits auth requests using the socket peer IP, never untrusted forwarding headers."
   @behaviour Plug

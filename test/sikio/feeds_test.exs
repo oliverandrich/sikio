@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.FeedsTest do
   @moduledoc false
   use Sikio.DataCase, async: true

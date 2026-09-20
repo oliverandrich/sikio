@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 ExUnit.start()
 Ecto.Adapters.SQL.Sandbox.mode(Sikio.Repo, :manual)
 

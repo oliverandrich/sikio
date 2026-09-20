@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Feeds.HTTP do
   @moduledoc """
   Bounded public HTTP requests with DNS pinning and per-hop validation.

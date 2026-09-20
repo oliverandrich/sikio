@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Feeds.Entry do
   @moduledoc "An imported episode or video, independent of each account's progress."
   use Ecto.Schema

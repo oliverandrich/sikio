@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Accounts.Invitation do
   @moduledoc """
   The invitations table is ours, the same arrangement as the accounts table.

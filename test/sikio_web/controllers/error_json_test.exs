@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.ErrorJSONTest do
   use SikioWeb.ConnCase, async: true
 

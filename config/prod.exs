@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 import Config
 
 # Note we also include the path to a cache manifest

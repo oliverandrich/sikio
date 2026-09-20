@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Library.Subscription do
   @moduledoc "One account's subscription and polling preference."
   use Ecto.Schema

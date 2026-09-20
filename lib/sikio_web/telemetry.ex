@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.Telemetry do
   use Supervisor
   import Telemetry.Metrics

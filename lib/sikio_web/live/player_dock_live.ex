@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.PlayerDockLive do
   @moduledoc """
   An independently authenticated, persistent player outside routed page content.

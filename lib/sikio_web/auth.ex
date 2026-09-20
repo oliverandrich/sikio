@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.Auth do
   @moduledoc """
   The three decisions Ithibati does not make, made here — and this instance makes them narrowly.

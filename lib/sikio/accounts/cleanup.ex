@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Accounts.Cleanup do
   @moduledoc """
   The schedule behind `Sikio.AuthCleanup`, which deletes but never decides when.

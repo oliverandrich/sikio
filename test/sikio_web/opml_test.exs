@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.OPMLTest do
   @moduledoc false
   use SikioWeb.ConnCase, async: true

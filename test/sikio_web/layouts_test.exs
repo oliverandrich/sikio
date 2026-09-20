@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.LayoutsTest do
   @moduledoc """
   The one place where the browser is told the same rule as the server.

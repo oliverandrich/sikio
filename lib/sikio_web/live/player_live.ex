@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.PlayerLive do
   @moduledoc """
   One item, its personal status, and the button that hands it to the player.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.InviteLive do
   @moduledoc """
   What somebody sees when they open an invitation link.

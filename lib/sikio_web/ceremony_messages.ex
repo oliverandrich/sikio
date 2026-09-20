@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.CeremonyMessages do
   @moduledoc """
   One sentence per reason a ceremony can fail, in one place.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Adapted from ChapishoWeb.Locale with the author's permission (MIT).
 defmodule SikioWeb.Locale do
   @moduledoc """

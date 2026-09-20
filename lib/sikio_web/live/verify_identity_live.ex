@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.VerifyIdentityLive do
   @moduledoc "Confirm the current account without switching users or creating a new session."
   use SikioWeb, :live_view

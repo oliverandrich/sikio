@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.ContentSecurityPolicy do
   @moduledoc """
   The one opening that cannot be written in advance.

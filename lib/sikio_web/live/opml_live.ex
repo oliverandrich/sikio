@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.OPMLLive do
   @moduledoc """
   Imports an OPML subscription list, showing what it holds before anything is subscribed.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Library.Events do
   @moduledoc """
   Account-scoped notifications for active media views.

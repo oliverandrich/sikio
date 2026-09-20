@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // A PeerTube embed answers through postMessage, in the format jschannel documents in its own
 // source: JSON strings carrying either a request `{id, method, params}`, an answer `{id, result}`
 // or `{id, error, message}`, or a notification `{method, params}` with no id. Every method name

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.ReleaseSmoke.Support do
   @moduledoc "Small standard-library helpers for standalone operational scripts."
 

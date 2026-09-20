@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.PlayerTest do
   @moduledoc """
   The player in a real browser, which is the only place it exists.

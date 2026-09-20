@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.InvitationTest do
   @moduledoc """
   The flow this example exists to show, in a browser.

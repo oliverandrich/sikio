@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.AccountSecurityLive do
   @moduledoc "Passkey enrollment and account recovery settings."
   use SikioWeb, :live_view

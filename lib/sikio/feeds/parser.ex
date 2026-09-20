@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Feeds.Parser do
   @moduledoc """
   Reads podcast RSS and YouTube Atom without external entity expansion.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.SubscriptionsLive do
   @moduledoc """
   Turns a pasted link or a search into a source somebody can look at before subscribing.

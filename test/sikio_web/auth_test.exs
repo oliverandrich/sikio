@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.AuthTest do
   @moduledoc """
   The one function this example exists for, driven directly.

@@ -25,7 +25,7 @@ env.MIX_ENV = "test"
 description = "Check workflows, compile, format, lint, security, assets and tests"
 # The player's browser half is plain modules with no framework, so node's own runner covers it.
 # No npm package is needed for it, and none is installed.
-run = ["zizmor .github/", "mix precommit", "node --test assets/js/*.test.mjs"]
+run = ["zizmor .github/", "mise run license", "mix precommit", "node --test assets/js/*.test.mjs"]
 
 [tasks.test]
 env.MIX_ENV = "test"

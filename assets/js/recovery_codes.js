@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // This screen is rendered by a controller, so copying does not depend on a LiveView hook.
 window.addEventListener("click", async event => {
   const button = event.target.closest("[data-copy-recovery]")

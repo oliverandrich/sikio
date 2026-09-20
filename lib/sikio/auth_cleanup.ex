@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.AuthCleanup do
   @moduledoc "Explicit auth maintenance. The application chooses when to schedule it."
   alias Ithibati.Identity.Challenges

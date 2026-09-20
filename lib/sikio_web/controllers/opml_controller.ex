@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.OPMLController do
   @moduledoc "Downloads this account's sources as an OPML file."
   use SikioWeb, :controller

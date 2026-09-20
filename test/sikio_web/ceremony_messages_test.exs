@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.CeremonyMessagesTest do
   @moduledoc """
   Every code this library can send reaches a sentence of this application's own.

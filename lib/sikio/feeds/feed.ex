@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Feeds.Feed do
   @moduledoc "A shared source; personal membership lives in subscriptions."
   use Ecto.Schema

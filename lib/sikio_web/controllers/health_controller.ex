@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.HealthController do
   @moduledoc "Public liveness probe; intentionally independent of the database and session."
   use SikioWeb, :controller

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.Library.OPML.Handler do
   @moduledoc """
   Reads outlines out of an OPML document, with every limit enforced while parsing.
