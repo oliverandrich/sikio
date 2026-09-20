@@ -41,6 +41,12 @@ run = ["mix compile --warnings-as-errors", "mix credo --strict"]
 description = "Audit dependency advisories and retired packages separately"
 run = ["mix deps.audit", "mix hex.audit"]
 
+[tasks.setup-code]
+description = "Issue the code that lets somebody claim this instance, printed once"
+env.MIX_ENV = "dev"
+# --no-start so this may run beside the server: it wakes the repository and nothing else.
+run = "mix run --no-start -e 'Sikio.Release.setup_code!()'"
+
 [tasks.migrate]
 description = "Apply pending development database migrations"
 env.MIX_ENV = "dev"
