@@ -24,7 +24,12 @@ defmodule Sikio.ReleaseSmoke do
 
   defp check(release, env) do
     Smoke.run([Path.join(release, "migrate")], env)
-    assert Smoke.query("SELECT to_regclass('public.ithibati_challenges') IS NOT NULL", env) == "t"
+
+    # The newest table the library asks for, which is what makes this a check on the schema
+    # rather than on one migration that happened to run. A release whose migrations lag the
+    # library starts and then fails at the first thing that reads what is missing.
+    assert Smoke.query("SELECT to_regclass('public.ithibati_setup_codes') IS NOT NULL", env) == "t"
+
     Smoke.run([Path.join(release, "migrate")], env)
 
     env = Map.put(env, "PORT", Smoke.free_port())
