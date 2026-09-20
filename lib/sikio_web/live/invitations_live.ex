@@ -11,8 +11,10 @@ defmodule SikioWeb.InvitationsLive do
   use SikioWeb, :live_view
 
   alias Sikio.Accounts.Invitation
+  alias Sikio.AuthRateLimiter
   alias Sikio.Identity
   alias Sikio.Repo
+  alias SikioWeb.AuthRateLimit
   alias SikioWeb.CoreComponents
   alias SikioWeb.InvitationMail
 
@@ -26,7 +28,20 @@ defmodule SikioWeb.InvitationsLive do
     {:noreply, assign(socket, username: username, error: nil)}
   end
 
+  # Asked before the changeset, so that an attempt which fails for any other reason still costs.
+  # Otherwise the budget is a formality: type nonsense until the counter is untouched, then spend
+  # the whole of it at once.
   def handle_event("invite", %{"username" => username}, socket) do
+    {limit, seconds} = AuthRateLimit.budget(:invite)
+    key = AuthRateLimit.key(socket.assigns.current_account, :invite)
+
+    case AuthRateLimiter.check(key, limit, seconds) do
+      :ok -> create(socket, username)
+      {:error, retry_after} -> {:noreply, assign(socket, error: too_many(retry_after))}
+    end
+  end
+
+  defp create(socket, username) do
     %Invitation{}
     |> Invitation.changeset(%{"username" => username})
     |> Repo.insert()
@@ -41,6 +56,16 @@ defmodule SikioWeb.InvitationsLive do
       {:error, changeset} ->
         {:noreply, assign(socket, error: changeset_message(changeset, socket.assigns.email?))}
     end
+  end
+
+  # Told in hours, because a day-long window counts down in tens of thousands of seconds and
+  # nobody reads that as a waiting time.
+  defp too_many(seconds) do
+    ngettext(
+      "Too many invitations. Try again in an hour.",
+      "Too many invitations. Try again in %{count} hours.",
+      div(seconds + 3599, 3600)
+    )
   end
 
   # The invitation is already written by the time this runs, so a mail server that is down is

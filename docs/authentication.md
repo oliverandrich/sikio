@@ -50,9 +50,19 @@ and German.
 `AuthRateLimit` allows 10 recovery requests and 120 other ceremony requests per
 peer IP in a 60-second fixed window. Exchanging a setup code allows 10 attempts in
 the same window. Responses use HTTP 429, `Retry-After`, and a translated ceremony
-message. Configure `:auth_rate_limits` on the application as
-`[recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}]` (positive counts and
-seconds). A group the configured list omits keeps its default.
+message. Making an invitation allows 20 per signed-in account in a 24-hour window.
+Configure `:auth_rate_limits` on the application as
+`[recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}, invite: {20, 86_400}]`
+(positive counts and seconds). A group the configured list omits keeps its default.
+
+The invitation budget is counted against the account, not the browser: a session, a
+name or an address would each let the same person start over. It is spent before the
+form is validated, so an attempt that fails for any other reason still costs one —
+otherwise the budget is emptied by typing nonsense. A refusal writes no invitation,
+sends nothing, and leaves a link already on screen where it is, because that link
+exists nowhere else. A day rather than an hour, and 20 rather than the Ithibati
+Starter's 10: what this guards against is not a burst but an account somebody else
+is holding, spending the operator's mail credentials at a steady drip.
 
 The supervised in-memory counters are atomic and bounded to 10,000 keys per node;
 a restart resets them. They count per visitor address, which `SikioWeb.ClientIp`
@@ -61,7 +71,9 @@ address comes from the forwarding header instead. That header is believed only o
 connection from a trusted proxy, which is the loopback plus whatever
 `TRUSTED_PROXIES` names. Exposed directly, nothing forwarded is believed and the
 socket address stands. Multiple nodes require a shared edge limit for a cluster-wide
-budget. These defaults are not a distributed rate-limit service.
+budget. That applies to the invitation budget too: node-local counters do not enforce
+a quota across a cluster, and an edge rule keyed by address does not replace one keyed
+by account. These defaults are not a distributed rate-limit service.
 
 The passkey settings page provides **Sign out on all devices**, including the
 current session. Ithibati revokes stored sessions and broadcasts disconnects to

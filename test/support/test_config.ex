@@ -10,6 +10,20 @@ defmodule Sikio.TestConfig do
   """
   import ExUnit.Callbacks, only: [on_exit: 1]
 
+  @doc """
+  Sets one rate-limit budget for the length of the test, leaving every other group standing.
+
+  `:auth_rate_limits` is one keyword list holding all of them, so writing it whole is how a test
+  quietly takes away a budget that somebody else's setup put there — and the group then falls
+  back to its shipped default rather than to what was wanted. That has cost this suite three
+  separate failures, each in a different file and none of them where the mistake was made.
+  """
+  def put_budget(group, budget) do
+    configured = Application.get_env(:sikio, :auth_rate_limits, [])
+
+    put_env(:sikio, :auth_rate_limits, Keyword.put(configured, group, budget))
+  end
+
   @doc "Sets a key for the length of the test and restores what was there, absence included."
   def put_env(app, key, value) do
     previous = Application.fetch_env(app, key)

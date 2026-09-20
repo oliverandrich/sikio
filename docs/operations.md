@@ -60,6 +60,13 @@ the visitor's address. The proxy must support WebSockets and set
 `X-Forwarded-Proto`; the public URL uses HTTPS on port 443. Expose only the proxy
 publicly.
 
+Making an invitation is limited too, but per signed-in account rather than per
+address: 20 in a 24-hour window, configurable with the other budgets. The counter
+lives in memory on the node that served the request, so several nodes each keep
+their own and a cluster-wide quota needs a shared limit at the edge. An edge rule
+keyed by address does not replace it: the budget exists for an account somebody else
+is holding, and that account can arrive from anywhere.
+
 Authentication limits count per visitor, taken from the forwarding header. That
 header is believed only on a connection from a trusted proxy. The loopback is
 trusted already, so a proxy on the same machine needs no configuration; one on

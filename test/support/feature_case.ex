@@ -64,7 +64,7 @@ defmodule SikioWeb.FeatureCase do
   is the budget's own test, which sets a budget and an address of its own.
   """
   def room_for_the_suites_own_codes,
-    do: Sikio.TestConfig.put_env(:sikio, :auth_rate_limits, setup: {100, 60})
+    do: Sikio.TestConfig.put_budget(:setup, {100, 60})
 
   @doc """
   Types the operator's code and leaves the browser on the form that asks for a name.

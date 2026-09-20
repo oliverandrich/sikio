@@ -124,7 +124,7 @@ defmodule SikioWeb.SetupCodeTest do
     # Guessing is what a code invites, so the budget is spent by attempts rather than by wrong
     # ones. The wait is told; nothing about the code is.
     test "too many attempts are refused with a wait, whatever the codes were", %{code: code} do
-      TestConfig.put_env(:sikio, :auth_rate_limits, setup: {2, 60})
+      TestConfig.put_budget(:setup, {2, 60})
 
       # One address for all three attempts, because what this asks is that they share a budget.
       peer = own_peer()
@@ -167,7 +167,7 @@ defmodule SikioWeb.SetupCodeTest do
     # one budget to everybody, and a stranger spending it would keep the operator out of their own
     # instance. What is counted is the address the proxy forwarded.
     test "two visitors behind one proxy do not spend each other's budget", %{code: code} do
-      TestConfig.put_env(:sikio, :auth_rate_limits, setup: {1, 60})
+      TestConfig.put_budget(:setup, {1, 60})
 
       guessing = fn address, body ->
         build_conn()

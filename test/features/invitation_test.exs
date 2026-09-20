@@ -24,6 +24,28 @@ defmodule SikioWeb.InvitationTest do
     |> assert_has(css("h1", text: "Save your recovery codes"))
   end
 
+  # The budget, driven the way a member meets it: the form, the button, the sentence that comes
+  # back. A refusal has to leave the link of the invitation already made standing, because that
+  # link exists nowhere else.
+  feature "a member runs out of invitations and keeps the last link", %{session: session} do
+    Sikio.TestConfig.put_budget(:invite, {1, 86_400})
+
+    virtual_authenticator(session)
+    claim(session, "ada")
+
+    session
+    |> open("/invitations")
+    |> fill_in(css("input[name=username]"), with: "grace_hopper")
+    |> click(button("Create a link"))
+    |> assert_has(css("code", text: "/invite/"))
+    |> fill_in(css("input[name=username]"), with: "katherine")
+    |> click(button("Create a link"))
+    |> assert_has(css("[role=alert]", text: "Too many invitations"))
+    |> assert_has(css("code", text: "/invite/"))
+
+    assert Repo.aggregate(Sikio.Accounts.Invitation, :count) == 1
+  end
+
   # The link is shown once and never again — the row holds the token's digest — so it is read here
   # or not at all.
   defp invite_link(session, username) do
