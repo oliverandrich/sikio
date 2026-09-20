@@ -12,6 +12,7 @@ defmodule SikioWeb.GermanAuthTest do
     session
     |> open("/")
     |> assert_has(css("html[lang=de]"))
+    |> code_entered()
     |> fill_in(css("input[name=username]"), with: "ada")
     |> click(button("Erstelle deinen Passkey"))
     |> landed_on("/recovery-codes")

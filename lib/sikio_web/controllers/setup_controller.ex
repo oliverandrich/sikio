@@ -14,18 +14,10 @@ defmodule SikioWeb.SetupController do
 
   alias Ithibati.Identity.Instance
   alias Sikio.AuthRateLimiter
-  alias SikioWeb.Auth
   alias SikioWeb.AuthRateLimit
 
-  # An instance that leaves its claim open has no code to exchange, and asking the library for one
-  # raises. The route is registered either way, so the answer is a refusal rather than a crash.
   def create(conn, params) do
     conn = put_resp_header(conn, "cache-control", "no-store")
-
-    if Auth.claim_protected?(), do: limited(conn, params), else: refuse(conn)
-  end
-
-  defp limited(conn, params) do
     {limit, seconds} = AuthRateLimit.budget(:setup)
 
     case AuthRateLimiter.check({:setup, conn.remote_ip}, limit, seconds) do

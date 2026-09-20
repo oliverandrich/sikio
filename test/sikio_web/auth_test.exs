@@ -24,8 +24,9 @@ defmodule SikioWeb.AuthTest do
     %{key_id: :crypto.strong_rand_bytes(16), public_key: :crypto.strong_rand_bytes(64)}
   end
 
-  # `Gate.log_in/2` renews the session, which raises unless one was fetched.
-  defp conn, do: Plug.Test.init_test_session(Phoenix.ConnTest.build_conn(), %{})
+  # `Gate.log_in/2` renews the session, which raises unless one was fetched. The proof is what
+  # every instance now asks for before a first account, and one test below takes it away again.
+  defp conn, do: claiming_conn()
 
   defp claim_instance(username) do
     {:ok, _conn} = Auth.register(conn(), key_attrs(), username, %{})

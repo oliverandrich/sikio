@@ -20,6 +20,7 @@ defmodule SikioWeb.LocaleIntegrationTest do
   test "ceremony requests resolve the locale as well", %{conn: conn} do
     conn =
       conn
+      |> claiming_conn()
       |> put_req_header("accept-language", "de")
       |> post("/auth/registration/challenge", %{"username" => "ada"})
 
@@ -29,7 +30,7 @@ defmodule SikioWeb.LocaleIntegrationTest do
   end
 
   test "connected auth screens and failures are translated", %{conn: conn} do
-    conn = put_req_header(conn, "accept-language", "de")
+    conn = conn |> claiming_conn() |> put_req_header("accept-language", "de")
     {:ok, view, html} = live(conn, "/setup")
     assert html =~ "Erstelle deinen Passkey"
 

@@ -91,6 +91,12 @@ config :phoenix, :json_library, Jason
 # (runtime.exs) to point at its own repository.
 config :sikio, :source_url, "https://github.com/oliverandrich/sikio"
 
+# A public instance is reachable before anybody has claimed it, so the first account asks for a
+# code the operator issues on the host. Set for every environment rather than for production
+# alone: a posture that only holds in production is a posture nothing runs against.
+# `Sikio.Claim` refuses any other value where an instance starts.
+config :ithibati, initial_claim: :operator_code
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

@@ -15,7 +15,6 @@ defmodule SikioWeb.Auth do
   import Plug.Conn, only: [get_session: 2, put_session: 3]
 
   alias Ecto.Multi
-  alias Ithibati.Config
   alias Ithibati.Identity.Grant
   alias Ithibati.Identity.Instance
   alias Ithibati.Identity.Invitations
@@ -58,16 +57,8 @@ defmodule SikioWeb.Auth do
   One rule, asked by everything that needs it: the gate above and the page that decides which
   form to draw. Written twice it would be written as duals, and a change to one of them would
   leave a page offering what the ceremony then refuses.
-
-  `authorized?/1` answers for the proof, not for the instance: it says no in an open one however
-  good the proof, so the mode is what decides whether a proof is wanted at all.
   """
-  def claim_open?(authorization) do
-    not claim_protected?() or Instance.authorized?(authorization)
-  end
-
-  @doc "Whether this instance asks for the operator's code before the first account."
-  def claim_protected?, do: Config.initial_claim_mode() == :operator_code
+  def claim_open?(authorization), do: Instance.authorized?(authorization)
 
   # Only the proof lives in the session, never the code that bought it. It expires on its own,
   # and `authorized?/1` is what says whether it still stands.

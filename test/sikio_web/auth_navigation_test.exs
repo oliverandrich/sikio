@@ -6,7 +6,7 @@ defmodule SikioWeb.AuthNavigationTest do
   alias SikioWeb.Auth
 
   defp claim do
-    conn = Plug.Test.init_test_session(build_conn(), %{})
+    conn = claiming_conn()
     attrs = %{key_id: :crypto.strong_rand_bytes(16), public_key: :crypto.strong_rand_bytes(64)}
     {:ok, conn} = Auth.register(conn, attrs, "ada", %{})
     conn
@@ -16,11 +16,14 @@ defmodule SikioWeb.AuthNavigationTest do
     assert conn |> get("/") |> redirected_to() == "/login"
   end
 
-  test "an empty instance sends login to the username-only setup", %{conn: conn} do
+  # The instance protects its claim, so the setup page asks for the operator's code before it
+  # asks for anything else. Nothing here ever asks for an address.
+  test "an empty instance sends login to the setup page, which asks for the code", %{conn: conn} do
     assert conn |> get("/login") |> redirected_to() == "/setup"
     html = conn |> get("/setup") |> html_response(200)
-    assert html =~ "claim-form"
-    assert html =~ "name=\"username\""
+    assert html =~ "setup-code-form"
+    assert html =~ "name=\"setup_code\""
+    refute html =~ "name=\"username\""
     refute html =~ "name=\"email\""
     refute html =~ "recovery-form"
   end

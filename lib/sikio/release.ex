@@ -7,8 +7,8 @@ defmodule Sikio.Release do
   Each starts the application's repository and nothing else, so one may be run beside a server
   without binding a second port or waking the workers.
   """
-  alias Ithibati.Config
   alias Ithibati.Identity.Instance
+  alias Sikio.Claim
 
   @app :sikio
 
@@ -29,8 +29,8 @@ defmodule Sikio.Release do
   operator who loses it issues another, and issuing another is what makes the previous one
   worthless. Nothing writes it to a log, a file or a response.
 
-  An instance that already has an account needs no code, and neither does one that does not
-  protect its claim. Printing one nobody could spend would read like the command had worked.
+  An instance that already has an account needs no code. Printing one nobody could spend would
+  read like the command had worked.
   """
   def setup_code do
     case issue() do
@@ -41,11 +41,6 @@ defmodule Sikio.Release do
 
       {:error, :already_claimed} = error ->
         IO.puts("This instance is already claimed. No code was issued and none is needed.")
-        error
-
-      {:error, :claim_is_open} = error ->
-        IO.puts("This instance leaves its claim open, so no code is needed to make the first")
-        IO.puts("account. See docs/operations.md for what protecting it requires.")
         error
 
       {:error, reason} = error ->
@@ -62,14 +57,12 @@ defmodule Sikio.Release do
     end
   end
 
-  # The library states the requirement by raising, which is the right answer to a library being
-  # used wrongly and the wrong one to hand somebody who typed a command. So the mode is asked
-  # here instead. Nothing is rescued: `Config.repo/0` and a claim mode nobody can read raise the
-  # same kind of error and mean something else, and "the claim is open" names the wrong key.
+  # Asked here as well as at startup, because this runs through `eval`, which loads the
+  # configuration and starts nothing. An instance configured wrongly would otherwise meet the
+  # library's own refusal, which names a library being used wrongly rather than the key to change.
   defp issue do
-    if Config.initial_claim_mode() == :operator_code,
-      do: with_repo(&Instance.issue_code/0),
-      else: {:error, :claim_is_open}
+    Claim.verify!()
+    with_repo(&Instance.issue_code/0)
   end
 
   def rollback(repo, version) do

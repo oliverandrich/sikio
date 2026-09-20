@@ -8,6 +8,8 @@ defmodule SikioWeb.AuthScreensTest do
 
     session
     |> open("/")
+    |> assert_has(css("#setup-code-form"))
+    |> code_entered()
     |> assert_has(css("#claim-form"))
     |> refute_has(css("input[name=email]"))
     |> fill_in(css("input[name=username]"), with: "ada")

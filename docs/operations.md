@@ -51,12 +51,35 @@ safe once all migrations are applied. Startup never migrates automatically.
 
 The host or hosting provider manages process supervision and HTTPS. The reverse
 proxy must support WebSockets and set `X-Forwarded-Proto`; the public URL uses
-HTTPS on port 443. Expose only the proxy publicly. Register the first account on
-the final HTTPS domain while access is restricted to you. Passkeys are bound to
-that domain. Configure edge rate limits for `/auth/*` as needed: the application's
-peer-address limits see the proxy when requests are proxied.
+HTTPS on port 443. Expose only the proxy publicly. Configure edge rate limits for
+`/auth/*` as needed: the application's peer-address limits see the proxy when
+requests are proxied.
 
 `GET /health` checks HTTP liveness, not database readiness.
+
+## Claim the instance
+
+An instance answers on the network before anybody has claimed it, so the first
+account asks for a code only the operator has. Issue one on the host, after
+`bin/migrate` and once the public hostname is final:
+
+```sh
+bin/setup-code
+```
+
+The code is printed once and nothing else keeps it; only its digest is stored.
+Issuing another code makes the previous one worthless, which is how a lost one is
+replaced. The command refuses to print anything for an instance that already has
+an account.
+
+Then open the final HTTPS host, enter the code, and register the first passkey.
+Keep the recovery codes, which are shown once. Passkeys are bound to the domain
+they were made on, so claiming over a temporary hostname leaves a passkey the
+public one cannot use.
+
+The code buys a proof that lasts ten minutes and is spent by the account it makes.
+Somebody slower than that meets the code field again rather than a refusal after
+the passkey dialogue.
 
 ## Updates and data protection
 

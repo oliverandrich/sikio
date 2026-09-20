@@ -2,10 +2,11 @@
 
 defmodule SikioWeb.SetupCodeTest do
   @moduledoc """
-  The gate in front of the first account, on an instance that protects its claim.
+  The gate in front of the first account, which every instance has.
 
-  Not `async: true`: the claim mode is application configuration and these set it. Synchronous
-  tests run after every concurrent one, so nothing else reads it while they do.
+  Not `async: true`: one of these sets the rate-limit budget, which is application configuration
+  and shared. Synchronous tests run after every concurrent one, so nothing else reads it while
+  they do.
   """
   use SikioWeb.ConnCase, async: false
 
@@ -18,8 +19,6 @@ defmodule SikioWeb.SetupCodeTest do
   import Phoenix.LiveViewTest
 
   setup do
-    TestConfig.put_env(:ithibati, :initial_claim, :operator_code)
-
     {:ok, code} = Instance.issue_code()
     %{code: code, conn: Plug.Test.init_test_session(build_conn(), %{})}
   end
@@ -148,18 +147,6 @@ defmodule SikioWeb.SetupCodeTest do
 
       assert redirected_to(posted) == ~p"/setup"
       assert get_session(posted, :setup_authorization)
-    end
-
-    # The route is registered whatever the instance decided, so an instance that never asks for a
-    # code still answers this address. A stranger posting at it must be turned away rather than
-    # shown a crash, which is what the library raises when no code was ever meant to exist.
-    test "an instance that leaves its claim open refuses the exchange", %{conn: conn, code: code} do
-      Application.put_env(:ithibati, :initial_claim, :open)
-
-      conn = post(conn, ~p"/setup/code", %{"setup_code" => code})
-
-      assert redirected_to(conn) == ~p"/setup"
-      assert get_session(conn, :setup_authorization) == nil
     end
 
     test "the exchange is never cached", %{conn: conn, code: code} do

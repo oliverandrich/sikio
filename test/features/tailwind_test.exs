@@ -18,7 +18,7 @@ defmodule SikioWeb.TailwindTest do
     end)
     |> refute_has(css("[data-phx-theme]"))
     |> execute_script(
-      "return getComputedStyle(document.querySelector('#claim-form button')).display",
+      "return getComputedStyle(document.querySelector('#setup-code-form button')).display",
       fn display ->
         assert display == "inline-flex"
       end

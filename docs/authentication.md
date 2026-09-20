@@ -1,18 +1,23 @@
 # Authentication
 
-Ithibati is pinned to 0.4.0. On an empty database the first visitor can claim the
-instance with a username and passkey. Complete this on a trusted local/private
-connection before exposing a new deployment. Later registrations require a valid
-invitation; every authenticated member can create links on `/`. Links are
-shown once, expire, and are accepted once. There is no administrator role or mail
-delivery; share links through your chosen channel.
+Ithibati is pinned to 0.5.0. On an empty database the first account asks for a code
+the operator issues on the host with `bin/setup-code`, and only then for a username
+and passkey. The code is stored as a digest, buys a proof that lasts ten minutes,
+and is spent by the account it makes; issuing another code voids the previous one
+and any proof bought with it. `Sikio.Claim` refuses to start an instance configured
+any other way. See [Operations](operations.md) for the order an operator follows.
+
+Later registrations require a valid invitation; every authenticated member can
+create links on `/`. Links are shown once, expire, and are accepted once. There is
+no administrator role or mail delivery; share links through your chosen channel.
 
 Sessions are revocable and cookies are encrypted because they temporarily carry
 recovery codes. Recovery codes are displayed once after registration. Adapt the
 account policy to the application.
 
 The public auth screens are `/login` (passkey), `/recover` (recovery code), and
-`/setup` (first account only). Signed-in visitors go to `/`. The project name and
+`/setup` (first account only), which asks for the operator's code before it asks
+for a name and posts it to `/setup/code`. Signed-in visitors go to `/`. The project name and
 auth appearance live in `Layouts.auth/1`; the one-time code screen includes a copy
 button and a manual-copy fallback when clipboard permission is unavailable.
 

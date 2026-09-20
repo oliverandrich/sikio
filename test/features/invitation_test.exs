@@ -17,6 +17,7 @@ defmodule SikioWeb.InvitationTest do
   defp claim(session, username) do
     session
     |> open("/")
+    |> code_entered()
     |> fill_in(css("input[name=username]"), with: username)
     |> click(button("Create your passkey"))
     |> landed_on("/recovery-codes")
@@ -44,6 +45,7 @@ defmodule SikioWeb.InvitationTest do
 
     session
     |> open("/")
+    |> code_entered()
     |> assert_has(css("p", text: "Choose your username and create a passkey"))
     |> fill_in(css("input[name=username]"), with: "ada")
     |> click(button("Create your passkey"))

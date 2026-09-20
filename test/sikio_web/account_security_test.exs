@@ -16,7 +16,7 @@ defmodule SikioWeb.AccountSecurityTest do
     username = unique_username()
 
     {:ok, signed} =
-      Auth.register(Plug.Test.init_test_session(build_conn(), %{}), attrs(), username, %{})
+      Auth.register(claiming_conn(), attrs(), username, %{})
 
     account = Repo.get_by!(User, username: username)
 

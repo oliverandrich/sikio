@@ -17,7 +17,9 @@ defmodule Sikio.DataCase do
   """
 
   use ExUnit.CaseTemplate
+
   alias Ecto.Adapters.SQL.Sandbox
+  alias Ithibati.Identity.Instance
 
   @doc """
   A name no other test writes.
@@ -31,6 +33,36 @@ defmodule Sikio.DataCase do
 
   @doc "The tail that makes a name or an address this test's own."
   def unique, do: Integer.to_string(System.unique_integer([:positive]))
+
+  @doc """
+  What the operator's code buys, for a test that makes the first account.
+
+  Every instance protects its claim, so nothing claims one without this. Bought by issuing a code
+  and spending it, rather than by writing a proof by hand, so the test walks the same path an
+  operator does.
+
+  Issued once per test and remembered. Issuing another code is what makes the previous one
+  worthless, so a helper that issued one per call would hand back proofs that the next call voids.
+  """
+  def setup_authorization do
+    case Process.get(__MODULE__) do
+      nil ->
+        {:ok, code} = Instance.issue_code()
+        {:ok, proof} = Instance.authorize_code(code)
+        Process.put(__MODULE__, proof)
+        proof
+
+      proof ->
+        proof
+    end
+  end
+
+  @doc "A connection that has already spent the operator's code, with a session to hold it."
+  def claiming_conn(conn \\ Phoenix.ConnTest.build_conn()) do
+    conn
+    |> Plug.Test.init_test_session(%{})
+    |> Plug.Conn.put_session(:setup_authorization, setup_authorization())
+  end
 
   using do
     quote do

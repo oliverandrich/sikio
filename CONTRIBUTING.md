@@ -8,11 +8,15 @@ Install **mise** and **PostgreSQL 18**, then prepare and start the application:
 mise trust
 mise install
 mise run setup
+mise run setup-code
 mise run dev
 ```
 
-Open **http://localhost:4000**. `mise run setup` explicitly creates, migrates and
-seeds the development database, then builds assets.
+Open **http://localhost:4000** and enter the code `mise run setup-code` printed.
+`mise run setup` explicitly creates, migrates and seeds the development database,
+then builds assets. Every instance protects its first account with an operator's
+code, development included, so `mise run reset` is followed by another
+`mise run setup-code`.
 
 ## Configure the database
 
@@ -40,6 +44,7 @@ Production uses `DATABASE_URL` and `SECRET_KEY_BASE`; see [Operations](docs/oper
 | `mise run credo` | Compile then strict Credo |
 | `mise run audit` | Dependency advisories and retired Hex packages |
 | `mise run migrate` | Explicit development migrations |
+| `mise run setup-code` | Issue the code that claims the development instance, printed once |
 | `mise run dev` | Start the development server in the foreground |
 | `mise run reset` | Drop and recreate the development database, migrate and seed |
 | `mise run debugserver` | IEx Phoenix server |

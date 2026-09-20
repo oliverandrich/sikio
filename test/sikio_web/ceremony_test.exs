@@ -10,8 +10,11 @@ defmodule SikioWeb.CeremonyTest do
   """
   use SikioWeb.ConnCase
 
+  # Carrying what the operator's code buys, because a first-account challenge is not minted
+  # without it. Written into the session rather than bought at the endpoint: what this file is
+  # about is the pipeline, and the exchange has its own tests.
   defp signed_conn do
-    conn = get(build_conn(), "/setup")
+    conn = claiming_conn() |> get("/setup")
     [_, token] = Regex.run(~r/name="csrf-token" content="([^"]+)"/, html_response(conn, 200))
 
     {recycle(conn), token}

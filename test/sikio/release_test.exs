@@ -4,8 +4,8 @@ defmodule Sikio.ReleaseTest do
   @moduledoc """
   The command an operator runs before anybody can claim a fresh instance.
 
-  Not `async: true`: the claim mode is application configuration, and these set it. Synchronous
-  tests run after every concurrent one, so nothing else is reading it while they do.
+  Not `async: true`: one of these sets the claim mode, which is application configuration.
+  Synchronous tests run after every concurrent one, so nothing else is reading it while they do.
   """
   use Sikio.DataCase, async: false
 
@@ -14,10 +14,6 @@ defmodule Sikio.ReleaseTest do
   alias Ithibati.Identity.Instance
   alias Sikio.TestConfig
   alias SikioWeb.Auth
-
-  setup do
-    TestConfig.put_env(:ithibati, :initial_claim, :operator_code)
-  end
 
   test "prints a code once, and nothing else" do
     printed = capture_io(fn -> assert Sikio.Release.setup_code() == :ok end)
@@ -46,11 +42,8 @@ defmodule Sikio.ReleaseTest do
 
   # An instance with an account needs no code, and printing one that nobody can spend would be
   # worse than saying so: it reads like the command worked.
-  #
-  # Claimed while the mode was still open, which is the shape every instance upgrading to this
-  # version has.
   test "an instance somebody already claimed is told so rather than given a code" do
-    claim_while_open()
+    claim()
 
     printed =
       capture_io(fn -> assert Sikio.Release.setup_code() == {:error, :already_claimed} end)
@@ -59,39 +52,27 @@ defmodule Sikio.ReleaseTest do
     assert printed =~ "claimed"
   end
 
-  # An operator on an instance that does not protect its claim gets a sentence, not the stack
-  # trace of a library saying the configuration is wrong. There is nothing to fix here: an open
-  # instance needs no code.
-  test "an instance that does not protect its claim says so" do
-    Application.put_env(:ithibati, :initial_claim, :open)
+  # This command runs through `eval`, which starts nothing, so the guard that refuses a wrong
+  # claim mode at startup never ran. An operator who typed the command has to be told the key to
+  # change rather than handed a code for a claim nobody protects.
+  test "an instance whose claim is not protected is refused, not given a code" do
+    TestConfig.put_env(:ithibati, :initial_claim, :open)
 
-    printed = capture_io(fn -> assert Sikio.Release.setup_code() == {:error, :claim_is_open} end)
+    printed =
+      capture_io(fn ->
+        assert_raise RuntimeError, ~r/initial_claim/, fn -> Sikio.Release.setup_code() end
+      end)
 
     refute printed =~ ~r/[a-zA-Z0-9_-]{32}/
-    assert printed =~ "open"
   end
 
-  # A value the library cannot read is a mistake in the configuration, and "this instance leaves
-  # its claim open" sends the operator to the wrong key to fix it.
-  test "a claim mode the library cannot read is not reported as an open claim" do
-    Application.put_env(:ithibati, :initial_claim, :operator_codes)
-
-    assert_raise ArgumentError, ~r/initial_claim/, fn ->
-      capture_io(fn -> Sikio.Release.setup_code() end)
-    end
-  end
-
-  defp claim_while_open do
-    Application.put_env(:ithibati, :initial_claim, :open)
-
+  defp claim do
     {:ok, _conn} =
       Auth.register(
-        Plug.Test.init_test_session(Phoenix.ConnTest.build_conn(), %{}),
+        claiming_conn(),
         %{key_id: :crypto.strong_rand_bytes(16), public_key: :crypto.strong_rand_bytes(64)},
         unique_username(),
         %{}
       )
-
-    Application.put_env(:ithibati, :initial_claim, :operator_code)
   end
 end

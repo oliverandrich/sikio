@@ -24,17 +24,18 @@ chromedriver for the browser tests.
 mise trust
 mise install
 mise run setup
+mise run setup-code
 mise dev
 ```
 
-Open **http://localhost:4000** and register your first passkey. Save the recovery codes; they
-are shown once. Under Invitations you can then create links. Invitations last seven days, are
-bound to the username you choose, and can be used once.
+Open **http://localhost:4000**, enter the code the previous command printed, and register your
+first passkey. Save the recovery codes; they are shown once. Under Invitations you can then
+create links. Invitations last seven days, are bound to the username you choose, and can be used
+once. After `mise run reset` the database is unclaimed again, so issue another code.
 
 Development and tests default to `postgres:postgres` on `localhost:5432`, with separate
 `sikio_dev` and `sikio_test` databases. `PGUSER`, `PGPASSWORD`, `PGHOST` and `PGPORT` override
-the connection. Use passkeys over **localhost** locally and over HTTPS once published, and
-register the first account before opening a new deployment to anybody else.
+the connection. Use passkeys over **localhost** locally and over HTTPS once published.
 
 ## Documentation
 

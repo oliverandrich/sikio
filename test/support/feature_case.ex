@@ -19,6 +19,7 @@ defmodule SikioWeb.FeatureCase do
   # `assert_has/2` is a macro that expands into `execute_query/2` and both have to be in scope here.
   import Wallaby.Browser
 
+  alias Ithibati.Identity.Instance
   alias Wallaby.Query
 
   using do
@@ -27,6 +28,7 @@ defmodule SikioWeb.FeatureCase do
 
       setup %{session: session} do
         SikioWeb.FeatureCase.language(session, "en")
+        SikioWeb.FeatureCase.room_for_the_suites_own_codes()
         :ok
       end
 
@@ -49,6 +51,43 @@ defmodule SikioWeb.FeatureCase do
   """
   def open(session, path) do
     session |> visit(path) |> connected()
+  end
+
+  @doc """
+  Raises the setup budget for the length of one browser test.
+
+  Every test here that makes an account spends a code at the real endpoint, and a browser cannot
+  be given an address of its own, so they all arrive on the loopback and share one counter. The
+  shipped budget of ten a minute would then refuse the suite rather than a guesser.
+
+  Only these tests need it. Everything else either writes the proof straight into the session or
+  is the budget's own test, which sets a budget and an address of its own.
+  """
+  def room_for_the_suites_own_codes,
+    do: Sikio.TestConfig.put_env(:sikio, :auth_rate_limits, setup: {100, 60})
+
+  @doc """
+  Types the operator's code and leaves the browser on the form that asks for a name.
+
+  Every instance protects its claim, so claiming one is two forms rather than one. A test that is
+  really about what comes after the name still walks through this, which is what makes the gate
+  something the suite drives rather than something it describes.
+
+  The submit button is found by its form rather than by its label, because one of these tests
+  runs the interface in German.
+
+  Submitting is a full page load back to the same path, which is the swap `landed_on/2` cannot
+  wait for. So the new document is waited for by the form only it has, and the socket is asked
+  about afterwards, once there is one document to ask.
+  """
+  def code_entered(session) do
+    {:ok, code} = Instance.issue_code()
+
+    session
+    |> fill_in(Query.css("input[name=setup_code]"), with: code)
+    |> click(Query.css("#setup-code-form button"))
+    |> through_navigation(Query.css("#claim-form"))
+    |> connected()
   end
 
   @doc """

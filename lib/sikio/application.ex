@@ -9,6 +9,10 @@ defmodule Sikio.Application do
 
   @impl true
   def start(_type, _args) do
+    # Before anything binds a port. An instance whose claim is not protected must not serve one
+    # request, because the first stranger to arrive would be the one who claims it.
+    Sikio.Claim.verify!()
+
     children = [
       Sikio.AuthRateLimiter,
       SikioWeb.Telemetry,

@@ -11,6 +11,7 @@ defmodule SikioWeb.RecoveryTest do
     codes =
       session
       |> open("/")
+      |> code_entered()
       |> fill_in(css("input[name=username]"), with: "ada")
       |> click(button("Create your passkey"))
       |> landed_on("/recovery-codes")

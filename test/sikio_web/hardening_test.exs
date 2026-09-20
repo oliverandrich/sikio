@@ -15,7 +15,7 @@ defmodule SikioWeb.HardeningTest do
 
     {:ok, conn} =
       Auth.register(
-        init_test_session(build_conn(), %{}),
+        claiming_conn(),
         %{key_id: :crypto.strong_rand_bytes(16), public_key: :crypto.strong_rand_bytes(64)},
         username,
         %{}
