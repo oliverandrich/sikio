@@ -94,8 +94,9 @@ Deployment-specific configuration belongs in `config/runtime.exs` and environmen
 variables, not compiled installation paths. Keep releases movable, and put writable
 data outside the release using configurable absolute paths. `rel/overlays/bin`
 contains application start and migration commands, not host provisioning.
-Uberspace targets U8 only; do not add U7 compatibility work. Validate native
-libraries and OS/architecture compatibility on the actual target. VM resource
+The target is a Mix release on Linux behind Caddy, which terminates TLS and
+forwards the visitor's address. Validate native libraries and OS/architecture
+compatibility on the actual target. VM resource
 settings must remain operator-configurable; do not promise memory usage or pin
 shared-host tuning as a universal default without measurements.
 
