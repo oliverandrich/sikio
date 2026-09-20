@@ -13,9 +13,9 @@ defmodule Sikio.PlaybackTest do
   alias Sikio.Playback
 
   setup do
-    alice = Repo.insert!(User.changeset(%User{}, %{username: "alice"}))
-    bob = Repo.insert!(User.changeset(%User{}, %{username: "bob"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    alice = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    bob = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, sub} = Library.subscribe(alice, preview)
     [entry] = Library.entries(alice)
     %{alice: alice, bob: bob, entry: entry, preview: preview, sub: sub}

@@ -11,7 +11,7 @@ defmodule SikioWeb.AuthOperationsTest do
   alias Sikio.AuthCleanup
 
   test "cleanup removes only expired records and is idempotent" do
-    account = Repo.insert!(User.changeset(%User{}, %{username: "ada"}))
+    account = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     active_token = Sessions.generate_session_token(account)
 
     expired =

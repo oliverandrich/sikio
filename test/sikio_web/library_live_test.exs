@@ -17,14 +17,15 @@ defmodule SikioWeb.LibraryLiveTest do
   alias Sikio.Repo
 
   setup %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
-    {:ok, podcast} = Parser.parse(podcast(), "https://example.org/rss")
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    podcast_url = feed_url()
+    {:ok, podcast} = Parser.parse(podcast(), podcast_url)
     {:ok, sub} = Library.subscribe(user, podcast)
 
     {:ok, video} =
       Parser.parse(
         youtube(),
-        "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"
+        youtube_feed_url()
       )
 
     {:ok, _} = Library.subscribe(user, video)
@@ -34,7 +35,8 @@ defmodule SikioWeb.LibraryLiveTest do
       conn: conn |> init_test_session(%{}) |> Gate.log_in(user),
       user: user,
       audio: audio,
-      sub: sub
+      sub: sub,
+      podcast_url: podcast_url
     }
   end
 
@@ -100,11 +102,17 @@ defmodule SikioWeb.LibraryLiveTest do
   end
 
   test "invalid query parameters are harmless and another account cannot alter our status", c do
-    other = Repo.insert!(User.changeset(%User{}, %{username: "other"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    # The same source on purpose: a co-subscriber may write playback, and what this asks is that
+    # writing it leaves our own status alone. Give them a feed of their own and the write is
+    # refused for want of a subscription, which proves something else entirely.
+    other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), c.podcast_url)
     Library.subscribe(other, preview)
     {:ok, view, _} = live(c.conn, ~p"/?kind=invalid&status=invalid&source=oops")
-    Playback.mark(other, c.audio.id, :completed)
+
+    # Both halves matter. Their write has to land, or this proves only that a stranger cannot
+    # write, which is a different test and one that passes for the wrong reason.
+    assert {:ok, %{status: :completed}} = Playback.mark(other, c.audio.id, :completed)
     assert has_element?(view, "#entries-#{c.audio.id}", "New")
     {:ok, reloaded, _} = live(c.conn, ~p"/?status=new")
     assert has_element?(reloaded, "#entries-#{c.audio.id}", "New")
@@ -123,7 +131,7 @@ defmodule SikioWeb.LibraryLiveTest do
   # that is not answered that way fell to the podcast side, so a PeerTube video was drawn with a
   # microphone and described as audio from a publisher.
   test "a PeerTube video is not dressed as a podcast", %{conn: conn, user: user} do
-    {:ok, preview} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
     entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
 
@@ -140,7 +148,7 @@ defmodule SikioWeb.LibraryLiveTest do
   end
 
   test "a PeerTube source says what it is in the list of sources", %{conn: conn, user: user} do
-    {:ok, preview} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
 
     {:ok, _view, html} = live(conn, ~p"/subscriptions")

@@ -16,12 +16,13 @@ defmodule SikioWeb.OPMLTest do
   alias Sikio.Repo
 
   setup %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     %{conn: conn |> init_test_session(%{}) |> Gate.log_in(user), user: user}
   end
 
   test "OPML export is an authenticated download scoped to the current account", c do
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    url = feed_url()
+    {:ok, preview} = Parser.parse(podcast(), url)
     Library.subscribe(c.user, preview)
     conn = get(c.conn, "/subscriptions.opml")
     assert response(conn, 200) =~ "xmlUrl"
@@ -31,7 +32,7 @@ defmodule SikioWeb.OPMLTest do
            ]
 
     assert get_resp_header(conn, "cache-control") == ["no-store"]
-    assert {:ok, [%{url: "https://example.org/rss"}]} = OPML.parse(conn.resp_body)
+    assert {:ok, [%{url: ^url}]} = OPML.parse(conn.resp_body)
     assert build_conn() |> get("/subscriptions.opml") |> redirected_to() == "/login"
   end
 
@@ -44,8 +45,9 @@ defmodule SikioWeb.OPMLTest do
 
     {:ok, view, _} = live(c.conn, "/subscriptions/import")
 
+    # The stub answers on the path, so the host may be this test's own.
     xml =
-      ~s(<opml version="2.0"><body><outline text="Podcast" xmlUrl="https://example.org/rss"/><outline text="Broken" xmlUrl="https://example.org/broken"/></body></opml>)
+      ~s(<opml version="2.0"><body><outline text="Podcast" xmlUrl="#{feed_url()}"/><outline text="Broken" xmlUrl="#{feed_url("broken")}"/></body></opml>)
 
     upload =
       file_input(view, "#opml-upload-form", :opml, [
@@ -89,7 +91,7 @@ defmodule SikioWeb.OPMLTest do
     {:ok, view, _} = live(c.conn, "/subscriptions/import")
 
     xml =
-      ~s(<opml version="2.0"><body><outline text="Instance" xmlUrl="https://video.example.org/feeds/videos.xml"/></body></opml>)
+      ~s(<opml version="2.0"><body><outline text="Instance" xmlUrl="#{peertube_feed_url()}"/></body></opml>)
 
     upload =
       file_input(view, "#opml-upload-form", :opml, [

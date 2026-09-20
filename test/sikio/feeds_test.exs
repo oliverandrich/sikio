@@ -15,6 +15,11 @@ defmodule Sikio.FeedsTest do
   alias Sikio.Library
   alias Sikio.Library.Events
 
+  # One address for this module and a different one for every other, evaluated once when this
+  # is compiled. Several tests here mean the same feed on purpose, which is what half of them
+  # are about; two modules meaning the same row is what the suite deadlocks on.
+  @feed_url feed_url()
+
   test "a feed is stored once, however often it is imported" do
     {:ok, first} = Feeds.store(preview())
     {:ok, second} = Feeds.store(preview(podcast("Renamed")))
@@ -74,7 +79,7 @@ defmodule Sikio.FeedsTest do
     end)
 
     assert {:ok, refreshed} = Feeds.refresh(stored.id)
-    assert refreshed.url == "https://example.org/rss"
+    assert refreshed.url == @feed_url
     assert Repo.aggregate(Feed, :count) == 1
   end
 
@@ -103,17 +108,17 @@ defmodule Sikio.FeedsTest do
     assert {:error, :not_found} = Feeds.refresh(-1)
   end
 
-  # Its own username, because another async test locks the shared feed row and a user row in the
-  # opposite order, and two transactions taking the same two locks the other way round deadlock.
+  # The feed this test already stored, not another one: the assertion below is that there is
+  # exactly one.
   defp subscriber(feed_id) do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "feeds_test_reader"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), @feed_url)
     {:ok, _subscription} = Library.subscribe(user, preview)
     ^feed_id = Repo.one(from f in Sikio.Feeds.Feed, select: f.id)
     user.id
   end
 
-  defp preview(body \\ podcast(), url \\ "https://example.org/rss") do
+  defp preview(body \\ podcast(), url \\ @feed_url) do
     {:ok, preview} = Parser.parse(body, url)
     preview
   end
@@ -184,7 +189,7 @@ defmodule Sikio.FeedsTest do
   test "a refresh that carries no picture keeps the stored one" do
     {:ok, feed} =
       Feeds.store(%{
-        url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv",
+        url: youtube_feed_url(),
         title: "Good Channel",
         kind: :youtube,
         icon_url: "https://yt3.googleusercontent.com/picture=s900-c-k-no-rj",
@@ -199,7 +204,7 @@ defmodule Sikio.FeedsTest do
 
   test "a PeerTube channel is stored with the embed each video is played from" do
     assert {:ok, feed} =
-             Feeds.store(preview(peertube(), "https://video.example.org/feeds/videos.xml"))
+             Feeds.store(preview(peertube(), peertube_feed_url()))
 
     assert feed.kind == :peertube
 

@@ -15,15 +15,17 @@ defmodule Sikio.Feeds.JobsTest do
   alias Sikio.Library
 
   setup do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "alice"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    url = feed_url()
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), url)
     {:ok, subscription} = Library.subscribe(user, preview)
-    %{user: user, subscription: subscription}
+    %{user: user, subscription: subscription, url: url}
   end
 
   test "schedules one refresh per active feed, whoever subscribed to it", ctx do
-    other = Repo.insert!(User.changeset(%User{}, %{username: "bob"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    # The same feed on purpose: one refresh is scheduled however many accounts want it.
+    other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), ctx.url)
     {:ok, _second} = Library.subscribe(other, preview)
 
     assert :ok = perform_job(Scheduler, %{})

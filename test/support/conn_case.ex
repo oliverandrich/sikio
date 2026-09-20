@@ -30,6 +30,7 @@ defmodule SikioWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import SikioWeb.ConnCase
+      import Sikio.DataCase, only: [unique_username: 0, unique_username: 1]
     end
   end
 

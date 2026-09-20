@@ -13,10 +13,12 @@ defmodule SikioWeb.AccountSecurityTest do
     do: %{key_id: :crypto.strong_rand_bytes(16), public_key: :crypto.strong_rand_bytes(64)}
 
   setup do
-    {:ok, signed} =
-      Auth.register(Plug.Test.init_test_session(build_conn(), %{}), attrs(), "ada", %{})
+    username = unique_username()
 
-    account = Repo.get_by!(User, username: "ada")
+    {:ok, signed} =
+      Auth.register(Plug.Test.init_test_session(build_conn(), %{}), attrs(), username, %{})
+
+    account = Repo.get_by!(User, username: username)
 
     session =
       get_session(signed)
@@ -61,7 +63,7 @@ defmodule SikioWeb.AccountSecurityTest do
     assert [%{label: "Laptop"}] = Passkeys.list_keys(account)
     delete(conn, "/account/passkeys/#{key.id}")
     assert length(Passkeys.list_keys(account)) == 1
-    other = Repo.insert!(User.changeset(%User{}, %{username: "grace"}))
+    other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, foreign} = Passkeys.add_key(other, attrs())
     patch(conn, "/account/passkeys/#{foreign.id}", %{"label" => "Stolen"})
     delete(conn, "/account/passkeys/#{foreign.id}")
@@ -104,7 +106,7 @@ defmodule SikioWeb.AccountSecurityTest do
              Auth.registration_subject(build_conn(), %{"intent" => "add_passkey"})
 
     assert {:error, :authentication_required} = Auth.register(build_conn(), attrs(), account, %{})
-    other = Repo.insert!(User.changeset(%User{}, %{username: "grace"}))
+    other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
 
     assert {:error, :authentication_required} =
              Auth.register(Plug.Conn.assign(conn, :current_account, other), attrs(), account, %{})

@@ -40,8 +40,8 @@ defmodule Sikio.Library.OPMLTest do
   end
 
   test "export contains only this account's feeds and round trips escaped titles and URLs" do
-    alice = Repo.insert!(User.changeset(%User{}, %{username: "alice"}))
-    bob = Repo.insert!(User.changeset(%User{}, %{username: "bob"}))
+    alice = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    bob = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/feed?a=1&b=2")
     Library.subscribe(alice, %{preview | title: ~s(A & B "podcast")})
     Library.subscribe(bob, %{preview | url: "https://example.org/private"})
@@ -55,7 +55,7 @@ defmodule Sikio.Library.OPMLTest do
   end
 
   test "partial imports preserve existing paused subscriptions and progress and report failures" do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/existing")
     {:ok, sub} = Library.subscribe(user, preview)
     Library.pause(user, sub.id, true)
@@ -83,7 +83,7 @@ defmodule Sikio.Library.OPMLTest do
   end
 
   test "private addresses never reach the HTTP transport" do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     Req.Test.stub(HTTP, fn _ -> flunk("private address reached transport") end)
 
     assert [%{status: :failed, reason: :unsafe_url}] =

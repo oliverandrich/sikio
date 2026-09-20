@@ -13,8 +13,8 @@ defmodule SikioWeb.PlayerLiveTest do
   alias Sikio.Repo
 
   setup %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, _} = Library.subscribe(user, preview)
     [entry] = Library.entries(user)
     %{conn: conn |> init_test_session(%{}) |> Gate.log_in(user), user: user, entry: entry}
@@ -61,7 +61,7 @@ defmodule SikioWeb.PlayerLiveTest do
     {:ok, preview} =
       Parser.parse(
         youtube(),
-        "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"
+        youtube_feed_url()
       )
 
     {:ok, sub} = Library.subscribe(c.user, preview)
@@ -102,7 +102,7 @@ defmodule SikioWeb.PlayerLiveTest do
   end
 
   test "private entries and malformed IDs cannot be opened", c do
-    other = Repo.insert!(User.changeset(%User{}, %{username: "other"}))
+    other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     conn = build_conn() |> init_test_session(%{}) |> Gate.log_in(other)
     assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/library/#{c.entry.id}")
     assert {:error, {:live_redirect, %{to: "/"}}} = live(c.conn, ~p"/library/invalid")

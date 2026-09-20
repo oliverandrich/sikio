@@ -3,6 +3,28 @@
 defmodule Sikio.FeedFixtures do
   @moduledoc false
 
+  @doc """
+  A feed address no other test writes.
+
+  The same reasoning as `Sikio.DataCase.unique_username/1`, for the other row every second test
+  touches. The host may be anything: `config/test.exs` pins the resolver, so nothing reaches DNS.
+  """
+  def feed_url(path \\ "rss"), do: "https://feed#{Sikio.DataCase.unique()}.example.org/#{path}"
+
+  @doc """
+  A YouTube channel feed address no other test writes.
+
+  The parser insists on YouTube's own host and on a channel id of the shape YouTube gives out,
+  so only the id varies. The document keeps its own id: nothing compares the two.
+  """
+  def youtube_feed_url do
+    id = String.pad_leading(Sikio.DataCase.unique(), 22, "a")
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UC#{id}"
+  end
+
+  @doc "A PeerTube instance feed address no other test writes."
+  def peertube_feed_url, do: feed_url("feeds/videos.xml")
+
   @doc "The resolver the test environment pins every host to, so no test reaches real DNS."
   def resolve(_host), do: {:ok, [{93, 184, 216, 34}]}
 

@@ -15,9 +15,9 @@ defmodule Sikio.LibraryTest do
   alias Sikio.Playback
 
   setup do
-    alice = Repo.insert!(User.changeset(%User{}, %{username: "alice"}))
-    bob = Repo.insert!(User.changeset(%User{}, %{username: "bob"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    alice = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    bob = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
     %{alice: alice, bob: bob, preview: preview}
   end
 
@@ -51,7 +51,7 @@ defmodule Sikio.LibraryTest do
     {:ok, video} =
       Parser.parse(
         youtube(),
-        "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"
+        youtube_feed_url()
       )
 
     Library.subscribe(ctx.alice, video)

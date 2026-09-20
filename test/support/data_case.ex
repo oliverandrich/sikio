@@ -19,6 +19,19 @@ defmodule Sikio.DataCase do
   use ExUnit.CaseTemplate
   alias Ecto.Adapters.SQL.Sandbox
 
+  @doc """
+  A name no other test writes.
+
+  Almost every test file is `async: true`, each in its own sandbox transaction. Two of them
+  writing the same account row take the same lock, and taking two such locks in opposite order
+  is how a suite deadlocks against itself. The cheapest way out is for no two tests to name the
+  same row. The prefix is for whoever reads the test, not for the database.
+  """
+  def unique_username(prefix \\ "reader"), do: prefix <> unique()
+
+  @doc "The tail that makes a name or an address this test's own."
+  def unique, do: Integer.to_string(System.unique_integer([:positive]))
+
   using do
     quote do
       alias Sikio.Repo

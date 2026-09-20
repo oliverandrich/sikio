@@ -143,15 +143,16 @@ defmodule SikioWeb.AuthTest do
   # challenge is this application's. When they disagree, the challenge wins.
   test "the invitation accepted is the one the challenge approved, not the one the second request names" do
     claim_instance("first_one")
-    _alice = invite("alice")
-    bob = invite("bob")
+    invited = unique_username("invited")
+    other = invite(unique_username("other"))
+    _ = invite(invited)
 
     assert {:error, :invitation_unknown} =
-             Auth.register(conn(), key_attrs(), "alice", %{"token" => bob.token})
+             Auth.register(conn(), key_attrs(), invited, %{"token" => other.token})
 
-    refute Repo.get_by(User, username: "alice")
-    refute Repo.get_by(User, username: "bob")
-    assert Invitations.fetch(bob.token)
+    refute Repo.get_by(User, username: invited)
+    refute Repo.get_by(User, username: other.username)
+    assert Invitations.fetch(other.token)
   end
 
   # `register/4` takes the subject from the session, not from this request, so it is worth asking

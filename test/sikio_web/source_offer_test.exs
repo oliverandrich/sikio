@@ -19,7 +19,7 @@ defmodule SikioWeb.SourceOfferTest do
   @configured Application.compile_env(:sikio, :source_url)
 
   test "a signed-in reader is offered the source", %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     conn = conn |> init_test_session(%{}) |> Gate.log_in(user)
 
     {:ok, _view, html} = live(conn, ~p"/")

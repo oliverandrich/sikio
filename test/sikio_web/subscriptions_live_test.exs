@@ -14,7 +14,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
   alias Sikio.Repo
 
   setup %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     conn = conn |> init_test_session(%{}) |> Gate.log_in(user)
     %{conn: conn, user: user}
   end
@@ -22,7 +22,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
   test "pasted URLs preview a source before subscribing", %{conn: conn, user: user} do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
     {:ok, view, _} = live(conn, ~p"/subscriptions")
-    view |> form("#discover-form", %{url: "https://example.org/rss"}) |> render_submit()
+    view |> form("#discover-form", %{url: feed_url()}) |> render_submit()
     render_async(view)
     assert has_element?(view, "#source-0", "Small Hours")
     assert Library.subscriptions(user) == []
@@ -40,7 +40,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
               %{
                 collectionName: "Small Hours",
                 artistName: "Ada",
-                feedUrl: "https://example.org/rss"
+                feedUrl: feed_url()
               }
             ]
           })
@@ -65,7 +65,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
   } do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "down") end)
     {:ok, view, _} = live(conn, ~p"/subscriptions")
-    view |> form("#discover-form", %{url: "https://example.org/rss"}) |> render_submit()
+    view |> form("#discover-form", %{url: feed_url()}) |> render_submit()
     render_async(view)
     assert has_element?(view, "#discovery-error")
     render_hook(view, "select", %{id: "999"})
@@ -87,7 +87,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
   test "pausing and unsubscribing act only on our own rows", %{conn: conn, user: user} do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
     {:ok, view, _} = live(conn, ~p"/subscriptions")
-    view |> form("#discover-form", %{url: "https://example.org/rss"}) |> render_submit()
+    view |> form("#discover-form", %{url: feed_url()}) |> render_submit()
     render_async(view)
     view |> element("#source-0 button", "Subscribe") |> render_click()
     [subscription] = Library.subscriptions(user)

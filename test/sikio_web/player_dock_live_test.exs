@@ -14,8 +14,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
   alias SikioWeb.PlayerDockLive
 
   setup %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, sub} = Library.subscribe(user, preview)
     [entry] = Library.entries(user)
 
@@ -105,7 +105,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
 
   test "unauthenticated and unrelated accounts cannot start this item", c do
     assert {:error, {:redirect, %{to: "/login"}}} = live_isolated(build_conn(), PlayerDockLive)
-    other = Repo.insert!(User.changeset(%User{}, %{username: "other"}))
+    other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     conn = build_conn() |> init_test_session(%{}) |> Gate.log_in(other)
     {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
@@ -126,7 +126,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
   # only what the api needs: permission to talk, and the place to resume from. What the feed
   # names may already carry a query, and a second question mark hides everything after it.
   test "a PeerTube entry is framed by the instance that holds it", %{conn: conn, user: user} do
-    {:ok, preview} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
 
     entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
@@ -157,7 +157,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
         ~s|url="https://video.example.org/videos/embed/mSh0rtUu1d?title=0"|
       )
 
-    {:ok, preview} = Parser.parse(body, "https://video.example.org/feeds/videos.xml")
+    {:ok, preview} = Parser.parse(body, peertube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
     entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
 

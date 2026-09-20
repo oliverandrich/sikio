@@ -11,15 +11,17 @@ defmodule SikioWeb.HardeningTest do
   alias SikioWeb.Auth
 
   defp signed do
+    username = unique_username()
+
     {:ok, conn} =
       Auth.register(
         init_test_session(build_conn(), %{}),
         %{key_id: :crypto.strong_rand_bytes(16), public_key: :crypto.strong_rand_bytes(64)},
-        "ada",
+        username,
         %{}
       )
 
-    {init_test_session(build_conn(), get_session(conn)), Repo.get_by!(User, username: "ada")}
+    {init_test_session(build_conn(), get_session(conn)), Repo.get_by!(User, username: username)}
   end
 
   defp peertube_preview(origin) do
@@ -76,7 +78,7 @@ defmodule SikioWeb.HardeningTest do
 
   test "another account's instances are not framed by ours" do
     {conn, _account} = signed()
-    stranger = Repo.insert!(User.changeset(%User{}, %{username: "grace"}))
+    stranger = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, _} = Sikio.Library.subscribe(stranger, peertube_preview("https://other.example.org"))
 
     [policy] = conn |> get("/") |> get_resp_header("content-security-policy")
@@ -103,7 +105,7 @@ defmodule SikioWeb.HardeningTest do
     conn =
       build_conn() |> init_test_session(get_session(conn)) |> assign(:current_account, account)
 
-    other = Repo.insert!(User.changeset(%User{}, %{username: "grace"}))
+    other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     assert {:error, :account_mismatch} = Auth.authenticate(conn, other)
     assert {:ok, confirmed} = Auth.authenticate(conn, account)
     assert json_response(confirmed, 200)["redirect"] == "/account/passkeys"

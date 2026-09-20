@@ -12,8 +12,8 @@ defmodule SikioWeb.MobileLayoutTest do
   alias Sikio.Repo
 
   test "player can be compacted without removing the active media", %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: "listener"}))
-    {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
     Library.subscribe(user, preview)
     [entry] = Library.entries(user)
     conn = conn |> init_test_session(%{}) |> Gate.log_in(user)
