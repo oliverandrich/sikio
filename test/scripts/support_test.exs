@@ -7,6 +7,13 @@ defmodule Sikio.ReleaseSmoke.SupportTest do
   import ExUnit.CaptureIO
   alias Sikio.ReleaseSmoke.Support
 
+  # The secret is in the arguments and in what the command writes to stderr, so both halves of
+  # this test's name are asked of the same word.
+  #
+  # What is captured here is the group leader, which belongs to the whole machine rather than to
+  # this call: a compiler warning emitted while the block runs lands in it as readily as anything
+  # this test caused. Asking that it be empty therefore failed on warnings from elsewhere and
+  # named a file nowhere near the failure. Asking that the secret is absent says what was meant.
   test "command failures never expose stderr or credential-bearing arguments" do
     output =
       capture_io(:stderr, fn ->
@@ -18,7 +25,7 @@ defmodule Sikio.ReleaseSmoke.SupportTest do
         refute Exception.message(error) =~ "secret-token"
       end)
 
-    assert output == ""
+    refute output =~ "secret-token"
   end
 
   test "command arguments stay literal and binary dumps stream to disk" do

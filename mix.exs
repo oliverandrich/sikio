@@ -126,7 +126,10 @@ defmodule Sikio.MixProject do
         "ecto.migrate --quiet",
         "ithibati.doctor",
         "assets.build",
-        "test"
+        # A warning in a test file is not seen by `compile`, which never reads one. Until this
+        # flag was here, the only thing that noticed was an unrelated assertion about stderr,
+        # which failed somewhere else and named the wrong cause.
+        "test --warnings-as-errors"
       ]
     ]
   end
