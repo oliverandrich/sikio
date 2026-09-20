@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # This file is responsible for configuring your application
 # and its dependencies with the aid of the Config module.
 #
@@ -83,6 +85,11 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+# AGPL section 13 (network use): whoever runs this for other people has to offer them its
+# source. The footer links here, and a deployment that modified Sikio overrides SOURCE_URL
+# (runtime.exs) to point at its own repository.
+config :sikio, :source_url, "https://github.com/oliverandrich/sikio"
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

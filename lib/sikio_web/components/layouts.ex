@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule SikioWeb.Layouts do
   @moduledoc """
   This module holds layouts and related functionality
@@ -50,6 +52,20 @@ defmodule SikioWeb.Layouts do
     |> String.replace(["\\A", "\\z"], "")
   end
 
+  @doc """
+  The offer section 13 obliges a deployment to make, in the two shells anybody ever sees.
+
+  Read at render rather than at compile time, because `SOURCE_URL` is what a deployment that
+  modified Sikio sets, and it is read after this is compiled.
+  """
+  def source_offer(assigns) do
+    ~H"""
+    <a href={Application.get_env(:sikio, :source_url)} class="underline underline-offset-2">
+      {gettext("Source code")}
+    </a>
+    """
+  end
+
   @doc "The name, with the full stop that carries the accent. Written once, rendered in both shells."
   def wordmark(assigns) do
     ~H"""
@@ -88,6 +104,9 @@ defmodule SikioWeb.Layouts do
             </p>
           </div>
           {render_slot(@inner_block)}
+          <p class="mt-10 text-center text-xs text-stone-500 dark:text-stone-400">
+            <.source_offer />
+          </p>
         </div>
       </main>
       <.flash_group flash={@flash} />
@@ -185,7 +204,9 @@ defmodule SikioWeb.Layouts do
       </main>
       <footer class="mx-auto flex max-w-7xl flex-wrap justify-between gap-3 border-t border-stone-200 px-6 py-7 text-xs text-stone-500 sm:px-12 dark:border-stone-800 dark:text-stone-400">
         <span>{gettext("A little more intention. A little less autoplay.")}</span>
-        <span>{gettext("Sikio · Your personal media library")}</span>
+        <span>
+          {gettext("Sikio · Your personal media library")} · <.source_offer />
+        </span>
       </footer>
       <.flash_group flash={@flash} />
     </div>

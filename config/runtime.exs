@@ -1,4 +1,28 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 import Config
+
+# AGPL section 13: a deployment that modified Sikio offers its own source, not this one. A
+# wrong address is refused here rather than shown as a link that goes nowhere. See
+# docs/operations.md for what an operator sets.
+case "SOURCE_URL" |> System.get_env("") |> String.trim() do
+  # How a compose file or an EnvironmentFile writes a variable it has no value for.
+  "" ->
+    :ok
+
+  source_url ->
+    case URI.parse(source_url) do
+      %URI{scheme: scheme, host: host}
+      when scheme in ~w(http https) and is_binary(host) and host != "" ->
+        config :sikio, :source_url, source_url
+
+      _ ->
+        raise """
+        environment variable SOURCE_URL is not an absolute http or https URL: #{source_url}
+        For example: https://github.com/you/sikio
+        """
+    end
+end
 
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the

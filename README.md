@@ -43,3 +43,14 @@ register the first account before opening a new deployment to anybody else.
 - [Operations](docs/operations.md): configuration, releases and migrations.
 - [Authentication](docs/authentication.md): accounts, invitations and security.
 - [Localization](docs/localization.md): language selection and translations.
+
+## License
+
+Copyright (C) 2026 Oliver Andrich and contributors
+
+Sikio is free software, licensed under the GNU Affero General Public License
+version 3 or later (`AGPL-3.0-or-later`). See [LICENSE](LICENSE) for the full text.
+
+Sikio is network-facing software, so AGPL §13 applies: any hosted instance must offer its
+(modified) source to its users. The footer carries that link. [Operations](docs/operations.md)
+says what to set when you deploy a modified version.

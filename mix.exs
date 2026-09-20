@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 defmodule Sikio.MixProject do
   use Mix.Project
 
@@ -10,6 +12,7 @@ defmodule Sikio.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      package: package(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader]
     ]
@@ -38,6 +41,9 @@ defmodule Sikio.MixProject do
   # Specifies your project dependencies.
   #
   # Type `mix help deps` for examples and options.
+  # Read by license tooling and by people; Sikio is an application, so Hex never sees it.
+  defp package, do: [licenses: ["AGPL-3.0-or-later"]]
+
   defp deps do
     [
       {:wallaby, "~> 0.31.0", only: :test, runtime: false},

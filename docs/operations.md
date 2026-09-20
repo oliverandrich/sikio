@@ -28,6 +28,12 @@ these variables in the environment used for both migration and startup:
 | `PHX_HOST` | Stable public hostname without scheme or port |
 | `PORT` | Internal HTTP port, 4000 by default |
 | `POOL_SIZE` | Database connections, 10 by default |
+| `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
+
+`SOURCE_URL` is what the footer links to, which AGPL §13 asks an operator to offer. Leave it
+unset to point at the upstream repository. A value that is not an absolute http or https URL
+stops the boot, so a typo is refused by `bin/migrate` and `bin/server` rather than shown as a
+link that goes nowhere.
 
 The HTTP listener currently binds to `::` (all interfaces); `PORT` is configurable.
 The release does not automatically load a `.env` file. Use a protected network
