@@ -17,7 +17,9 @@ const STRINGS = {
   youtubeMissing: "This video is private or has been removed.",
   youtubeBlocked: "This video cannot be embedded. You can open it on YouTube.",
   youtubeOrigin: "YouTube could not identify this site.",
-  youtubeUnplayable: "YouTube cannot play this video."
+  youtubeUnplayable: "YouTube cannot play this video.",
+  readyPeertube: "Ready. Your place is saved as you watch.",
+  peertubeUnavailable: "This instance could not be reached."
 }
 
 function reporterFixture() {
@@ -204,4 +206,94 @@ test("finish refuses a switch while disconnected and can be retried", () => {
   assert.equal(f.calls.length, 2)
   f.calls[1].reply({saved: true})
   assert.deepEqual(results, [false, true])
+})
+
+// A PeerTube embed reports where it is about twice a second. That is the sample, and it is also
+// what says the player exists: asked any earlier it answers zero, which would overwrite the
+// place somebody left off at.
+test("PeerTube reports its own position and does not save before it has one", async () => {
+  const previous = {document: globalThis.document, window: globalThis.window}
+  const doc = new EventTarget(), samples = [], said = [], posted = []
+  const message = {set textContent(text) {said.push(text)}, get textContent() {return said.at(-1) ?? ""}}
+  globalThis.document = doc
+  globalThis.window = new EventTarget()
+
+  const iframe = {src: "https://video.example.org/videos/embed/abc?api=1&start=42",
+    contentWindow: {postMessage: data => posted.push(JSON.parse(data))}}
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "peertube", session: "v", position: "42", ...STRINGS},
+    querySelector: selector => selector === "[data-player-message]" ? message : selector === "iframe" ? iframe : null}),
+    pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
+
+  const fromEmbed = payload => {
+    const event = new Event("message")
+    event.data = JSON.stringify(payload)
+    event.origin = "https://video.example.org"
+    window.dispatchEvent(event)
+  }
+
+  try {
+    hook.mounted()
+    fromEmbed({method: "peertube::__ready", params: {type: "publish-request", publish: []}})
+    assert.deepEqual(samples, [], "nothing is saved while the player has told us nothing")
+
+    fromEmbed({method: "peertube::playbackStatusUpdate",
+      params: {position: 42.5, duration: 100, playbackState: "playing"}})
+    await Promise.resolve()
+
+    assert.ok(said.some(text => /saved as you watch/.test(text)), "the reader is told the player is up")
+    assert.equal(samples.at(-1)?.position, 42.5)
+    assert.equal(samples.at(-1)?.duration, 100)
+
+    fromEmbed({method: "peertube::playbackStatusChange", params: "ended"})
+    await Promise.resolve()
+    assert.equal(samples.at(-1).ended, true)
+
+    hook.destroyed()
+    assert.ok(posted.some(m => m.method === "peertube::pause"), "closing stops the instance's player")
+  } finally {
+    hook.destroyed()
+    globalThis.document = previous.document
+    globalThis.window = previous.window
+  }
+})
+
+// Measured against a real instance: a video reaching its end reports `paused` and then `ended`
+// a millisecond later. YouTube reports one state, so two saves leaving together is new here.
+// The later one has to win, or finishing a video would leave it merely paused.
+test("PeerTube pauses a millisecond before it ends, and the end is what counts", async () => {
+  const previous = {document: globalThis.document, window: globalThis.window}
+  const samples = [], said = []
+  const message = {set textContent(text) {said.push(text)}, get textContent() {return said.at(-1) ?? ""}}
+  globalThis.document = new EventTarget()
+  globalThis.window = new EventTarget()
+
+  const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
+    querySelector: selector => selector === "[data-player-message]" ? message : selector === "iframe" ? iframe : null}),
+    pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
+
+  const fromEmbed = payload => {
+    const event = new Event("message")
+    event.data = JSON.stringify(payload)
+    event.origin = "https://video.example.org"
+    window.dispatchEvent(event)
+  }
+
+  try {
+    hook.mounted()
+    fromEmbed({method: "peertube::__ready", params: {type: "publish-request", publish: []}})
+    fromEmbed({method: "peertube::playbackStatusUpdate", params: {position: 35, duration: 36, playbackState: "playing"}})
+    await Promise.resolve()
+
+    fromEmbed({method: "peertube::playbackStatusUpdate", params: {position: 36, duration: 36, playbackState: "paused"}})
+    fromEmbed({method: "peertube::playbackStatusChange", params: "ended"})
+    await Promise.resolve()
+    await Promise.resolve()
+
+    assert.equal(samples.at(-1).ended, true, "the end is the last word, not the pause before it")
+  } finally {
+    hook.destroyed()
+    globalThis.document = previous.document
+    globalThis.window = previous.window
+  }
 })

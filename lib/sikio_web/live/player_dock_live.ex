@@ -137,6 +137,17 @@ defmodule SikioWeb.PlayerDockLive do
   defp assign_progress(socket, progress),
     do: assign(socket, :entry, %{socket.assigns.entry | playback: progress})
 
+  # The address the feed named, with the two things the embed needs from us: permission to speak
+  # through its api, and the second to resume at. Nothing here is built out of host and id, so a
+  # release that spells its own addresses differently keeps working. What it named may already
+  # carry a query, and a second question mark would hide everything this adds.
+  defp peertube_url(entry, player) do
+    entry.embed_url
+    |> URI.parse()
+    |> URI.append_query(URI.encode_query(%{api: 1, start: trunc(player.position)}))
+    |> URI.to_string()
+  end
+
   # The privacy-enhanced host, and the API enabled so the position can be read back. `origin` is
   # what lets YouTube accept messages from this page at all.
   defp youtube_url(entry, player) do
@@ -163,7 +174,6 @@ defmodule SikioWeb.PlayerDockLive do
         tabindex="-1"
         class={[
           "fixed right-4 bottom-4 left-4 z-40 max-h-[85vh] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-5 shadow-xl sm:left-auto sm:w-[400px] dark:border-stone-700 dark:bg-stone-900",
-          @entry && @entry.feed.kind == :youtube && "has-video",
           @compact && @entry && @entry.feed.kind == :podcast && "compact-audio"
         ]}
       >
@@ -233,6 +243,10 @@ defmodule SikioWeb.PlayerDockLive do
               "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
             )
           }
+          data-ready-peertube={gettext("Ready. Your place is saved as you watch.")}
+          data-peertube-unavailable={
+            gettext("This instance could not be reached. It may be down or blocking this page.")
+          }
           data-ready-youtube={gettext("Ready. Press play in the YouTube player.")}
           data-youtube-unavailable={
             gettext("YouTube could not be loaded. Check your connection or content blocker.")
@@ -274,6 +288,16 @@ defmodule SikioWeb.PlayerDockLive do
               </option>
             </select>
           </div>
+          <iframe
+            :if={@entry.feed.kind == :peertube}
+            id={"peertube-#{@player.session_id}"}
+            src={peertube_url(@entry, @player)}
+            title={@entry.title}
+            class="aspect-video min-h-[200px] w-full rounded-xl"
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowfullscreen
+          ></iframe>
           <iframe
             :if={@entry.feed.kind == :youtube}
             id={"youtube-#{@player.session_id}"}

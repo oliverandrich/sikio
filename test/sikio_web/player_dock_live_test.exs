@@ -119,4 +119,53 @@ defmodule SikioWeb.PlayerDockLiveTest do
       "duration" => 100,
       "ended" => false
     }
+
+  # The instance plays its own video, so the dock points at the embed the feed named and adds
+  # only what the api needs: permission to talk, and the place to resume from. What the feed
+  # names may already carry a query, and a second question mark hides everything after it.
+  test "a PeerTube entry is framed by the instance that holds it", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+    {:ok, _} = Library.subscribe(user, preview)
+
+    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+
+    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+    html = render(dock)
+
+    assert html =~ "https://video.example.org/videos/embed/mSh0rtUu1d"
+    assert html =~ "api=1"
+    src = Regex.run(~r|src="(https://video[^"]+)"|, html) |> Enum.at(1)
+    assert String.contains?(src, "api=1")
+    assert length(String.split(src, "?")) == 2, "an address gets one question mark, not two"
+    assert html =~ ~s(data-kind="peertube")
+    refute html =~ "youtube-nocookie", "nothing of YouTube's is loaded for a PeerTube video"
+  end
+
+  # What the feed names is the instance's own address and may already carry a query. A second
+  # question mark hides everything after it, so the embed never sees that it may speak.
+  test "an embed address that already has a query still gets one question mark", %{
+    conn: conn,
+    user: user
+  } do
+    body =
+      String.replace(
+        peertube(),
+        ~s|url="https://video.example.org/videos/embed/mSh0rtUu1d"|,
+        ~s|url="https://video.example.org/videos/embed/mSh0rtUu1d?title=0"|
+      )
+
+    {:ok, preview} = Parser.parse(body, "https://video.example.org/feeds/videos.xml")
+    {:ok, _} = Library.subscribe(user, preview)
+    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+
+    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+
+    src = Regex.run(~r|src="(https://video[^"]+)"|, render(dock)) |> Enum.at(1)
+
+    assert length(String.split(src, "?")) == 2
+    assert src =~ "title=0"
+    assert src =~ "api=1"
+  end
 end

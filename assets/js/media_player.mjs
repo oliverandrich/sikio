@@ -1,3 +1,5 @@
+import {connect} from "./peertube_embed.mjs"
+
 // One request at a time; keep the newest sample while a save is in flight.
 export function createReporter({session, read, send, stop, message, strings, now = Date.now}) {
   let sequence = 0, inFlight = null, pending = null, lastSave = -Infinity
@@ -110,13 +112,15 @@ export const MediaPlayer = {
     }
     this.stop = () => {
       if (this.audio) this.audio.pause()
+      else if (this.peertube) this.peertube.call("pause").catch(() => {})
       else this.youtube?.pauseVideo?.()
     }
     this.reporter = createReporter({session: this.el.dataset.session,
       read: () => {
         if (!this.ready) return null
-        return this.audio ? {position: this.audio.currentTime, duration: this.audio.duration}
-          : {position: this.youtube.getCurrentTime(), duration: this.youtube.getDuration()}
+        if (this.audio) return {position: this.audio.currentTime, duration: this.audio.duration}
+        if (this.peertube) return this.reported
+        return {position: this.youtube.getCurrentTime(), duration: this.youtube.getDuration()}
       },
       send: (sample, reply) => this.pushEvent("progress", sample, reply),
       stop: this.stop, message: this.message, strings: this.strings})
@@ -125,7 +129,37 @@ export const MediaPlayer = {
       if (document.hidden) this.reporter.save(false, true)
     })
     if (this.audio) this.mountAudio()
+    else if (this.el.dataset.kind === "peertube") this.mountPeerTube()
     else this.mountYouTube()
+  },
+
+  // The instance tells us where it is about twice a second, so nothing here polls. Its first
+  // report is also what says the player exists: asked any earlier it answers zero, and saving a
+  // zero would throw away the place somebody left off at.
+  mountPeerTube() {
+    const iframe = this.el.querySelector("iframe")
+
+    this.peertube = connect(iframe, {
+      origin: new URL(iframe.src).origin,
+      onError: () => this.message(this.strings.peertubeUnavailable),
+      onStatus: status => {
+        if (this.closed) return
+        const state = typeof status === "string" ? status : status.playbackState
+
+        if (typeof status === "object") {
+          this.reported = {position: status.position, duration: status.duration}
+          if (!this.ready) {
+            this.ready = true
+            this.message(this.strings.readyPeertube)
+          }
+        }
+
+        if (!this.ready) return
+        if (state === "ended") this.reporter.save(true, true)
+        else if (state === "paused") this.reporter.save(false, true)
+        else if (state === "playing") this.reporter.save()
+      }
+    })
   },
 
   mountAudio() {
@@ -197,6 +231,7 @@ export const MediaPlayer = {
     this.cleanups?.forEach(cleanup => cleanup())
     clearInterval(this.poll)
     this.stop?.()
+    this.peertube?.destroy?.()
     this.youtube?.destroy?.()
     if (this.audio) {
       this.audio.removeAttribute("src")
