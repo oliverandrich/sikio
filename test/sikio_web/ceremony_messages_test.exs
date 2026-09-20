@@ -5,8 +5,8 @@ defmodule SikioWeb.CeremonyMessagesTest do
   Every code this library can send reaches a sentence of this application's own.
 
   The library publishes its vocabulary, so a new word arrives as a red suite instead of as a raw
-  atom on somebody's screen. Two of the clauses this guards are ones this application produces and
-  could not explain until now: `already_claimed` and `identifier_mismatch`.
+  atom on somebody's screen. Three of the clauses this guards are ones this application produces
+  itself: `already_claimed`, `identifier_mismatch` and `setup_authorization_required`.
   """
   use SikioWeb.ConnCase
 
@@ -21,9 +21,10 @@ defmodule SikioWeb.CeremonyMessagesTest do
     end
   end
 
-  test "and the two this application produces itself" do
+  test "and the three this application produces itself" do
     refute CeremonyMessages.message("already_claimed", nil) =~ "Something went wrong"
     refute CeremonyMessages.message("identifier_mismatch", nil) =~ "Something went wrong"
+    refute CeremonyMessages.message("setup_authorization_required", nil) =~ "Something went wrong"
   end
 
   # The set that arrives is open, so the catch-all is not a bug.

@@ -12,12 +12,23 @@ defmodule SikioWeb.SignInLive do
   use SikioWeb, :live_view
 
   alias Ithibati.Identity.Instance
+  alias SikioWeb.Auth
   alias SikioWeb.CeremonyMessages
 
   @impl true
-  def mount(_params, _session, socket) do
-    {:ok, assign(socket, username: "", error: nil)}
+  def mount(_params, session, socket) do
+    {:ok, assign(socket, username: "", error: nil, claim_open?: claim_open?(socket, session))}
   end
+
+  # Whether this visitor may be asked for a name yet. A proof that has run out sends somebody back
+  # to the code rather than to a refusal after the passkey dialogue.
+  #
+  # Only the setup page asks. Anywhere else the question is a database round-trip for an answer
+  # nothing on the page reads.
+  defp claim_open?(%{assigns: %{live_action: :setup}}, session),
+    do: Auth.claim_open?(session["setup_authorization"])
+
+  defp claim_open?(_socket, _session), do: true
 
   @impl true
   def handle_params(_params, _uri, socket) do
@@ -68,7 +79,11 @@ defmodule SikioWeb.SignInLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.auth flash={@flash} title={title(@live_action)} subtitle={subtitle(@live_action)}>
+    <Layouts.auth
+      flash={@flash}
+      title={title(@live_action)}
+      subtitle={subtitle(@live_action, @claim_open?)}
+    >
       <div
         :if={@error}
         role="alert"
@@ -88,7 +103,29 @@ defmodule SikioWeb.SignInLive do
         </p>
       </div>
 
-      <form :if={@live_action == :setup} id="claim-form" phx-change="validate" phx-submit="register">
+      <.form
+        :if={@live_action == :setup and not @claim_open?}
+        for={%{}}
+        id="setup-code-form"
+        action={~p"/setup/code"}
+      >
+        <.input
+          name="setup_code"
+          value=""
+          label={gettext("Setup code")}
+          autocomplete="off"
+          required
+          placeholder={gettext("The code from the operator")}
+        />
+        <Layouts.auth_button>{gettext("Continue")}</Layouts.auth_button>
+      </.form>
+
+      <form
+        :if={@live_action == :setup and @claim_open?}
+        id="claim-form"
+        phx-change="validate"
+        phx-submit="register"
+      >
         <.input
           name="username"
           value={@username}
@@ -131,12 +168,15 @@ defmodule SikioWeb.SignInLive do
   defp title(:setup), do: gettext("Make yourself at home")
   defp title(:recover), do: gettext("Use a recovery code")
 
-  defp subtitle(:login), do: nil
+  defp subtitle(:login, _claim_open?), do: nil
 
-  defp subtitle(:setup),
+  defp subtitle(:setup, true),
     do: gettext("Choose your username and create a passkey to set up your account.")
 
-  defp subtitle(:recover),
+  defp subtitle(:setup, false),
+    do: gettext("This instance asks for a setup code before the first account is made.")
+
+  defp subtitle(:recover, _claim_open?),
     do:
       gettext(
         "Enter one of the codes you saved when you set up your account. Each code works once."

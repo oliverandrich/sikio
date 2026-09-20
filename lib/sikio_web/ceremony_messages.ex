@@ -52,10 +52,14 @@ defmodule SikioWeb.CeremonyMessages do
   defp sentence("already_enrolled"),
     do: gettext("That device already holds a passkey for this site.")
 
-  # Both of these this application reaches and could not explain: a second person racing the setup
-  # page, and an invitation opened by somebody registering under another name.
+  # All three of these this application reaches and could not explain: a second person racing the
+  # setup page, an invitation opened by somebody registering under another name, and a setup code
+  # whose proof ran out while the page stood open.
   defp sentence("already_claimed"),
     do: gettext("Somebody else has already claimed this instance.")
+
+  defp sentence("setup_authorization_required"),
+    do: gettext("Enter the setup code again. The one you used has expired or been replaced.")
 
   defp sentence("identifier_mismatch"),
     do: gettext("That invitation was not addressed to that username.")

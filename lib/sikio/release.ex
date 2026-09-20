@@ -7,6 +7,7 @@ defmodule Sikio.Release do
   Each starts the application's repository and nothing else, so one may be run beside a server
   without binding a second port or waking the workers.
   """
+  alias Ithibati.Config
   alias Ithibati.Identity.Instance
 
   @app :sikio
@@ -62,17 +63,13 @@ defmodule Sikio.Release do
   end
 
   # The library states the requirement by raising, which is the right answer to a library being
-  # used wrongly and the wrong one to hand somebody who typed a command. Only that one call is
-  # caught: `Config.repo/0` and the repository configuration raise the same kind of error and
-  # mean something else, and answering those with "the claim is open" points at the wrong key.
+  # used wrongly and the wrong one to hand somebody who typed a command. So the mode is asked
+  # here instead. Nothing is rescued: `Config.repo/0` and a claim mode nobody can read raise the
+  # same kind of error and mean something else, and "the claim is open" names the wrong key.
   defp issue do
-    with_repo(fn ->
-      try do
-        Instance.issue_code()
-      rescue
-        ArgumentError -> {:error, :claim_is_open}
-      end
-    end)
+    if Config.initial_claim_mode() == :operator_code,
+      do: with_repo(&Instance.issue_code/0),
+      else: {:error, :claim_is_open}
   end
 
   def rollback(repo, version) do

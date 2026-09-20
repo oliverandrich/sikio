@@ -91,6 +91,10 @@ defmodule SikioWeb.Router do
       live "/account/recovery-codes", AccountSecurityLive, :recovery_codes
     end
 
+    # A form post rather than a live event: only a request that owns the connection may write
+    # the proof into the session.
+    post "/setup/code", SetupController, :create
+
     get "/subscriptions.opml", OPMLController, :export
     get "/recovery-codes", SessionController, :recovery_codes
     delete "/session", SessionController, :sign_out

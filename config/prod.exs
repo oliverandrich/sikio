@@ -26,3 +26,8 @@ config :logger, level: :info
 
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.
+
+# A public instance is reachable before anybody has claimed it, so the first account asks for a
+# code the operator issues on the host with `bin/setup-code`. Development and tests leave the
+# claim open, where there is nobody to protect it from.
+config :ithibati, initial_claim: :operator_code

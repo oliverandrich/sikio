@@ -12,21 +12,11 @@ defmodule Sikio.ReleaseTest do
   import ExUnit.CaptureIO
 
   alias Ithibati.Identity.Instance
+  alias Sikio.TestConfig
   alias SikioWeb.Auth
 
   setup do
-    # Put back what was there, and when nothing was, take the key away again. Writing nil into
-    # it is not the same as leaving it unset: the library reads nil and refuses it, where an
-    # absent key is its default.
-    previous = Application.fetch_env(:ithibati, :initial_claim)
-    Application.put_env(:ithibati, :initial_claim, :operator_code)
-
-    on_exit(fn ->
-      case previous do
-        {:ok, mode} -> Application.put_env(:ithibati, :initial_claim, mode)
-        :error -> Application.delete_env(:ithibati, :initial_claim)
-      end
-    end)
+    TestConfig.put_env(:ithibati, :initial_claim, :operator_code)
   end
 
   test "prints a code once, and nothing else" do
@@ -79,6 +69,16 @@ defmodule Sikio.ReleaseTest do
 
     refute printed =~ ~r/[a-zA-Z0-9_-]{32}/
     assert printed =~ "open"
+  end
+
+  # A value the library cannot read is a mistake in the configuration, and "this instance leaves
+  # its claim open" sends the operator to the wrong key to fix it.
+  test "a claim mode the library cannot read is not reported as an open claim" do
+    Application.put_env(:ithibati, :initial_claim, :operator_codes)
+
+    assert_raise ArgumentError, ~r/initial_claim/, fn ->
+      capture_io(fn -> Sikio.Release.setup_code() end)
+    end
   end
 
   defp claim_while_open do

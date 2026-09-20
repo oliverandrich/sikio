@@ -33,9 +33,11 @@ and German.
 ## Authentication limits and maintenance
 
 `AuthRateLimit` allows 10 recovery requests and 120 other ceremony requests per
-peer IP in a 60-second fixed window. Responses use HTTP 429, `Retry-After`, and a
-translated ceremony message. Configure `:auth_rate_limits` on the application as
-`[recovery: {10, 60}, ceremony: {120, 60}]` (positive counts and seconds).
+peer IP in a 60-second fixed window. Exchanging a setup code allows 10 attempts in
+the same window. Responses use HTTP 429, `Retry-After`, and a translated ceremony
+message. Configure `:auth_rate_limits` on the application as
+`[recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}]` (positive counts and
+seconds). A group the configured list omits keeps its default.
 
 The supervised in-memory counters are atomic and bounded to 10,000 keys per node;
 a restart resets them. They use `conn.remote_ip` and do not trust arbitrary

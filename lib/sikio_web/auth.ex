@@ -12,9 +12,10 @@ defmodule SikioWeb.Auth do
   @behaviour Ithibati.Web.Handler
 
   import Phoenix.Controller, only: [json: 2]
-  import Plug.Conn, only: [put_session: 3]
+  import Plug.Conn, only: [get_session: 2, put_session: 3]
 
   alias Ecto.Multi
+  alias Ithibati.Config
   alias Ithibati.Identity.Grant
   alias Ithibati.Identity.Instance
   alias Ithibati.Identity.Invitations
@@ -36,11 +37,41 @@ defmodule SikioWeb.Auth do
     end
   end
 
-  def registration_subject(_conn, params) do
+  def registration_subject(conn, params) do
     if Instance.needs_setup?(),
-      do: first_account(params),
+      do: claiming(conn, params),
       else: invited(params["token"])
   end
+
+  # A protected instance asks for the operator's code before it will start a first-account
+  # ceremony at all. Asked here and not only on the page, because the page is not the gate: a
+  # request straight at the ceremony endpoint never loads it.
+  defp claiming(conn, params) do
+    if claim_open?(setup_authorization(conn)),
+      do: first_account(params),
+      else: {:error, :setup_authorization_required}
+  end
+
+  @doc """
+  Whether a first account may be made with the authorization this visitor holds.
+
+  One rule, asked by everything that needs it: the gate above and the page that decides which
+  form to draw. Written twice it would be written as duals, and a change to one of them would
+  leave a page offering what the ceremony then refuses.
+
+  `authorized?/1` answers for the proof, not for the instance: it says no in an open one however
+  good the proof, so the mode is what decides whether a proof is wanted at all.
+  """
+  def claim_open?(authorization) do
+    not claim_protected?() or Instance.authorized?(authorization)
+  end
+
+  @doc "Whether this instance asks for the operator's code before the first account."
+  def claim_protected?, do: Config.initial_claim_mode() == :operator_code
+
+  # Only the proof lives in the session, never the code that bought it. It expires on its own,
+  # and `authorized?/1` is what says whether it still stands.
+  defp setup_authorization(conn), do: get_session(conn, :setup_authorization)
 
   # The invitation says who this will be, so the browser is not asked. A form that let somebody
   # type their own name here would be a form that lets them accept an invitation addressed to
@@ -89,8 +120,8 @@ defmodule SikioWeb.Auth do
   end
 
   def register(conn, key_attrs, username, params) do
-    username
-    |> acceptance(params["token"], key_attrs)
+    conn
+    |> acceptance(username, params["token"], key_attrs)
     |> Repo.transaction()
     |> case do
       {:ok, %{account: account, recovery_codes: codes}} ->
@@ -111,9 +142,9 @@ defmodule SikioWeb.Auth do
   # Two shapes of the same transaction, and which one this is comes from the same question
   # `registration_subject/2` asked rather than from the request: the browser sends the whole body
   # again at this step, so anything read from `params` here is the client's word for it.
-  defp acceptance(username, token, key_attrs) do
+  defp acceptance(conn, username, token, key_attrs) do
     if Instance.needs_setup?(),
-      do: claim_instance(username, key_attrs),
+      do: claim_instance(username, key_attrs, setup_authorization(conn)),
       else: accept_invitation(Invitations.fetch(token), username, key_attrs)
   end
 
@@ -137,10 +168,10 @@ defmodule SikioWeb.Auth do
   # `claim/2` is what stops it from being the second as well. Before the grant, like `accept/2`
   # above: a transaction that is going to be refused should not mint recovery codes on its way to
   # being rolled back, because they sit in plaintext in the `changes_so_far` the caller is handed.
-  defp claim_instance(username, key_attrs) do
+  defp claim_instance(username, key_attrs, authorization) do
     Multi.new()
     |> Multi.insert(:account, User.changeset(%User{}, %{"username" => username}))
-    |> Instance.claim()
+    |> Instance.claim(authorization: authorization)
     |> Grant.with_key_and_codes(key_attrs)
   end
 

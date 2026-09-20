@@ -9,14 +9,25 @@ defmodule SikioWeb.AuthRateLimit do
   @impl true
   def init(opts), do: opts
 
+  @defaults [recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}]
+
+  @doc """
+  The `{limit, seconds}` budget for one group of auth requests.
+
+  One reader for the whole key, so a group named here is a group every caller can ask for. The
+  fallback is per group rather than for the key as a whole: configuring one budget replaces the
+  list, and a list that then lacks a group must not make every request under it fail.
+  """
+  def budget(group) do
+    :sikio
+    |> Application.get_env(:auth_rate_limits, [])
+    |> Keyword.get(group) || Keyword.fetch!(@defaults, group)
+  end
+
   @impl true
   def call(conn, _opts) do
     group = if conn.request_path == "/auth/recovery", do: :recovery, else: :ceremony
-
-    limits =
-      Application.get_env(:sikio, :auth_rate_limits, recovery: {10, 60}, ceremony: {120, 60})
-
-    {limit, seconds} = Keyword.fetch!(limits, group)
+    {limit, seconds} = budget(group)
 
     case AuthRateLimiter.check({group, conn.remote_ip}, limit, seconds) do
       :ok ->
