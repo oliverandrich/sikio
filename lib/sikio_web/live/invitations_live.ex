@@ -58,8 +58,17 @@ defmodule SikioWeb.InvitationsLive do
     end
   end
 
-  # Told in hours, because a day-long window counts down in tens of thousands of seconds and
-  # nobody reads that as a waiting time.
+  # Told in whole minutes or whole hours, because the default window counts down in tens of
+  # thousands of seconds and nobody reads that as a waiting time. Both, because the window is
+  # configurable: an operator who sets five minutes must not be told to come back in an hour.
+  defp too_many(seconds) when seconds < 3600 do
+    ngettext(
+      "Too many invitations. Try again in a minute.",
+      "Too many invitations. Try again in %{count} minutes.",
+      div(seconds + 59, 60)
+    )
+  end
+
   defp too_many(seconds) do
     ngettext(
       "Too many invitations. Try again in an hour.",
