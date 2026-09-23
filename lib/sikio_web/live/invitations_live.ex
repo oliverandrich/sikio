@@ -32,7 +32,7 @@ defmodule SikioWeb.InvitationsLive do
   # Otherwise the budget is a formality: type nonsense until the counter is untouched, then spend
   # the whole of it at once.
   def handle_event("invite", %{"username" => username}, socket) do
-    {limit, seconds} = AuthRateLimit.budget(:invite)
+    {limit, seconds} = AuthRateLimiter.budget(:invite)
     key = AuthRateLimit.key(socket.assigns.current_account, :invite)
 
     case AuthRateLimiter.check(key, limit, seconds) do

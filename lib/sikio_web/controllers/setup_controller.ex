@@ -18,7 +18,7 @@ defmodule SikioWeb.SetupController do
 
   def create(conn, params) do
     conn = put_resp_header(conn, "cache-control", "no-store")
-    {limit, seconds} = AuthRateLimit.budget(:setup)
+    {limit, seconds} = AuthRateLimiter.budget(:setup)
 
     case AuthRateLimiter.check(AuthRateLimit.key(conn, :setup), limit, seconds) do
       :ok -> exchange(conn, params["setup_code"])

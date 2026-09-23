@@ -86,9 +86,10 @@ defmodule SikioWeb.ClientIp do
   # on the same host then arrives as `{0, 0, 0, 0, 0, 65535, 32512, 1}`, which matches no loopback
   # written the plain way. Without this the plug does nothing on the one deployment it is for,
   # and quietly: a test built on `Plug.Test.conn/3` never sees the mapped form.
-  defp unmapped({0, 0, 0, 0, 0, 0xFFFF, high, low}) do
-    {Bitwise.bsr(high, 8), Bitwise.band(high, 0xFF), Bitwise.bsr(low, 8), Bitwise.band(low, 0xFF)}
-  end
+  # The guard is the whole check: OTP's conversion reads the low bits of whatever it is handed
+  # and does not ask whether the address was mapped.
+  defp unmapped({0, 0, 0, 0, 0, 0xFFFF, _high, _low} = address),
+    do: :inet.ipv4_mapped_ipv6_address(address)
 
   defp unmapped(address), do: address
 end

@@ -21,25 +21,6 @@ defmodule SikioWeb.AuthRateLimit do
   @impl true
   def init(opts), do: opts
 
-  # `invite` counts a day rather than a minute, and the Ithibati Starter counts ten an hour. The
-  # threat is not a burst: it is an account somebody else is holding, spending the operator's mail
-  # credentials at a steady drip. Ten an hour is two hundred and forty a day; twenty is already
-  # well past what anybody asks for legitimately.
-  @defaults [recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}, invite: {20, 86_400}]
-
-  @doc """
-  The `{limit, seconds}` budget for one group of auth requests.
-
-  One reader for the whole key, so a group named here is a group every caller can ask for. The
-  fallback is per group rather than for the key as a whole: configuring one budget replaces the
-  list, and a list that then lacks a group must not make every request under it fail.
-  """
-  def budget(group) do
-    :sikio
-    |> Application.get_env(:auth_rate_limits, [])
-    |> Keyword.get(group) || Keyword.fetch!(@defaults, group)
-  end
-
   @doc """
   The counter key for one group of requests, from an account or from a visitor.
 
@@ -56,7 +37,7 @@ defmodule SikioWeb.AuthRateLimit do
   @impl true
   def call(conn, _opts) do
     group = if conn.request_path == "/auth/recovery", do: :recovery, else: :ceremony
-    {limit, seconds} = budget(group)
+    {limit, seconds} = AuthRateLimiter.budget(group)
 
     case AuthRateLimiter.check(key(conn, group), limit, seconds) do
       :ok ->
