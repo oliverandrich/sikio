@@ -46,6 +46,36 @@ defmodule SikioWeb.InvitationTest do
     assert Repo.aggregate(Sikio.Accounts.Invitation, :count) == 1
   end
 
+  # The one moment anybody can influence who joins, seen and acted on in a browser: an instance
+  # nobody can be removed from has no later one. Rendered rather than asserted against markup,
+  # because the list is new and a suite that only reads HTML says nothing about a row a person can
+  # read and press.
+  feature "a member sees what is outstanding, who made it, and takes one back", %{
+    session: session
+  } do
+    virtual_authenticator(session)
+    claim(session, "ada")
+
+    session
+    |> open("/invitations")
+    |> fill_in(css("input[name=username]"), with: "grace_hopper")
+    |> click(button("Create a link"))
+    |> assert_has(css("#pending-invitations", text: "grace_hopper"))
+    |> assert_has(css("#pending-invitations", text: "Invited by ada"))
+
+    invitation = Repo.one(Invitation)
+
+    # The empty sentence first, then the absence. `assert_has` waits for what it is looking for;
+    # a `refute_has` on its own passes the instant it is asked, before the patch that removes the
+    # row has arrived — so it would have said nothing either way.
+    session
+    |> click(css("#invitation-#{invitation.id} button"))
+    |> assert_has(css("p", text: "Nothing is waiting to be accepted."))
+    |> refute_has(css("#invitation-#{invitation.id}"))
+
+    refute Repo.one(Invitation)
+  end
+
   # The link is shown once and never again — the row holds the token's digest — so it is read here
   # or not at all.
   defp invite_link(session, username) do

@@ -10,18 +10,31 @@ defmodule SikioWeb.InvitationsLive do
   """
   use SikioWeb, :live_view
 
-  alias Sikio.Accounts.Invitation
   alias Sikio.AuthRateLimiter
   alias Sikio.Identity
-  alias Sikio.Repo
+  alias Sikio.Invitations
   alias SikioWeb.AuthRateLimit
   alias SikioWeb.CoreComponents
   alias SikioWeb.InvitationMail
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, username: "", link: nil, error: nil, email?: Identity.email?())}
+    socket =
+      assign(socket,
+        username: "",
+        link: nil,
+        # Which invitation the link on screen belongs to. The link is the only copy of its token
+        # — the row keeps a digest — so taking some other invitation back must not take it away,
+        # and there is nothing on the withdrawn row to recognise it by afterwards.
+        link_id: nil,
+        error: nil,
+        email?: Identity.email?()
+      )
+
+    {:ok, listed(socket)}
   end
+
+  defp listed(socket), do: assign(socket, pending: Invitations.pending())
 
   @impl true
   def handle_event("validate", %{"username" => username}, socket) do
@@ -41,17 +54,59 @@ defmodule SikioWeb.InvitationsLive do
     end
   end
 
+  # The id comes off the wire, and nothing here scopes it: every member may withdraw any
+  # invitation that has not been accepted, which is the same rule as "every member may invite".
+  # There is no "yours" to get wrong.
+  def handle_event("withdraw", %{"id" => id}, socket) do
+    {:noreply, socket |> taken_back(Invitations.get(id)) |> listed()}
+  end
+
+  defp forgotten(socket), do: assign(socket, link: nil, link_id: nil)
+
+  defp taken_back(socket, nil),
+    do: assign(socket, error: gettext("That invitation is no longer there."))
+
+  defp taken_back(socket, invitation) do
+    case Invitations.withdraw(invitation) do
+      # The link goes too, whichever invitation it belonged to. The row that comes back holds a
+      # digest and not the token, so there is nothing to compare it against — and a dead link left
+      # on the screen is worse than a live one taken off it.
+      {:ok, gone} ->
+        socket = assign(socket, error: nil)
+        if gone.id == socket.assigns.link_id, do: forgotten(socket), else: socket
+
+      # Ithibati answers `:already_accepted` for a row that was accepted *or* is no longer there,
+      # because it rechecks inside the delete and a miss cannot tell the two apart. Two members
+      # pressing this at once would otherwise leave the second reading that somebody accepted an
+      # invitation the first one withdrew.
+      {:error, :already_accepted} ->
+        assign(socket,
+          error:
+            gettext(
+              "That invitation is not waiting any more. Somebody accepted it, or took it back first."
+            )
+        )
+    end
+  end
+
   defp create(socket, username) do
-    %Invitation{}
-    |> Invitation.changeset(%{"username" => username})
-    |> Repo.insert()
+    socket.assigns.current_account
+    |> Invitations.open(%{"username" => username})
     |> case do
       # The token is the only copy there will ever be: the row holds its sha256, and the virtual
       # field is empty on anything read back later. So it goes on the screen now or not at all.
       {:ok, invitation} ->
         link = url(~p"/invite/#{invitation.token}")
 
-        {:noreply, assign(socket, link: link, username: "", error: undelivered(invitation, link))}
+        {:noreply,
+         socket
+         |> listed()
+         |> assign(
+           link: link,
+           link_id: invitation.id,
+           username: "",
+           error: undelivered(invitation, link)
+         )}
 
       {:error, changeset} ->
         {:noreply, assign(socket, error: changeset_message(changeset, socket.assigns.email?))}
@@ -158,7 +213,57 @@ defmodule SikioWeb.InvitationsLive do
           <code class="block mt-2 break-all">{@link}</code>
         </span>
       </div>
+
+      <h2 class="mt-10 text-lg font-semibold">{gettext("Outstanding invitations")}</h2>
+
+      <p :if={@pending == []} class="mt-2 text-sm opacity-70">
+        {gettext("Nothing is waiting to be accepted.")}
+      </p>
+
+      <p :if={@pending != []} class="mt-2 text-sm opacity-70">
+        {gettext(
+          "Anybody here can take one back. Until it is accepted, this is the only say over who joins."
+        )}
+      </p>
+
+      <ul :if={@pending != []} id="pending-invitations" class="mt-4 divide-y">
+        <li
+          :for={invitation <- @pending}
+          id={"invitation-#{invitation.id}"}
+          class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3"
+        >
+          <span class="font-medium">{invitation.username}</span>
+
+          <span class="text-sm opacity-70">
+            <%= if invitation.invited_by do %>
+              {gettext("Invited by %{username}", username: invitation.invited_by.username)}
+            <% else %>
+              {gettext("Invited by %{username}", username: gettext("Unknown"))}
+            <% end %>
+          </span>
+
+          <span class="text-sm opacity-70">
+            {gettext("Made %{date}", date: on(invitation.inserted_at))}
+          </span>
+
+          <span class="text-sm opacity-70">
+            {gettext("Runs out %{date}", date: on(invitation.expires_at))}
+          </span>
+
+          <button
+            type="button"
+            phx-click="withdraw"
+            phx-value-id={invitation.id}
+            class="ml-auto text-sm underline underline-offset-4"
+          >
+            {gettext("Take it back")}
+          </button>
+        </li>
+      </ul>
     </Layouts.member>
     """
   end
+
+  # The same spelling the rest of this application uses for a date somebody reads.
+  defp on(at), do: Calendar.strftime(at, "%Y-%m-%d")
 end

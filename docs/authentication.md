@@ -1,6 +1,6 @@
 # Authentication
 
-Ithibati is pinned to 0.5.0. On an empty database the first account asks for a code
+Ithibati is pinned to 0.6.0. On an empty database the first account asks for a code
 the operator issues on the host with `bin/setup-code`, and only then for a username
 and passkey. The code is stored as a digest, buys a proof that lasts ten minutes,
 and is spent by the account it makes; issuing another code voids the previous one
@@ -8,15 +8,22 @@ and any proof bought with it. `Sikio.Claim` refuses to start an instance configu
 any other way. See [Operations](operations.md) for the order an operator follows.
 
 Later registrations require a valid invitation; every authenticated member can
-create links on `/`. Links are shown once, expire, and are accepted once. There is
-no administrator role.
+create links on `/invitations`. Links are shown once, expire, and are accepted
+once. There is no administrator role.
+
+The same page lists what is outstanding: for whom, by whom, when it was made and
+when it runs out. Any member can take any of them back, and the link stops working
+at once. Nobody can be removed from an instance once they are in, so this is the
+only moment anybody has a say over who joins. An invitation written before the
+inviter was recorded names nobody, and the list says so rather than inventing one.
 
 An account is named or addressed, which `Sikio.Identity` answers from
 `ACCOUNT_IDENTITY`. Named is the default: the link is shared through whatever
 channel its sender likes. Addressed means the invitee's identifier is an email
 address, the link is delivered to it, and that delivery is what proves the address.
-Both schemas leave Ithibati's `:format` off and take it from the mode instead,
-because the identifier field itself is fixed when the schema compiles. An instance
+Both schemas name `Sikio.Identity` for Ithibati's `:format` and `:format_message`
+rather than carrying a literal, so the shape is asked for on every changeset while
+the identifier field itself stays fixed when the schema compiles. An instance
 that addresses accounts without a mail configuration does not start. A delivery
 that fails is reported and the link stays shareable by hand. See
 [Operations](operations.md) for the variables.

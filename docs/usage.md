@@ -44,6 +44,19 @@ deletes no shared episodes.
   player messages and late events cannot overwrite a newer position. A lost connection pauses
   playback.
 
+## Inviting somebody
+
+`/invitations` makes a link and lists the ones nobody has accepted yet: for whom, by whom, when
+it was made and when it runs out. A link is shown once, because only its digest is stored; pass
+it on straight away or make a new one. When accounts are addressed rather than named, the link is
+also sent to the address, and a delivery that fails is reported while the link stays shareable by
+hand.
+
+Take one back with "Take it back" and the link stops working at once. Any member may do that to
+any invitation, the same rule as every member being able to make one. Nobody can be removed from
+an instance once they are in, so this is the only moment anybody has a say over who joins. An
+invitation older than this feature names nobody as its sender, and the list says so.
+
 Progress survives feed updates and removing and re-adding a source. Marking by hand and removing
 a subscription stop the affected player in other tabs immediately. A full reload, signing out or
 closing the tab ends playback; pause briefly or close the player first so the last seconds are
