@@ -11,17 +11,23 @@ defmodule Sikio.Accounts.Invitation do
   use Ecto.Schema
 
   alias Ithibati.Schema.Invitation
-  alias Sikio.Identity
-
-  import Ecto.Changeset
 
   # The same identifier the account schema is keyed by — the configuration refuses the pair when it
   # is not, which is the mistake worth catching at boot rather than at the first invitation. The
-  # format is left off here for the same reason it is left off there: an instance chooses it.
-  use Invitation, identifier: :username
+  # shape is named the same way it is named there, so the two cannot disagree about it.
+  use Invitation,
+    identifier: :username,
+    format: {Sikio.Identity, :format},
+    format_message: {Sikio.Identity, :format_message}
 
   schema "invitations" do
     ithibati_invitation()
+
+    # `define_field: false`: `ithibati_invitation/0` declares `invited_by_id` and two declarations
+    # of one column is a compile error. The library writes the column and names the foreign key
+    # for it; whether there is an association to preload is this application's to say, and the
+    # invitations page reads it.
+    belongs_to :invited_by, Sikio.Accounts.User, define_field: false
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -29,21 +35,10 @@ defmodule Sikio.Accounts.Invitation do
   @doc """
   The invitation, or a refusal that cost nothing to arrive at.
 
-  The shape is asked first. `invitation_changeset/3` mints a token and its digest and asks the
-  accounts table whether the name is free, and Ithibati skips both when the changeset is already
-  invalid — which is what carrying `:format` there used to buy. Since the format is this
-  instance's to choose, the same saving is bought here instead.
+  Nothing of its own: `invitation_changeset/3` applies the shape this instance asks for, and
+  skips minting a token and asking the accounts table for a value it has already refused. This
+  used to unpick that order by hand, because the format could only be a literal.
   """
-  def changeset(invitation, attrs, opts \\ []) do
-    value = Identity.given(attrs)
-
-    if is_nil(value) or Identity.shaped?(value) do
-      invitation_changeset(invitation, attrs, opts)
-    else
-      invitation
-      |> invitation_changeset(%{}, opts)
-      |> put_change(:username, value)
-      |> Identity.validate()
-    end
-  end
+  def changeset(invitation, attrs, opts \\ []),
+    do: invitation_changeset(invitation, attrs, opts)
 end

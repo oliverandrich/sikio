@@ -93,3 +93,10 @@ msgstr "muss größer oder gleich %{number} sein"
 
 msgid "must be equal to %{number}"
 msgstr "muss gleich %{number} sein"
+
+#. This application's own: the identifier refusal, worded per mode by Sikio.Identity.
+msgid "must be 1-30 lowercase letters, numbers or underscores"
+msgstr "muss aus 1-30 Kleinbuchstaben, Ziffern oder Unterstrichen bestehen"
+
+msgid "must look like grace@example.org"
+msgstr "muss aussehen wie grace@example.org"

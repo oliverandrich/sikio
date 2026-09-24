@@ -16,6 +16,7 @@ defmodule Sikio.IdentityTest do
   alias Sikio.Accounts.Invitation
   alias Sikio.Accounts.User
   alias Sikio.Identity
+  alias Sikio.Mailer
   alias Sikio.TestConfig
 
   defp as(mode), do: TestConfig.put_env(:sikio, :account_identity, mode)
@@ -62,7 +63,7 @@ defmodule Sikio.IdentityTest do
     test "is refused, and the message names both ways out" do
       as(:email)
 
-      message = assert_raise(RuntimeError, &Identity.verify!/0).message
+      message = assert_raise(RuntimeError, fn -> Identity.verify!(false) end).message
 
       assert message =~ "account_identity"
       assert message =~ "MAIL_ENABLED"
@@ -70,14 +71,28 @@ defmodule Sikio.IdentityTest do
 
     test "is fine once mail is configured" do
       as(:email)
-      TestConfig.put_env(:sikio, :mail_enabled, true)
 
-      assert Identity.verify!() == :ok
+      assert Identity.verify!(true) == :ok
     end
 
     # Names need no mailer. An invitation link is handed over however its sender likes.
     test "and names never need one" do
-      assert Identity.verify!() == :ok
+      assert Identity.verify!(false) == :ok
+    end
+
+    # The two are wired together where the application starts, and that wiring is the only place
+    # either of them is asked. A test that called them separately would pass while the boot did
+    # nothing.
+    test "and the answer comes from the mailer at boot" do
+      as(:email)
+
+      assert_raise RuntimeError, ~r/MAIL_ENABLED/, fn ->
+        Identity.verify!(Mailer.configured?())
+      end
+
+      TestConfig.put_env(:sikio, :mail_enabled, true)
+
+      assert Identity.verify!(Mailer.configured?()) == :ok
     end
   end
 
@@ -114,6 +129,23 @@ defmodule Sikio.IdentityTest do
       refute Map.has_key?(changeset.changes, :token_hash)
     end
 
+    # Ectos default beside a name field is "has invalid format", which names the fault and not
+    # the rule. The sentence follows the mode, because the two modes refuse for different reasons
+    # and the person reading it is being asked to type something else.
+    test "and the refusal says what this instance asks for" do
+      assert refusal(User, "Ada Lovelace") == [
+               "must be 1-30 lowercase letters, numbers or underscores"
+             ]
+
+      assert refusal(Invitation, "Ada Lovelace") ==
+               ["must be 1-30 lowercase letters, numbers or underscores"]
+
+      as(:email)
+
+      assert refusal(User, "ada") == ["must look like grace@example.org"]
+      assert refusal(Invitation, "ada") == ["must look like grace@example.org"]
+    end
+
     # Ithibati keeps doing its half whatever the format is.
     test "and neither accepts nothing at all" do
       refute valid?(User, "")
@@ -126,4 +158,14 @@ defmodule Sikio.IdentityTest do
 
   defp valid?(Invitation, value),
     do: %Invitation{} |> Invitation.changeset(%{"username" => value}) |> Map.get(:valid?)
+
+  defp refusal(User, value),
+    do: %User{} |> User.changeset(%{"username" => value}) |> errors_on() |> Map.get(:username)
+
+  defp refusal(Invitation, value) do
+    %Invitation{}
+    |> Invitation.changeset(%{"username" => value})
+    |> errors_on()
+    |> Map.get(:username)
+  end
 end

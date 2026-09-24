@@ -110,3 +110,10 @@ msgstr ""
 
 msgid "must be equal to %{number}"
 msgstr ""
+
+#. This application's own: the identifier refusal, worded per mode by Sikio.Identity.
+msgid "must be 1-30 lowercase letters, numbers or underscores"
+msgstr ""
+
+msgid "must look like grace@example.org"
+msgstr ""

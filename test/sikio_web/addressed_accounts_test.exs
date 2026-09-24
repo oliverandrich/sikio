@@ -13,6 +13,10 @@ defmodule SikioWeb.AddressedAccountsTest do
 
   import Phoenix.LiveViewTest
 
+  alias Ithibati.Web.Gate
+  alias Sikio.Accounts.User
+  alias Sikio.Identity
+  alias Sikio.Repo
   alias Sikio.TestConfig
   alias SikioWeb.CeremonyMessages
 
@@ -36,6 +40,33 @@ defmodule SikioWeb.AddressedAccountsTest do
 
     assert html =~ "Username"
     refute html =~ ~s(type="email")
+  end
+
+  # The invitation form puts the field's name in front of whatever the changeset said, so the
+  # sentence the shape is refused with has to read as the second half of one and not as a whole
+  # one of its own. Written out rather than matched loosely: the fault this catches is the field
+  # named twice, and a `=~ "address"` passes straight through it.
+  test "the invitation refusal names the field once" do
+    addressing()
+
+    assert refusal_for("not-an-address") =~ "Email address must look like grace@example.org."
+
+    TestConfig.put_env(:sikio, :account_identity, :username)
+
+    assert refusal_for("not a name") =~
+             "Username must be 1-30 lowercase letters, numbers or underscores."
+  end
+
+  defp refusal_for(value) do
+    # The inviter has to satisfy the mode as well: an account is an address here or a name there,
+    # and the same fixture cannot be both.
+    inviter = if Identity.email?(), do: "ada@example.org", else: "ada"
+    account = Repo.insert!(User.changeset(%User{}, %{username: inviter}))
+    conn = build_conn() |> Plug.Test.init_test_session(%{}) |> Gate.log_in(account)
+
+    {:ok, view, _html} = live(conn, ~p"/invitations")
+
+    view |> form("#invitation-form", %{"username" => value}) |> render_submit()
   end
 
   # The codes are the library's and say `username` whatever the mode is. The sentence this

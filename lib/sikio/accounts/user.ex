@@ -8,13 +8,15 @@ defmodule Sikio.Accounts.User do
   use Ecto.Schema
 
   alias Ithibati.Schema.User
-  alias Sikio.Identity
 
-  # The format is left off on purpose. An instance names its accounts or addresses them, and that
+  # The format is named, not written. An instance names its accounts or addresses them, and that
   # is the only thing the two modes differ by, so it is asked of `Sikio.Identity` per changeset
-  # rather than fixed here when this compiles. Ithibati still requires, trims, lowercases and caps
-  # the value; `changeset/2` below adds the shape.
-  use User, identifier: :username
+  # rather than fixed here when this compiles. A pair and not a capture: the option is escaped
+  # into the generated changeset, and only a pair survives that unchanged.
+  use User,
+    identifier: :username,
+    format: {Sikio.Identity, :format},
+    format_message: {Sikio.Identity, :format_message}
 
   import Ecto.Changeset
 
@@ -28,7 +30,6 @@ defmodule Sikio.Accounts.User do
   def changeset(user, attrs) do
     user
     |> identifier_changeset(attrs)
-    |> Identity.validate()
     |> cast(attrs, [:name])
   end
 end
