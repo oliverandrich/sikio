@@ -26,7 +26,7 @@ defmodule Sikio.AuthRateLimiter do
   def budget(group) do
     :sikio
     |> Application.get_env(:auth_rate_limits, [])
-    |> Keyword.get(group) || Keyword.fetch!(@defaults, group)
+    |> Keyword.get(group, Keyword.fetch!(@defaults, group))
   end
 
   def start_link(opts),

@@ -67,8 +67,11 @@ defmodule SikioWeb.ClientIp do
     |> Enum.find(&(&1 && not trusted?(&1, proxies)))
   end
 
+  # Bytes rather than `to_charlist/1`, which raises on a header that is not valid UTF-8. A
+  # visitor writes those bytes and this plug runs before everything, so the raise would be a
+  # request nobody can make succeed.
   defp address(entry) do
-    case entry |> String.trim() |> to_charlist() |> :inet.parse_strict_address() do
+    case entry |> :erlang.binary_to_list() |> :string.trim() |> :inet.parse_strict_address() do
       {:ok, parsed} -> unmapped(parsed)
       {:error, _reason} -> nil
     end

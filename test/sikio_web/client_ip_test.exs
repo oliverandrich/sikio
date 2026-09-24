@@ -34,6 +34,23 @@ defmodule SikioWeb.ClientIpTest do
   # so this is the form Caddy on the same host actually arrives in. Measured, not guessed.
   @mapped_loopback {0, 0, 0, 0, 0, 65_535, 32_512, 1}
 
+  # The header is written by whoever sends the request, so its bytes are a visitor's to choose.
+  # `to_charlist/1` raises `UnicodeConversionError` on bytes that are not UTF-8, and this plug
+  # runs in front of everything — the raise would be a request nobody could make succeed, from a
+  # header nobody validates. The address is unreadable either way; what matters is that the
+  # socket still answers for it.
+  test "a forwarded header that is not UTF-8 falls back to the socket" do
+    header = [{"x-forwarded-for", <<"203.0.113.7, ", 0xFF, 0xFE>>}]
+
+    assert asked({127, 0, 0, 1}, header) == {203, 0, 113, 7}
+  end
+
+  test "and one that is only rubbish is answered by the socket" do
+    header = [{"x-forwarded-for", <<0xFF, 0xFE>>}]
+
+    assert asked({127, 0, 0, 1}, header) == {127, 0, 0, 1}
+  end
+
   test "a proxy on the loopback speaks for the visitor it forwarded" do
     assert asked({127, 0, 0, 1}, @forwarded) == {203, 0, 113, 7}
   end
