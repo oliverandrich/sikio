@@ -68,9 +68,16 @@ defmodule Sikio.MixProject do
       {:lucide_icons, "~> 2.4.0"},
       {:ithibati_starter,
        [
-         only: :dev,
+         # `:test` as well as `:dev`, because the drift check reads these templates. Under
+         # `:dev` alone the dependency is not fetched in a test run and the check would skip
+         # itself quietly, which is worse than not having it.
+         only: [:dev, :test],
          github: "oliverandrich/ithibati-starter",
-         ref: "main",
+         # `branch:`, not `ref:`. Mix treats a `ref` as something that does not move and will
+         # not re-resolve it, so `mix deps.update` was a no-op and this sat on whichever commit
+         # it was first fetched at. The lock still decides what a build uses; reconciling with
+         # the starter is `mix deps.update ithibati_starter`, which is a deliberate act.
+         branch: "main",
          override: true,
          runtime: false
        ]},
