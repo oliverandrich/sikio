@@ -16,11 +16,12 @@ defmodule SikioWeb.LibraryLive do
 
   alias Sikio.Library
   alias Sikio.Playback
+  alias SikioWeb.Notes
   alias SikioWeb.Pictures
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, selected: nil, filters: nil, entries: [])}
+    {:ok, assign(socket, selected: nil, notes: nil, filters: nil, entries: [])}
   end
 
   # The list is read again only when the filters change. The rows are keyed, so choosing another
@@ -110,10 +111,25 @@ defmodule SikioWeb.LibraryLive do
 
   defp select(socket, id) do
     case Library.entry(socket.assigns.current_account, id) do
-      nil -> :error
-      entry -> {:ok, assign(socket, selected: entry, page_title: entry.title)}
+      nil ->
+        :error
+
+      entry ->
+        {:ok,
+         assign(socket, selected: entry, page_title: entry.title, notes: notes(socket, entry))}
     end
   end
+
+  # Filtering notes is the costly part of the detail, and an event rereads the same item several
+  # times a minute while it plays. The notes are filtered again only when they changed.
+  defp notes(%{assigns: %{selected: %{id: id, description: description}, notes: notes}}, %{
+         id: id,
+         description: description
+       }),
+       do: notes
+
+  defp notes(_socket, entry),
+    do: Notes.notes(entry.description, entry.description_format || :html)
 
   defp reload(socket) do
     account = socket.assigns.current_account
@@ -273,7 +289,12 @@ defmodule SikioWeb.LibraryLive do
           aria-label={gettext("Selected item")}
           class={["min-w-0 lg:sticky lg:top-10", !@selected && "hidden lg:block"]}
         >
-          <.detail :if={@selected} entry={@selected} back={SikioWeb.Sidebar.library_path(@filters)} />
+          <.detail
+            :if={@selected}
+            entry={@selected}
+            notes={@notes}
+            back={SikioWeb.Sidebar.library_path(@filters)}
+          />
           <p :if={!@selected} class="rounded-control border border-dashed border-line p-8 text-muted">
             {gettext("Choose an item to see it here. j and k move through the list.")}
           </p>
@@ -350,7 +371,7 @@ defmodule SikioWeb.LibraryLive do
               {kind_label(@entry)}
             </span>
             <span :if={@entry.published_at}>
-              {Calendar.strftime(@entry.published_at, "%d %b %Y")}
+              {date(@entry.published_at)}
             </span>
           </span>
         </span>
@@ -432,10 +453,17 @@ defmodule SikioWeb.LibraryLive do
   # The selected item: what it is, where the reader stands, and the way to play it. Playing
   # happens in the dock, which this asks through a browser event so the media never moves.
   attr :entry, :map, required: true
+  attr :notes, :any, required: true, doc: "the filtered notes, or nil"
   attr :back, :string, required: true
 
   defp detail(assigns) do
-    assigns = assign(assigns, :status, status(assigns.entry))
+    entry = assigns.entry
+
+    assigns =
+      assign(assigns,
+        status: status(entry),
+        runtime: runtime(entry.duration)
+      )
 
     ~H"""
     <article class="flex flex-col gap-4">
@@ -446,7 +474,12 @@ defmodule SikioWeb.LibraryLive do
         <p class="text-label font-semibold text-accent">{@entry.feed.title}</p>
         <h2 class="text-title font-semibold">{@entry.title}</h2>
         <p id="playback-status" aria-live="polite" class="text-meta text-muted">
-          {kind_label(@entry)} · {status_label(@entry)}
+          {kind_label(@entry)}
+          <span :if={@entry.published_at}>
+            · {date(@entry.published_at)}
+          </span>
+          <span :if={@runtime}>· {@runtime}</span>
+          · {status_label(@entry)}
           <span :if={@entry.playback && @entry.playback.position > 0}>
             · {gettext("Saved at %{time}", time: timestamp(@entry.playback.position))}
           </span>
@@ -493,6 +526,16 @@ defmodule SikioWeb.LibraryLive do
           {gettext("Open on YouTube")}
         </a>
       </div>
+      <div
+        :if={@notes}
+        id="item-notes"
+        class="notes max-w-prose border-t border-line pt-4 text-body text-ink"
+      >
+        {@notes}
+      </div>
+      <p :if={!@notes} id="item-no-notes" class="border-t border-line pt-4 text-muted">
+        {gettext("The publisher sent no notes for this item.")}
+      </p>
       <p class="text-meta text-muted">{privacy_note(@entry)}</p>
       <p class="border-t border-line pt-4 text-meta text-muted">
         {gettext(

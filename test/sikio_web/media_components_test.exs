@@ -40,4 +40,16 @@ defmodule SikioWeb.MediaComponentsTest do
       assert runtime(nil) == nil
     end
   end
+
+  # A date sits in translated text, so its month is translated too.
+  describe "date/1" do
+    test "names the month in the reader's language" do
+      published = ~U[2026-09-18 09:00:00Z]
+      assert date(published) == "18 Sep 2026"
+
+      Gettext.with_locale(SikioWeb.Gettext, "de", fn ->
+        assert date(published) == "18. Sept. 2026"
+      end)
+    end
+  end
 end

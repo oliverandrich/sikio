@@ -64,6 +64,52 @@ defmodule SikioWeb.NotesTest do
     end
   end
 
+  describe "pictures and links inside notes" do
+    # The policy refuses a publisher's host, so a picture comes from this one or not at all.
+    test "a picture is shown through Sikio's own host" do
+      html = rendered(~s|<p><img src="https://img.example.org/chapter.jpg" alt="Map"></p>|)
+      [src] = html |> Floki.parse_fragment!() |> Floki.attribute("img", "src")
+
+      assert "/pictures/" <> reference = src
+
+      # Inside running text a picture that cannot be had disappears; a placeholder tile would
+      # stretch across the column.
+      assert {:ok, {["https://img.example.org/chapter.jpg"], "/images/nothing.svg"}} =
+               SikioWeb.Pictures.verify(reference)
+
+      assert html =~ ~s(alt="Map")
+      assert html =~ ~s(loading="lazy")
+    end
+
+    # Without the feed's own address there is no base to resolve a relative path against, and
+    # plain http would be fetched in the clear on the reader's behalf.
+    test "a picture whose address cannot be checked is left out" do
+      html =
+        rendered(
+          ~s|<p>Before<img src="art/1.jpg"><img src="http://img.example.org/1.jpg">After</p>|
+        )
+
+      refute html =~ "<img"
+      assert html =~ "Before"
+      assert html =~ "After"
+    end
+
+    # Following a link in place would leave the page, and the dock playing in it with it.
+    test "a link opens beside the reader" do
+      html = rendered(~s|<p><a href="https://example.org">Site</a></p>|)
+
+      assert html =~ ~s(target="_blank")
+      assert html =~ ~s(rel="noopener noreferrer")
+    end
+  end
+
+  # Notes that are empty once filtered are no notes, so the reader is told rather than shown a
+  # bare rule.
+  test "notes left empty by filtering are no notes" do
+    assert notes(~s|<p><img src="http://cdn.example.org/x.jpg"></p>|, :html) == nil
+    assert notes("<p> </p><div></div>", :html) == nil
+  end
+
   defp rendered(description, format \\ :html) do
     description |> notes(format) |> Phoenix.HTML.safe_to_string()
   end

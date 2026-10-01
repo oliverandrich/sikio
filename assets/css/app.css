@@ -85,6 +85,17 @@
   }
 }
 
+/* Show notes as a publisher wrote them, with room to read: paragraphs, lists and links. */
+@utility notes {
+  & :where(p, ul, ol) { margin-bottom: 0.75rem; }
+  & ul { list-style: disc; padding-left: 1.25rem; }
+  & ol { list-style: decimal; padding-left: 1.25rem; }
+  & li { margin-bottom: 0.25rem; }
+  & a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+  & :where(h1, h2, h3) { font-weight: 600; }
+  & img { margin-block: 0.75rem; max-width: 100%; border-radius: var(--radius-control); }
+}
+
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 

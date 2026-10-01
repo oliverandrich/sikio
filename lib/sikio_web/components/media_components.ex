@@ -91,4 +91,27 @@ defmodule SikioWeb.MediaComponents do
       {"completed", :completed, gettext("Completed")}
     ]
   end
+
+  @doc "A day as a list and a heading show it, with the month in the reader's language."
+  def date(datetime) do
+    month = Enum.at(months(), datetime.month - 1)
+    gettext("%{day} %{month} %{year}", day: datetime.day, month: month, year: datetime.year)
+  end
+
+  defp months do
+    [
+      gettext("Jan"),
+      gettext("Feb"),
+      gettext("Mar"),
+      gettext("Apr"),
+      gettext("May"),
+      gettext("Jun"),
+      gettext("Jul"),
+      gettext("Aug"),
+      gettext("Sep"),
+      gettext("Oct"),
+      gettext("Nov"),
+      gettext("Dec")
+    ]
+  end
 end

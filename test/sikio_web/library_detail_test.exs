@@ -169,6 +169,27 @@ defmodule SikioWeb.LibraryDetailTest do
     end
   end
 
+  describe "the notes" do
+    test "show what the publisher wrote, without what it smuggled in", c do
+      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+
+      assert has_element?(view, "#item-notes p", "Notes with a")
+      assert has_element?(view, ~s|#item-notes a[target="_blank"]|, "link")
+      refute render(view) =~ "alert(1)"
+    end
+
+    test "an item without notes says so rather than leaving the column empty", c do
+      {:ok, preview} = Parser.parse(thin_podcast(), feed_url())
+      {:ok, _} = Library.subscribe(c.user, preview)
+      thin = Enum.find(Library.entries(c.user), &(&1.description == nil))
+
+      {:ok, view, _} = live(c.conn, ~p"/library/#{thin.id}")
+
+      refute has_element?(view, "#item-notes")
+      assert has_element?(view, "#item-no-notes")
+    end
+  end
+
   defp rows(view),
     do:
       view

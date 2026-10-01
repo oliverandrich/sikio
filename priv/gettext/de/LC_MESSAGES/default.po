@@ -899,17 +899,17 @@ msgid "← Your subscriptions"
 msgstr "← Deine Abos"
 
 #: lib/sikio_web/components/layouts.ex:200
-#: lib/sikio_web/live/library_live.ex:219
+#: lib/sikio_web/live/library_live.ex:192
 #, elixir-autogen, elixir-format
 msgid "Add a source"
 msgstr "Quelle hinzufügen"
 
-#: lib/sikio_web/live/library_live.ex:235
+#: lib/sikio_web/live/library_live.ex:208
 #, elixir-autogen, elixir-format
 msgid "All media"
 msgstr "Alle Medien"
 
-#: lib/sikio_web/live/library_live.ex:232
+#: lib/sikio_web/live/library_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "All sources"
 msgstr "Alle Quellen"
@@ -919,7 +919,7 @@ msgstr "Alle Quellen"
 msgid "Audio streams directly from the podcast publisher. Your place is saved in Sikio."
 msgstr "Das Audio kommt direkt vom Anbieter des Podcasts. Deine Position wird in Sikio gespeichert."
 
-#: lib/sikio_web/live/library_live.ex:259
+#: lib/sikio_web/live/library_live.ex:232
 #, elixir-autogen, elixir-format
 msgid "Clear filters"
 msgstr "Filter zurücksetzen"
@@ -944,7 +944,7 @@ msgstr "Abgeschlossen"
 msgid "Expand player"
 msgstr "Player vergrößern"
 
-#: lib/sikio_web/live/library_live.ex:273
+#: lib/sikio_web/live/library_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Find your first source →"
 msgstr "Finde deine erste Quelle →"
@@ -956,7 +956,7 @@ msgid "In progress"
 msgstr "Angefangen"
 
 #: lib/sikio_web/components/layouts.ex:233
-#: lib/sikio_web/live/library_live.ex:108
+#: lib/sikio_web/live/library_live.ex:110
 #, elixir-autogen, elixir-format
 msgid "Library"
 msgstr "Mediathek"
@@ -996,7 +996,7 @@ msgstr "Als ungesehen markieren"
 msgid "Mark as watched"
 msgstr "Als gesehen markieren"
 
-#: lib/sikio_web/live/library_live.ex:233
+#: lib/sikio_web/live/library_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Media type"
 msgstr "Medientyp"
@@ -1007,7 +1007,7 @@ msgstr "Medientyp"
 msgid "New"
 msgstr "Neu"
 
-#: lib/sikio_web/live/library_live.ex:282
+#: lib/sikio_web/live/library_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "No items match this view. Try another filter, or wait for new episodes."
 msgstr "Zu dieser Ansicht passt nichts. Versuche einen anderen Filter oder warte auf neue Folgen."
@@ -1017,7 +1017,7 @@ msgstr "Zu dieser Ansicht passt nichts. Versuche einen anderen Filter oder warte
 msgid "Now playing"
 msgstr "Läuft gerade"
 
-#: lib/sikio_web/live/library_live.ex:268
+#: lib/sikio_web/live/library_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
 msgstr "Füge einen YouTube-Kanal, ein Video oder eine Podcast-Webseite ein. Oder finde deinen nächsten Hörtipp in Apple Podcasts."
@@ -1032,7 +1032,7 @@ msgstr "Abspielen"
 msgid "Play again"
 msgstr "Erneut abspielen"
 
-#: lib/sikio_web/live/library_live.ex:523
+#: lib/sikio_web/live/library_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Playback stays with you as you browse your library and subscriptions. Your place is saved every five seconds, on pause and after seeking. Reaching the end marks this item complete. You can always change that yourself."
 msgstr "Die Wiedergabe bleibt erhalten, während du durch Mediathek und Abos gehst. Deine Position wird alle fünf Sekunden gespeichert, beim Pausieren und nach dem Spulen. Am Ende gilt der Eintrag als abgeschlossen. Das kannst du jederzeit selbst ändern."
@@ -1042,17 +1042,17 @@ msgstr "Die Wiedergabe bleibt erhalten, während du durch Mediathek und Abos geh
 msgid "Podcast episode"
 msgstr "Podcast-Folge"
 
-#: lib/sikio_web/live/library_live.ex:476
+#: lib/sikio_web/live/library_live.ex:464
 #, elixir-autogen, elixir-format
 msgid "Saved at %{time}"
 msgstr "Gespeichert bei %{time}"
 
-#: lib/sikio_web/live/library_live.ex:232
+#: lib/sikio_web/live/library_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr "Quelle"
 
-#: lib/sikio_web/live/library_live.ex:266
+#: lib/sikio_web/live/library_live.ex:239
 #, elixir-autogen, elixir-format
 msgid "Space for something good."
 msgstr "Platz für etwas Gutes."
@@ -1062,12 +1062,12 @@ msgstr "Platz für etwas Gutes."
 msgid "Speed"
 msgstr "Geschwindigkeit"
 
-#: lib/sikio_web/live/library_live.ex:239
+#: lib/sikio_web/live/library_live.ex:212
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "Status"
 
-#: lib/sikio_web/live/library_live.ex:81
+#: lib/sikio_web/live/library_live.ex:84
 #: lib/sikio_web/live/player_dock_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "This item is no longer in your library."
@@ -1078,7 +1078,7 @@ msgstr "Dieser Eintrag ist nicht mehr in deiner Mediathek."
 msgid "This source is no longer in your library."
 msgstr "Diese Quelle ist nicht mehr in deiner Mediathek."
 
-#: lib/sikio_web/live/library_live.ex:184
+#: lib/sikio_web/live/library_live.ex:157
 #, elixir-autogen, elixir-format
 msgid "Unavailable source"
 msgstr "Nicht verfügbare Quelle"
@@ -1098,7 +1098,7 @@ msgstr "YouTube-Video"
 msgid "Your progress changed in another player or was marked manually. Open the episode to continue here."
 msgstr "Dein Fortschritt hat sich in einem anderen Player geändert oder wurde von Hand gesetzt. Öffne die Folge, um hier weiterzuhören."
 
-#: lib/sikio_web/live/library_live.ex:468
+#: lib/sikio_web/live/library_live.ex:451
 #, elixir-autogen, elixir-format
 msgid "← Your library"
 msgstr "← Deine Mediathek"
@@ -1395,7 +1395,7 @@ msgid "All items"
 msgstr "Alle Einträge"
 
 #: lib/sikio_web/components/layouts.ex:181
-#: lib/sikio_web/live/library_live.ex:237
+#: lib/sikio_web/live/library_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Audio"
 msgstr "Audio"
@@ -1411,7 +1411,7 @@ msgid "Sources"
 msgstr "Quellen"
 
 #: lib/sikio_web/components/layouts.ex:180
-#: lib/sikio_web/live/library_live.ex:236
+#: lib/sikio_web/live/library_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "Video"
 msgstr "Video"
@@ -1421,34 +1421,104 @@ msgstr "Video"
 msgid "Views"
 msgstr "Ansichten"
 
-#: lib/sikio_web/live/library_live.ex:192
+#: lib/sikio_web/live/library_live.ex:165
 #, elixir-autogen, elixir-format
 msgid "%{count} item"
 msgid_plural "%{count} items"
 msgstr[0] "%{count} Eintrag"
 msgstr[1] "%{count} Einträge"
 
-#: lib/sikio_web/live/library_live.ex:444
+#: lib/sikio_web/live/library_live.ex:420
 #, elixir-autogen, elixir-format
 msgid "Progress"
 msgstr "Fortschritt"
 
-#: lib/sikio_web/live/library_live.ex:190
+#: lib/sikio_web/live/library_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "%{shown} of %{total} items"
 msgstr "%{shown} von %{total} Einträgen"
 
-#: lib/sikio_web/live/library_live.ex:306
+#: lib/sikio_web/live/library_live.ex:279
 #, elixir-autogen, elixir-format
 msgid "Choose an item to see it here. j and k move through the list."
 msgstr "Wähle einen Eintrag, um ihn hier zu sehen. Mit j und k bewegst du dich durch die Liste."
 
-#: lib/sikio_web/live/library_live.ex:518
+#: lib/sikio_web/live/library_live.ex:506
 #, elixir-autogen, elixir-format
 msgid "Open on YouTube"
 msgstr "Auf YouTube öffnen"
 
-#: lib/sikio_web/live/library_live.ex:301
+#: lib/sikio_web/live/library_live.ex:274
 #, elixir-autogen, elixir-format
 msgid "Selected item"
 msgstr "Ausgewählter Eintrag"
+
+#: lib/sikio_web/live/library_live.ex:517
+#, elixir-autogen, elixir-format
+msgid "The publisher sent no notes for this item."
+msgstr "Zu diesem Eintrag hat der Herausgeber keine Notizen geschickt."
+
+#: lib/sikio_web/components/media_components.ex:98
+#, elixir-autogen, elixir-format
+msgid "%{day} %{month} %{year}"
+msgstr "%{day}. %{month} %{year}"
+
+#: lib/sikio_web/components/media_components.ex:106
+#, elixir-autogen, elixir-format
+msgid "Apr"
+msgstr "Apr."
+
+#: lib/sikio_web/components/media_components.ex:110
+#, elixir-autogen, elixir-format
+msgid "Aug"
+msgstr "Aug."
+
+#: lib/sikio_web/components/media_components.ex:114
+#, elixir-autogen, elixir-format
+msgid "Dec"
+msgstr "Dez."
+
+#: lib/sikio_web/components/media_components.ex:104
+#, elixir-autogen, elixir-format
+msgid "Feb"
+msgstr "Feb."
+
+#: lib/sikio_web/components/media_components.ex:103
+#, elixir-autogen, elixir-format
+msgid "Jan"
+msgstr "Jan."
+
+#: lib/sikio_web/components/media_components.ex:109
+#, elixir-autogen, elixir-format
+msgid "Jul"
+msgstr "Juli"
+
+#: lib/sikio_web/components/media_components.ex:108
+#, elixir-autogen, elixir-format
+msgid "Jun"
+msgstr "Juni"
+
+#: lib/sikio_web/components/media_components.ex:105
+#, elixir-autogen, elixir-format
+msgid "Mar"
+msgstr "März"
+
+#: lib/sikio_web/components/media_components.ex:107
+#, elixir-autogen, elixir-format
+msgid "May"
+msgstr "Mai"
+
+#: lib/sikio_web/components/media_components.ex:113
+#, elixir-autogen, elixir-format
+msgid "Nov"
+msgstr "Nov."
+
+#: lib/sikio_web/components/media_components.ex:112
+#, elixir-autogen, elixir-format
+msgid "Oct"
+msgstr "Okt."
+
+#: lib/sikio_web/components/media_components.ex:111
+#, elixir-autogen, elixir-format
+msgid "Sep"
+msgstr "Sept."
