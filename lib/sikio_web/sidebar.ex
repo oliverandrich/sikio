@@ -39,10 +39,16 @@ defmodule SikioWeb.Sidebar do
     assign(socket, :sidebar, %{counts: Library.counts(account), sources: sources})
   end
 
-  @doc "The library's address under `filters`, with empty ones left out."
-  def library_path(filters) do
+  @doc "The library's address under `filters`, at an item when `id` is given; empty filters are left out."
+  def library_path(filters, id \\ nil) do
     query = filters |> Enum.reject(fn {_key, value} -> value in [nil, ""] end) |> Map.new()
-    if query == %{}, do: ~p"/", else: ~p"/?#{query}"
+
+    case {id, query == %{}} do
+      {nil, true} -> ~p"/"
+      {nil, false} -> ~p"/?#{query}"
+      {id, true} -> ~p"/library/#{id}"
+      {id, false} -> ~p"/library/#{id}?#{query}"
+    end
   end
 
   defp follow(message, socket) do

@@ -5,6 +5,8 @@ defmodule SikioWeb.LibraryLive do
   The personal inbox: the newest items from the sources this account subscribed to.
 
   The filters live in the URL, so a narrowed view survives a reload and the browser's back button.
+  Selecting an item patches the address to `/library/:id` and keeps the list standing: from `lg`
+  the item shows in a column beside the list, below it on its own.
   Everything on the page is kept current from notifications rather than by polling: new episodes,
   progress from another tab, manual status changes and subscriptions added or removed elsewhere.
   """
@@ -18,12 +20,24 @@ defmodule SikioWeb.LibraryLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, socket |> assign(page_title: gettext("Library")) |> stream(:entries, [])}
+    {:ok, assign(socket, selected: nil, filters: nil, entries: [])}
   end
 
+  # The list is read again only when the filters change. The rows are keyed, so choosing another
+  # item sends only the two rows whose selection changed and the list stands.
   @impl true
   def handle_params(params, _uri, socket) do
-    {:noreply, socket |> assign(:filters, Library.normalize_filters(params)) |> reload()}
+    filters = Library.normalize_filters(params)
+
+    socket =
+      if filters == socket.assigns.filters,
+        do: socket,
+        else: socket |> assign(:filters, filters) |> reload()
+
+    case select(socket, params["id"]) do
+      {:ok, socket} -> {:noreply, socket}
+      :error -> {:noreply, push_navigate(socket, to: ~p"/")}
+    end
   end
 
   @impl true
@@ -33,6 +47,28 @@ defmodule SikioWeb.LibraryLive do
        to: params |> Library.normalize_filters() |> SikioWeb.Sidebar.library_path()
      )}
   end
+
+  def handle_event("move", %{"key" => key}, socket) when key in ["j", "k"] do
+    ids = Enum.map(socket.assigns.entries, & &1.id)
+    current = socket.assigns.selected && Enum.find_index(ids, &(&1 == socket.assigns.selected.id))
+
+    next =
+      case {key, current} do
+        {"j", nil} -> List.first(ids)
+        {"k", nil} -> nil
+        {"j", index} -> Enum.at(ids, index + 1)
+        {"k", 0} -> nil
+        {"k", index} -> Enum.at(ids, index - 1)
+      end
+
+    if next,
+      do:
+        {:noreply,
+         push_patch(socket, to: SikioWeb.Sidebar.library_path(socket.assigns.filters, next))},
+      else: {:noreply, socket}
+  end
+
+  def handle_event("move", _params, socket), do: {:noreply, socket}
 
   def handle_event("mark", %{"id" => id, "status" => status}, socket)
       when status in ["new", "completed"] do
@@ -48,8 +84,36 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  @doc "Every library event may change which items this view lists. See `SikioWeb.Sidebar`."
-  def handle_library_event(_event, socket), do: {:noreply, reload(socket)}
+  @doc """
+  Every library event may change which items this view lists. See `SikioWeb.Sidebar`.
+
+  The selected item is read again from the database, so a late notification cannot undo a status
+  somebody just set. An item that left the library closes.
+  """
+  def handle_library_event(_event, %{assigns: %{selected: nil}} = socket),
+    do: {:noreply, reload(socket)}
+
+  def handle_library_event(_event, socket) do
+    socket = reload(socket)
+
+    case select(socket, socket.assigns.selected.id) do
+      {:ok, socket} ->
+        {:noreply, socket}
+
+      :error ->
+        {:noreply, push_patch(socket, to: SikioWeb.Sidebar.library_path(socket.assigns.filters))}
+    end
+  end
+
+  defp select(socket, nil),
+    do: {:ok, assign(socket, selected: nil, page_title: gettext("Library"))}
+
+  defp select(socket, id) do
+    case Library.entry(socket.assigns.current_account, id) do
+      nil -> :error
+      entry -> {:ok, assign(socket, selected: entry, page_title: entry.title)}
+    end
+  end
 
   defp reload(socket) do
     account = socket.assigns.current_account
@@ -61,6 +125,7 @@ defmodule SikioWeb.LibraryLive do
     |> assign(
       empty?: subscriptions == [],
       no_matches?: entries == [],
+      entries: entries,
       shown: length(entries),
       total: Library.total(socket.assigns.sidebar.counts, filters),
       heading: heading(filters, subscriptions),
@@ -68,7 +133,6 @@ defmodule SikioWeb.LibraryLive do
       filter_form: to_form(filters, as: :filters),
       sources: source_options(subscriptions, filters["source"])
     )
-    |> stream(:entries, entries, reset: true)
   end
 
   # A source that was filtered on and has since been removed keeps a place in the list, so the
@@ -109,89 +173,111 @@ defmodule SikioWeb.LibraryLive do
       filters={@filters}
       patch
     >
-      <div class="max-w-3xl">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-baseline gap-3">
-            <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
-            <span :if={!@empty?} id="library-count" class="text-meta text-muted">
-              {count_label(@shown, @total)}
-            </span>
+      <div
+        id="library"
+        phx-hook="ReaderKeys"
+        class="lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start lg:gap-8"
+      >
+        <div class={["min-w-0", @selected && "hidden lg:block"]}>
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-baseline gap-3">
+              <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
+              <span :if={!@empty?} id="library-count" class="text-meta text-muted">
+                {count_label(@shown, @total)}
+              </span>
+            </div>
+            <.button id="add-subscription" class="lg:hidden" navigate={~p"/subscriptions"}>
+              <Lucideicons.plus aria-hidden="true" class="size-4" />
+              {gettext("Add a source")}
+            </.button>
           </div>
-          <.button id="add-subscription" class="lg:hidden" navigate={~p"/subscriptions"}>
-            <Lucideicons.plus aria-hidden="true" class="size-4" />
-            {gettext("Add a source")}
-          </.button>
-        </div>
-        <.form
-          for={@filter_form}
-          id="library-filters"
-          phx-change="filter"
-          phx-submit="filter"
-          class="mb-4 grid gap-3 rounded-control border border-line bg-surface p-4 sm:grid-cols-3 lg:hidden"
-        >
-          <label
-            :for={
-              {key, label, options} <- [
-                {"source", gettext("Source"), [{gettext("All sources"), ""} | @sources]},
-                {"kind", gettext("Media type"),
-                 [
-                   {gettext("All media"), ""},
-                   {gettext("Video"), "video"},
-                   {gettext("Audio"), "audio"}
-                 ]},
-                {"status", gettext("Status"),
-                 for({value, _key, label} <- views(), do: {label, value})}
-              ]
-            }
-            class="min-w-0 text-label font-semibold"
+          <.form
+            for={@filter_form}
+            id="library-filters"
+            phx-change="filter"
+            phx-submit="filter"
+            class="mb-4 grid gap-3 rounded-control border border-line bg-surface p-4 sm:grid-cols-3 lg:hidden"
           >
-            <span class="mb-1 block">{label}</span>
-            <select
-              id={"filter-#{key}"}
-              name={@filter_form[key].name}
-              class="w-full rounded-control border border-control bg-surface px-3 py-2 font-normal text-ink"
+            <label
+              :for={
+                {key, label, options} <- [
+                  {"source", gettext("Source"), [{gettext("All sources"), ""} | @sources]},
+                  {"kind", gettext("Media type"),
+                   [
+                     {gettext("All media"), ""},
+                     {gettext("Video"), "video"},
+                     {gettext("Audio"), "audio"}
+                   ]},
+                  {"status", gettext("Status"),
+                   for({value, _key, label} <- views(), do: {label, value})}
+                ]
+              }
+              class="min-w-0 text-label font-semibold"
             >
-              {Phoenix.HTML.Form.options_for_select(options, @filter_form[key].value)}
-            </select>
-          </label>
-          <.link
-            :if={@filters_active?}
-            id="clear-filters"
-            patch={~p"/"}
-            class="text-label font-semibold text-accent sm:col-span-3"
-          >{gettext("Clear filters")}</.link>
-        </.form>
-        <section
-          :if={@empty?}
-          id="library-empty"
-          class="rounded-control border border-line bg-surface p-8"
-        >
-          <h2 class="text-title font-semibold">{gettext("Space for something good.")}</h2>
-          <p class="mt-2 max-w-lg text-muted">
-            {gettext(
-              "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
-            )}
+              <span class="mb-1 block">{label}</span>
+              <select
+                id={"filter-#{key}"}
+                name={@filter_form[key].name}
+                class="w-full rounded-control border border-control bg-surface px-3 py-2 font-normal text-ink"
+              >
+                {Phoenix.HTML.Form.options_for_select(options, @filter_form[key].value)}
+              </select>
+            </label>
+            <.link
+              :if={@filters_active?}
+              id="clear-filters"
+              patch={~p"/"}
+              class="text-label font-semibold text-accent sm:col-span-3"
+            >{gettext("Clear filters")}</.link>
+          </.form>
+          <section
+            :if={@empty?}
+            id="library-empty"
+            class="rounded-control border border-line bg-surface p-8"
+          >
+            <h2 class="text-title font-semibold">{gettext("Space for something good.")}</h2>
+            <p class="mt-2 max-w-lg text-muted">
+              {gettext(
+                "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
+              )}
+            </p>
+            <.button class="mt-5" variant="primary" navigate={~p"/subscriptions"}>
+              {gettext("Find your first source →")}
+            </.button>
+          </section>
+          <p
+            :if={!@empty? and @no_matches?}
+            id="library-no-matches"
+            role="status"
+            class="rounded-control border border-line bg-surface p-6 text-muted"
+          >
+            {gettext("No items match this view. Try another filter, or wait for new episodes.")}
           </p>
-          <.button class="mt-5" variant="primary" navigate={~p"/subscriptions"}>
-            {gettext("Find your first source →")}
-          </.button>
-        </section>
-        <p
-          :if={!@empty? and @no_matches?}
-          id="library-no-matches"
-          role="status"
-          class="rounded-control border border-line bg-surface p-6 text-muted"
-        >
-          {gettext("No items match this view. Try another filter, or wait for new episodes.")}
-        </p>
-        <div
-          :if={!@empty?}
-          id="entries"
-          phx-update="stream"
-          class="overflow-hidden rounded-control border border-line bg-surface empty:hidden"
-        >
-          <.entry_row :for={{dom_id, entry} <- @streams.entries} id={dom_id} entry={entry} />
+          <div
+            :if={!@empty?}
+            id="entries"
+            class="overflow-hidden rounded-control border border-line bg-surface empty:hidden"
+          >
+            <.entry_row
+              :for={entry <- @entries}
+              :key={entry.id}
+              id={"entries-#{entry.id}"}
+              entry={entry}
+              to={SikioWeb.Sidebar.library_path(@filters, entry.id)}
+              selected={@selected && @selected.id == entry.id}
+            />
+          </div>
         </div>
+        <section
+          id="item-detail"
+          aria-label={gettext("Selected item")}
+          class={["min-w-0 lg:sticky lg:top-10", !@selected && "hidden lg:block"]}
+        >
+          <.detail :if={@selected} entry={@selected} back={SikioWeb.Sidebar.library_path(@filters)} />
+          <p :if={!@selected} class="rounded-control border border-dashed border-line p-8 text-muted">
+            {gettext("Choose an item to see it here. j and k move through the list.")}
+          </p>
+        </section>
       </div>
     </Layouts.member>
     """
@@ -202,6 +288,8 @@ defmodule SikioWeb.LibraryLive do
   # so every row keeps its shape.
   attr :id, :string, required: true
   attr :entry, :map, required: true
+  attr :to, :string, required: true
+  attr :selected, :boolean, required: true
 
   defp entry_row(assigns) do
     assigns =
@@ -211,12 +299,19 @@ defmodule SikioWeb.LibraryLive do
     <article
       id={@id}
       data-status={@status}
-      class="flex items-start gap-1 border-b border-line last:border-b-0"
+      class={[
+        "flex items-start gap-1 border-b border-line last:border-b-0",
+        @selected && "bg-selection shadow-[inset_3px_0_0_var(--color-accent)]"
+      ]}
     >
       <.link
         id={"play-#{@entry.id}"}
-        navigate={~p"/library/#{@entry.id}"}
-        class="flex min-w-0 grow gap-3 py-3 pl-4 hover:bg-ground"
+        patch={@to}
+        aria-current={@selected && "true"}
+        class={[
+          "flex min-w-0 grow gap-3 py-3 pl-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+          !@selected && "hover:bg-ground"
+        ]}
       >
         <span class="relative h-[54px] w-24 shrink-0 overflow-hidden rounded-md bg-line">
           <img
@@ -331,6 +426,80 @@ defmodule SikioWeb.LibraryLive do
       </span>
       {status_label(@entry)} · {timestamp(@position)}
     </span>
+    """
+  end
+
+  # The selected item: what it is, where the reader stands, and the way to play it. Playing
+  # happens in the dock, which this asks through a browser event so the media never moves.
+  attr :entry, :map, required: true
+  attr :back, :string, required: true
+
+  defp detail(assigns) do
+    assigns = assign(assigns, :status, status(assigns.entry))
+
+    ~H"""
+    <article class="flex flex-col gap-4">
+      <.link patch={@back} class="text-label font-semibold text-accent lg:hidden">
+        {gettext("← Your library")}
+      </.link>
+      <div class="flex flex-col gap-2">
+        <p class="text-label font-semibold text-accent">{@entry.feed.title}</p>
+        <h2 class="text-title font-semibold">{@entry.title}</h2>
+        <p id="playback-status" aria-live="polite" class="text-meta text-muted">
+          {kind_label(@entry)} · {status_label(@entry)}
+          <span :if={@entry.playback && @entry.playback.position > 0}>
+            · {gettext("Saved at %{time}", time: timestamp(@entry.playback.position))}
+          </span>
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <.button
+          id="start-playback"
+          variant="primary"
+          phx-click={JS.dispatch("sikio:play", detail: %{id: @entry.id})}
+        >
+          <Lucideicons.play aria-hidden="true" class="size-4 fill-current" />
+          {play_label(@entry)}
+        </.button>
+        <.button
+          :if={@status != :completed}
+          id="mark-completed"
+          phx-click="mark"
+          phx-value-id={@entry.id}
+          phx-value-status="completed"
+        >
+          <Lucideicons.check aria-hidden="true" class="size-4" />
+          {mark_done_label(@entry)}
+        </.button>
+        <.button
+          :if={@status != :new}
+          id="mark-new"
+          phx-click="mark"
+          phx-value-id={@entry.id}
+          phx-value-status="new"
+        >
+          <Lucideicons.rotate_ccw aria-hidden="true" class="size-4" />
+          {mark_new_label(@entry)}
+        </.button>
+        <a
+          :if={@entry.feed.kind == :youtube}
+          id="open-original"
+          href={"https://www.youtube.com/watch?v=#{@entry.video_id}"}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex min-h-11 items-center gap-1.5 px-2 text-label text-muted hover:text-ink"
+        >
+          <Lucideicons.external_link aria-hidden="true" class="size-4" />
+          {gettext("Open on YouTube")}
+        </a>
+      </div>
+      <p class="text-meta text-muted">{privacy_note(@entry)}</p>
+      <p class="border-t border-line pt-4 text-meta text-muted">
+        {gettext(
+          "Playback stays with you as you browse your library and subscriptions. Your place is saved every five seconds, on pause and after seeking. Reaching the end marks this item complete. You can always change that yourself."
+        )}
+      </p>
+    </article>
     """
   end
 

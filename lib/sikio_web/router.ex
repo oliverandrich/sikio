@@ -90,8 +90,8 @@ defmodule SikioWeb.Router do
         {SikioWeb.Locale, :set},
         SikioWeb.Sidebar
       ] do
-      live "/", LibraryLive
-      live "/library/:id", PlayerLive
+      live "/", LibraryLive, :index
+      live "/library/:id", LibraryLive, :show
       live "/invitations", InvitationsLive
       live "/subscriptions", SubscriptionsLive
       live "/subscriptions/import", OPMLLive

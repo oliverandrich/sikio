@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-defmodule SikioWeb.PlayerLiveTest do
-  @moduledoc false
+defmodule SikioWeb.LibraryDetailTest do
+  @moduledoc """
+  The selected item, in the library's third column.
+
+  Selecting patches the address and keeps the list and the sidebar standing. The detail renders
+  beside the list from `lg` and alone below it.
+  """
   use SikioWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
   import Sikio.FeedFixtures
@@ -110,4 +115,65 @@ defmodule SikioWeb.PlayerLiveTest do
 
   defp sample(sequence, position),
     do: %{"sequence" => sequence, "position" => position, "duration" => 100, "ended" => false}
+
+  describe "selecting" do
+    setup c do
+      {:ok, video} = Parser.parse(youtube(), youtube_feed_url())
+      {:ok, _} = Library.subscribe(c.user, video)
+      [video] = Library.entries(c.user) -- [c.entry]
+      %{video: video}
+    end
+
+    test "patches the address, keeps the list standing and marks the row", c do
+      {:ok, view, _} = live(c.conn, ~p"/?kind=audio")
+
+      view |> element("#play-#{c.entry.id}") |> render_click()
+
+      assert_patch(view, "/library/#{c.entry.id}?kind=audio")
+      assert has_element?(view, "#entries #entries-#{c.entry.id}")
+      assert has_element?(view, "#item-detail h2", "One & two")
+      assert has_element?(view, ~s|#play-#{c.entry.id}[aria-current="true"]|)
+    end
+
+    # j and k, as readers have moved through lists since Google Reader. The browser half that
+    # decides which key presses count is `assets/js/reader_keys.mjs`.
+    test "j and k move to the next and the previous item", c do
+      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+
+      render_hook(view, "move", %{"key" => "j"})
+      assert_patch(view, "/library/#{c.video.id}")
+
+      render_hook(view, "move", %{"key" => "k"})
+      assert_patch(view, "/library/#{c.entry.id}")
+    end
+
+    # A selected item keeps its place in the list, opened by address or after an update alike.
+    # Drawn again out of turn, it would sink to the bottom and j would skip what is on screen.
+    test "the selected item keeps its place in the list", c do
+      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+      assert rows(view) == ["entries-#{c.entry.id}", "entries-#{c.video.id}"]
+
+      send(view.pid, :library_changed)
+      assert rows(view) == ["entries-#{c.entry.id}", "entries-#{c.video.id}"]
+    end
+
+    test "an item whose source goes away leaves the detail", c do
+      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+
+      subscription = Enum.find(Library.subscriptions(c.user), &(&1.feed_id == c.entry.feed_id))
+
+      {:ok, _} = Library.unsubscribe(c.user, subscription.id)
+
+      assert_patch(view, "/")
+      refute has_element?(view, "#item-detail h2")
+    end
+  end
+
+  defp rows(view),
+    do:
+      view
+      |> render()
+      |> Floki.parse_document!()
+      |> Floki.find("#entries article")
+      |> Floki.attribute("id")
 end
