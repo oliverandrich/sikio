@@ -135,6 +135,32 @@ test("audio restores after metadata, offers speed control, saves end and cleans 
   }
 })
 
+// The sidebar's now playing bar has one button. It answers whatever the player is doing.
+test("a toggle plays paused audio and pauses playing audio", () => {
+  const calls = []
+  const audio = new EventTarget()
+  Object.assign(audio, {currentTime: 0, duration: 100, readyState: 0, paused: true,
+    play() {calls.push("play"); return Promise.resolve()}, pause() {calls.push("pause")}, load() {}, removeAttribute() {}})
+  const message = {textContent: ""}
+  const doc = new EventTarget()
+  doc.hidden = false
+  const previousDocument = globalThis.document
+  globalThis.document = doc
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "podcast", session: "abc", position: "0", ...STRINGS},
+    querySelector: selector => ({audio, "#playback-speed": new EventTarget(), "[data-player-message]": message}[selector])}),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})}
+  try {
+    hook.mounted()
+    hook.el.dispatchEvent(new Event("sikio:toggle-play"))
+    audio.paused = false
+    hook.el.dispatchEvent(new Event("sikio:toggle-play"))
+    assert.deepEqual(calls, ["play", "pause"])
+  } finally {
+    hook.destroyed()
+    globalThis.document = previousDocument
+  }
+})
+
 test("an end event survives a disconnect before its acknowledgement", () => {
   const f = reporterFixture()
   f.seek(100)

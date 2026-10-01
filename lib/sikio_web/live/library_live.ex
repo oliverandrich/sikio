@@ -282,6 +282,7 @@ defmodule SikioWeb.LibraryLive do
         </div>
         <section
           id="item-detail"
+          data-entry-id={@selected && @selected.id}
           aria-label={gettext("Selected item")}
           class={["min-w-0 lg:sticky lg:top-10", !@selected && "hidden lg:block"]}
         >

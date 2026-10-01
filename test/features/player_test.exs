@@ -41,7 +41,9 @@ defmodule SikioWeb.PlayerTest do
     |> mark_player()
     |> click(css("#subscriptions-link"))
     |> assert_has(css("h1", text: "Make room"))
-    |> assert_has(css("#player-panel audio"))
+    # From lg the panel folds into the sidebar's bar there, which keeps the audio mounted but
+    # out of sight. What this asks is that it is the same element.
+    |> assert_has(css("#player-panel audio", visible: false))
     |> assert_same_player()
 
     assert Library.entry(account, entry.id).playback.session_id
@@ -81,10 +83,12 @@ defmodule SikioWeb.PlayerTest do
     assert Library.entry(account, entry.id).playback.session_id
   end
 
+  # The room is for the floating panel, which only a narrow screen has.
   feature "closing the player gives the page its scroll room back", context do
     %{session: session, entry: entry} = context
 
     session
+    |> resize_window(500, 900)
     |> open("/library/#{entry.id}")
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel"))
@@ -96,6 +100,55 @@ defmodule SikioWeb.PlayerTest do
     # and the panel being gone is what puts it back to zero.
     assert {:ok, _} = retry(fn -> settled(session) end)
     refute_has(session, css("#player-panel"))
+  end
+
+  describe "from lg, the player's place" do
+    setup %{account: account} do
+      {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
+      {:ok, _} = Library.subscribe(account, preview)
+      [video] = Enum.filter(Library.entries(account), &(&1.feed.kind == :youtube))
+      %{video: video}
+    end
+
+    feature "is the top of the detail that shows what plays", context do
+      %{session: session, entry: entry} = context
+
+      session
+      |> resize_window(1280, 900)
+      |> open("/library/#{entry.id}")
+      |> click(css("#start-playback"))
+      |> assert_has(css(~s|#player-panel[data-place="pinned"] audio|))
+      |> execute_script(within("#player-panel", "#item-detail"), fn inside -> assert inside end)
+    end
+
+    # Playback is global and selection is not. When they disagree the notes get the room, and on a
+    # page without a detail the bar still says what plays and can pause it.
+    feature "folds into the sidebar when the detail shows something else", context do
+      %{session: session, entry: entry, video: video} = context
+
+      session
+      |> resize_window(1280, 900)
+      |> open("/library/#{entry.id}")
+      |> click(css("#start-playback"))
+      |> assert_has(css("#player-panel audio"))
+      |> mark_player()
+      |> click(css("#play-#{video.id}"))
+      |> assert_has(css(~s|#player-panel[data-place="compact"] #dock-toggle|))
+      |> execute_script(within("#player-panel", "header:has(#main-navigation)"), fn inside ->
+        assert inside
+      end)
+      |> click(css("#subscriptions-link"))
+      |> assert_has(css(~s|#player-panel[data-place="compact"]|))
+      |> assert_same_player()
+    end
+  end
+
+  defp within(inner, outer) do
+    """
+    const a = document.querySelector('#{inner}').getBoundingClientRect(),
+          b = document.querySelector('#{outer}').getBoundingClientRect()
+    return a.left >= b.left && a.right <= b.right + 1 && a.top >= b.top - 1
+    """
   end
 
   # A property, not an attribute. An attribute belongs to the markup, so an element rebuilt from

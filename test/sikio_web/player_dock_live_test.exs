@@ -173,6 +173,21 @@ defmodule SikioWeb.PlayerDockLiveTest do
       "ended" => false
     }
 
+  # Audio folds into the sidebar's bar out of sight, so the bar carries its button. A video keeps
+  # its own frame visible there, and that frame has its own controls.
+  test "the now playing button is offered for audio and not for video",
+       %{conn: conn, user: user} = c do
+    {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+    assert has_element?(dock, "#dock-toggle")
+
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, _} = Library.subscribe(user, preview)
+    video = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+    render_hook(dock, "start", %{id: video.id})
+    refute has_element?(dock, "#dock-toggle")
+  end
+
   # The instance plays its own video, so the dock points at the embed the feed named and adds
   # only what the api needs: permission to talk, and the place to resume from. What the feed
   # names may already carry a query, and a second question mark hides everything after it.

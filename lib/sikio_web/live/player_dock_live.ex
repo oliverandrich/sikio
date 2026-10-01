@@ -191,26 +191,28 @@ defmodule SikioWeb.PlayerDockLive do
   def render(assigns) do
     ~H"""
     <div id="player-control" phx-hook="PlayerDock" data-entry-id={@player && @entry.id}>
+      <%!-- Places the panel beside the reader's columns; see assets/js/dock_place.mjs. --%>
+      <div id="dock-place" phx-hook="DockPlace" hidden></div>
       <aside
         :if={@entry || @notice}
         id="player-panel"
         aria-label={gettext("Now playing")}
         tabindex="-1"
         class={[
-          "fixed right-4 bottom-4 left-4 z-40 max-h-[85vh] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-5 shadow-xl sm:left-auto sm:w-[400px] dark:border-stone-700 dark:bg-stone-900",
+          "fixed right-4 bottom-4 left-4 z-40 max-h-[85vh] overflow-y-auto rounded-control border border-line bg-surface p-5 shadow-xl sm:left-auto sm:w-[400px]",
           @compact && @entry && @entry.feed.kind == :podcast && "compact-audio"
         ]}
       >
         <div class="player-heading mb-4 flex items-start justify-between gap-3">
           <div :if={@entry} class="min-w-0">
-            <p class="player-source text-xs font-semibold text-teal-800 dark:text-teal-300">
+            <p class="player-source text-meta font-semibold text-accent">
               {@entry.feed.title}
             </p>
             <.link
               navigate={~p"/library/#{@entry.id}"}
-              class="player-title mt-1 block text-sm leading-snug font-semibold break-words"
+              class="player-title mt-1 block text-label leading-snug font-semibold break-words"
             >{@entry.title}</.link>
-            <p class="player-status mt-2 text-xs text-stone-500 dark:text-stone-400">
+            <p class="player-status mt-2 text-meta text-muted">
               {status_label(@entry)} · {timestamp(@entry.playback.position)}
             </p>
           </div>
@@ -220,16 +222,25 @@ defmodule SikioWeb.PlayerDockLive do
             phx-click="compact"
             aria-pressed={to_string(@compact)}
             aria-label={if @compact, do: gettext("Expand player"), else: gettext("Compact player")}
-            class="flex size-11 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
+            class="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground"
           >
             <Lucideicons.chevron_up :if={@compact} aria-hidden="true" class="size-5" />
             <Lucideicons.chevron_down :if={!@compact} aria-hidden="true" class="size-5" />
           </button>
           <button
+            :if={@player && @entry.feed.kind == :podcast}
+            id="dock-toggle"
+            phx-click={JS.dispatch("sikio:toggle-play", to: "#player-#{@player.session_id}")}
+            aria-label={gettext("Play or pause")}
+            class="hidden size-11 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent"
+          >
+            <Lucideicons.play aria-hidden="true" class="size-4 fill-current" />
+          </button>
+          <button
             id="close-player"
             phx-click={JS.dispatch("sikio:close-player")}
             aria-label={gettext("Close player")}
-            class="flex size-11 shrink-0 items-center justify-center rounded-full p-2 text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
+            class="flex size-11 shrink-0 items-center justify-center rounded-full p-2 text-muted hover:bg-ground"
           >
             <Lucideicons.x aria-hidden="true" class="size-5" />
           </button>
@@ -238,7 +249,7 @@ defmodule SikioWeb.PlayerDockLive do
           :if={@notice}
           id="dock-notice"
           role="status"
-          class="mb-4 text-sm text-amber-800 dark:text-amber-300"
+          class="mb-4 text-label text-warning"
         >
           {@notice}
         </p>
@@ -296,12 +307,12 @@ defmodule SikioWeb.PlayerDockLive do
           ></audio>
           <div
             :if={@entry.feed.kind == :podcast}
-            class="player-speed mt-5 flex items-center gap-3 text-sm"
+            class="player-speed mt-5 flex items-center gap-3 text-label"
           >
             <label for="playback-speed">{gettext("Speed")}</label>
             <select
               id="playback-speed"
-              class="rounded-lg border border-stone-300 px-3 py-2 dark:border-stone-700 dark:bg-stone-800"
+              class="rounded-control border border-control bg-surface px-3 py-2 text-ink"
             >
               <option
                 :for={speed <- [0.75, 1, 1.25, 1.5, 1.75, 2]}
@@ -317,7 +328,7 @@ defmodule SikioWeb.PlayerDockLive do
             id={"peertube-#{@player.session_id}"}
             src={peertube_url(@entry, @player)}
             title={@entry.title}
-            class="aspect-video min-h-[200px] w-full rounded-xl"
+            class="aspect-video min-h-[200px] w-full rounded-control"
             referrerpolicy="strict-origin-when-cross-origin"
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowfullscreen
@@ -327,12 +338,12 @@ defmodule SikioWeb.PlayerDockLive do
             id={"youtube-#{@player.session_id}"}
             src={youtube_url(@entry, @player)}
             title={@entry.title}
-            class="aspect-video min-h-[200px] w-full rounded-xl"
+            class="aspect-video min-h-[200px] w-full rounded-control"
             referrerpolicy="strict-origin-when-cross-origin"
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowfullscreen
           ></iframe>
-          <p data-player-message role="status" class="mt-4 text-sm text-stone-600 dark:text-stone-300">
+          <p data-player-message role="status" class="mt-4 text-label text-muted">
             {gettext("Loading player…")}
           </p>
         </div>

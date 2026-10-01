@@ -127,6 +127,9 @@ export const MediaPlayer = {
       send: (sample, reply) => this.pushEvent("progress", sample, reply),
       stop: this.stop, message: this.message, strings: this.strings})
     this.listen(this.el, "sikio:flush", event => this.reporter.finish(event.detail.done))
+    // The sidebar's now playing bar has a single button for audio, so the player decides which
+    // way it goes.
+    this.listen(this.el, "sikio:toggle-play", () => this.toggle())
     this.listen(document, "visibilitychange", () => {
       if (document.hidden) this.reporter.save(false, true)
     })
@@ -222,6 +225,13 @@ export const MediaPlayer = {
     } catch (error) {
       this.message(error.message)
     }
+  },
+
+  // Only audio is folded out of sight; a video keeps its own visible controls.
+  toggle() {
+    if (!this.audio) return
+    if (this.audio.paused) this.audio.play().catch(() => this.message(this.strings.readyAudioManual))
+    else this.audio.pause()
   },
 
   disconnected() { this.reporter.disconnect() },
