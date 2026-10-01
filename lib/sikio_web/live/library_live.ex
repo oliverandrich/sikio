@@ -14,6 +14,7 @@ defmodule SikioWeb.LibraryLive do
 
   alias Sikio.Library
   alias Sikio.Playback
+  alias SikioWeb.Pictures
 
   @impl true
   def mount(_params, _session, socket) do
@@ -37,9 +38,10 @@ defmodule SikioWeb.LibraryLive do
       when status in ["new", "completed"] do
     status = if status == "new", do: :new, else: :completed
 
+    # The change is broadcast, and the broadcast reloads the list along with the sidebar.
     case Playback.mark(socket.assigns.current_account, id, status) do
       {:ok, _} ->
-        {:noreply, reload(socket)}
+        {:noreply, socket}
 
       _ ->
         {:noreply, put_flash(socket, :error, gettext("This item is no longer in your library."))}
@@ -59,6 +61,9 @@ defmodule SikioWeb.LibraryLive do
     |> assign(
       empty?: subscriptions == [],
       no_matches?: entries == [],
+      shown: length(entries),
+      total: Library.total(socket.assigns.sidebar.counts, filters),
+      heading: heading(filters, subscriptions),
       filters_active?: Enum.any?(filters, fn {_, value} -> value != "" end),
       filter_form: to_form(filters, as: :filters),
       sources: source_options(subscriptions, filters["source"])
@@ -72,9 +77,27 @@ defmodule SikioWeb.LibraryLive do
     options = subscriptions |> Enum.map(&{&1.feed.title, to_string(&1.feed_id)}) |> Enum.sort()
 
     if selected != "" and not Enum.any?(options, fn {_, id} -> id == selected end),
-      do: [{gettext("Unavailable source"), selected} | options],
+      do: [{source_title([], selected), selected} | options],
       else: options
   end
+
+  # The view's name: the source when one is chosen, otherwise the status.
+  defp heading(%{"source" => source}, subscriptions) when source != "",
+    do: source_title(subscriptions, source)
+
+  defp heading(%{"status" => status}, _subscriptions),
+    do: Enum.find_value(views(), fn {value, _key, label} -> value == status && label end)
+
+  defp source_title(subscriptions, source) do
+    Enum.find_value(subscriptions, gettext("Unavailable source"), fn subscription ->
+      to_string(subscription.feed_id) == source && subscription.feed.title
+    end)
+  end
+
+  defp count_label(shown, total) when shown < total,
+    do: gettext("%{shown} of %{total} items", shown: shown, total: total)
+
+  defp count_label(_shown, total), do: ngettext("%{count} item", "%{count} items", total)
 
   @impl true
   def render(assigns) do
@@ -86,154 +109,231 @@ defmodule SikioWeb.LibraryLive do
       filters={@filters}
       patch
     >
-      <p class="mb-5 text-xs font-semibold tracking-widest text-teal-800 uppercase dark:text-teal-300">
-        {gettext("The personal library of %{username}", username: @current_account.username)}
-      </p>
-      <div class="flex flex-wrap items-end justify-between gap-6">
-        <.header>
-          {gettext("Your time.")}<br />{gettext("Your queue.")}
-          <:subtitle>
-            {gettext("The latest videos and episodes from the sources you chose.")}
-          </:subtitle>
-        </.header>
-        <.button id="add-subscription" variant="primary" navigate={~p"/subscriptions"}>
-          <Lucideicons.plus aria-hidden="true" class="size-4" />
-          {gettext("Add a source")}
-        </.button>
-      </div>
-      <.form
-        for={@filter_form}
-        id="library-filters"
-        phx-change="filter"
-        phx-submit="filter"
-        class="mt-10 grid gap-4 rounded-2xl border border-stone-200 bg-white p-5 sm:grid-cols-3 lg:hidden dark:border-stone-800 dark:bg-stone-900"
-      >
-        <label
-          :for={
-            {key, label, options} <- [
-              {"source", gettext("Source"), [{gettext("All sources"), ""} | @sources]},
-              {"kind", gettext("Media type"),
-               [
-                 {gettext("All media"), ""},
-                 {gettext("Video"), "video"},
-                 {gettext("Audio"), "audio"}
-               ]},
-              {"status", gettext("Status"),
-               [
-                 {gettext("All statuses"), ""},
-                 {gettext("New"), "new"},
-                 {gettext("In progress"), "in_progress"},
-                 {gettext("Completed"), "completed"}
-               ]}
-            ]
-          }
-          class="min-w-0 text-sm font-medium"
-        >
-          <span class="mb-2 block">{label}</span>
-          <select
-            id={"filter-#{key}"}
-            name={@filter_form[key].name}
-            class="w-full rounded-xl border border-stone-300 bg-white px-3 py-3 dark:border-stone-700 dark:bg-stone-800"
-          >
-            {Phoenix.HTML.Form.options_for_select(options, @filter_form[key].value)}
-          </select>
-        </label>
-        <.link
-          :if={@filters_active?}
-          id="clear-filters"
-          patch={~p"/"}
-          class="text-sm font-semibold text-teal-800 sm:col-span-3 dark:text-teal-300"
-        >{gettext("Clear filters")}</.link>
-      </.form>
-      <section
-        :if={@empty?}
-        id="library-empty"
-        class="mt-14 rounded-3xl border border-stone-200 bg-white p-8 sm:p-14 dark:border-stone-800 dark:bg-stone-900"
-      >
-        <span class="mb-6 inline-flex size-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
-          <Lucideicons.circle_play aria-hidden="true" class="size-7" />
-        </span>
-        <h2 class="font-display text-3xl">{gettext("Space for something good.")}</h2>
-        <p class="mt-4 max-w-lg leading-relaxed text-stone-600 dark:text-stone-300">
-          {gettext(
-            "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
-          )}
-        </p>
-        <.link
-          navigate={~p"/subscriptions"}
-          class="mt-6 inline-block text-sm font-semibold text-teal-800 dark:text-teal-300"
-        >{gettext("Find your first source →")}</.link>
-      </section>
-      <section :if={!@empty?} class="mt-12">
-        <div class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 class="font-display text-3xl">{gettext("Fresh from your feeds")}</h2>
-          <p class="text-xs text-stone-500 dark:text-stone-400">
-            {gettext("Up to 100 matching items · Updates live")}
-          </p>
+      <div class="max-w-3xl">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-baseline gap-3">
+            <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
+            <span :if={!@empty?} id="library-count" class="text-meta text-muted">
+              {count_label(@shown, @total)}
+            </span>
+          </div>
+          <.button id="add-subscription" class="lg:hidden" navigate={~p"/subscriptions"}>
+            <Lucideicons.plus aria-hidden="true" class="size-4" />
+            {gettext("Add a source")}
+          </.button>
         </div>
+        <.form
+          for={@filter_form}
+          id="library-filters"
+          phx-change="filter"
+          phx-submit="filter"
+          class="mb-4 grid gap-3 rounded-control border border-line bg-surface p-4 sm:grid-cols-3 lg:hidden"
+        >
+          <label
+            :for={
+              {key, label, options} <- [
+                {"source", gettext("Source"), [{gettext("All sources"), ""} | @sources]},
+                {"kind", gettext("Media type"),
+                 [
+                   {gettext("All media"), ""},
+                   {gettext("Video"), "video"},
+                   {gettext("Audio"), "audio"}
+                 ]},
+                {"status", gettext("Status"),
+                 for({value, _key, label} <- views(), do: {label, value})}
+              ]
+            }
+            class="min-w-0 text-label font-semibold"
+          >
+            <span class="mb-1 block">{label}</span>
+            <select
+              id={"filter-#{key}"}
+              name={@filter_form[key].name}
+              class="w-full rounded-control border border-control bg-surface px-3 py-2 font-normal text-ink"
+            >
+              {Phoenix.HTML.Form.options_for_select(options, @filter_form[key].value)}
+            </select>
+          </label>
+          <.link
+            :if={@filters_active?}
+            id="clear-filters"
+            patch={~p"/"}
+            class="text-label font-semibold text-accent sm:col-span-3"
+          >{gettext("Clear filters")}</.link>
+        </.form>
+        <section
+          :if={@empty?}
+          id="library-empty"
+          class="rounded-control border border-line bg-surface p-8"
+        >
+          <h2 class="text-title font-semibold">{gettext("Space for something good.")}</h2>
+          <p class="mt-2 max-w-lg text-muted">
+            {gettext(
+              "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
+            )}
+          </p>
+          <.button class="mt-5" variant="primary" navigate={~p"/subscriptions"}>
+            {gettext("Find your first source →")}
+          </.button>
+        </section>
         <p
-          :if={@no_matches?}
+          :if={!@empty? and @no_matches?}
           id="library-no-matches"
           role="status"
-          class="mb-6 rounded-2xl border border-stone-200 bg-white p-8 text-stone-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300"
+          class="rounded-control border border-line bg-surface p-6 text-muted"
         >
           {gettext("No items match this view. Try another filter, or wait for new episodes.")}
         </p>
-        <div id="entries" phx-update="stream" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <article
-            :for={{dom_id, entry} <- @streams.entries}
-            id={dom_id}
-            class="flex flex-col rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900"
-          >
-            <span class="mb-5 flex size-10 items-center justify-center rounded-xl bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
-              <Lucideicons.circle_play :if={video?(entry)} aria-hidden="true" class="size-5" />
-              <Lucideicons.mic :if={!video?(entry)} aria-hidden="true" class="size-5" />
-            </span>
-            <p class="text-xs font-medium text-teal-800 dark:text-teal-300">{entry.feed.title}</p>
-            <h3 class="mt-2 grow text-lg leading-snug font-semibold">{entry.title}</h3>
-            <p class="mt-5 text-xs text-stone-500 dark:text-stone-400">
-              {kind_label(entry)}
-              <span :if={entry.published_at}>
-                · {Calendar.strftime(entry.published_at, "%d %b %Y")}
-              </span>
-            </p>
-            <p class="mt-3 text-xs font-semibold text-teal-800 dark:text-teal-300">
-              {status_label(entry)}
-              <span :if={status(entry) == :in_progress}>
-                · {timestamp(entry.playback.position)}
-              </span>
-            </p>
-            <div class="mt-5 flex flex-wrap items-center gap-4 border-t border-stone-100 pt-4 dark:border-stone-800">
-              <.link
-                id={"play-#{entry.id}"}
-                navigate={~p"/library/#{entry.id}"}
-                class="font-semibold text-teal-800 dark:text-teal-300"
-              >{play_label(entry)} →</.link>
-              <button
-                :if={status(entry) != :completed}
-                id={"complete-#{entry.id}"}
-                phx-click="mark"
-                phx-value-id={entry.id}
-                phx-value-status="completed"
-                class="min-h-11 text-xs text-stone-600 dark:text-stone-300"
-              >
-                {mark_done_label(entry)}
-              </button>
-              <button
-                :if={status(entry) != :new}
-                id={"reset-#{entry.id}"}
-                phx-click="mark"
-                phx-value-id={entry.id}
-                phx-value-status="new"
-                class="min-h-11 text-xs text-stone-600 dark:text-stone-300"
-              >
-                {mark_new_label(entry)}
-              </button>
-            </div>
-          </article>
+        <div
+          :if={!@empty?}
+          id="entries"
+          phx-update="stream"
+          class="overflow-hidden rounded-control border border-line bg-surface empty:hidden"
+        >
+          <.entry_row :for={{dom_id, entry} <- @streams.entries} id={dom_id} entry={entry} />
         </div>
-      </section>
+      </div>
     </Layouts.member>
     """
   end
+
+  # One item: its picture, source, title and where the reader stands. The picture comes through
+  # Sikio's own host and tries the item's picture, its source's artwork, then a mark for its kind,
+  # so every row keeps its shape.
+  attr :id, :string, required: true
+  attr :entry, :map, required: true
+
+  defp entry_row(assigns) do
+    assigns =
+      assign(assigns, status: status(assigns.entry), runtime: runtime(assigns.entry.duration))
+
+    ~H"""
+    <article
+      id={@id}
+      data-status={@status}
+      class="flex items-start gap-1 border-b border-line last:border-b-0"
+    >
+      <.link
+        id={"play-#{@entry.id}"}
+        navigate={~p"/library/#{@entry.id}"}
+        class="flex min-w-0 grow gap-3 py-3 pl-4 hover:bg-ground"
+      >
+        <span class="relative h-[54px] w-24 shrink-0 overflow-hidden rounded-md bg-line">
+          <img
+            src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
+            alt=""
+            loading="lazy"
+            class="size-full object-cover"
+          />
+          <span
+            :if={@runtime}
+            id={"runtime-#{@entry.id}"}
+            class="absolute right-1 bottom-1 rounded bg-black/75 px-1 text-[11px] font-semibold text-white"
+          >
+            {@runtime}
+          </span>
+        </span>
+        <span class="flex min-w-0 flex-col gap-1">
+          <span class="truncate text-meta font-semibold text-accent">{@entry.feed.title}</span>
+          <span class={[
+            "line-clamp-2 text-body",
+            @status == :completed && "text-muted",
+            @status != :completed && "font-semibold text-ink"
+          ]}>
+            {@entry.title}
+          </span>
+          <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted">
+            <.progress :if={@status == :in_progress} entry={@entry} />
+            <span :if={@status != :in_progress} class="inline-flex items-center gap-1.5">
+              <span :if={@status == :new} aria-hidden="true" class="size-1.5 rounded-full bg-accent"></span>
+              <Lucideicons.check :if={@status == :completed} aria-hidden="true" class="size-3.5" />
+              {status_label(@entry)}
+            </span>
+            <span class="inline-flex items-center gap-1">
+              <Lucideicons.circle_play :if={video?(@entry)} aria-hidden="true" class="size-3.5" />
+              <Lucideicons.mic :if={!video?(@entry)} aria-hidden="true" class="size-3.5" />
+              {kind_label(@entry)}
+            </span>
+            <span :if={@entry.published_at}>
+              {Calendar.strftime(@entry.published_at, "%d %b %Y")}
+            </span>
+          </span>
+        </span>
+      </.link>
+      <.mark_button
+        :if={@status != :completed}
+        id={"complete-#{@entry.id}"}
+        entry={@entry}
+        status="completed"
+        label={mark_done_label(@entry)}
+      >
+        <Lucideicons.check aria-hidden="true" class="size-4" />
+      </.mark_button>
+      <.mark_button
+        :if={@status != :new}
+        id={"reset-#{@entry.id}"}
+        entry={@entry}
+        status="new"
+        label={mark_new_label(@entry)}
+      >
+        <Lucideicons.rotate_ccw aria-hidden="true" class="size-4" />
+      </.mark_button>
+    </article>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :entry, :map, required: true
+  attr :status, :string, required: true
+  attr :label, :string, required: true
+  slot :inner_block, required: true
+
+  defp mark_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      phx-click="mark"
+      phx-value-id={@entry.id}
+      phx-value-status={@status}
+      aria-label={@label}
+      title={@label}
+      class="m-1.5 flex size-11 shrink-0 items-center justify-center rounded-control text-muted hover:bg-ground hover:text-ink"
+    >
+      {render_slot(@inner_block)}
+    </button>
+    """
+  end
+
+  # How far somebody got, as a bar when the length is known and as a time when it is not.
+  attr :entry, :map, required: true
+
+  defp progress(assigns) do
+    playback = assigns.entry.playback
+    duration = playback.duration || assigns.entry.duration
+
+    percent =
+      if duration && duration > 0, do: min(round(playback.position / duration * 100), 100)
+
+    assigns = assign(assigns, percent: percent, position: playback.position)
+
+    ~H"""
+    <span class="inline-flex items-center gap-2 font-semibold text-accent">
+      <span
+        :if={@percent}
+        role="progressbar"
+        aria-label={gettext("Progress")}
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={@percent}
+        class="h-1 w-16 overflow-hidden rounded-full bg-line"
+      >
+        <span class="block h-full bg-accent" style={"width: #{@percent}%"}></span>
+      </span>
+      {status_label(@entry)} · {timestamp(@position)}
+    </span>
+    """
+  end
+
+  defp kind_mark(entry),
+    do: if(video?(entry), do: ~p"/images/kind-video.svg", else: ~p"/images/kind-audio.svg")
 end

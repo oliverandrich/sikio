@@ -163,14 +163,7 @@ defmodule SikioWeb.Layouts do
         <div :if={@sidebar} id="sidebar" class="hidden flex-col gap-5 lg:flex">
           <nav aria-label={gettext("Views")} class="flex flex-col gap-0.5">
             <.sidebar_link
-              :for={
-                {status, key, label} <- [
-                  {"", :all, gettext("All items")},
-                  {"new", :new, gettext("New")},
-                  {"in_progress", :in_progress, gettext("In progress")},
-                  {"completed", :completed, gettext("Completed")}
-                ]
-              }
+              :for={{status, key, label} <- SikioWeb.MediaComponents.views()}
               id={"view-#{key}"}
               to={filter_path(@filters, "status", status)}
               patch={@patch}

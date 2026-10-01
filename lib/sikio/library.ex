@@ -139,6 +139,16 @@ defmodule Sikio.Library do
     |> Map.put(:sources, Map.merge(sources, sum_by(new_or_chosen, :feed_id)))
   end
 
+  @doc "How many items match `filters` altogether, whatever a page of them shows."
+  def total(rows, filters) do
+    status = normalize_filters(filters)["status"]
+
+    Map.fetch!(
+      tally(rows, filters),
+      if(status == "", do: :all, else: String.to_existing_atom(status))
+    )
+  end
+
   defp sum_by(rows, key) do
     Enum.reduce(rows, %{}, fn row, sums ->
       Map.update(sums, Map.fetch!(row, key), row.count, &(&1 + row.count))

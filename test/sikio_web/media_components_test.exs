@@ -27,4 +27,17 @@ defmodule SikioWeb.MediaComponentsTest do
       assert kind_label(entry(:podcast)) == "Podcast episode"
     end
   end
+
+  # A runtime is read at a glance in a list, so an hour gets its own place and nothing else does.
+  describe "runtime/1" do
+    test "minutes and seconds, and hours only when there are any" do
+      assert runtime(2900) == "48:20"
+      assert runtime(4325) == "1:12:05"
+      assert runtime(59) == "0:59"
+    end
+
+    test "a runtime nobody stated is no runtime" do
+      assert runtime(nil) == nil
+    end
+  end
 end

@@ -74,4 +74,21 @@ defmodule SikioWeb.MediaComponents do
     minutes = div(seconds, 60)
     "#{minutes}:#{seconds |> rem(60) |> Integer.to_string() |> String.pad_leading(2, "0")}"
   end
+
+  @doc "A stated runtime as a list shows it: hours only when there are any, `nil` when unknown."
+  def runtime(nil), do: nil
+  def runtime(seconds) when seconds < 3600, do: timestamp(seconds)
+
+  def runtime(seconds),
+    do: "#{div(seconds, 3600)}:" <> String.pad_leading(timestamp(rem(seconds, 3600)), 5, "0")
+
+  @doc "The library's views by status: the filter value, the count's key and the name."
+  def views do
+    [
+      {"", :all, gettext("All items")},
+      {"new", :new, gettext("New")},
+      {"in_progress", :in_progress, gettext("In progress")},
+      {"completed", :completed, gettext("Completed")}
+    ]
+  end
 end

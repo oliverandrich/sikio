@@ -22,4 +22,20 @@ defmodule SikioWeb.CoreComponentsTest do
       refute html =~ "border-control"
     end
   end
+
+  # A class given to a button adds to its look. Replacing the look dropped padding, focus ring
+  # and colours from every button that only wanted a margin.
+  test "a class given to a button is added to its own" do
+    html =
+      render_component(&CoreComponents.button/1,
+        class: "mt-5",
+        variant: "primary",
+        rest: %{},
+        inner_block: [%{inner_block: fn _, _ -> "Go" end}]
+      )
+
+    assert html =~ "mt-5"
+    assert html =~ "bg-accent"
+    assert html =~ "min-h-11"
+  end
 end

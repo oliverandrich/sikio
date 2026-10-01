@@ -45,7 +45,9 @@ defmodule SikioWeb.AuthNavigationTest do
 
   test "members land on the library and do not see login again" do
     conn = build_conn() |> Plug.Test.init_test_session(get_session(claim()))
-    assert conn |> get("/") |> html_response(200) =~ "The personal library of ada"
+    library = conn |> get("/") |> html_response(200)
+    assert library =~ ~s(id="library-heading")
+    assert library =~ ~s(title="ada")
     assert conn |> get("/login") |> redirected_to() == "/"
   end
 end

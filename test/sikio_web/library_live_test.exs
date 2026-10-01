@@ -15,6 +15,7 @@ defmodule SikioWeb.LibraryLiveTest do
   alias Sikio.Library
   alias Sikio.Playback
   alias Sikio.Repo
+  alias SikioWeb.Pictures
 
   setup %{conn: conn} do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
@@ -203,5 +204,95 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, ~s|#view-new[href="/?status=new"]|)
       refute has_element?(view, "#sidebar [aria-current]")
     end
+  end
+
+  describe "a row in the list" do
+    # The picture comes from this host. Its address names the episode's own picture first, then
+    # the show's, then the mark for what kind of thing it is.
+    test "shows its picture through Sikio's own host, with the fallbacks in order", c do
+      {:ok, view, _} = live(c.conn, ~p"/")
+
+      [src] =
+        view
+        |> element("#entries-#{c.audio.id} img")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.attribute("img", "src")
+
+      assert "/pictures/" <> reference = src
+
+      assert Pictures.verify(reference) ==
+               {:ok,
+                {["https://img.example.org/1.jpg", "https://img.example.org/show.jpg"],
+                 "/images/kind-audio.svg"}}
+    end
+
+    test "shows the runtime the publisher stated, and none when there is none", c do
+      {:ok, preview} = Parser.parse(thin_podcast(), feed_url())
+      {:ok, _} = Library.subscribe(c.user, preview)
+      thin = Enum.find(Library.entries(c.user), &(&1.feed_id == preview_feed_id(c.user, preview)))
+
+      {:ok, view, _} = live(c.conn, ~p"/")
+
+      assert view |> element("#runtime-#{c.audio.id}") |> render() =~ "1:02:03"
+      refute has_element?(view, "#runtime-#{thin.id}")
+    end
+
+    test "says how far somebody got, and dims what was finished", c do
+      {:ok, %{session_id: session}} = Playback.start(c.user, c.audio.id)
+
+      {:ok, _} =
+        Playback.save(c.user, c.audio.id, session, %{
+          "sequence" => 1,
+          "position" => 1_862,
+          "duration" => 3_723,
+          "ended" => false
+        })
+
+      {:ok, view, _} = live(c.conn, ~p"/")
+      assert has_element?(view, ~s|#entries-#{c.audio.id} [role=progressbar][aria-valuenow="50"]|)
+
+      # A feed may state a shorter runtime than the audio has. The bar stops at the end anyway.
+      {:ok, _} =
+        Playback.save(c.user, c.audio.id, session, %{
+          "sequence" => 2,
+          "position" => 4_000,
+          "duration" => nil,
+          "ended" => false
+        })
+
+      assert has_element?(
+               view,
+               ~s|#entries-#{c.audio.id} [role=progressbar][aria-valuenow="100"]|
+             )
+
+      view |> element("#complete-#{c.audio.id}") |> render_click()
+      assert has_element?(view, ~s|#entries-#{c.audio.id}[data-status="completed"]|)
+    end
+  end
+
+  describe "the heading" do
+    # The list stops at a hundred. The heading says how many there are, not how many fit.
+    test "counts every matching item, and says when the list shows fewer", c do
+      rows =
+        for n <- 1..120 do
+          %{
+            feed_id: c.sub.feed_id,
+            external_id: "bulk-#{n}",
+            title: "Bulk #{n}",
+            inserted_at: {:placeholder, :now},
+            updated_at: {:placeholder, :now}
+          }
+        end
+
+      Repo.insert_all(Sikio.Feeds.Entry, rows, placeholders: %{now: DateTime.utc_now()})
+      {:ok, view, _} = live(c.conn, ~p"/?kind=audio")
+
+      assert view |> element("#library-count") |> render() =~ "100 of 121"
+    end
+  end
+
+  defp preview_feed_id(user, preview) do
+    Enum.find_value(Library.subscriptions(user), &(&1.feed.url == preview.url && &1.feed_id))
   end
 end

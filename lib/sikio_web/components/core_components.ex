@@ -93,7 +93,7 @@ defmodule SikioWeb.CoreComponents do
       <.button navigate={~p"/"}>Home</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
+  attr :class, :any, default: nil, doc: "added to the button's own classes"
   attr :variant, :string, values: ~w(primary)
   slot :inner_block, required: true
 
@@ -104,12 +104,11 @@ defmodule SikioWeb.CoreComponents do
     }
 
     assigns =
-      assign_new(assigns, :class, fn ->
-        [
-          "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 py-2 text-label font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-          Map.fetch!(variants, assigns[:variant])
-        ]
-      end)
+      assign(assigns, :class, [
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 py-2 text-label font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        Map.fetch!(variants, assigns[:variant]),
+        assigns.class
+      ])
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""

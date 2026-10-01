@@ -26,7 +26,7 @@ defmodule SikioWeb.RecoveryTest do
     |> open("/recover")
     |> fill_in(css("input[name=code]"), with: code)
     |> click(button("Sign in with a recovery code"))
-    |> through_navigation(css("h1", text: "Your time."))
+    |> through_navigation(css("#library-heading"))
     |> open("/invitations")
     |> assert_has(css("p", text: "Signed in as ada"))
 

@@ -35,7 +35,7 @@ defmodule SikioWeb.AuthScreensTest do
     |> assert_has(css("#copy-status", text: "Copying was blocked"))
     |> click(link("I've saved my codes. Continue"))
     |> landed_on("/")
-    |> assert_has(css("h1", text: "Your time."))
+    |> assert_has(css("#library-heading"))
     |> open("/recovery-codes")
     |> landed_on("/")
     |> connected()
