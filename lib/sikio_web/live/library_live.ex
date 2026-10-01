@@ -79,11 +79,21 @@ defmodule SikioWeb.LibraryLive do
   end
 
   @doc """
-  Every library event may change which items this view lists. See `SikioWeb.Sidebar`.
+  Answers the library's events, which arrive through `SikioWeb.Sidebar`.
 
-  The selected item is read again from the database, so a late notification cannot undo a status
-  somebody just set. An item that left the library closes.
+  A progress sample that keeps the status updates the one item in place. Anything else may change
+  which items this view lists, so the list is read again and the selected item with it; an item
+  that left the library closes.
   """
+  # Progress cannot move an item between views, since filters look at the status, the kind and
+  # the source. The one item takes the new place; nothing is read again.
+  def handle_library_event({:playback_progressed, state}, socket) do
+    {:noreply,
+     socket
+     |> update(:entries, fn entries -> Enum.map(entries, &progressed(&1, state)) end)
+     |> update(:selected, &(&1 && progressed(&1, state)))}
+  end
+
   def handle_library_event(_event, %{assigns: %{selected: nil}} = socket),
     do: {:noreply, reload(socket)}
 
@@ -97,6 +107,13 @@ defmodule SikioWeb.LibraryLive do
       :error ->
         {:noreply, push_patch(socket, to: SikioWeb.Sidebar.library_path(socket.assigns.filters))}
     end
+  end
+
+  # A notification older than what is shown is dropped, so a late one cannot undo a mark.
+  defp progressed(entry, state) do
+    if entry.id == state.entry_id and Playback.newer?(entry, state),
+      do: %{entry | playback: state},
+      else: entry
   end
 
   defp select(socket, nil),

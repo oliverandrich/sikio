@@ -172,6 +172,78 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#chip-sources[open] summary", "Unavailable source")
   end
 
+  # A playing item saves its place every few seconds. Rereading the library each time would cost
+  # every open tab a reload, so a sample that changes no status updates the one row; a status
+  # change may move the item between views and reloads. An entry added behind the page's back
+  # shows which of the two happened.
+  describe "progress from a player" do
+    setup c do
+      {:ok, %{session_id: session}} = Playback.start(c.user, c.audio.id)
+      {:ok, _} = Playback.save(c.user, c.audio.id, session, sample(1, 30))
+      %{session: session}
+    end
+
+    test "a sample that changes no status updates the row without rereading", c do
+      {:ok, view, _} = live(c.conn, ~p"/")
+      unseen = sneak_in(c)
+
+      {:ok, _} = Playback.save(c.user, c.audio.id, c.session, sample(2, 60))
+
+      assert has_element?(view, "#entries-#{c.audio.id}", "1:00")
+      refute has_element?(view, "#entries article", unseen)
+    end
+
+    # Away from the library the sidebar counts for itself, so this is where a reread would show.
+    test "a sample that changes no status leaves the sidebar's counts unread", c do
+      {:ok, view, _} = live(c.conn, ~p"/subscriptions")
+      sneak_in(c)
+
+      {:ok, _} = Playback.save(c.user, c.audio.id, c.session, sample(2, 60))
+      refute has_element?(view, "#view-all-count", "3")
+
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :completed)
+      assert has_element?(view, "#view-all-count", "3")
+    end
+
+    test "a status change rereads the list and the counts", c do
+      {:ok, view, _} = live(c.conn, ~p"/")
+      unseen = sneak_in(c)
+
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :completed)
+
+      assert has_element?(view, "#entries article", unseen)
+      assert has_element?(view, "#view-all-count", "3")
+    end
+  end
+
+  defp sample(sequence, position),
+    do: %{"sequence" => sequence, "position" => position, "duration" => 3723, "ended" => false}
+
+  defp sneak_in(c) do
+    title = "Added behind the page's back"
+    insert_entries(c, [title])
+    title
+  end
+
+  # Written straight to the database, so no open view hears of them.
+  defp insert_entries(c, titles) do
+    now = DateTime.utc_now()
+
+    rows =
+      for title <- titles do
+        %{
+          feed_id: c.sub.feed_id,
+          external_id: "direct-#{Sikio.DataCase.unique()}",
+          title: title,
+          published_at: now,
+          inserted_at: now,
+          updated_at: now
+        }
+      end
+
+    Repo.insert_all(Sikio.Feeds.Entry, rows)
+  end
+
   describe "the sidebar" do
     test "narrows the list through the address and marks where the reader is", c do
       {:ok, view, _} = live(c.conn, ~p"/")
@@ -289,18 +361,7 @@ defmodule SikioWeb.LibraryLiveTest do
   describe "the heading" do
     # The list stops at a hundred. The heading says how many there are, not how many fit.
     test "counts every matching item, and says when the list shows fewer", c do
-      rows =
-        for n <- 1..120 do
-          %{
-            feed_id: c.sub.feed_id,
-            external_id: "bulk-#{n}",
-            title: "Bulk #{n}",
-            inserted_at: {:placeholder, :now},
-            updated_at: {:placeholder, :now}
-          }
-        end
-
-      Repo.insert_all(Sikio.Feeds.Entry, rows, placeholders: %{now: DateTime.utc_now()})
+      insert_entries(c, for(n <- 1..120, do: "Bulk #{n}"))
       {:ok, view, _} = live(c.conn, ~p"/?kind=audio")
 
       assert view |> element("#library-count") |> render() =~ "100 of 121"

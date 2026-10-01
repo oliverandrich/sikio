@@ -66,10 +66,16 @@ defmodule SikioWeb.Sidebar do
 
   defp follow(message, socket) do
     if library_event?(message),
-      do: {:halt, socket |> refresh() |> passed_on(message)},
+      do: {:halt, socket |> refresh_for(message) |> passed_on(message)},
       else: {:cont, socket}
   end
 
+  # The counts follow statuses, and a player saves its place every few seconds without changing
+  # one. Only a changed status is worth reading them again.
+  defp refresh_for(socket, {:playback_progressed, _state}), do: socket
+  defp refresh_for(socket, _message), do: refresh(socket)
+
+  defp library_event?({:playback_progressed, _state}), do: true
   defp library_event?({:playback_changed, _state}), do: true
   defp library_event?({:subscription_removed, _feed_id}), do: true
   defp library_event?(:library_changed), do: true

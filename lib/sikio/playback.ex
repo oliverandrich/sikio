@@ -117,12 +117,17 @@ defmodule Sikio.Playback do
     broadcast(account, result)
   end
 
-  defp broadcast(account, {:ok, state} = result) do
-    Events.broadcast(account, {:playback_changed, state})
-    result
+  # A change that keeps the status is announced as progress. It cannot move an item between
+  # views, so a view can update the one item instead of reading its list again.
+  defp broadcast(account, {:ok, {previous_status, state}}) do
+    Events.broadcast(account, {event(state, previous_status), state})
+    {:ok, state}
   end
 
   defp broadcast(_account, result), do: result
+
+  defp event(%{status: status}, status), do: :playback_progressed
+  defp event(_state, _previous_status), do: :playback_changed
 
   defp locked(%User{id: user_id}, id) do
     case Ecto.Type.cast(:id, id) do
@@ -136,7 +141,8 @@ defmodule Sikio.Playback do
     end
   end
 
-  defp persist(state, attrs), do: state |> Ecto.Changeset.change(attrs) |> Repo.update!()
+  defp persist(state, attrs),
+    do: {state.status, state |> Ecto.Changeset.change(attrs) |> Repo.update!()}
 
   # Completion is a floor. Only reaching the end sets it, and nothing but an explicit mark as new
   # takes it away, so replaying an episode does not make it unfinished again.

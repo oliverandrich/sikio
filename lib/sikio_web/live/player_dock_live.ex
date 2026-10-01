@@ -83,7 +83,8 @@ defmodule SikioWeb.PlayerDockLive do
   def handle_event("progress", _params, socket), do: {:reply, %{saved: false}, socket}
 
   @impl true
-  def handle_info({:playback_changed, state}, socket) do
+  def handle_info({event, state}, socket)
+      when event in [:playback_changed, :playback_progressed] do
     entry = socket.assigns.entry
 
     if entry && entry.id == state.entry_id && Playback.newer?(entry, state) do
