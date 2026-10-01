@@ -34,6 +34,9 @@ config :sikio, Sikio.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
+# Serve the assets `mix assets.build` wrote, never a compressed copy a release left behind.
+config :sikio, gzip_static: false
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :sikio, SikioWeb.Endpoint,
