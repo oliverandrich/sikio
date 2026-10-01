@@ -2,7 +2,7 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {PlayerDock} from "./player_dock.mjs"
+import {PlayerDock, rejoinParams} from "./player_dock.mjs"
 
 function fixture() {
   const previousWindow = globalThis.window
@@ -41,4 +41,15 @@ test("same item stays playing, close flushes, failed saves keep the player", () 
     f.finish(true)
     assert.deepEqual(f.calls, [{event: "close", params: {}}])
   } finally {f.cleanup()}
+})
+
+test("a rejoin names the player the dock still holds, and nothing without one", () => {
+  const view = media => ({querySelector: selector => selector === "#player-control"
+    ? {dataset: {entryId: "7"}, querySelector: inner => inner === "[phx-hook=MediaPlayer]" ? media : null}
+    : null})
+  assert.deepEqual(rejoinParams(view({dataset: {session: "abc"}})),
+    {player_entry: "7", player_session: "abc"})
+  assert.deepEqual(rejoinParams(view(null)), {})
+  assert.deepEqual(rejoinParams({querySelector: () => null}), {})
+  assert.deepEqual(rejoinParams(undefined), {}, "the socket also asks without a view")
 })

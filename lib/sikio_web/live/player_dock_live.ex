@@ -29,8 +29,30 @@ defmodule SikioWeb.PlayerDockLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket), do: Events.subscribe(socket.assigns.current_account)
-    {:ok, assign(socket, entry: nil, player: nil, notice: nil, compact: false), layout: false}
+
+    socket = assign(socket, entry: nil, player: nil, notice: nil, compact: false)
+    {:ok, rejoin(socket, get_connect_params(socket)), layout: false}
   end
+
+  # LiveView mounts again after every reconnect, and the browser names the player it still holds.
+  # That player is taken back only while its session owns the entry, so the element stays on the
+  # page and saves the position it kept while offline. A session taken over in the meantime is
+  # reported like any other.
+  defp rejoin(socket, %{"player_entry" => id, "player_session" => session})
+       when is_binary(session) do
+    case Library.entry(socket.assigns.current_account, id) do
+      %{playback: %{session_id: ^session} = player} = entry ->
+        assign(socket, entry: entry, player: player)
+
+      %{} = entry ->
+        socket |> assign(:entry, entry) |> interrupted()
+
+      nil ->
+        socket
+    end
+  end
+
+  defp rejoin(socket, _params), do: socket
 
   @impl true
   def handle_event("start", %{"id" => id}, socket) do

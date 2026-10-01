@@ -113,6 +113,57 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, "#dock-notice", "no longer")
   end
 
+  # LiveView mounts the dock again after every reconnect. The browser names the player it still
+  # holds, and the dock takes it back only while that session still owns the entry.
+  test "a reconnect restores the player the browser still holds", c do
+    session = started_session(c)
+
+    {:ok, rejoined, _} = c.conn |> rejoining(c.entry.id, session) |> live_isolated(PlayerDockLive)
+
+    assert has_element?(rejoined, "#player-#{session}")
+    render_hook(rejoined, "progress", sample(session, 1, 30))
+    assert Library.entry(c.user, c.entry.id).playback.position == 30
+  end
+
+  test "a reconnect after another player took over says why this one stopped", c do
+    session = started_session(c)
+    {:ok, _} = Playback.start(c.user, c.entry.id)
+
+    {:ok, rejoined, _} = c.conn |> rejoining(c.entry.id, session) |> live_isolated(PlayerDockLive)
+
+    assert has_element?(rejoined, "#player-panel", c.entry.title)
+    assert has_element?(rejoined, "#dock-notice", "changed")
+    refute has_element?(rejoined, "audio")
+  end
+
+  test "a reconnect cannot take over another account's player", c do
+    session = started_session(c)
+    other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    conn = build_conn() |> init_test_session(%{}) |> Gate.log_in(other)
+
+    {:ok, rejoined, _} = conn |> rejoining(c.entry.id, session) |> live_isolated(PlayerDockLive)
+
+    refute has_element?(rejoined, "#player-panel")
+  end
+
+  test "a reconnect with a malformed player is an empty dock", c do
+    {:ok, rejoined, _} =
+      c.conn
+      |> put_connect_params(%{"player_entry" => "nope", "player_session" => 7})
+      |> live_isolated(PlayerDockLive)
+
+    refute has_element?(rejoined, "#player-panel")
+  end
+
+  defp started_session(c) do
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+    Library.entry(c.user, c.entry.id).playback.session_id
+  end
+
+  defp rejoining(conn, id, session),
+    do: put_connect_params(conn, %{"player_entry" => to_string(id), "player_session" => session})
+
   defp sample(session, sequence, position),
     do: %{
       "session" => session,

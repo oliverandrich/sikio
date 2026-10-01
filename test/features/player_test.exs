@@ -18,6 +18,7 @@ defmodule SikioWeb.PlayerTest do
 
   alias Sikio.Feeds.Parser
   alias Sikio.Library
+  alias SikioWeb.PlayerDockLive
 
   setup %{session: session} do
     virtual_authenticator(session)
@@ -73,6 +74,22 @@ defmodule SikioWeb.PlayerTest do
     |> assert_same_player()
   end
 
+  feature "the player survives a dropped and restored socket", context do
+    %{session: session, account: account, entry: entry} = context
+
+    session
+    |> open("/library/#{entry.id}")
+    |> click(css("#start-playback"))
+    |> assert_has(css("#player-panel audio"))
+    |> mark_player()
+    |> drop_socket(account)
+    |> assert_has(css("body[data-rejoined]"))
+    |> assert_has(css("#player-panel audio"))
+    |> assert_same_player()
+
+    assert Library.entry(account, entry.id).playback.session_id
+  end
+
   feature "closing the player gives the page its scroll room back", context do
     %{session: session, entry: entry} = context
 
@@ -103,6 +120,37 @@ defmodule SikioWeb.PlayerTest do
       "return document.querySelector('#player-panel audio').sikioKept === true",
       fn kept -> assert kept, "the audio element was replaced" end
     )
+  end
+
+  # A network drop, from the server's side: the connection dies without a closing handshake, so the
+  # browser sees an abnormal close and reconnects on its own. A close started in the browser comes
+  # back as a normal one, which LiveView answers by reloading the page instead. The observer marks
+  # the body once the dock has lost its connection and got it back, so the test waits for that.
+  defp drop_socket(session, account) do
+    execute_script(session, """
+    const dock = document.querySelector('#player-dock > [data-phx-session]')
+    let dropped = false
+    new MutationObserver(() => {
+      if (!dock.classList.contains('phx-connected')) dropped = true
+      else if (dropped) document.body.dataset.rejoined = ''
+    }).observe(dock, {attributes: true, attributeFilter: ['class']})
+    """)
+
+    Process.exit(dock_socket(account).transport_pid, :kill)
+    session
+  end
+
+  defp dock_socket(account) do
+    Enum.find_value(Process.list(), fn pid ->
+      with {:dictionary, dictionary} <- Process.info(pid, :dictionary),
+           {PlayerDockLive, :mount, 3} <- dictionary[:"$initial_call"],
+           %{socket: socket} <- :sys.get_state(pid),
+           true <- socket.assigns.current_account.id == account.id do
+        socket
+      else
+        _ -> nil
+      end
+    end)
   end
 
   defp settled(session) do

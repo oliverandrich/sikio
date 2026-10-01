@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// LiveView asks for these on every join of every view. The Phoenix socket shares the option and
+// asks without a view on every connect. Only the dock carries a player, and only while it plays.
+export function rejoinParams(view) {
+  const dock = view?.querySelector("#player-control")
+  const session = dock?.querySelector("[phx-hook=MediaPlayer]")?.dataset.session
+  return session ? {player_entry: dock.dataset.entryId, player_session: session} : {}
+}
+
 export const PlayerDock = {
   mounted() {
     this.busy = false
