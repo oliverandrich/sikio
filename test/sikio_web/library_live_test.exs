@@ -41,17 +41,20 @@ defmodule SikioWeb.LibraryLiveTest do
     }
   end
 
-  test "filters combine, survive reload and reset through the form", c do
+  # The chips are what a phone narrows the list with. They build the same addresses the sidebar
+  # does, so a narrowed view survives a reload either way.
+  test "filters combine, survive reload and reset through the chips", c do
     Playback.mark(c.user, c.audio.id, :completed)
     {:ok, view, _} = live(c.conn, ~p"/")
 
-    view
-    |> form("#library-filters",
-      filters: %{kind: "audio", status: "completed", source: to_string(c.sub.feed_id)}
-    )
-    |> render_change()
+    view |> element("#chip-kind-audio") |> render_click()
+    assert_patch(view, "/?kind=audio")
+    view |> element("#chip-view-completed") |> render_click()
+    assert_patch(view, "/?kind=audio&status=completed")
+    view |> element("#chip-source-#{c.sub.feed_id}") |> render_click()
 
     path = assert_patch(view)
+    assert path =~ "source=#{c.sub.feed_id}"
     assert has_element?(view, "#entries article", "One & two")
     refute has_element?(view, "#entries article", "A good video")
     {:ok, reloaded, _} = live(c.conn, path)
@@ -89,7 +92,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
     assert {:ok, _} = Feeds.refresh(c.sub.feed_id)
     assert has_element?(view, "#entries article", "Brand new episode")
-    assert has_element?(view, "#filter-source option", "Updated source")
+    assert has_element?(view, "#chip-source-#{c.sub.feed_id}", "Updated source")
     refute has_element?(view, "#entries article", "A good video")
   end
 
@@ -123,7 +126,7 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
     Library.unsubscribe(c.user, c.sub.id)
     assert has_element?(view, "#library-no-matches")
-    assert has_element?(view, "#filter-source option[selected]", "Unavailable source")
+    assert has_element?(view, "#library-heading", "Unavailable source")
     view |> element("#clear-filters") |> render_click()
     assert has_element?(view, "#entries article", "A good video")
   end
@@ -157,6 +160,16 @@ defmodule SikioWeb.LibraryLiveTest do
     # The account also follows a podcast, so both words have to be there, each on its own source.
     assert html =~ "PeerTube ·"
     assert html =~ "Podcast ·"
+  end
+
+  # On a phone the sources fold away. A chosen source keeps them open and names itself, so the
+  # filter in force is never hidden; one that left the library is named as unavailable.
+  test "a chosen source keeps the phone's source chips open and named", c do
+    {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
+    assert has_element?(view, "#chip-sources[open] summary", "Small Hours")
+
+    {:ok, _} = Library.unsubscribe(c.user, c.sub.id)
+    assert has_element?(view, "#chip-sources[open] summary", "Unavailable source")
   end
 
   describe "the sidebar" do
@@ -203,6 +216,8 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#sidebar #source-#{c.sub.feed_id}", "Small Hours")
       assert has_element?(view, ~s|#view-new[href="/?status=new"]|)
       refute has_element?(view, "#sidebar [aria-current]")
+      assert has_element?(view, ~s|#subscriptions-link[aria-current="page"]|)
+      refute has_element?(view, ~s|#library-link[aria-current="page"]|)
     end
   end
 

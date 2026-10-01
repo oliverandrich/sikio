@@ -139,14 +139,10 @@ defmodule Sikio.Library do
     |> Map.put(:sources, Map.merge(sources, sum_by(new_or_chosen, :feed_id)))
   end
 
-  @doc "How many items match `filters` altogether, whatever a page of them shows."
-  def total(rows, filters) do
+  @doc "How many items match `filters` altogether, read from their `tally/2`."
+  def total(tally, filters) do
     status = normalize_filters(filters)["status"]
-
-    Map.fetch!(
-      tally(rows, filters),
-      if(status == "", do: :all, else: String.to_existing_atom(status))
-    )
+    Map.fetch!(tally, if(status == "", do: :all, else: String.to_existing_atom(status)))
   end
 
   defp sum_by(rows, key) do

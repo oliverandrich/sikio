@@ -154,7 +154,12 @@ defmodule SikioWeb.OPMLLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.member flash={@flash} current_account={@current_account} sidebar={@sidebar}>
+    <Layouts.member
+      flash={@flash}
+      current_account={@current_account}
+      sidebar={@sidebar}
+      section={:subscriptions}
+    >
       <.link
         navigate={~p"/subscriptions"}
         class="text-label font-semibold text-accent"

@@ -111,12 +111,20 @@ body:has(#player-panel) #page-content { padding-bottom: 28rem; }
    Compacting hides chrome with CSS rather than removing it from the DOM: unmounting the
    audio element would stop playback, which is the opposite of what the button is for. */
 #player-panel { bottom: max(1rem, env(safe-area-inset-bottom)); max-height: 85dvh; }
+
+/* Below lg the main navigation is a bar along the bottom, so the panel floats above it. The bar,
+   the page's room beneath its content and the panel's lift all read the bar's height here. */
+:root { --nav-bar: 3.5rem; }
+
+@media (width < 64rem) {
+  #player-panel { bottom: calc(var(--nav-bar) + 1rem + env(safe-area-inset-bottom)); max-height: 75dvh; }
+}
 .compact-audio .player-source, .compact-audio .player-status, .compact-audio .player-speed { display: none; }
 .compact-audio .player-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .compact-audio .player-heading { margin-bottom: .5rem; align-items: center; }
 body:has(.compact-audio) #page-content { padding-bottom: 14rem; }
 
-@media (max-width: 639px) {
+@media (width < 40rem) {
   #player-panel { padding: .75rem; }
   #subscriptions article { align-items: flex-start; }
   #subscriptions article > div:first-child { flex-basis: 100%; }

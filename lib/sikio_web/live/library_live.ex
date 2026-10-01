@@ -42,13 +42,6 @@ defmodule SikioWeb.LibraryLive do
   end
 
   @impl true
-  def handle_event("filter", %{"filters" => params}, socket) do
-    {:noreply,
-     push_patch(socket,
-       to: params |> Library.normalize_filters() |> SikioWeb.Sidebar.library_path()
-     )}
-  end
-
   def handle_event("move", %{"key" => key}, socket) when key in ["j", "k"] do
     ids = Enum.map(socket.assigns.entries, & &1.id)
     current = socket.assigns.selected && Enum.find_index(ids, &(&1 == socket.assigns.selected.id))
@@ -136,6 +129,7 @@ defmodule SikioWeb.LibraryLive do
     filters = socket.assigns.filters
     subscriptions = socket.assigns.sidebar.sources
     entries = Library.entries(account, filters)
+    counts = Library.tally(socket.assigns.sidebar.counts, filters)
 
     socket
     |> assign(
@@ -143,22 +137,11 @@ defmodule SikioWeb.LibraryLive do
       no_matches?: entries == [],
       entries: entries,
       shown: length(entries),
-      total: Library.total(socket.assigns.sidebar.counts, filters),
+      counts: counts,
+      total: Library.total(counts, filters),
       heading: heading(filters, subscriptions),
-      filters_active?: Enum.any?(filters, fn {_, value} -> value != "" end),
-      filter_form: to_form(filters, as: :filters),
-      sources: source_options(subscriptions, filters["source"])
+      filters_active?: Enum.any?(filters, fn {_, value} -> value != "" end)
     )
-  end
-
-  # A source that was filtered on and has since been removed keeps a place in the list, so the
-  # select still shows what is being filtered by rather than silently jumping to another source.
-  defp source_options(subscriptions, selected) do
-    options = subscriptions |> Enum.map(&{&1.feed.title, to_string(&1.feed_id)}) |> Enum.sort()
-
-    if selected != "" and not Enum.any?(options, fn {_, id} -> id == selected end),
-      do: [{source_title([], selected), selected} | options],
-      else: options
   end
 
   # The view's name: the source when one is chosen, otherwise the status.
@@ -187,7 +170,9 @@ defmodule SikioWeb.LibraryLive do
       current_account={@current_account}
       sidebar={@sidebar}
       filters={@filters}
+      counts={@counts}
       patch
+      section={:library}
     >
       <div
         id="library"
@@ -207,45 +192,56 @@ defmodule SikioWeb.LibraryLive do
               {gettext("Add a source")}
             </.button>
           </div>
-          <.form
-            for={@filter_form}
-            id="library-filters"
-            phx-change="filter"
-            phx-submit="filter"
-            class="mb-4 grid gap-3 rounded-control border border-line bg-surface p-4 sm:grid-cols-3 lg:hidden"
+          <nav
+            id="library-chips"
+            aria-label={gettext("Views")}
+            class="-mx-6 mb-3 flex gap-2 overflow-x-auto px-6 pb-1 sm:-mx-12 sm:px-12 lg:hidden"
           >
-            <label
-              :for={
-                {key, label, options} <- [
-                  {"source", gettext("Source"), [{gettext("All sources"), ""} | @sources]},
-                  {"kind", gettext("Media type"),
-                   [
-                     {gettext("All media"), ""},
-                     {gettext("Video"), "video"},
-                     {gettext("Audio"), "audio"}
-                   ]},
-                  {"status", gettext("Status"),
-                   for({value, _key, label} <- views(), do: {label, value})}
-                ]
-              }
-              class="min-w-0 text-label font-semibold"
+            <.chip
+              :for={{status, key, label} <- views()}
+              id={"chip-view-#{key}"}
+              to={SikioWeb.Sidebar.filter_path(@filters, "status", status)}
+              active={@filters["status"] == status}
+              count={@counts[key]}
             >
-              <span class="mb-1 block">{label}</span>
-              <select
-                id={"filter-#{key}"}
-                name={@filter_form[key].name}
-                class="w-full rounded-control border border-control bg-surface px-3 py-2 font-normal text-ink"
+              {label}
+            </.chip>
+            <.chip
+              :for={{kind, key, label} <- kinds()}
+              id={"chip-kind-#{kind}"}
+              to={SikioWeb.Sidebar.filter_path(@filters, "kind", kind)}
+              active={@filters["kind"] == kind}
+              count={@counts[key]}
+            >
+              {label}
+            </.chip>
+            <.chip :if={@filters_active?} id="clear-filters" to={~p"/"}>
+              <Lucideicons.x aria-hidden="true" class="size-3.5" />
+              {gettext("Clear filters")}
+            </.chip>
+          </nav>
+          <details
+            :if={@sidebar.sources != [] or @filters["source"] != ""}
+            id="chip-sources"
+            open={@filters["source"] != ""}
+            class="mb-4 lg:hidden"
+          >
+            <summary class="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink">
+              {if @filters["source"] != "", do: @heading, else: gettext("Sources")}
+              <Lucideicons.chevron_down aria-hidden="true" class="size-3.5" />
+            </summary>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <.chip
+                :for={source <- @sidebar.sources}
+                id={"chip-source-#{source.feed_id}"}
+                to={SikioWeb.Sidebar.filter_path(@filters, "source", to_string(source.feed_id))}
+                active={@filters["source"] == to_string(source.feed_id)}
+                count={Map.get(@counts.sources, source.feed_id, 0)}
               >
-                {Phoenix.HTML.Form.options_for_select(options, @filter_form[key].value)}
-              </select>
-            </label>
-            <.link
-              :if={@filters_active?}
-              id="clear-filters"
-              patch={~p"/"}
-              class="text-label font-semibold text-accent sm:col-span-3"
-            >{gettext("Clear filters")}</.link>
-          </.form>
+                {source.feed.title}
+              </.chip>
+            </div>
+          </details>
           <section
             :if={@empty?}
             id="library-empty"
@@ -417,6 +413,30 @@ defmodule SikioWeb.LibraryLive do
     >
       {render_slot(@inner_block)}
     </button>
+    """
+  end
+
+  # One choice in the phone's chip row: the same addresses and counts as the sidebar.
+  attr :id, :string, required: true
+  attr :to, :string, required: true
+  attr :active, :boolean, default: false
+  attr :count, :integer, default: 0
+  slot :inner_block, required: true
+
+  defp chip(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      patch={@to}
+      aria-current={@active && "page"}
+      class={[
+        "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold whitespace-nowrap text-ink",
+        "aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface"
+      ]}
+    >
+      {render_slot(@inner_block)}
+      <span :if={@count > 0} class="text-meta opacity-70">{@count}</span>
+    </.link>
     """
   end
 

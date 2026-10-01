@@ -67,6 +67,25 @@ defmodule SikioWeb.FeatureCase do
     do: Sikio.TestConfig.put_budget(:setup, {100, 60})
 
   @doc """
+  Claims the instance as `username` with a virtual passkey and answers the account.
+
+  Most browser tests begin with an account and are about what comes after. The ceremony is the
+  real one, so a broken sign-up still fails them.
+  """
+  def signed_up(session, username) do
+    virtual_authenticator(session)
+
+    session
+    |> open("/")
+    |> code_entered()
+    |> fill_in(Query.css("input[name=username]"), with: username)
+    |> click(Query.button("Create your passkey"))
+    |> landed_on("/recovery-codes")
+
+    Sikio.Repo.get_by!(Sikio.Accounts.User, username: username)
+  end
+
+  @doc """
   Types the operator's code and leaves the browser on the form that asks for a name.
 
   Every instance protects its claim, so claiming one is two forms rather than one. A test that is

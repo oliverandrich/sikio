@@ -48,7 +48,12 @@ defmodule SikioWeb.AccountSecurityLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.member flash={@flash} current_account={@current_account} sidebar={@sidebar}>
+    <Layouts.member
+      flash={@flash}
+      current_account={@current_account}
+      sidebar={@sidebar}
+      section={:account}
+    >
       <section :if={@live_action == :passkeys}>
         <.header>
           {gettext("Manage passkeys")}

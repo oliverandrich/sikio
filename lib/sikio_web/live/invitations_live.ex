@@ -154,7 +154,12 @@ defmodule SikioWeb.InvitationsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.member flash={@flash} current_account={@current_account} sidebar={@sidebar}>
+    <Layouts.member
+      flash={@flash}
+      current_account={@current_account}
+      sidebar={@sidebar}
+      section={:invitations}
+    >
       <.header>
         {gettext("Welcome home")}
         <:subtitle>

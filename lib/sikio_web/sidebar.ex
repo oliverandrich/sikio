@@ -51,6 +51,19 @@ defmodule SikioWeb.Sidebar do
     end
   end
 
+  @doc """
+  The library's address with one filter changed and the others kept.
+
+  A status is set; a kind or a source chosen again is let go, so the same link narrows and widens.
+  """
+  def filter_path(filters, "status", value),
+    do: filters |> Map.put("status", value) |> library_path()
+
+  def filter_path(filters, key, value) do
+    value = if filters[key] == value, do: "", else: value
+    filters |> Map.put(key, value) |> library_path()
+  end
+
   defp follow(message, socket) do
     if library_event?(message),
       do: {:halt, socket |> refresh() |> passed_on(message)},

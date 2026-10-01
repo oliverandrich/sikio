@@ -21,16 +21,7 @@ defmodule SikioWeb.PlayerTest do
   alias SikioWeb.PlayerDockLive
 
   setup %{session: session} do
-    virtual_authenticator(session)
-
-    session
-    |> open("/")
-    |> code_entered()
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Create your passkey"))
-    |> landed_on("/recovery-codes")
-
-    account = Repo.get_by!(User, username: "ada")
+    account = signed_up(session, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
     {:ok, _subscription} = Library.subscribe(account, preview)
     [entry] = Library.entries(account)

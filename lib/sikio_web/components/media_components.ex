@@ -82,6 +82,9 @@ defmodule SikioWeb.MediaComponents do
   def runtime(seconds),
     do: "#{div(seconds, 3600)}:" <> String.pad_leading(timestamp(rem(seconds, 3600)), 5, "0")
 
+  @doc "The two kinds a reader chooses between: the filter value, the count's key and the name."
+  def kinds, do: [{"video", :video, gettext("Video")}, {"audio", :audio, gettext("Audio")}]
+
   @doc "The library's views by status: the filter value, the count's key and the name."
   def views do
     [
