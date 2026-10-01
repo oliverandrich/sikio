@@ -3,9 +3,9 @@
 defmodule SikioWeb.TailwindTest do
   use SikioWeb.FeatureCase
 
-  # Sikio's own surface, warm rather than white, and read from the browser rather than from the
-  # markup: a class name proves nothing about what a stylesheet finally resolves to.
-  @paper "rgb(247, 246, 242)"
+  # Sikio's own ground, an off-white rather than white, and read from the browser rather than from
+  # the markup: a class name proves nothing about what a stylesheet finally resolves to.
+  @ground "rgb(243, 243, 240)"
 
   feature "styles follow system changes and ignore an old stored theme", %{session: session} do
     session
@@ -14,7 +14,7 @@ defmodule SikioWeb.TailwindTest do
     |> execute_script("localStorage.setItem('phx:theme', 'dark')")
     |> open("/")
     |> execute_script("return getComputedStyle(document.body).backgroundColor", fn color ->
-      assert color == @paper
+      assert color == @ground
     end)
     |> refute_has(css("[data-phx-theme]"))
     |> execute_script(
@@ -28,11 +28,11 @@ defmodule SikioWeb.TailwindTest do
       assert scheme == "dark"
     end)
     |> execute_script("return getComputedStyle(document.body).backgroundColor", fn color ->
-      refute color in [@paper, "rgb(255, 255, 255)", "rgba(0, 0, 0, 0)"]
+      refute color in [@ground, "rgb(255, 255, 255)", "rgba(0, 0, 0, 0)"]
     end)
     |> system_scheme("light")
     |> execute_script("return getComputedStyle(document.body).backgroundColor", fn color ->
-      assert color == @paper
+      assert color == @ground
     end)
   end
 

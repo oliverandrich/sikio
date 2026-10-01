@@ -69,7 +69,7 @@ defmodule SikioWeb.Layouts do
   @doc "The name, with the full stop that carries the accent. Written once, rendered in both shells."
   def wordmark(assigns) do
     ~H"""
-    sikio<span class="text-orange-600 dark:text-orange-400">.</span>
+    sikio<span class="text-accent">.</span>
     """
   end
 
@@ -81,30 +81,26 @@ defmodule SikioWeb.Layouts do
 
   def auth(assigns) do
     ~H"""
-    <div class="relative isolate min-h-svh">
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[85svh] bg-[radial-gradient(ellipse_at_top,var(--color-teal-100),transparent_70%)] dark:bg-[radial-gradient(ellipse_at_top,var(--color-teal-950),transparent_70%)]"
-      />
+    <div>
       <main id="auth-main" class="flex min-h-svh items-center justify-center px-6 py-20">
         <div class="w-full max-w-sm">
           <p
             id="project-name"
-            class="mb-3 text-center font-display text-4xl tracking-tight text-teal-800 break-words dark:text-teal-300"
+            class="mb-3 text-center text-4xl font-semibold tracking-tight text-accent break-words"
           >
             <.wordmark />
           </p>
-          <p class="mb-10 text-center text-xs tracking-widest text-stone-500 uppercase dark:text-stone-400">
+          <p class="mb-10 text-center text-label text-muted">
             {gettext("Your time. Your queue.")}
           </p>
           <div :if={@title} class="mb-8 text-center">
-            <h1 class="text-xl font-semibold tracking-tight">{@title}</h1>
-            <p :if={@subtitle} class="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-400">
+            <h1 class="text-title font-semibold">{@title}</h1>
+            <p :if={@subtitle} class="mt-2 text-muted">
               {@subtitle}
             </p>
           </div>
           {render_slot(@inner_block)}
-          <p class="mt-10 text-center text-xs text-stone-500 dark:text-stone-400">
+          <p class="mt-10 text-center text-meta text-muted">
             <.source_offer />
           </p>
         </div>
@@ -121,7 +117,7 @@ defmodule SikioWeb.Layouts do
   def auth_button(assigns) do
     ~H"""
     <button
-      class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-teal-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-teal-600 dark:hover:bg-teal-500"
+      class="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-control bg-accent px-4 py-2 text-label font-semibold text-on-accent transition hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
       {@rest}
     >
       {render_slot(@inner_block)}
@@ -139,13 +135,13 @@ defmodule SikioWeb.Layouts do
     <div class="min-h-svh">
       <header class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-12 sm:py-7">
         <.link navigate={~p"/"} class="flex items-center gap-3" aria-label={gettext("Sikio home")}>
-          <span class="flex size-10 items-center justify-center rounded-full bg-teal-800 text-white dark:bg-teal-600">
+          <span class="flex size-9 items-center justify-center rounded-control bg-accent text-on-accent">
             <Lucideicons.play aria-hidden="true" class="size-4 fill-current" />
           </span>
-          <span class="font-display text-2xl tracking-tight"><.wordmark /></span>
+          <span class="text-2xl font-semibold tracking-tight"><.wordmark /></span>
         </.link>
         <nav
-          class="flex w-full flex-wrap items-center gap-x-5 gap-y-1 text-sm sm:w-auto sm:justify-end"
+          class="flex w-full flex-wrap items-center gap-x-5 gap-y-1 text-label font-semibold sm:w-auto sm:justify-end"
           aria-label={gettext("Main navigation")}
         >
           <.link id="library-link" navigate={~p"/"} class="inline-flex min-h-11 items-center">
@@ -172,7 +168,7 @@ defmodule SikioWeb.Layouts do
             phx-window-keydown={JS.remove_attribute("open", to: "#user-menu")}
             phx-key="Escape"
           >
-            <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg text-sm font-semibold focus-visible:outline-2 focus-visible:outline-teal-600">
+            <summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control font-semibold focus-visible:outline-2 focus-visible:outline-accent">
               <span class="max-w-32 truncate" title={@current_account.username}>{@current_account.username}</span><Lucideicons.chevron_down
                 aria-hidden="true"
                 class="size-4 shrink-0 transition"
@@ -180,20 +176,20 @@ defmodule SikioWeb.Layouts do
             </summary>
             <nav
               aria-label={gettext("Your account")}
-              class="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-stone-200 bg-white p-2 shadow-lg dark:border-stone-700 dark:bg-stone-900"
+              class="absolute right-0 z-20 mt-2 w-56 rounded-control border border-line bg-surface p-1 font-normal shadow-lg"
             >
               <.link
                 navigate={~p"/account/passkeys"}
-                class="block rounded-lg px-3 py-2 text-sm hover:bg-stone-100 dark:hover:bg-stone-800"
+                class="block rounded-control px-3 py-2 hover:bg-ground"
               >{gettext("Manage passkeys")}</.link>
               <.link
                 navigate={~p"/account/recovery-codes"}
-                class="block rounded-lg px-3 py-2 text-sm hover:bg-stone-100 dark:hover:bg-stone-800"
+                class="block rounded-control px-3 py-2 hover:bg-ground"
               >{gettext("Recovery codes")}</.link>
               <.link
                 href={~p"/session"}
                 method="delete"
-                class="mt-1 block rounded-lg border-t border-stone-100 px-3 py-2 text-sm text-red-700 hover:bg-red-50 dark:border-stone-800 dark:text-red-400 dark:hover:bg-stone-800"
+                class="mt-1 block rounded-control border-t border-line px-3 py-2 text-danger hover:bg-danger-surface"
               >{gettext("Sign out")}</.link>
             </nav>
           </details>
@@ -202,7 +198,7 @@ defmodule SikioWeb.Layouts do
       <main id="main-content" class="mx-auto min-h-[75vh] max-w-7xl px-6 py-12 sm:px-12 sm:py-20">
         {render_slot(@inner_block)}
       </main>
-      <footer class="mx-auto flex max-w-7xl flex-wrap justify-between gap-3 border-t border-stone-200 px-6 py-7 text-xs text-stone-500 sm:px-12 dark:border-stone-800 dark:text-stone-400">
+      <footer class="mx-auto flex max-w-7xl flex-wrap justify-between gap-3 border-t border-line px-6 py-7 text-meta text-muted sm:px-12">
         <span>{gettext("A little more intention. A little less autoplay.")}</span>
         <span>
           {gettext("Sikio · Your personal media library")} · <.source_offer />

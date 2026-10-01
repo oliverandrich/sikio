@@ -5,15 +5,24 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f3f3f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161716" media="(prefers-color-scheme: dark)" />
     <.live_title default={gettext("Your time. Your queue.")} suffix=" · Sikio" phx-no-format>{assigns[:page_title]}</.live_title>
     <link rel="icon" type="image/svg+xml" href={~p"/images/sikio.svg"} />
+    <link
+      rel="preload"
+      href={
+        ~p"/fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-latin-wght-normal.woff2"
+      }
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
   </head>
-  <body class="min-h-screen bg-paper text-stone-900 antialiased scheme-light dark:bg-stone-950 dark:text-stone-100 dark:scheme-dark">
+  <body class="min-h-screen bg-ground text-body text-ink antialiased scheme-light dark:scheme-dark">
     <div id="page-content">{@inner_content}</div>
     <%!-- Outside the navigated LiveView on purpose, so moving between pages never rebuilds the
     element that holds the media. Only rendered for a signed-in visitor, since the dock requires

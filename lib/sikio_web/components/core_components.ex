@@ -62,11 +62,11 @@ defmodule SikioWeb.CoreComponents do
       {@rest}
     >
       <div class={[
-        "flex w-80 max-w-full items-start gap-3 rounded-lg border p-4 text-sm shadow-lg sm:w-96",
+        "flex w-80 max-w-full items-start gap-3 rounded-control border p-4 text-label shadow-lg sm:w-96",
         @kind == :info &&
-          "border-sky-300 bg-sky-50 text-sky-950 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-100",
+          "border-accent bg-selection text-ink",
         @kind == :error &&
-          "border-red-300 bg-red-50 text-red-950 dark:border-red-700 dark:bg-red-950 dark:text-red-100"
+          "border-danger bg-danger-surface text-ink"
       ]}>
         <Lucideicons.info :if={@kind == :info} aria-hidden="true" class="size-5 shrink-0" />
         <Lucideicons.circle_alert :if={@kind == :error} aria-hidden="true" class="size-5 shrink-0" />
@@ -99,16 +99,14 @@ defmodule SikioWeb.CoreComponents do
 
   def button(%{rest: rest} = assigns) do
     variants = %{
-      "primary" =>
-        "bg-teal-800 text-white hover:bg-teal-900 dark:bg-teal-600 dark:hover:bg-teal-500",
-      nil =>
-        "bg-teal-50 text-teal-900 hover:bg-teal-100 dark:bg-teal-950 dark:text-teal-100 dark:hover:bg-teal-900"
+      "primary" => "bg-accent text-on-accent hover:bg-accent/90",
+      nil => "border border-line bg-surface text-ink hover:bg-ground"
     }
 
     assigns =
       assign_new(assigns, :class, fn ->
         [
-          "inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 dark:focus-visible:outline-teal-400",
+          "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 py-2 text-label font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           Map.fetch!(variants, assigns[:variant])
         ]
       end)
@@ -226,7 +224,7 @@ defmodule SikioWeb.CoreComponents do
           disabled={@rest[:disabled]}
           form={@rest[:form]}
         />
-        <span class="inline-flex items-center gap-2 text-sm font-medium">
+        <span class="inline-flex items-center gap-2 text-label font-semibold">
           <input
             type="checkbox"
             id={@id}
@@ -235,7 +233,7 @@ defmodule SikioWeb.CoreComponents do
             checked={@checked}
             class={
               @class ||
-                "size-4 rounded border-stone-400 accent-teal-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 dark:focus-visible:outline-teal-400"
+                "size-4 rounded border-control accent-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             }
             {@rest}
           />{@label}
@@ -250,17 +248,16 @@ defmodule SikioWeb.CoreComponents do
     ~H"""
     <div class="mb-4 space-y-1">
       <label for={@id}>
-        <span :if={@label} class="mb-1 block text-sm font-medium">{@label}</span>
+        <span :if={@label} class="mb-1 block text-label font-semibold">{@label}</span>
         <select
           id={@id}
           name={@name}
           class={[
             @class ||
-              "block w-full rounded-md border bg-white px-3 py-2 text-stone-950 shadow-sm placeholder:text-stone-500 focus:border-teal-600 focus:outline-2 focus:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-teal-400 dark:focus:outline-teal-400",
-            @errors == [] && "border-stone-400 dark:border-stone-600",
+              field_class(),
+            @errors == [] && "border-control",
             @errors != [] &&
-              (@error_class ||
-                 "border-red-600 outline-red-600 dark:border-red-400 dark:outline-red-400")
+              (@error_class || "border-danger outline-danger")
           ]}
           multiple={@multiple}
           {@rest}
@@ -278,17 +275,16 @@ defmodule SikioWeb.CoreComponents do
     ~H"""
     <div class="mb-4 space-y-1">
       <label for={@id}>
-        <span :if={@label} class="mb-1 block text-sm font-medium">{@label}</span>
+        <span :if={@label} class="mb-1 block text-label font-semibold">{@label}</span>
         <textarea
           id={@id}
           name={@name}
           class={[
             @class ||
-              "block w-full rounded-md border bg-white px-3 py-2 text-stone-950 shadow-sm placeholder:text-stone-500 focus:border-teal-600 focus:outline-2 focus:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-teal-400 dark:focus:outline-teal-400 min-h-28",
-            @errors == [] && "border-stone-400 dark:border-stone-600",
+              [field_class(), "min-h-28"],
+            @errors == [] && "border-control",
             @errors != [] &&
-              (@error_class ||
-                 "border-red-600 outline-red-600 dark:border-red-400 dark:outline-red-400")
+              (@error_class || "border-danger outline-danger")
           ]}
           {@rest}
         >{Form.normalize_value("textarea", @value)}</textarea>
@@ -303,7 +299,7 @@ defmodule SikioWeb.CoreComponents do
     ~H"""
     <div class="mb-4 space-y-1">
       <label for={@id}>
-        <span :if={@label} class="mb-1 block text-sm font-medium">{@label}</span>
+        <span :if={@label} class="mb-1 block text-label font-semibold">{@label}</span>
         <input
           type={@type}
           name={@name}
@@ -311,11 +307,10 @@ defmodule SikioWeb.CoreComponents do
           value={Form.normalize_value(@type, @value)}
           class={[
             @class ||
-              "block w-full rounded-md border bg-white px-3 py-2 text-stone-950 shadow-sm placeholder:text-stone-500 focus:border-teal-600 focus:outline-2 focus:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-teal-400 dark:focus:outline-teal-400",
-            @errors == [] && "border-stone-400 dark:border-stone-600",
+              field_class(),
+            @errors == [] && "border-control",
             @errors != [] &&
-              (@error_class ||
-                 "border-red-600 outline-red-600 dark:border-red-400 dark:outline-red-400")
+              (@error_class || "border-danger outline-danger")
           ]}
           {@rest}
         />
@@ -328,7 +323,7 @@ defmodule SikioWeb.CoreComponents do
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-sm text-red-700 dark:text-red-400">
+    <p class="mt-1.5 flex gap-2 items-center text-label text-danger">
       <Lucideicons.circle_alert aria-hidden="true" class="size-5" />
       {render_slot(@inner_block)}
     </p>
@@ -346,12 +341,12 @@ defmodule SikioWeb.CoreComponents do
     ~H"""
     <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
       <div>
-        <h1 class="font-display text-3xl tracking-tight sm:text-4xl">
+        <h1 class="text-title font-semibold">
           {render_slot(@inner_block)}
         </h1>
         <p
           :if={@subtitle != []}
-          class="mt-3 max-w-xl leading-relaxed text-stone-600 dark:text-stone-400"
+          class="mt-2 max-w-xl text-muted"
         >
           {render_slot(@subtitle)}
         </p>
@@ -393,7 +388,7 @@ defmodule SikioWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="w-full text-left text-sm [&_th]:px-4 [&_th]:py-3 [&_th]:font-semibold [&_td]:px-4 [&_td]:py-3 [&_tbody_tr:nth-child(odd)]:bg-stone-100 dark:[&_tbody_tr:nth-child(odd)]:bg-stone-900">
+    <table class="w-full text-left text-body [&_th]:px-4 [&_th]:py-3 [&_th]:font-semibold [&_th]:text-label [&_th]:text-muted [&_td]:px-4 [&_td]:py-3 [&_tbody_tr]:border-t [&_tbody_tr]:border-line">
       <thead>
         <tr>
           <th :for={col <- @col}>{col[:label]}</th>
@@ -440,7 +435,7 @@ defmodule SikioWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <ul class="divide-y divide-stone-200 dark:divide-stone-800">
+    <ul class="divide-y divide-line">
       <li :for={item <- @item} class="flex gap-4 py-4">
         <div class="min-w-0 flex-1">
           <div class="font-bold">{item.title}</div>
@@ -501,4 +496,9 @@ defmodule SikioWeb.CoreComponents do
   def translate_errors(errors, field) when is_list(errors) do
     for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end
+
+  # Shared by the text, select and textarea inputs.
+  defp field_class,
+    do:
+      "block w-full rounded-control border bg-surface px-3 py-2 text-ink shadow-sm placeholder:text-muted focus:border-accent focus:outline-2 focus:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
 end

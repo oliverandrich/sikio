@@ -16,14 +16,73 @@
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
 
-/* Tailwind dark utilities follow prefers-color-scheme automatically. */
+/* Atkinson Hyperlegible Next, served from this host under the SIL Open Font License.
+   One variable file per subset covers every weight. */
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url(/fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
-/* Sikio's two brand decisions, as theme tokens rather than repeated arbitrary values.
-   Everything else is a stock Tailwind palette: stone for surfaces, teal for the accent.
-   The display face is a system serif, so no font is fetched from anywhere. */
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url(/fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-latin-wght-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Chalk, Sikio's visual language. Colours are named by role, not by hue, so markup never
+   chooses a shade. Dark mode follows the system and redefines the same names below. */
 @theme {
-  --color-paper: #f7f6f2;
-  --font-display: Georgia, "Times New Roman", serif;
+  --font-sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
+  /* Until the views drop `font-display` for the type scale. */
+  --font-display: var(--font-sans);
+
+  --color-ground: #f3f3f0;
+  --color-surface: #ffffff;
+  --color-ink: #222322;
+  --color-muted: #5e605b;
+  --color-line: #dedfd9;
+  --color-control: #8d8f89;
+  --color-accent: #356246;
+  --color-on-accent: #ffffff;
+  --color-selection: #dce9df;
+  --color-danger: #a3302a;
+  --color-danger-surface: #fbedeb;
+
+  /* Sized for dense lists that are read for hours, not for landing pages. */
+  --text-meta: 12px;
+  --text-meta--line-height: 1.4;
+  --text-label: 13px;
+  --text-label--line-height: 1.4;
+  --text-body: 15px;
+  --text-body--line-height: 1.45;
+  --text-title: 22px;
+  --text-title--line-height: 1.25;
+
+  --radius-control: 8px;
+
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ground: #161716;
+    --color-surface: #1f211f;
+    --color-ink: #e6e7e3;
+    --color-muted: #a0a39b;
+    --color-line: #30332f;
+    --color-control: #6e716b;
+    --color-accent: #8fc09f;
+    --color-on-accent: #161716;
+    --color-selection: #25372b;
+    --color-danger: #f0a39d;
+    --color-danger-surface: #3a1e1c;
+  }
 }
 
 /* Make LiveView wrapper divs transparent for layout */

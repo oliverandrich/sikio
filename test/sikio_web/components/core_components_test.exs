@@ -18,8 +18,8 @@ defmodule SikioWeb.CoreComponentsTest do
           errors: ["is invalid"]
         )
 
-      assert html =~ "border-red-600"
-      refute html =~ "border-stone-400"
+      assert html =~ "border-danger"
+      refute html =~ "border-control"
     end
   end
 end
