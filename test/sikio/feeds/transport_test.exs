@@ -10,12 +10,22 @@ defmodule Sikio.Feeds.TransportTest do
   """
   use ExUnit.Case, async: true
 
+  require Record
+
   alias Sikio.Feeds.Transport
+
+  @listen [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}]
+
+  Record.defrecordp(
+    :extension,
+    :Extension,
+    Record.extract(:Extension, from_lib: "public_key/include/public_key.hrl")
+  )
 
   # What a peer would send, byte for byte, so a test may describe a shape no library would emit.
   defp answering(response) do
     {:ok, listener} =
-      :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      :gen_tcp.listen(0, @listen)
 
     {:ok, port} = :inet.port(listener)
     owner = self()
@@ -34,12 +44,20 @@ defmodule Sikio.Feeds.TransportTest do
 
   # The uri names what was asked for, the address says where to go. Here they disagree on
   # purpose, which is the whole shape this module exists for.
-  defp fetch(port, limit \\ 8_000_000) do
-    uri = %URI{scheme: "http", host: "feeds.example.org", port: port, path: "/rss"}
+  defp fetch(port, opts \\ []) do
+    scheme = if opts[:cacerts], do: "https", else: "http"
+    uri = %URI{scheme: scheme, host: "feeds.example.org", port: port, path: "/rss"}
     headers = [{"host", uri.host}, {"accept-encoding", "identity"}]
+    limit = Keyword.get(opts, :limit, 8_000_000)
 
     # No stand-in: this is the socket, which is the only thing these tests are about.
-    Transport.fetch(uri, {127, 0, 0, 1}, headers, limit, nil)
+    Transport.fetch(
+      uri,
+      {127, 0, 0, 1},
+      headers,
+      limit,
+      [plug: nil] ++ Keyword.take(opts, [:cacerts])
+    )
   end
 
   test "a document arrives with its status, its headers and its body" do
@@ -99,7 +117,51 @@ defmodule Sikio.Feeds.TransportTest do
     port =
       answering("HTTP/1.1 200 OK\r\nContent-Length: #{byte_size(body)}\r\n\r\n" <> body)
 
-    assert {:ok, response} = fetch(port, 1_000)
+    assert {:ok, response} = fetch(port, limit: 1_000)
     assert byte_size(response.body) == 1_001
+  end
+
+  # The connection goes to a checked address, so the name that the certificate must match comes
+  # from the uri alone. Both certificates are made here, under an authority made here, and the
+  # transport is told to trust that authority instead of the system's.
+  test "a certificate for the name in the uri is accepted at the checked address" do
+    {port, cacerts} = answering_tls("feeds.example.org")
+
+    assert {:ok, %{status: 204}} = fetch(port, cacerts: cacerts)
+  end
+
+  test "a certificate for another name is refused" do
+    {port, cacerts} = answering_tls("other.example.org")
+
+    assert {:error, :unavailable} = fetch(port, cacerts: cacerts)
+  end
+
+  defp answering_tls(name) do
+    san = extension(extnID: {2, 5, 29, 17}, critical: false, extnValue: [dNSName: ~c"#{name}"])
+    # Signed with SHA-256: the default is SHA-1, which a TLS 1.3 client rightly refuses.
+    key = [key: {:namedCurve, :secp256r1}, digest: :sha256]
+
+    %{cert: cert, key: private, cacerts: cacerts} =
+      %{root: key, peer: [extensions: [san]] ++ key}
+      |> :public_key.pkix_test_data()
+      |> Map.new()
+
+    {:ok, listener} = :ssl.listen(0, @listen ++ [cert: cert, key: private])
+
+    {:ok, {_ip, port}} = :ssl.sockname(listener)
+
+    spawn_link(fn ->
+      {:ok, socket} = :ssl.transport_accept(listener, 5_000)
+
+      with {:ok, socket} <- :ssl.handshake(socket, 5_000),
+           {:ok, _request} <- :ssl.recv(socket, 0, 5_000) do
+        :ssl.send(socket, "HTTP/1.1 204 No Content\r\n\r\n")
+        :ssl.close(socket)
+      end
+
+      :ssl.close(listener)
+    end)
+
+    {port, cacerts}
   end
 end

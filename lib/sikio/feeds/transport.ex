@@ -29,27 +29,32 @@ defmodule Sikio.Feeds.Transport do
   still carries SNI and the certificate check.
 
   A plug may stand in for the peer, which is what every test in this application answers with.
-  It belongs here because substituting a plug for a socket is this module's business. It is an
-  argument rather than only a setting so that the socket can be asked for by name, which is how
+  It belongs here because substituting a plug for a socket is this module's business. `plug:` is
+  an option rather than only a setting so that the socket can be asked for by name, which is how
   the tests for this module reach it while the rest of the suite is answered by a stub.
+
+  `cacerts:` replaces the system trust store. Only tests pass it, with a certificate authority
+  they made themselves, so the certificate check can be asked of a real handshake.
   """
-  def fetch(uri, address, headers, limit, plug \\ Application.get_env(:sikio, :feed_http_plug))
-
-  def fetch(uri, address, headers, limit, nil), do: connect(uri, address, headers, limit)
-
-  def fetch(uri, address, headers, _limit, plug),
-    do: through(plug, pinned(uri, address), headers)
+  def fetch(uri, address, headers, limit, opts \\ []) do
+    case Keyword.get(opts, :plug, Application.get_env(:sikio, :feed_http_plug)) do
+      nil -> connect(uri, address, headers, limit, opts)
+      plug -> through(plug, pinned(uri, address), headers)
+    end
+  end
 
   defp pinned(uri, address), do: %{uri | host: address |> :inet.ntoa() |> to_string()}
 
-  defp connect(uri, address, headers, limit) do
+  defp connect(uri, address, headers, limit, opts) do
     scheme = if uri.scheme == "https", do: :https, else: :http
 
     options = [
       hostname: uri.host,
       mode: :passive,
       protocols: [:http1],
-      transport_opts: [timeout: @connect_timeout, inet6: tuple_size(address) == 8]
+      transport_opts:
+        [timeout: @connect_timeout, inet6: tuple_size(address) == 8] ++
+          Keyword.take(opts, [:cacerts])
     ]
 
     case Mint.HTTP.connect(scheme, pinned(uri, address).host, uri.port, options) do
