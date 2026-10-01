@@ -31,7 +31,7 @@ defmodule Sikio.AuthRateLimiter do
 
   def start_link(opts),
     do:
-      GenServer.start_link(Sikio.AuthRateLimiter, %{},
+      GenServer.start_link(Sikio.AuthRateLimiter, Keyword.get(opts, :capacity, 10_000),
         name: Keyword.get(opts, :name, Sikio.AuthRateLimiter)
       )
 
@@ -39,30 +39,45 @@ defmodule Sikio.AuthRateLimiter do
     do: GenServer.call(server, {:check, key, limit, seconds})
 
   @impl true
-  def init(state), do: {:ok, state}
+  def init(capacity), do: {:ok, %{capacity: capacity, groups: %{}}}
 
+  # Each group has its own table and its own capacity, so a flood against one cannot refuse
+  # another. A full table still refuses a key it has no room for, but only until its earliest
+  # entry expires: the caller's window may be a day.
   @impl true
-  def handle_call({:check, key, limit, seconds}, _from, state) do
+  def handle_call({:check, {group, _id} = key, limit, seconds}, _from, state) do
     now = System.monotonic_time(:second)
+    keys = Map.get(state.groups, group, %{})
 
-    state =
-      if map_size(state) >= 10_000,
-        do: Map.reject(state, fn {_key, {_count, until}} -> until <= now end),
-        else: state
+    {keys, earliest} =
+      if map_size(keys) >= state.capacity, do: expire(keys, now), else: {keys, nil}
 
-    case Map.get(state, key) do
-      {count, until} when until > now and count >= limit ->
-        {:reply, {:error, until - now}, state}
+    {reply, keys} =
+      case Map.get(keys, key) do
+        {count, until} when until > now and count >= limit ->
+          {{:error, until - now}, keys}
 
-      {count, until} when until > now ->
-        {:reply, :ok, Map.put(state, key, {count + 1, until})}
+        {count, until} when until > now ->
+          {:ok, Map.put(keys, key, {count + 1, until})}
 
-      _ ->
-        if map_size(state) < 10_000 or Map.has_key?(state, key) do
-          {:reply, :ok, Map.put(state, key, {1, now + seconds})}
-        else
-          {:reply, {:error, seconds}, state}
-        end
-    end
+        _ when map_size(keys) < state.capacity or is_map_key(keys, key) ->
+          {:ok, Map.put(keys, key, {1, now + seconds})}
+
+        _ ->
+          {{:error, earliest - now}, keys}
+      end
+
+    {:reply, reply, %{state | groups: Map.put(state.groups, group, keys)}}
+  end
+
+  # Drops what has expired and notes when the earliest remaining entry does.
+  defp expire(keys, now) do
+    Enum.reduce(keys, {%{}, nil}, fn
+      {_key, {_count, until}}, acc when until <= now ->
+        acc
+
+      {key, {_count, until} = entry}, {kept, earliest} ->
+        {Map.put(kept, key, entry), min(until, earliest || until)}
+    end)
   end
 end
