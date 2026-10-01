@@ -188,7 +188,7 @@ defmodule SikioWeb.SubscriptionsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.member flash={@flash} current_account={@current_account}>
+    <Layouts.member flash={@flash} current_account={@current_account} sidebar={@sidebar}>
       <p class="mb-4 text-xs font-semibold tracking-widest text-teal-800 uppercase dark:text-teal-300">
         {gettext("Curated by you")}
       </p>

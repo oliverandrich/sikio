@@ -125,4 +125,91 @@ defmodule Sikio.LibraryTest do
     assert [%{feed: %{last_error: "unavailable"}}] = Library.subscriptions(ctx.alice)
     assert length(Library.entries(ctx.alice)) == 1
   end
+
+  describe "media kinds" do
+    setup :three_kinds
+
+    # A reader asks for something to watch or something to hear, not for a platform.
+    test "video covers YouTube and PeerTube, audio covers podcasts", ctx do
+      kinds = fn filters -> ctx.alice |> Library.entries(filters) |> Enum.map(& &1.feed.kind) end
+
+      assert Enum.sort(kinds.(%{"kind" => "video"})) == [:peertube, :youtube]
+      assert kinds.(%{"kind" => "audio"}) == [:podcast]
+    end
+
+    # Links written before the two kinds existed keep narrowing to what they meant.
+    test "the platform names of older links still narrow the list", ctx do
+      assert Library.normalize_filters(%{"kind" => "youtube"})["kind"] == "video"
+      assert Library.normalize_filters(%{"kind" => "podcast"})["kind"] == "audio"
+      assert Library.normalize_filters(%{"kind" => "peertube"})["kind"] == ""
+      assert length(Library.entries(ctx.alice, %{"kind" => "youtube"})) == 2
+    end
+  end
+
+  describe "counts/1" do
+    setup :three_kinds
+
+    test "every view, kind and source is counted for this account alone", ctx do
+      {:ok, _} = Library.subscribe(ctx.bob, ctx.preview)
+      entries = ctx.entries
+      {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :completed)
+      {:ok, %{session_id: session}} = Playback.start(ctx.alice, entries.youtube.id)
+
+      {:ok, _} =
+        Playback.save(ctx.alice, entries.youtube.id, session, %{
+          "sequence" => 1,
+          "position" => 30,
+          "duration" => 100,
+          "ended" => false
+        })
+
+      # Somebody else finishing the same episode changes nothing here.
+      {:ok, _} = Playback.mark(ctx.bob, entries.podcast.id, :new)
+
+      counts = ctx.alice |> Library.counts() |> Library.tally(%{})
+
+      assert Map.take(counts, [:all, :new, :in_progress, :completed]) ==
+               %{all: 3, new: 1, in_progress: 1, completed: 1}
+
+      assert Map.take(counts, [:video, :audio]) == %{video: 2, audio: 1}
+
+      assert counts.sources == %{
+               entries.podcast.feed_id => 0,
+               entries.youtube.feed_id => 0,
+               entries.peertube.feed_id => 1
+             }
+    end
+
+    # The number beside a link is how many items that link shows, so it honours the filters the
+    # link keeps. A source without a status counts what is new.
+    test "a count honours the other filters in force", ctx do
+      entries = ctx.entries
+      {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :completed)
+      rows = Library.counts(ctx.alice)
+
+      videos = Library.tally(rows, %{"kind" => "video"})
+      assert Map.take(videos, [:all, :new, :completed]) == %{all: 2, new: 2, completed: 0}
+
+      finished = Library.tally(rows, %{"status" => "completed"})
+      assert Map.take(finished, [:video, :audio]) == %{video: 0, audio: 1}
+      assert finished.sources[entries.podcast.feed_id] == 1
+      assert finished.sources[entries.youtube.feed_id] == 0
+    end
+
+    test "an account without sources counts nothing", ctx do
+      assert ctx.bob |> Library.counts() |> Library.tally(%{}) ==
+               %{all: 0, new: 0, in_progress: 0, completed: 0, video: 0, audio: 0, sources: %{}}
+    end
+  end
+
+  # A podcast, a YouTube channel and a PeerTube instance, one entry each, for alice.
+  defp three_kinds(ctx) do
+    {:ok, _} = Library.subscribe(ctx.alice, ctx.preview)
+    {:ok, youtube} = Parser.parse(youtube(), youtube_feed_url())
+    {:ok, _} = Library.subscribe(ctx.alice, youtube)
+    {:ok, peertube} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, _} = Library.subscribe(ctx.alice, peertube)
+
+    %{entries: Map.new(Library.entries(ctx.alice), &{&1.feed.kind, &1})}
+  end
 end

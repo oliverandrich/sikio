@@ -85,7 +85,11 @@ defmodule SikioWeb.Router do
     end
 
     live_session :members,
-      on_mount: [{Ithibati.Web.Gate, {:require_account, to: "/login"}}, {SikioWeb.Locale, :set}] do
+      on_mount: [
+        {Ithibati.Web.Gate, {:require_account, to: "/login"}},
+        {SikioWeb.Locale, :set},
+        SikioWeb.Sidebar
+      ] do
       live "/", LibraryLive
       live "/library/:id", PlayerLive
       live "/invitations", InvitationsLive

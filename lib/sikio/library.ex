@@ -13,6 +13,7 @@ defmodule Sikio.Library do
   alias Sikio.Accounts.User
   alias Sikio.Feeds
   alias Sikio.Feeds.Entry
+  alias Sikio.Feeds.Feed
   alias Sikio.Library.Events
   alias Sikio.Library.Subscription
   alias Sikio.Playback.State
@@ -101,6 +102,58 @@ defmodule Sikio.Library do
   end
 
   @doc """
+  This account's entries grouped by source, medium and status, from one query.
+
+  The rows are what `tally/2` adds up for whichever filters are in force. An entry nobody has
+  opened has no progress row and is counted as new.
+  """
+  def counts(%User{id: user_id}) do
+    Repo.all(
+      from [e, s, p, f] in scoped_entries(user_id),
+        group_by: [e.feed_id, f.kind, p.status],
+        select: {e.feed_id, f.kind, p.status, count(e.id)}
+    )
+    |> Enum.map(fn {feed_id, kind, status, count} ->
+      %{feed_id: feed_id, medium: Feed.medium(kind), status: status || :new, count: count}
+    end)
+  end
+
+  @doc """
+  How many items each link in the sidebar shows, under the filters in force.
+
+  Each count honours the filters its link keeps and replaces only its own. A source counts what
+  is new unless a status is chosen.
+  """
+  def tally(rows, filters) do
+    filters = normalize_filters(filters)
+    beside = fn own -> Enum.filter(rows, &matches_except?(&1, filters, own)) end
+    sources = Map.new(rows, &{&1.feed_id, 0})
+
+    new_or_chosen =
+      beside.(:source) |> Enum.filter(&(filters["status"] != "" or &1.status == :new))
+
+    %{all: 0, new: 0, in_progress: 0, completed: 0, video: 0, audio: 0}
+    |> Map.merge(sum_by(beside.(:status), :status))
+    |> Map.merge(sum_by(beside.(:kind), :medium))
+    |> Map.update!(:all, fn _ -> beside.(:status) |> Enum.map(& &1.count) |> Enum.sum() end)
+    |> Map.put(:sources, Map.merge(sources, sum_by(new_or_chosen, :feed_id)))
+  end
+
+  defp sum_by(rows, key) do
+    Enum.reduce(rows, %{}, fn row, sums ->
+      Map.update(sums, Map.fetch!(row, key), row.count, &(&1 + row.count))
+    end)
+  end
+
+  defp matches_except?(row, filters, own) do
+    Enum.all?([:source, :kind, :status] -- [own], fn
+      :source -> filters["source"] in ["", to_string(row.feed_id)]
+      :kind -> filters["kind"] in ["", Atom.to_string(row.medium)]
+      :status -> filters["status"] in ["", Atom.to_string(row.status)]
+    end)
+  end
+
+  @doc """
   Reduces request parameters to the three filters, discarding anything else.
 
   Written here rather than in the view because the same values reach the database. An unrecognised
@@ -108,13 +161,18 @@ defmodule Sikio.Library do
   """
   def normalize_filters(params) do
     %{
-      "kind" => choice(params["kind"], ~w(youtube podcast)),
+      "kind" => kind(params["kind"]),
       "status" => choice(params["status"], ~w(new in_progress completed)),
       "source" => source_id(params["source"])
     }
   end
 
   defp choice(value, values), do: if(value in values, do: value, else: "")
+
+  # Two kinds, by what a reader does with them. The platform names are what links said before.
+  defp kind(value) when value in ["video", "youtube"], do: "video"
+  defp kind(value) when value in ["audio", "podcast"], do: "audio"
+  defp kind(_value), do: ""
 
   defp source_id(value) when is_binary(value) do
     case Integer.parse(value) do
@@ -135,9 +193,11 @@ defmodule Sikio.Library do
         else: where(query, [e], e.feed_id == ^String.to_integer(filters["source"]))
 
     query =
-      if filters["kind"] == "",
-        do: query,
-        else: where(query, [e, s, p, f], f.kind == ^filters["kind"])
+      case filters["kind"] do
+        "" -> query
+        "video" -> where(query, [e, s, p, f], f.kind in ^Feed.video_kinds())
+        "audio" -> where(query, [e, s, p, f], f.kind not in ^Feed.video_kinds())
+      end
 
     case filters["status"] do
       "" -> query
@@ -148,14 +208,18 @@ defmodule Sikio.Library do
   end
 
   # The join to subscriptions is what makes this account-scoped, and the left join carries this
-  # account's progress onto the shared row.
-  defp entry_query(user_id) do
+  # account's progress onto the shared row. Every query over entries starts here.
+  defp scoped_entries(user_id) do
     from e in Entry,
       join: s in Subscription,
       on: s.feed_id == e.feed_id and s.user_id == ^user_id,
       left_join: p in State,
       on: p.entry_id == e.id and p.user_id == ^user_id,
-      join: f in assoc(e, :feed),
+      join: f in assoc(e, :feed)
+  end
+
+  defp entry_query(user_id) do
+    from [e, s, p, f] in scoped_entries(user_id),
       select_merge: %{playback: p},
       # Bound to the join above. An unbound `preload: [:feed]` joins and then fetches the feeds a
       # second time, which every library page and every saved position would pay for.

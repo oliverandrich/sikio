@@ -46,7 +46,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
     view
     |> form("#library-filters",
-      filters: %{kind: "podcast", status: "completed", source: to_string(c.sub.feed_id)}
+      filters: %{kind: "audio", status: "completed", source: to_string(c.sub.feed_id)}
     )
     |> render_change()
 
@@ -156,5 +156,52 @@ defmodule SikioWeb.LibraryLiveTest do
     # The account also follows a podcast, so both words have to be there, each on its own source.
     assert html =~ "PeerTube ·"
     assert html =~ "Podcast ·"
+  end
+
+  describe "the sidebar" do
+    test "narrows the list through the address and marks where the reader is", c do
+      {:ok, view, _} = live(c.conn, ~p"/")
+
+      view |> element("#kind-audio") |> render_click()
+      assert_patch(view, "/?kind=audio")
+      assert has_element?(view, "#entries article", "One & two")
+      refute has_element?(view, "#entries article", "A good video")
+      assert has_element?(view, "#kind-audio[aria-current=page]")
+
+      view |> element("#view-new") |> render_click()
+      assert_patch(view, "/?kind=audio&status=new")
+
+      # Choosing the active kind again lets it go.
+      view |> element("#kind-audio") |> render_click()
+      assert_patch(view, "/?status=new")
+    end
+
+    test "counts new items per source and follows what the reader does", c do
+      {:ok, view, _} = live(c.conn, ~p"/")
+      assert view |> element("#source-#{c.sub.feed_id}-count") |> render() =~ "1"
+
+      view |> element("#complete-#{c.audio.id}") |> render_click()
+
+      refute has_element?(view, "#source-#{c.sub.feed_id}-count")
+      assert view |> element("#view-completed-count") |> render() =~ "1"
+    end
+
+    # A page that is not the library still follows what happens elsewhere.
+    test "stays current on a page that is not the library", c do
+      {:ok, view, _} = live(c.conn, ~p"/subscriptions")
+      refute has_element?(view, "#view-completed-count")
+
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :completed)
+
+      assert view |> element("#view-completed-count") |> render() =~ "1"
+    end
+
+    test "every member page carries it, and it leads back to the library", c do
+      {:ok, view, _} = live(c.conn, ~p"/subscriptions")
+
+      assert has_element?(view, "#sidebar #source-#{c.sub.feed_id}", "Small Hours")
+      assert has_element?(view, ~s|#view-new[href="/?status=new"]|)
+      refute has_element?(view, "#sidebar [aria-current]")
+    end
   end
 end

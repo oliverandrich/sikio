@@ -12,13 +12,10 @@ defmodule SikioWeb.PlayerLive do
   import SikioWeb.MediaComponents
 
   alias Sikio.Library
-  alias Sikio.Library.Events
   alias Sikio.Playback
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    if connected?(socket), do: Events.subscribe(socket.assigns.current_account)
-
     case Library.entry(socket.assigns.current_account, id) do
       nil ->
         {:ok, push_navigate(socket, to: ~p"/")}
@@ -40,8 +37,9 @@ defmodule SikioWeb.PlayerLive do
 
   # A notification older than what is already on screen is dropped. Otherwise a late message from a
   # player that has since been replaced would undo a status somebody just set by hand.
-  @impl true
-  def handle_info({:playback_changed, state}, socket) do
+  #
+  # Library events arrive here through `SikioWeb.Sidebar`.
+  def handle_library_event({:playback_changed, state}, socket) do
     entry = socket.assigns.entry
 
     if entry.id == state.entry_id and Playback.newer?(entry, state) do
@@ -51,11 +49,14 @@ defmodule SikioWeb.PlayerLive do
     end
   end
 
-  def handle_info({:subscription_removed, feed_id}, socket) do
+  def handle_library_event({:subscription_removed, feed_id}, socket) do
     if socket.assigns.entry.feed_id == feed_id,
       do: {:noreply, push_navigate(socket, to: ~p"/")},
       else: {:noreply, socket}
   end
+
+  # New episodes elsewhere change nothing on an item that is already open.
+  def handle_library_event(:library_changed, socket), do: {:noreply, socket}
 
   defp assign_progress(socket, progress) do
     assign(socket, :entry, %{socket.assigns.entry | playback: progress})
@@ -64,7 +65,7 @@ defmodule SikioWeb.PlayerLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.member flash={@flash} current_account={@current_account}>
+    <Layouts.member flash={@flash} current_account={@current_account} sidebar={@sidebar}>
       <.link navigate={~p"/"} class="text-sm font-semibold text-teal-800 dark:text-teal-300">
         {gettext("← Your library")}
       </.link>

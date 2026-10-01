@@ -18,6 +18,15 @@ defmodule Sikio.Feeds.Feed do
     timestamps(type: :utc_datetime_usec)
   end
 
+  @video_kinds [:youtube, :peertube]
+
+  @doc "The kinds a reader watches. Everything else is listened to."
+  def video_kinds, do: @video_kinds
+
+  @doc "Whether a kind is watched or listened to."
+  def medium(kind) when kind in @video_kinds, do: :video
+  def medium(_kind), do: :audio
+
   def changeset(feed, attrs) do
     feed
     |> cast(attrs, [

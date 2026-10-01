@@ -13,16 +13,10 @@ defmodule SikioWeb.LibraryLive do
   import SikioWeb.MediaComponents
 
   alias Sikio.Library
-  alias Sikio.Library.Events
   alias Sikio.Playback
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      Events.subscribe(socket.assigns.current_account)
-      Events.subscribe_updates(socket.assigns.current_account)
-    end
-
     {:ok, socket |> assign(page_title: gettext("Library")) |> stream(:entries, [])}
   end
 
@@ -33,13 +27,10 @@ defmodule SikioWeb.LibraryLive do
 
   @impl true
   def handle_event("filter", %{"filters" => params}, socket) do
-    filters =
-      params
-      |> Library.normalize_filters()
-      |> Enum.reject(fn {_, value} -> value == "" end)
-      |> Map.new()
-
-    {:noreply, push_patch(socket, to: ~p"/?#{filters}")}
+    {:noreply,
+     push_patch(socket,
+       to: params |> Library.normalize_filters() |> SikioWeb.Sidebar.library_path()
+     )}
   end
 
   def handle_event("mark", %{"id" => id, "status" => status}, socket)
@@ -55,15 +46,13 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  @impl true
-  def handle_info({:playback_changed, _state}, socket), do: {:noreply, reload(socket)}
-  def handle_info({:subscription_removed, _feed_id}, socket), do: {:noreply, reload(socket)}
-  def handle_info(:library_changed, socket), do: {:noreply, reload(socket)}
+  @doc "Every library event may change which items this view lists. See `SikioWeb.Sidebar`."
+  def handle_library_event(_event, socket), do: {:noreply, reload(socket)}
 
   defp reload(socket) do
     account = socket.assigns.current_account
     filters = socket.assigns.filters
-    subscriptions = Library.subscriptions(account)
+    subscriptions = socket.assigns.sidebar.sources
     entries = Library.entries(account, filters)
 
     socket
@@ -90,7 +79,13 @@ defmodule SikioWeb.LibraryLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.member flash={@flash} current_account={@current_account}>
+    <Layouts.member
+      flash={@flash}
+      current_account={@current_account}
+      sidebar={@sidebar}
+      filters={@filters}
+      patch
+    >
       <p class="mb-5 text-xs font-semibold tracking-widest text-teal-800 uppercase dark:text-teal-300">
         {gettext("The personal library of %{username}", username: @current_account.username)}
       </p>
@@ -111,7 +106,7 @@ defmodule SikioWeb.LibraryLive do
         id="library-filters"
         phx-change="filter"
         phx-submit="filter"
-        class="mt-10 grid gap-4 rounded-2xl border border-stone-200 bg-white p-5 sm:grid-cols-3 dark:border-stone-800 dark:bg-stone-900"
+        class="mt-10 grid gap-4 rounded-2xl border border-stone-200 bg-white p-5 sm:grid-cols-3 lg:hidden dark:border-stone-800 dark:bg-stone-900"
       >
         <label
           :for={
@@ -120,8 +115,8 @@ defmodule SikioWeb.LibraryLive do
               {"kind", gettext("Media type"),
                [
                  {gettext("All media"), ""},
-                 {gettext("YouTube"), "youtube"},
-                 {gettext("Podcasts"), "podcast"}
+                 {gettext("Video"), "video"},
+                 {gettext("Audio"), "audio"}
                ]},
               {"status", gettext("Status"),
                [
