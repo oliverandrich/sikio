@@ -104,6 +104,83 @@ defmodule Sikio.FeedsTest do
     refute_receive :library_changed, 100
   end
 
+  # A source without working cache validators answers in full on every poll. Rewriting rows it
+  # did not change costs a new row version, write ahead log and a dead tuple per entry, and a
+  # notification that makes every open library reload. `xmin` changes with every write.
+  test "importing what is already stored writes no entry" do
+    {:ok, stored} = Feeds.store(preview())
+    before = versions(stored.id)
+
+    {:ok, _feed} = Feeds.store(preview())
+
+    assert versions(stored.id) == before
+  end
+
+  test "a poll that changes nothing notifies nobody, one that changes something does" do
+    {:ok, stored} = Feeds.store(preview())
+    Events.subscribe_updates(%User{id: subscriber(stored.id)})
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
+    assert {:ok, _feed} = Feeds.refresh(stored.id)
+    refute_received :library_changed
+
+    body = podcast() |> String.replace("One &amp; two", "One, two and three")
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, body) end)
+    assert {:ok, _feed} = Feeds.refresh(stored.id)
+    assert_received :library_changed
+  end
+
+  # A renamed show with no new episode is still news: the sidebar and the subscriptions show its
+  # name.
+  test "a poll that only renames the source notifies its subscribers" do
+    {:ok, stored} = Feeds.store(preview())
+    Events.subscribe_updates(%User{id: subscriber(stored.id)})
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast("Renamed")) end)
+    assert {:ok, %{title: "Renamed"}} = Feeds.refresh(stored.id)
+    assert_received :library_changed
+  end
+
+  # The guard compares every column the update writes. One left out of it would never be updated
+  # again, and nothing else would notice, so each one is changed on its own here.
+  for {field, value} <- [
+        title: "A new title",
+        media_url: "https://audio.example.org/moved.mp3",
+        video_id: "abcdefghijk",
+        embed_url: "https://video.example.org/videos/embed/moved",
+        published_at: ~U[2026-09-19 09:00:00.000000Z],
+        image_url: "https://img.example.org/new.jpg",
+        duration: 99,
+        description: "<p>New notes</p>",
+        description_format: :text,
+        excerpt: "New notes"
+      ] do
+    test "a changed #{field} is written" do
+      {:ok, stored} = Feeds.store(preview())
+      before = versions(stored.id)
+      [entry] = preview().entries
+
+      Feeds.store(%{
+        preview()
+        | entries: [Map.put(entry, unquote(field), unquote(Macro.escape(value)))]
+      })
+
+      refute versions(stored.id) == before
+
+      assert Repo.one(from e in Entry, select: field(e, unquote(field))) ==
+               unquote(Macro.escape(value))
+    end
+  end
+
+  defp versions(feed_id),
+    do:
+      Repo.all(
+        from e in Entry,
+          where: e.feed_id == ^feed_id,
+          order_by: e.id,
+          select: fragment("xmin::text")
+      )
+
   test "refreshing a source that is no longer stored says so" do
     assert {:error, :not_found} = Feeds.refresh(-1)
   end

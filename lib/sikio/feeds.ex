@@ -26,6 +26,11 @@ defmodule Sikio.Feeds do
   defp replaced_feed_fields(_attrs), do: @feed_fields
 
   def store(preview) do
+    with {:ok, {feed, _written}} <- store_entries(preview), do: {:ok, feed}
+  end
+
+  # The feed and how many of its entries were inserted or actually changed.
+  defp store_entries(preview) do
     Repo.transaction(fn ->
       attrs = Map.merge(preview, %{last_checked_at: DateTime.utc_now(), last_error: nil})
 
@@ -35,8 +40,8 @@ defmodule Sikio.Feeds do
              returning: true
            ) do
         {:ok, feed} ->
-          import_entries(feed.id, preview.entries)
-          feed
+          {written, _} = import_entries(feed.id, preview.entries)
+          {feed, written}
 
         {:error, error} ->
           Repo.rollback(error)
@@ -70,9 +75,9 @@ defmodule Sikio.Feeds do
       |> Enum.reject(fn {_, value} -> is_nil(value) end)
 
     case Discovery.fetch(feed.url, headers) do
+      # Keep the original stable subscription URL even when its endpoint redirects.
       {:ok, preview} ->
-        # Keep the original stable subscription URL even when its endpoint redirects.
-        store(%{preview | url: feed.url})
+        %{preview | url: feed.url} |> store_entries() |> compared_with(feed)
 
       # Nothing changed, so nobody is told. Each notification costs every open library a reload.
       :not_modified ->
@@ -92,6 +97,15 @@ defmodule Sikio.Feeds do
         {:error, reason}
     end
   end
+
+  # A document that repeats what is stored notifies nobody, like a 304. What a reader sees of the
+  # source itself, its name and picture, counts as much as its entries.
+  defp compared_with({:ok, {stored, 0}}, feed)
+       when stored.title == feed.title and stored.icon_url == feed.icon_url,
+       do: {:unchanged, stored}
+
+  defp compared_with({:ok, {stored, _written}}, _feed), do: {:ok, stored}
+  defp compared_with(other, _feed), do: other
 
   @replaced_entry_fields [:title, :media_url, :video_id, :embed_url, :published_at]
   @kept_entry_fields [:image_url, :duration, :description, :description_format, :excerpt]
@@ -119,8 +133,39 @@ defmodule Sikio.Feeds do
   # audio has moved it. Artwork, runtime and notes are not: a poll that leaves them out is a poll
   # that said nothing about them, and a show that trims one document should not strip every
   # episode it ever published. The same rule the feed's own picture follows.
+  #
+  # A row whose values would not change is not written at all. Rewriting it costs a new row
+  # version, write ahead log and a dead tuple on every poll of a source without cache
+  # validators. The whole row is compared at once, null-safe, against exactly what the update
+  # would set. The guard and the update name their columns separately; the tests change each
+  # column on its own and expect a write, so a column left out of the guard fails one of them.
   defp keep_content do
     from(e in Entry,
+      where:
+        fragment(
+          """
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IS DISTINCT FROM
+          (EXCLUDED.title, EXCLUDED.media_url, EXCLUDED.video_id, EXCLUDED.embed_url,
+           EXCLUDED.published_at, COALESCE(EXCLUDED.image_url, ?), COALESCE(EXCLUDED.duration, ?),
+           COALESCE(EXCLUDED.description, ?), COALESCE(EXCLUDED.description_format, ?),
+           COALESCE(EXCLUDED.excerpt, ?))
+          """,
+          e.title,
+          e.media_url,
+          e.video_id,
+          e.embed_url,
+          e.published_at,
+          e.image_url,
+          e.duration,
+          e.description,
+          e.description_format,
+          e.excerpt,
+          e.image_url,
+          e.duration,
+          e.description,
+          e.description_format,
+          e.excerpt
+        ),
       update: [
         set: [
           title: fragment("EXCLUDED.title"),
