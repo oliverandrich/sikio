@@ -56,12 +56,12 @@ defmodule SikioWeb.AccountSecurityLive do
             {gettext("Give your passkeys recognizable names and keep a spare for another device.")}
           </:subtitle>
         </.header>
-        <p :if={@error} role="alert" class="my-4 text-sm text-red-700 dark:text-red-400">{@error}</p>
+        <p :if={@error} role="alert" class="my-4 text-label text-danger">{@error}</p>
         <div class="mt-6 space-y-4">
           <article
             :for={key <- @keys}
             id={"key-#{key.id}"}
-            class="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900"
+            class="rounded-control border border-line bg-surface p-5"
           >
             <.form for={%{}} action={~p"/account/passkeys/#{key.id}"} method="patch" class="space-y-3">
               <.input
@@ -71,7 +71,7 @@ defmodule SikioWeb.AccountSecurityLive do
                 maxlength="100"
                 required
               />
-              <p class="text-xs text-stone-500 dark:text-stone-400">
+              <p class="text-meta text-muted">
                 {gettext("Added %{date}", date: Calendar.strftime(key.inserted_at, "%Y-%m-%d"))}
               </p>
               <.button>{gettext("Save name")}</.button>
@@ -86,15 +86,15 @@ defmodule SikioWeb.AccountSecurityLive do
             </.form>
           </article>
         </div>
-        <p :if={length(@keys) == 1} class="mt-3 text-sm text-stone-600 dark:text-stone-400">
+        <p :if={length(@keys) == 1} class="mt-3 text-label text-muted">
           {gettext("Add another passkey before removing your last one.")}
         </p>
-        <div class="mt-8 rounded-2xl border border-teal-200 bg-teal-50 p-6 dark:border-teal-900 dark:bg-teal-950/30">
+        <div class="mt-8 rounded-control border border-accent bg-selection p-6">
           <h2 class="mb-4 text-lg font-semibold">{gettext("Add a passkey")}</h2>
           <.link
             :if={!@confirmed}
             href={~p"/account/confirm/passkeys"}
-            class="font-medium text-teal-800 dark:text-teal-300"
+            class="font-medium text-accent"
           >{gettext("Confirm your identity to add a passkey")}</.link>
           <form :if={@confirmed} id="add-passkey-form" phx-change="validate" phx-submit="add-passkey">
             <.input
@@ -108,9 +108,9 @@ defmodule SikioWeb.AccountSecurityLive do
             <Layouts.auth_button type="submit">{gettext("Add a passkey")}</Layouts.auth_button>
           </form>
         </div>
-        <section class="mt-8 border-t border-stone-200 pt-6 dark:border-stone-800">
+        <section class="mt-8 border-t border-line pt-6">
           <h2 class="text-lg font-semibold">{gettext("Sessions")}</h2>
-          <p class="my-3 text-sm text-stone-600 dark:text-stone-400">
+          <p class="my-3 text-label text-muted">
             {gettext("Sign out on every device, including this one. Your passkeys will still work.")}
           </p>
           <.form for={%{}} action={~p"/account/sessions"} method="delete">
@@ -128,7 +128,7 @@ defmodule SikioWeb.AccountSecurityLive do
             {gettext("Keep your recovery codes somewhere safe, separate from your devices.")}
           </:subtitle>
         </.header>
-        <div class="mt-6 rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900">
+        <div class="mt-6 rounded-control border border-line bg-surface p-6">
           <p class="text-lg font-semibold">
             {ngettext(
               "You have %{count} unused recovery code.",
@@ -136,7 +136,7 @@ defmodule SikioWeb.AccountSecurityLive do
               @remaining
             )}
           </p>
-          <p class="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-400">
+          <p class="mt-3 text-label leading-6 text-muted">
             {gettext(
               "For your security, existing codes cannot be shown again. Generate a new set if you have lost them."
             )}
@@ -144,7 +144,7 @@ defmodule SikioWeb.AccountSecurityLive do
           <.link
             :if={!@confirmed}
             href={~p"/account/confirm/recovery-codes"}
-            class="mt-6 block font-medium text-teal-800 dark:text-teal-300"
+            class="mt-6 block font-medium text-accent"
           >{gettext("Confirm your identity to generate new codes")}</.link>
           <.form
             :if={@confirmed}
@@ -153,13 +153,13 @@ defmodule SikioWeb.AccountSecurityLive do
             action={~p"/account/recovery-codes"}
             class="mt-6"
           >
-            <label class="mb-6 flex items-start gap-3 text-sm leading-6">
+            <label class="mb-6 flex items-start gap-3 text-label leading-6">
               <input
                 type="checkbox"
                 name="confirm"
                 value="true"
                 required
-                class="mt-1 size-4 accent-teal-800"
+                class="mt-1 size-4 accent-accent"
               />
               <span>{gettext("I understand that all my previous recovery codes will stop working.")}</span>
             </label>

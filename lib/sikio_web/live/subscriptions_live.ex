@@ -189,7 +189,7 @@ defmodule SikioWeb.SubscriptionsLive do
   def render(assigns) do
     ~H"""
     <Layouts.member flash={@flash} current_account={@current_account} sidebar={@sidebar}>
-      <p class="mb-4 text-xs font-semibold tracking-widest text-teal-800 uppercase dark:text-teal-300">
+      <p class="mb-4 text-meta font-semibold text-accent">
         {gettext("Curated by you")}
       </p>
       <.header>
@@ -198,7 +198,7 @@ defmodule SikioWeb.SubscriptionsLive do
           {gettext("A channel, a video, a podcast website. Paste a link and let Sikio find the feed.")}
         </:subtitle>
       </.header>
-      <div class="mt-6 flex flex-wrap gap-5 text-sm font-semibold text-teal-800 dark:text-teal-300">
+      <div class="mt-6 flex flex-wrap gap-5 text-label font-semibold text-accent">
         <.link
           id="opml-import-link"
           navigate={~p"/subscriptions/import"}
@@ -214,7 +214,7 @@ defmodule SikioWeb.SubscriptionsLive do
         </.link>
       </div>
       <div class="mt-10 grid gap-6 lg:grid-cols-2">
-        <section class="rounded-3xl border border-stone-200 bg-white p-6 sm:p-8 dark:border-stone-800 dark:bg-stone-900">
+        <section class="rounded-control border border-line bg-surface p-6 sm:p-8">
           <h2 class="mb-6 text-lg font-semibold">{gettext("Start with a link")}</h2>
           <.form for={@url_form} id="discover-form" phx-change="validate-url" phx-submit="discover">
             <fieldset disabled={@busy}>
@@ -231,13 +231,13 @@ defmodule SikioWeb.SubscriptionsLive do
               </.button>
             </fieldset>
           </.form>
-          <p class="mt-5 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+          <p class="mt-5 text-meta leading-relaxed text-muted">
             {gettext(
               "YouTube channels, videos and Shorts · Podcast websites, RSS feeds and Apple Podcasts links"
             )}
           </p>
         </section>
-        <section class="rounded-3xl border border-stone-200 bg-stone-100 p-6 sm:p-8 dark:border-stone-800 dark:bg-stone-800">
+        <section class="rounded-control border border-line bg-ground p-6 sm:p-8">
           <h2 class="mb-6 text-lg font-semibold">{gettext("Or find a podcast")}</h2>
           <.form for={@search_form} id="search-form" phx-change="validate-term" phx-submit="search">
             <fieldset disabled={@busy}>
@@ -254,7 +254,7 @@ defmodule SikioWeb.SubscriptionsLive do
               </.button>
             </fieldset>
           </.form>
-          <p class="mt-5 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+          <p class="mt-5 text-meta leading-relaxed text-muted">
             {gettext(
               "Searches Apple's German directory. Results are provided by Apple; subscriptions use the show's own RSS feed."
             )}
@@ -262,21 +262,21 @@ defmodule SikioWeb.SubscriptionsLive do
         </section>
       </div>
       <div aria-live="polite" class="mt-6">
-        <p :if={@busy} id="discovery-loading" class="text-sm text-teal-800 dark:text-teal-300">
+        <p :if={@busy} id="discovery-loading" class="text-label text-accent">
           {gettext("Looking for your next good listen or watch…")}
         </p>
         <p
           :if={@error}
           id="discovery-error"
           role="alert"
-          class="rounded-xl bg-red-50 p-4 text-sm text-red-900 dark:bg-red-950 dark:text-red-100"
+          class="rounded-control bg-danger-surface p-4 text-label text-danger"
         >
           {@error}
         </p>
         <p
           :if={@searched and map_size(@candidates) == 0}
           id="no-results"
-          class="text-stone-500 dark:text-stone-400"
+          class="text-muted"
         >
           {gettext("No podcasts found. Try another name or paste the show's website.")}
         </p>
@@ -285,19 +285,19 @@ defmodule SikioWeb.SubscriptionsLive do
         <article
           :for={{dom_id, source} <- @streams.sources}
           id={dom_id}
-          class="rounded-2xl border border-teal-200 bg-white p-6 dark:border-teal-900 dark:bg-stone-900"
+          class="rounded-control border border-accent bg-surface p-6"
         >
-          <p class="text-xs text-teal-800 dark:text-teal-300">
+          <p class="text-meta text-accent">
             {if Map.has_key?(source, :entries),
               do: gettext("Ready to subscribe"),
               else: gettext("Apple Podcasts")}
           </p>
           <h3 class="mt-2 text-xl font-semibold">{source.title}</h3>
-          <p :if={source[:author]} class="mt-1 text-sm text-stone-500 dark:text-stone-400">
+          <p :if={source[:author]} class="mt-1 text-label text-muted">
             {source.author}
           </p>
-          <p class="mt-3 text-xs break-all text-stone-500 dark:text-stone-400">{source.url}</p>
-          <p :if={source[:entries]} class="mt-3 text-sm text-stone-600 dark:text-stone-300">
+          <p class="mt-3 text-meta break-all text-muted">{source.url}</p>
+          <p :if={source[:entries]} class="mt-3 text-label text-muted">
             {gettext("%{count} recent items available", count: length(source.entries))}
           </p>
           <.button
@@ -315,15 +315,15 @@ defmodule SikioWeb.SubscriptionsLive do
       </div>
       <section class="mt-14">
         <div class="mb-6 flex items-baseline justify-between gap-4">
-          <h2 class="font-display text-3xl">{gettext("Your subscriptions")}</h2>
-          <span class="text-sm text-stone-500 dark:text-stone-400">
+          <h2 class="text-title font-semibold">{gettext("Your subscriptions")}</h2>
+          <span class="text-label text-muted">
             {gettext("%{count} sources", count: @subscription_count)}
           </span>
         </div>
         <p
           :if={@subscription_count == 0}
           id="subscriptions-empty"
-          class="rounded-2xl border border-dashed border-stone-300 p-8 text-stone-500 dark:border-stone-700 dark:text-stone-400"
+          class="rounded-control border border-dashed border-line p-8 text-muted"
         >
           {gettext("Your collection starts with one good source.")}
         </p>
@@ -331,41 +331,41 @@ defmodule SikioWeb.SubscriptionsLive do
           <article
             :for={{dom_id, subscription} <- @streams.subscriptions}
             id={dom_id}
-            class="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900"
+            class="flex flex-wrap items-center justify-between gap-5 rounded-control border border-line bg-surface p-6"
           >
             <div class="min-w-0 flex-1">
-              <p class="text-xs font-medium text-teal-800 dark:text-teal-300">
+              <p class="text-meta font-medium text-accent">
                 {source_label(subscription.feed)} · {if subscription.paused,
                   do: gettext("Polling paused"),
                   else: gettext("Active")}
               </p>
               <h3 class="mt-1 text-lg font-semibold">{subscription.feed.title}</h3>
-              <p class="mt-2 text-xs break-all text-stone-500 dark:text-stone-400">
+              <p class="mt-2 text-meta break-all text-muted">
                 {subscription.feed.url}
               </p>
               <p
                 :if={subscription.feed.last_error}
-                class="mt-2 text-sm text-orange-800 dark:text-orange-300"
+                class="mt-2 text-label text-warning"
               >
                 {gettext("Last refresh failed. Sikio will retry; imported items are safe.")}
               </p>
             </div>
-            <div class="flex gap-5 text-sm">
+            <div class="flex gap-5 text-label">
               <button
                 phx-click="pause"
                 phx-value-id={subscription.id}
                 phx-value-paused={to_string(!subscription.paused)}
-                class="min-h-11 text-teal-800 dark:text-teal-300"
+                class="min-h-11 text-accent"
               >{if subscription.paused, do: gettext("Resume"), else: gettext("Pause polling")}</button>
               <button
                 phx-click="unsubscribe"
                 phx-value-id={subscription.id}
-                class="min-h-11 text-stone-500 dark:text-stone-400"
+                class="min-h-11 text-muted"
               >{gettext("Unsubscribe")}</button>
             </div>
           </article>
         </div>
-        <p class="mt-5 text-xs text-stone-500 dark:text-stone-400">
+        <p class="mt-5 text-meta text-muted">
           {gettext(
             "Active sources refresh every 15 minutes. A shared feed may still update for other subscribers while your polling is paused."
           )}

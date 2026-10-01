@@ -42,7 +42,7 @@ defmodule SikioWeb.InviteLive do
   def render(assigns) do
     ~H"""
     <Layouts.auth flash={@flash} title={gettext("You’re invited")}>
-      <p :if={@invitation} class="mb-6 text-center text-sm text-stone-600 dark:text-stone-400">
+      <p :if={@invitation} class="mb-6 text-center text-label text-muted">
         <span :if={not @email?}>
           {gettext("The account will be called %{username}.", username: @invitation.username)}
         </span>
@@ -54,7 +54,7 @@ defmodule SikioWeb.InviteLive do
       <div
         :if={is_nil(@invitation)}
         role="alert"
-        class="rounded-lg border p-4 border-red-300 bg-red-50 text-red-950 dark:border-red-700 dark:bg-red-950 dark:text-red-100 mt-6"
+        class="rounded-control border p-4 border-danger bg-danger-surface text-danger mt-6"
       >
         <span>
           {gettext("This invitation has been used already, or it has expired. Ask for a new link.")}
@@ -64,7 +64,7 @@ defmodule SikioWeb.InviteLive do
       <div
         :if={@error}
         role="alert"
-        class="rounded-lg border p-4 border-red-300 bg-red-50 text-red-950 dark:border-red-700 dark:bg-red-950 dark:text-red-100 mt-6"
+        class="rounded-control border p-4 border-danger bg-danger-surface text-danger mt-6"
       >
         <span>{@error}</span>
       </div>

@@ -54,6 +54,8 @@
   --color-selection: #dce9df;
   --color-danger: #a3302a;
   --color-danger-surface: #fbedeb;
+  --color-warning: #8a5a00;
+  --color-warning-surface: #fbf1dc;
 
   /* Sized for dense lists that are read for hours, not for landing pages. */
   --text-meta: 12px;
@@ -82,6 +84,8 @@
     --color-selection: #25372b;
     --color-danger: #f0a39d;
     --color-danger-surface: #3a1e1c;
+    --color-warning: #e7b65a;
+    --color-warning-surface: #3a2e14;
   }
 }
 

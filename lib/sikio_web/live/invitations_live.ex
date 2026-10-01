@@ -164,11 +164,11 @@ defmodule SikioWeb.InvitationsLive do
 
       <h2 class="mt-8 text-lg font-semibold">{gettext("Invite somebody")}</h2>
 
-      <p :if={not @email?} class="mt-2 text-sm opacity-70">
+      <p :if={not @email?} class="mt-2 text-label opacity-70">
         {gettext("Choose a username for your guest, then send them their personal invitation link.")}
       </p>
 
-      <p :if={@email?} class="mt-2 text-sm opacity-70">
+      <p :if={@email?} class="mt-2 text-label opacity-70">
         {gettext("Enter your guest's email address. Their invitation link is sent there.")}
       </p>
 
@@ -198,7 +198,7 @@ defmodule SikioWeb.InvitationsLive do
       <div
         :if={@error}
         role="alert"
-        class="rounded-lg border p-4 border-red-300 bg-red-50 text-red-950 dark:border-red-700 dark:bg-red-950 dark:text-red-100 mt-4"
+        class="rounded-control border p-4 border-danger bg-danger-surface text-danger mt-4"
       >
         <span>{@error}</span>
       </div>
@@ -206,7 +206,7 @@ defmodule SikioWeb.InvitationsLive do
       <div
         :if={@link}
         role="status"
-        class="rounded-lg border p-4 border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 mt-4"
+        class="rounded-control border p-4 border-accent bg-selection text-accent mt-4"
       >
         <span>
           {gettext("Your invitation is ready. Send this link to your guest:")}
@@ -216,11 +216,11 @@ defmodule SikioWeb.InvitationsLive do
 
       <h2 class="mt-10 text-lg font-semibold">{gettext("Outstanding invitations")}</h2>
 
-      <p :if={@pending == []} class="mt-2 text-sm opacity-70">
+      <p :if={@pending == []} class="mt-2 text-label opacity-70">
         {gettext("Nothing is waiting to be accepted.")}
       </p>
 
-      <p :if={@pending != []} class="mt-2 text-sm opacity-70">
+      <p :if={@pending != []} class="mt-2 text-label opacity-70">
         {gettext(
           "Anybody here can take one back. Until it is accepted, this is the only say over who joins."
         )}
@@ -234,7 +234,7 @@ defmodule SikioWeb.InvitationsLive do
         >
           <span class="font-medium">{invitation.username}</span>
 
-          <span class="text-sm opacity-70">
+          <span class="text-label opacity-70">
             <%= if invitation.invited_by do %>
               {gettext("Invited by %{username}", username: invitation.invited_by.username)}
             <% else %>
@@ -242,11 +242,11 @@ defmodule SikioWeb.InvitationsLive do
             <% end %>
           </span>
 
-          <span class="text-sm opacity-70">
+          <span class="text-label opacity-70">
             {gettext("Made %{date}", date: on(invitation.inserted_at))}
           </span>
 
-          <span class="text-sm opacity-70">
+          <span class="text-label opacity-70">
             {gettext("Runs out %{date}", date: on(invitation.expires_at))}
           </span>
 
@@ -254,7 +254,7 @@ defmodule SikioWeb.InvitationsLive do
             type="button"
             phx-click="withdraw"
             phx-value-id={invitation.id}
-            class="ml-auto text-sm underline underline-offset-4"
+            class="ml-auto text-label underline underline-offset-4"
           >
             {gettext("Take it back")}
           </button>

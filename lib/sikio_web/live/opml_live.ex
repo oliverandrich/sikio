@@ -157,7 +157,7 @@ defmodule SikioWeb.OPMLLive do
     <Layouts.member flash={@flash} current_account={@current_account} sidebar={@sidebar}>
       <.link
         navigate={~p"/subscriptions"}
-        class="text-sm font-semibold text-teal-800 dark:text-teal-300"
+        class="text-label font-semibold text-accent"
       >{gettext("← Your subscriptions")}</.link>
       <div class="mt-8">
         <.header>
@@ -167,7 +167,7 @@ defmodule SikioWeb.OPMLLive do
           </:subtitle>
         </.header>
       </div>
-      <section class="mt-8 rounded-3xl border border-stone-200 bg-white p-5 sm:p-8 dark:border-stone-800 dark:bg-stone-900">
+      <section class="mt-8 rounded-control border border-line bg-surface p-5 sm:p-8">
         <.form for={@form} id="opml-upload-form" phx-change="validate" phx-submit="preview">
           <fieldset disabled={@busy} class="min-w-0">
             <label for={@uploads.opml.ref} class="mb-3 block font-semibold">
@@ -175,20 +175,20 @@ defmodule SikioWeb.OPMLLive do
             </label>
             <.live_file_input
               upload={@uploads.opml}
-              class="block w-full min-w-0 rounded-xl border border-stone-300 p-3 text-sm dark:border-stone-700"
+              class="block w-full min-w-0 rounded-control border border-control bg-surface p-3 text-label text-ink"
             />
             <div :for={entry <- @uploads.opml.entries} class="mt-3">
-              <p class="text-sm break-all">{entry.client_name} · {entry.progress}%</p>
+              <p class="text-label break-all">{entry.client_name} · {entry.progress}%</p>
               <button
                 type="button"
                 phx-click="cancel-upload"
                 phx-value-ref={entry.ref}
-                class="min-h-11 text-sm text-teal-800 dark:text-teal-300"
+                class="min-h-11 text-label text-accent"
               >{gettext("Remove file")}</button>
               <p
                 :for={error <- upload_errors(@uploads.opml, entry)}
                 role="alert"
-                class="text-sm text-red-800 dark:text-red-300"
+                class="text-label text-danger"
               >
                 {upload_error(error)}
               </p>
@@ -196,7 +196,7 @@ defmodule SikioWeb.OPMLLive do
             <p
               :for={error <- upload_errors(@uploads.opml)}
               role="alert"
-              class="mt-3 text-sm text-red-800 dark:text-red-300"
+              class="mt-3 text-label text-danger"
             >
               {upload_error(error)}
             </p>
@@ -205,14 +205,14 @@ defmodule SikioWeb.OPMLLive do
             </.button>
           </fieldset>
         </.form>
-        <p class="mt-5 text-sm leading-relaxed text-stone-500 dark:text-stone-400">
+        <p class="mt-5 text-label leading-relaxed text-muted">
           {gettext(
             "Up to 50 unique feeds and 1 MB per file. Folders are flattened. Existing subscriptions stay unchanged. OPML transfers sources, not playback history or polling settings."
           )}
         </p>
         <.link
           href={~p"/subscriptions.opml"}
-          class="mt-4 inline-flex min-h-11 items-center gap-1 font-semibold text-teal-800 dark:text-teal-300"
+          class="mt-4 inline-flex min-h-11 items-center gap-1 font-semibold text-accent"
         >
           {gettext("Export my subscriptions")}
           <Lucideicons.download aria-hidden="true" class="size-4" />
@@ -222,7 +222,7 @@ defmodule SikioWeb.OPMLLive do
         :if={@error}
         id="opml-error"
         role="alert"
-        class="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-900 dark:bg-red-950 dark:text-red-100"
+        class="mt-6 rounded-control bg-danger-surface p-4 text-label text-danger"
       >
         {@error}
       </p>
@@ -230,7 +230,7 @@ defmodule SikioWeb.OPMLLive do
         :if={@summary}
         id="opml-summary"
         role="status"
-        class="mt-6 rounded-xl bg-teal-50 p-4 text-sm text-teal-900 dark:bg-teal-950 dark:text-teal-100"
+        class="mt-6 rounded-control bg-selection p-4 text-label text-accent"
       >
         {@summary}
       </p>
@@ -238,7 +238,7 @@ defmodule SikioWeb.OPMLLive do
         <.button id="import-opml" variant="primary" phx-click="import" disabled={@busy}>
           {gettext("Import %{count} sources", count: length(@pending))}
         </.button>
-        <p :if={@busy} role="status" class="mt-3 text-sm text-stone-600 dark:text-stone-300">
+        <p :if={@busy} role="status" class="mt-3 text-label text-muted">
           {gettext(
             "Checking feeds and importing… Keep this page open. Leaving stops the remaining import; completed subscriptions are kept."
           )}
@@ -248,11 +248,11 @@ defmodule SikioWeb.OPMLLive do
         <article
           :for={{id, source} <- @streams.sources}
           id={id}
-          class="rounded-2xl border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900"
+          class="rounded-control border border-line bg-surface p-5"
         >
           <h2 class="font-semibold break-words">{source.title}</h2>
-          <p class="mt-2 text-xs break-all text-stone-500 dark:text-stone-400">{source.url}</p>
-          <p class="mt-3 text-sm text-teal-800 dark:text-teal-300">{result_label(source)}</p>
+          <p class="mt-2 text-meta break-all text-muted">{source.url}</p>
+          <p class="mt-3 text-label text-accent">{result_label(source)}</p>
         </article>
       </div>
     </Layouts.member>

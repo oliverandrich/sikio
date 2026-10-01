@@ -94,7 +94,7 @@ defmodule SikioWeb.SignInLive do
       <div
         :if={@error}
         role="alert"
-        class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+        class="mb-6 rounded-control border border-danger bg-danger-surface p-4 text-label text-danger"
       >
         {@error}
       </div>
@@ -102,10 +102,10 @@ defmodule SikioWeb.SignInLive do
       <div :if={@live_action == :login}>
         <h1 class="sr-only">{gettext("Sign in")}</h1>
         <Layouts.auth_button phx-click="sign-in">{gettext("Sign in with a passkey")}</Layouts.auth_button>
-        <p class="mt-6 text-center text-sm">
+        <p class="mt-6 text-center text-label">
           <.link
             navigate={~p"/recover"}
-            class="text-teal-800 underline-offset-4 hover:underline dark:text-teal-300"
+            class="text-accent underline-offset-4 hover:underline"
           >{gettext("Lost your passkey? Use a recovery code")}</.link>
         </p>
       </div>
@@ -169,10 +169,10 @@ defmodule SikioWeb.SignInLive do
           />
           <Layouts.auth_button>{gettext("Sign in with a recovery code")}</Layouts.auth_button>
         </form>
-        <p class="mt-6 text-center text-sm">
+        <p class="mt-6 text-center text-label">
           <.link
             navigate={~p"/login"}
-            class="text-teal-800 underline-offset-4 hover:underline dark:text-teal-300"
+            class="text-accent underline-offset-4 hover:underline"
           >{gettext("Back to passkey sign-in")}</.link>
         </p>
       </div>
