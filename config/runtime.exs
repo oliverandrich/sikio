@@ -156,6 +156,22 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
+  # Pictures fetched from publishers are written here. It lies outside the release, so an upgrade
+  # replaces the release without throwing the cache away.
+  picture_cache_dir =
+    case System.get_env("PICTURE_CACHE_DIR", "") |> String.trim() do
+      "/" <> _ = path ->
+        path
+
+      _ ->
+        raise """
+        environment variable PICTURE_CACHE_DIR is missing or not an absolute path.
+        For example: /var/lib/sikio/pictures
+        """
+    end
+
+  config :sikio, picture_cache_dir: picture_cache_dir
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

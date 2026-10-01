@@ -18,7 +18,8 @@ config :sikio, Oban, testing: :manual
 # installed, and a test that forgets to install one fails rather than reaching a stranger's server.
 config :sikio,
   feed_resolver: &Sikio.FeedFixtures.resolve/1,
-  feed_http_plug: {Req.Test, Sikio.Feeds.HTTP}
+  feed_http_plug: {Req.Test, Sikio.Feeds.HTTP},
+  picture_cache_dir: Path.join(System.tmp_dir!(), "sikio-test-pictures")
 
 # Configure your database
 #

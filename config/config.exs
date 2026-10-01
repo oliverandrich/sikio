@@ -28,7 +28,8 @@ config :sikio, Oban,
   cron: [
     crontab: [
       {"*/15 * * * *", Sikio.Feeds.Scheduler},
-      {"*/15 * * * *", Sikio.Accounts.Cleanup}
+      {"*/15 * * * *", Sikio.Accounts.Cleanup},
+      {"17 3 * * *", Sikio.Pictures.Cleanup}
     ]
   ],
   pruner: [max_age: 86_400]

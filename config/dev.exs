@@ -83,3 +83,6 @@ config :phoenix_live_view,
 config :sikio, Sikio.Mailer, adapter: Swoosh.Adapters.Local
 config :sikio, :mail_enabled, true
 config :sikio, :mail_from, {"Sikio", "sikio@localhost"}
+
+# Pictures fetched from publishers, kept beside the project rather than in the release.
+config :sikio, picture_cache_dir: Path.expand("../tmp/pictures", __DIR__)

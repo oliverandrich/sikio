@@ -60,6 +60,11 @@ defmodule SikioWeb.Router do
     post "/recovery-codes", AccountSecurityController, :regenerate_codes
   end
 
+  scope "/pictures", SikioWeb do
+    pipe_through [:browser, :authenticated]
+    get "/:ref", PictureController, :show
+  end
+
   scope "/auth" do
     pipe_through :ceremony
     # The name the passkey dialog shows, and the only thing separating this example's credentials

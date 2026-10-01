@@ -28,12 +28,18 @@ these variables in the environment used for both migration and startup:
 | `PHX_HOST` | Stable public hostname without scheme or port |
 | `PORT` | Internal HTTP port, 4000 by default |
 | `POOL_SIZE` | Database connections, 10 by default |
+| `PICTURE_CACHE_DIR` | Absolute path for pictures fetched from publishers; outside the release, writable by the service |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
 | `TRUSTED_PROXIES` | Addresses that may forward a visitor's own; only needed for a proxy on another host |
 | `ACCOUNT_IDENTITY` | `username` (the default) or `email`; anything else stops the boot. `email` requires the mail settings below |
 | `MAIL_ENABLED` | `true` to deliver invitations; required by `ACCOUNT_IDENTITY=email` |
 | `MAIL_FROM` | The address invitations come from |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Submission server; the port defaults to 587 |
+
+`PICTURE_CACHE_DIR` holds thumbnails and artwork that Sikio fetches on the reader's behalf.
+Browsers load them from this host, so publishers never see who reads their feed. A missing or
+relative path stops the boot. The directory is a cache: deleting it loses nothing, and a daily
+job removes pictures nobody was served for thirty days.
 
 `SOURCE_URL` is what the footer links to, which AGPL §13 asks an operator to offer. Leave it
 unset to point at the upstream repository. A value that is not an absolute http or https URL

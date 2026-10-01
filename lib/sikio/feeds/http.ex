@@ -4,8 +4,8 @@ defmodule Sikio.Feeds.HTTP do
   @moduledoc """
   Bounded public HTTP requests with DNS pinning and per-hop validation.
 
-  Every address in this application comes from somebody pasting it, so each one is treated as a
-  request to fetch a URL the server chooses. That is server-side request forgery unless the
+  Every address in this application comes from somebody pasting it or from a feed somebody
+  subscribed to, so each one is treated as a request to fetch a URL a stranger chose. That is server-side request forgery unless the
   destination is checked, and checking the hostname is not enough: the name is resolved once, every
   answer is required to be public, and the connection then goes to the address that was checked
   while the original hostname still carries the `Host` header and the TLS handshake.
