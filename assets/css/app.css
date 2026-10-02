@@ -192,6 +192,11 @@
    sidebar and covers nothing. */
 :root { --nav-bar: 3.5rem; }
 
+/* From lg the page does not spring back at its ends, and so Safari offers no pull to reload. */
+@media (width >= 64rem) {
+  html { overscroll-behavior: none; }
+}
+
 @media (width < 64rem) {
   #player-panel { bottom: calc(var(--nav-bar) + 1rem + env(safe-area-inset-bottom)); max-height: 75dvh; }
   /* The account menu opens upwards into the panel's room and holds the offer of the source. */

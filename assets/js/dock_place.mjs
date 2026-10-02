@@ -85,7 +85,9 @@ export const DockPlace = {
     this.observer.observe(document.body, {childList: true, subtree: true,
       attributes: true, attributeFilter: ["class", "data-entry-id"]})
     window.addEventListener("resize", this.schedule)
-    window.addEventListener("scroll", this.schedule, {passive: true})
+    // From lg the list and the detail scroll on their own, and their scrolling does not bubble.
+    // Capturing hears it, and the window's own as well.
+    window.addEventListener("scroll", this.schedule, {capture: true, passive: true})
     this.watch()
     this.schedule()
   },
@@ -94,6 +96,6 @@ export const DockPlace = {
     this.observer.disconnect()
     this.sizes.disconnect()
     window.removeEventListener("resize", this.schedule)
-    window.removeEventListener("scroll", this.schedule)
+    window.removeEventListener("scroll", this.schedule, {capture: true})
   }
 }

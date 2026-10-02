@@ -62,18 +62,142 @@ defmodule SikioWeb.LibraryTest do
     end)
   end
 
-  # The list's head, with its heading, search and filters, stays in view while the list scrolls.
-  feature "the list's head stays put while the list scrolls", %{session: session} do
+  # From lg the window stands still. The list scrolls in its own column beneath its head, and the
+  # detail beside it stays where it is.
+  feature "the list scrolls on its own beneath its head", %{session: session} do
     session
     |> resize_window(1440, 700)
     |> open("/")
     |> assert_has(css("#entries article", count: 25))
-    |> execute_script("window.scrollTo(0, 1200)")
+    |> assert_has(css("#item-detail h2"))
+    |> execute_script("document.getElementById('list-pane').scrollTop = 1200")
     |> execute_script(
-      "return [window.scrollY, Math.round(document.getElementById('list-head').getBoundingClientRect().top)]",
-      fn [scrolled, top] ->
-        assert scrolled > 0
-        assert top == 0
+      """
+      const top = id => Math.round(document.getElementById(id).getBoundingClientRect().top)
+      return [document.getElementById('list-pane').scrollTop, window.scrollY, top('list-head'),
+              Math.round(document.querySelector('#item-detail h2').getBoundingClientRect().top),
+              document.documentElement.scrollHeight - window.innerHeight]
+      """,
+      fn [list, window, head, title, page_room] ->
+        assert list > 0
+        assert window == 0
+        assert head == 0
+        assert title < 200, "the detail does not move with the list"
+        assert page_room <= 0, "the page itself has nothing to scroll"
+      end
+    )
+  end
+
+  # Long notes scroll in the detail's column, and the list beside it stays where it is. Another
+  # item starts at its top, not where the last one was left.
+  feature "the detail scrolls on its own and starts at the top", %{session: session} do
+    session
+    |> resize_window(1440, 400)
+    |> open("/")
+    |> assert_has(css("#item-detail h2", text: "Episode 40"))
+    |> execute_script("document.getElementById('item-detail').scrollTop = 150")
+    |> execute_script(
+      "return [document.getElementById('item-detail').scrollTop, window.scrollY, Math.round(document.getElementById('list-head').getBoundingClientRect().top)]",
+      fn [detail, window, head] ->
+        assert detail > 0
+        assert window == 0
+        assert head == 0
+      end
+    )
+    |> click(css("#entries article:nth-child(2) a"))
+    |> assert_has(css("#item-detail h2", text: "Episode 39"))
+    |> execute_script("return document.getElementById('item-detail').scrollTop", fn top ->
+      assert top == 0
+    end)
+  end
+
+  # The window no longer scrolls, so each column takes the keyboard's focus to be scrolled. Chrome
+  # lets a scroll box take it unasked, Safari does not, so both stand in the tab order.
+  feature "the keyboard scrolls a column it has focused", %{session: session} do
+    session
+    |> resize_window(1440, 400)
+    |> open("/")
+    |> assert_has(css("#item-detail h2", text: "Episode 40"))
+    |> execute_script(
+      "return ['list-pane', 'item-detail'].map(id => document.getElementById(id).tabIndex)",
+      fn indexes -> assert indexes == [0, 0] end
+    )
+    |> execute_script("document.getElementById('item-detail').focus()")
+    |> send_keys([" "])
+    |> execute_script(
+      # Keys scroll smoothly, so the script waits up to a second for the column to move.
+      """
+      const detail = document.getElementById('item-detail'), until = performance.now() + 1000
+      return new Promise(function wait(resolve) {
+        if (detail.scrollTop > 0 || performance.now() > until) resolve(detail.scrollTop)
+        else requestAnimationFrame(() => wait(resolve))
+      })
+      """,
+      fn top -> assert top > 0 end
+    )
+  end
+
+  # Opened by its address, an item far down the list has its row in view beside it.
+  feature "an item opened by its address has its row in view", %{session: session} do
+    session
+    |> resize_window(1440, 500)
+    |> open("/")
+    |> assert_has(css("#entries article", count: 25))
+    |> execute_script(
+      "return document.querySelector('#entries article:nth-child(20) a').getAttribute('href')",
+      fn href -> Process.put(:href, href) end
+    )
+    |> then(&open(&1, Process.delete(:href)))
+    |> assert_has(css("#item-detail h2", text: "Episode 21"))
+    |> execute_script(
+      """
+      const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
+      return frame().then(frame).then(() => {
+        const row = document.querySelector('#entries article:nth-child(20)').getBoundingClientRect()
+        const head = document.getElementById('list-head').getBoundingClientRect()
+        return [Math.round(row.top - head.bottom), Math.round(window.innerHeight - row.bottom)]
+      })
+      """,
+      fn [below_head, above_end] ->
+        assert below_head >= 0
+        assert above_end >= 0
+      end
+    )
+  end
+
+  # Neither the page nor a column springs back at its end, and so Safari has no page to pull.
+  feature "nothing bounces at the end of a scroll", %{session: session} do
+    session
+    |> resize_window(1440, 700)
+    |> open("/")
+    |> assert_has(css("#item-detail h2"))
+    |> execute_script(
+      """
+      const behavior = el => getComputedStyle(el).overscrollBehaviorY
+      return [behavior(document.documentElement), behavior(document.getElementById('list-pane')),
+              behavior(document.getElementById('item-detail'))]
+      """,
+      fn behaviors -> assert behaviors == ["none", "none", "none"] end
+    )
+  end
+
+  # Moving with j and k keeps the chosen row in view, beneath the list's head.
+  feature "the keyboard keeps the chosen row in view", %{session: session} do
+    session
+    |> resize_window(1440, 500)
+    |> open("/")
+    |> assert_has(css("#item-detail h2", text: "Episode 40"))
+    |> send_keys(List.duplicate("j", 6))
+    |> assert_has(css("#item-detail h2", text: "Episode 34"))
+    |> execute_script(
+      """
+      const row = document.querySelector('#entries article:nth-child(7)').getBoundingClientRect()
+      const head = document.getElementById('list-head').getBoundingClientRect()
+      return [Math.round(row.top - head.bottom), Math.round(window.innerHeight - row.bottom)]
+      """,
+      fn [below_head, above_end] ->
+        assert below_head >= 0, "the row is not under the list's head"
+        assert above_end >= 0, "the row is not cut off at the window's end"
       end
     )
   end

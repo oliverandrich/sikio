@@ -337,12 +337,19 @@ defmodule SikioWeb.LibraryLive do
         phx-hook="ReaderKeys"
         data-selected={@selected && @selected.id}
         data-rows={length(@entries)}
-        class="lg:grid lg:min-h-svh lg:grid-cols-[28rem_minmax(0,1fr)] lg:items-start"
+        class="lg:grid lg:h-svh lg:grid-cols-[28rem_minmax(0,1fr)]"
       >
-        <div class={[
-          "min-w-0 lg:min-h-svh lg:self-stretch lg:border-r lg:border-line lg:bg-surface",
-          @selected && "hidden lg:block"
-        ]}>
+        <%!-- From lg the window stands still. The list and the detail scroll on their own, and
+        neither springs back at its end. Each takes the focus, so the keyboard can scroll it. --%>
+        <div
+          id="list-pane"
+          tabindex="0"
+          class={[
+            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+            "min-w-0 lg:h-svh lg:overflow-y-auto lg:overscroll-none lg:border-r lg:border-line lg:bg-surface",
+            @selected && "hidden lg:block"
+          ]}
+        >
           <%!-- Heading, search and filters stay in view while the list scrolls beneath them. --%>
           <div id="list-head" class="lg:sticky lg:top-0 lg:z-10 lg:bg-surface">
             <div class="flex items-start justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
@@ -514,8 +521,10 @@ defmodule SikioWeb.LibraryLive do
           id="item-detail"
           data-entry-id={@selected && @selected.id}
           aria-label={gettext("Selected item")}
+          tabindex="0"
           class={[
-            "min-w-0 px-6 py-6 sm:px-12 lg:sticky lg:top-0 lg:px-7 lg:py-6",
+            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+            "min-w-0 px-6 py-6 sm:px-12 lg:h-svh lg:overflow-y-auto lg:overscroll-none lg:px-7 lg:py-6",
             !@selected && "hidden lg:block"
           ]}
         >

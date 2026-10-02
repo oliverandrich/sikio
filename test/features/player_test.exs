@@ -169,6 +169,41 @@ defmodule SikioWeb.PlayerTest do
       end)
     end
 
+    # The detail scrolls in its own column, and the pinned player moves with its slot.
+    feature "moves with the detail as it scrolls", context do
+      %{session: session, entry: entry} = context
+
+      session
+      |> resize_window(1280, 320)
+      |> open("/library/#{entry.id}")
+      |> click(css("#start-playback"))
+      |> assert_has(css(~s|#player-panel[data-place="pinned"] audio|))
+      # Settled first, so nothing still pending places the player after the scroll.
+      |> execute_script(
+        """
+        const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
+        return frame().then(frame).then(frame).then(() => {
+          const detail = document.getElementById('item-detail')
+          detail.scrollTop = 60
+          return detail.scrollTop
+        })
+        """,
+        fn top -> assert top > 0, "the detail has something to scroll" end
+      )
+      # Two frames after the scroll, with nothing else changing in between.
+      |> execute_script(
+        """
+        const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
+        return frame().then(frame).then(() => {
+          const a = document.getElementById('player-panel').getBoundingClientRect(),
+                b = document.getElementById('player-slot').getBoundingClientRect()
+          return Math.round(a.top - b.top)
+        })
+        """,
+        fn offset -> assert offset == 0, "the player lies on its slot" end
+      )
+    end
+
     # Playback is global and selection is not. When they disagree the notes get the room, and on a
     # page without a detail the bar still says what plays and can pause it.
     feature "folds into the sidebar when the detail shows something else", context do

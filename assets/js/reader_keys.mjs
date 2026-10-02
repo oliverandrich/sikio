@@ -23,6 +23,26 @@ export function closesSearch(event) {
   return event.key === "Escape" && event.target?.id === "search-input"
 }
 
+// How far the list must scroll to show a row between its head's lower edge and the pane's end.
+export function reveal({top, bottom, rowTop, rowBottom}) {
+  if (rowTop < top) return rowTop - top
+  if (rowBottom > bottom) return rowBottom - bottom
+  return 0
+}
+
+// From lg a newly chosen item starts at the detail's top, and its row is in the list's view.
+function follow(id) {
+  const detail = document.getElementById("item-detail")
+  if (detail) detail.scrollTop = 0
+  const pane = document.getElementById("list-pane")
+  const row = document.getElementById(`entries-${id}`)
+  if (!WIDE.matches || !pane || !row) return
+  const head = document.getElementById("list-head").getBoundingClientRect()
+  const box = row.getBoundingClientRect()
+  pane.scrollTop += reveal({top: head.bottom, bottom: pane.getBoundingClientRect().bottom,
+    rowTop: box.top, rowBottom: box.bottom})
+}
+
 export const ReaderKeys = {
   mounted() {
     this.onKey = event => {
@@ -43,12 +63,20 @@ export const ReaderKeys = {
     // Turned narrow, an item the page chose for the wide screen would cover the list.
     this.fitWidth = () => WIDE.matches ? this.chooseFirst() : this.pushEvent("release_first", {})
     WIDE.addEventListener("change", this.fitWidth)
+    // Opened by its address, an item far down the list has its row brought into view too.
+    this.shown = this.el.dataset.selected
+    if (this.shown) follow(this.shown)
     this.chooseFirst()
     // The page names what takes the focus once it has rendered the field it opened or closed.
     this.handleEvent("focus", ({id}) => document.getElementById(id)?.focus())
   },
   // A new place or filter may leave nothing chosen, so the page asks again after every patch.
-  updated() { this.chooseFirst() },
+  updated() {
+    const {selected} = this.el.dataset
+    if (selected && selected !== this.shown) follow(selected)
+    this.shown = selected
+    this.chooseFirst()
+  },
   destroyed() {
     window.removeEventListener("keydown", this.onKey)
     WIDE.removeEventListener("change", this.fitWidth)

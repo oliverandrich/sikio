@@ -2,7 +2,7 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {closesSearch, readerKey, wantsFirst} from "./reader_keys.mjs"
+import {closesSearch, readerKey, wantsFirst, reveal} from "./reader_keys.mjs"
 
 const press = (key, extra = {}) => ({key, target: {tagName: "BODY"}, ...extra})
 
@@ -45,4 +45,11 @@ test("a key typed into a form control stays there", () => {
   for (const tagName of ["INPUT", "SELECT", "TEXTAREA"])
     assert.equal(readerKey(press("j", {target: {tagName}})), null, tagName)
   assert.equal(readerKey(press("j", {target: {tagName: "DIV", isContentEditable: true}})), null)
+})
+
+// The list's head stands over the top of the pane, so a row is only in view beneath it.
+test("a row above the head's edge or below the pane's end is scrolled into view", () => {
+  assert.equal(reveal({top: 100, bottom: 600, rowTop: 150, rowBottom: 250}), 0)
+  assert.equal(reveal({top: 100, bottom: 600, rowTop: 60, rowBottom: 160}), -40)
+  assert.equal(reveal({top: 100, bottom: 600, rowTop: 560, rowBottom: 660}), 60)
 })
