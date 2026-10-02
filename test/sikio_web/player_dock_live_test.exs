@@ -194,6 +194,15 @@ defmodule SikioWeb.PlayerDockLiveTest do
     src = Regex.run(~r|src="(https://video[^"]+)"|, html) |> Enum.at(1)
     assert String.contains?(src, "api=1")
     assert length(String.split(src, "?")) == 2, "an address gets one question mark, not two"
+    # Without peer to peer the instance alone serves the video: no mirror that may fail, and no
+    # other viewer who learns this one's address.
+    assert src
+           |> String.replace("&amp;", "&")
+           |> URI.parse()
+           |> Map.fetch!(:query)
+           |> URI.decode_query()
+           |> Map.get("p2p") == "0"
+
     assert html =~ ~s(data-kind="peertube")
     refute html =~ "youtube-nocookie", "nothing of YouTube's is loaded for a PeerTube video"
   end

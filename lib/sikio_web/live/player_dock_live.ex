@@ -163,13 +163,17 @@ defmodule SikioWeb.PlayerDockLive do
     do: assign(socket, :entry, %{socket.assigns.entry | playback: progress})
 
   # The address the feed named, with what the embed needs from us: permission to speak through
-  # its api, to start at once, and the second to resume at. Nothing here is built out of host and id, so a
+  # its api, to start at once, and the second to resume at. Peer to peer stays off, so the
+  # instance alone serves the video: a mirror it names may fail, and peers would see the viewer's
+  # address. Nothing here is built out of host and id, so a
   # release that spells its own addresses differently keeps working. What it named may already
   # carry a query, and a second question mark would hide everything this adds.
   defp peertube_url(entry, player) do
     entry.embed_url
     |> URI.parse()
-    |> URI.append_query(URI.encode_query(%{api: 1, autoplay: 1, start: trunc(player.position)}))
+    |> URI.append_query(
+      URI.encode_query(%{api: 1, autoplay: 1, p2p: 0, start: trunc(player.position)})
+    )
     |> URI.to_string()
   end
 
