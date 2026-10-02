@@ -214,7 +214,8 @@ defmodule SikioWeb.PlayerDockLive do
               class="player-title mt-1 block text-label leading-snug font-semibold break-words"
             >{@entry.title}</.link>
             <p class="player-status mt-2 text-meta text-muted">
-              {status_label(@entry)} · {timestamp(@entry.playback.position)}
+              {status_label(@entry)} ·
+              <span class="font-mono">{timestamp(@entry.playback.position)}</span>
             </p>
           </div>
           <button

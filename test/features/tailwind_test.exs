@@ -3,6 +3,10 @@
 defmodule SikioWeb.TailwindTest do
   use SikioWeb.FeatureCase
 
+  alias Sikio.FeedFixtures
+  alias Sikio.Feeds.Parser
+  alias Sikio.Library
+
   # Sikio's own grounds, Tailwind's slate-100 and slate-950, read from the browser rather than from
   # the markup: a class name proves nothing about what a stylesheet finally resolves to. A palette
   # retune in Tailwind changes these values, which is worth noticing.
@@ -55,6 +59,32 @@ defmodule SikioWeb.TailwindTest do
       |> system_scheme("dark")
       |> execute_script(wordmark(), fn [_name, dark, _text] -> refute dark == light end)
     end)
+  end
+
+  # Durations, dates and counts are set in the mono, which a browser only loads once something
+  # asks for it. A family that never loaded falls back to a system face without an error.
+  feature "metadata is set in IBM Plex Mono, and the face is loaded", %{session: session} do
+    account = signed_up(session, "ada")
+
+    {:ok, preview} =
+      Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
+
+    {:ok, _} = Library.subscribe(account, preview)
+    [entry] = Library.entries(account)
+
+    session
+    |> open("/")
+    |> assert_has(css("#runtime-#{entry.id}"))
+    |> execute_script(
+      """
+      const runtime = getComputedStyle(document.querySelector('#runtime-#{entry.id}')).fontFamily
+      return document.fonts.ready.then(() => [runtime, document.fonts.check('500 12px "IBM Plex Mono"')])
+      """,
+      fn [family, loaded] ->
+        assert family =~ ~r/^"IBM Plex Mono"/
+        assert loaded
+      end
+    )
   end
 
   defp wordmark do

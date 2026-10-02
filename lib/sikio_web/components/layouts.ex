@@ -325,7 +325,9 @@ defmodule SikioWeb.Layouts do
       ]}
     >
       <span class="min-w-0 truncate">{render_slot(@inner_block)}</span>
-      <span :if={@count > 0} id={"#{@id}-count"} class="text-meta text-muted">{@count}</span>
+      <span :if={@count > 0} id={"#{@id}-count"} class="font-mono text-meta font-normal text-muted">
+        {@count}
+      </span>
     </.link>
     """
   end

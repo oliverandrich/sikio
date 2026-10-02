@@ -200,7 +200,7 @@ defmodule SikioWeb.LibraryLive do
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-baseline gap-3">
               <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
-              <span :if={!@empty?} id="library-count" class="text-meta text-muted">
+              <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
                 {count_label(@shown, @total)}
               </span>
             </div>
@@ -358,7 +358,7 @@ defmodule SikioWeb.LibraryLive do
           <span
             :if={@runtime}
             id={"runtime-#{@entry.id}"}
-            class="absolute right-1 bottom-1 rounded bg-black/75 px-1 text-[11px] font-semibold text-white"
+            class="absolute right-1 bottom-1 rounded bg-black/75 px-1 font-mono text-[11px] font-medium text-white"
           >
             {@runtime}
           </span>
@@ -384,7 +384,7 @@ defmodule SikioWeb.LibraryLive do
               <Lucideicons.mic :if={!video?(@entry)} aria-hidden="true" class="size-3.5" />
               {kind_label(@entry)}
             </span>
-            <span :if={@entry.published_at}>
+            <span :if={@entry.published_at} class="font-mono">
               {date(@entry.published_at)}
             </span>
           </span>
@@ -453,7 +453,7 @@ defmodule SikioWeb.LibraryLive do
       ]}
     >
       {render_slot(@inner_block)}
-      <span :if={@count > 0} class="text-meta opacity-70">{@count}</span>
+      <span :if={@count > 0} class="font-mono text-meta font-normal opacity-70">{@count}</span>
     </.link>
     """
   end
@@ -483,7 +483,7 @@ defmodule SikioWeb.LibraryLive do
       >
         <span class="block h-full bg-signal-strong" style={"width: #{@percent}%"}></span>
       </span>
-      {status_label(@entry)} · {timestamp(@position)}
+      {status_label(@entry)} · <span class="font-mono font-normal">{timestamp(@position)}</span>
     </span>
     """
   end
@@ -514,12 +514,13 @@ defmodule SikioWeb.LibraryLive do
         <p id="playback-status" aria-live="polite" class="text-meta text-muted">
           {kind_label(@entry)}
           <span :if={@entry.published_at}>
-            · {date(@entry.published_at)}
+            · <span class="font-mono">{date(@entry.published_at)}</span>
           </span>
-          <span :if={@runtime}>· {@runtime}</span>
+          <span :if={@runtime}>· <span class="font-mono">{@runtime}</span></span>
           · {status_label(@entry)}
           <span :if={@entry.playback && @entry.playback.position > 0}>
-            · {gettext("Saved at %{time}", time: timestamp(@entry.playback.position))}
+            · {gettext("Saved at")}
+            <span class="font-mono">{timestamp(@entry.playback.position)}</span>
           </span>
         </p>
       </div>
