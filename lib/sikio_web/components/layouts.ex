@@ -168,7 +168,11 @@ defmodule SikioWeb.Layouts do
 
     ~H"""
     <div class="min-h-svh pb-[calc(var(--nav-bar)+env(safe-area-inset-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
-      <header class="flex flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-12 sm:py-7 lg:sticky lg:top-0 lg:h-svh lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-start lg:gap-5 lg:overflow-y-auto lg:border-r lg:border-line lg:px-3 lg:py-4">
+      <%!-- assets/js/dock_place.mjs makes room at its foot for the now playing bar. --%>
+      <header
+        phx-mounted={JS.ignore_attributes("style")}
+        class="flex flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-12 sm:py-7 lg:sticky lg:top-0 lg:h-svh lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-start lg:gap-5 lg:overflow-y-auto lg:border-r lg:border-line lg:px-3 lg:py-4"
+      >
         <.link
           navigate={~p"/"}
           class="flex items-center gap-3 lg:px-2.5"

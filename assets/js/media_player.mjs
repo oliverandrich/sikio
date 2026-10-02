@@ -6,7 +6,8 @@ import {connect} from "./peertube_embed.mjs"
 export function createReporter({session, read, send, stop, message, strings, now = Date.now}) {
   let sequence = 0, inFlight = null, pending = null, lastSave = -Infinity
   let connected = true, closed = false, completed = false
-  let finishDone = null
+  let finishDone = null, warned = false
+  const warn = text => { warned = true; message(text) }
 
   function finishResult(saved) {
     const done = finishDone
@@ -25,11 +26,12 @@ export function createReporter({session, read, send, stop, message, strings, now
       if (!reply.saved) {
         closed = true
         stop()
-        message(strings.stale)
+        warn(strings.stale)
         finishResult(false)
         return
       }
-      message(strings.saved)
+      // A saved place is the normal case and says nothing. It takes back its own warning only.
+      if (warned) { warned = false; message("") }
       flush()
       if (inFlight === null && !pending) finishResult(true)
     })
@@ -51,7 +53,7 @@ export function createReporter({session, read, send, stop, message, strings, now
       connected = false
       inFlight = null
       stop()
-      message(strings.disconnected)
+      warn(strings.disconnected)
       finishResult(false)
     },
     reconnect() {
@@ -63,7 +65,7 @@ export function createReporter({session, read, send, stop, message, strings, now
       if (closed) return done(true)
       stop()
       if (!connected) {
-        message(strings.reconnectFirst)
+        warn(strings.reconnectFirst)
         return done(false)
       }
       finishDone = done
@@ -153,10 +155,7 @@ export const MediaPlayer = {
 
         if (typeof status === "object") {
           this.reported = {position: status.position, duration: status.duration}
-          if (!this.ready) {
-            this.ready = true
-            this.message(this.strings.readyPeertube)
-          }
+          this.ready = true
         }
 
         if (!this.ready) return
@@ -174,7 +173,6 @@ export const MediaPlayer = {
       const position = Number(this.el.dataset.position)
       audio.currentTime = Number.isFinite(audio.duration) ? Math.min(position, audio.duration) : position
       this.ready = true
-      this.message(this.strings.readyAudio)
       audio.play().catch(() => this.message(this.strings.readyAudioManual))
     }
     this.listen(audio, "loadedmetadata", restore)
@@ -203,7 +201,6 @@ export const MediaPlayer = {
         onReady: () => {
           if (this.closed) return
           this.ready = true
-          this.message(this.strings.readyYoutube)
           let previousPosition = this.youtube.getCurrentTime()
           this.poll = setInterval(() => {
             const state = this.youtube.getPlayerState()

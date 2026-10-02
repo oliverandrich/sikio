@@ -29,6 +29,16 @@ defmodule SikioWeb.LibraryDetailTest do
     assert %{playback: %{status: :new}} = Library.entry(c.user, c.entry.id)
   end
 
+  # Under the title is the player's place. Until play is pressed it shows what plays there and
+  # loads nothing from anybody else; marking and the original sit at the card's head.
+  test "the detail offers the player under its title and its actions at its head", c do
+    {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+
+    assert has_element?(view, "#item-detail #player-slot #start-playback")
+    refute has_element?(view, "#item-detail audio")
+    assert has_element?(view, ~s|#item-actions #mark-completed[aria-label="Mark as listened"]|)
+  end
+
   test "audio loads on request, resumes and saves only the active entry", c do
     {:ok, state} = Playback.start(c.user, c.entry.id)
     Playback.save(c.user, c.entry.id, state.session_id, sample(1, 42))

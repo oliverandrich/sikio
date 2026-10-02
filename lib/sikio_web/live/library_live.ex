@@ -515,7 +515,7 @@ defmodule SikioWeb.LibraryLive do
           data-entry-id={@selected && @selected.id}
           aria-label={gettext("Selected item")}
           class={[
-            "min-w-0 px-6 py-6 sm:px-12 lg:sticky lg:top-0 lg:px-7 lg:pt-(--dock-inset) lg:pb-6",
+            "min-w-0 px-6 py-6 sm:px-12 lg:sticky lg:top-0 lg:px-7 lg:py-6",
             !@selected && "hidden lg:block"
           ]}
         >
@@ -670,6 +670,27 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  # An action at the card's head: an icon, named for screen readers and on hover.
+  defp icon_action(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      aria-label={@label}
+      title={@label}
+      class="flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+      {@rest}
+    >
+      {render_slot(@inner_block)}
+    </button>
+    """
+  end
+
   # One choice in the phone's chip row: the same addresses and counts as the sidebar.
   attr :id, :string, required: true
   attr :to, :string, required: true
@@ -773,18 +794,15 @@ defmodule SikioWeb.LibraryLive do
     <.link patch={@back} class="mb-4 inline-block text-label font-semibold text-accent lg:hidden">
       {gettext("← Your library")}
     </.link>
-    <article
-      data-dock-anchor
-      class="flex flex-col gap-4 rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-line"
-    >
-      <div class="flex items-center gap-3">
+    <article class="flex flex-col gap-4 rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-line">
+      <div class="flex items-start gap-3">
         <span
           aria-hidden="true"
           class="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-meta font-semibold text-accent"
         >
           {initial(@entry.feed.title)}
         </span>
-        <div class="flex min-w-0 flex-col">
+        <div class="flex min-w-0 grow flex-col">
           <p class="truncate text-label font-semibold text-accent">{@entry.feed.title}</p>
           <p
             id="playback-status"
@@ -800,48 +818,78 @@ defmodule SikioWeb.LibraryLive do
             <.status_mark entry={@entry} status={@status} />
           </p>
         </div>
+        <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center">
+          <.icon_action
+            :if={@status != :completed}
+            id="mark-completed"
+            label={mark_done_label(@entry)}
+            phx-click="mark"
+            phx-value-id={@entry.id}
+            phx-value-status="completed"
+          >
+            <Lucideicons.check aria-hidden="true" class="size-4.5" />
+          </.icon_action>
+          <.icon_action
+            :if={@status != :new}
+            id="mark-new"
+            label={mark_new_label(@entry)}
+            phx-click="mark"
+            phx-value-id={@entry.id}
+            phx-value-status="new"
+          >
+            <Lucideicons.rotate_ccw aria-hidden="true" class="size-4.5" />
+          </.icon_action>
+          <a
+            :if={@entry.feed.kind == :youtube}
+            id="open-original"
+            href={"https://www.youtube.com/watch?v=#{@entry.video_id}"}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={gettext("Open on YouTube")}
+            title={gettext("Open on YouTube")}
+            class="flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+          >
+            <Lucideicons.external_link aria-hidden="true" class="size-4.5" />
+          </a>
+        </div>
       </div>
       <h2 class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
-      <div class="flex flex-wrap items-center gap-3">
-        <.button
+      <%!-- The player's place. The dock lays the playing player over it; until then it shows what
+      would play and loads nothing from anybody else. See assets/js/dock_place.mjs. --%>
+      <div id="player-slot" phx-mounted={JS.ignore_attributes(["style", "data-pinned"])}>
+        <button
           id="start-playback"
-          variant="primary"
+          type="button"
           phx-click={JS.dispatch("sikio:play", detail: %{id: @entry.id})}
+          class="group block w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <Lucideicons.play aria-hidden="true" class="size-4 fill-current" />
-          {play_label(@entry)}
-        </.button>
-        <.button
-          :if={@status != :completed}
-          id="mark-completed"
-          phx-click="mark"
-          phx-value-id={@entry.id}
-          phx-value-status="completed"
-        >
-          <Lucideicons.check aria-hidden="true" class="size-4" />
-          {mark_done_label(@entry)}
-        </.button>
-        <.button
-          :if={@status != :new}
-          id="mark-new"
-          phx-click="mark"
-          phx-value-id={@entry.id}
-          phx-value-status="new"
-        >
-          <Lucideicons.rotate_ccw aria-hidden="true" class="size-4" />
-          {mark_new_label(@entry)}
-        </.button>
-        <a
-          :if={@entry.feed.kind == :youtube}
-          id="open-original"
-          href={"https://www.youtube.com/watch?v=#{@entry.video_id}"}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex min-h-11 items-center gap-1.5 px-2 text-label text-muted hover:text-ink"
-        >
-          <Lucideicons.external_link aria-hidden="true" class="size-4" />
-          {gettext("Open on YouTube")}
-        </a>
+          <span
+            :if={video?(@entry)}
+            class="relative block aspect-video w-full overflow-hidden rounded-xl bg-line"
+          >
+            <img
+              src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
+              alt=""
+              class="size-full object-cover"
+            />
+            <span class="absolute inset-0 flex items-center justify-center bg-black/10">
+              <span class="flex size-16 items-center justify-center rounded-full bg-accent text-on-accent shadow-lg transition group-hover:scale-105">
+                <Lucideicons.play aria-hidden="true" class="size-7 fill-current" />
+              </span>
+            </span>
+            <span class="sr-only">{play_label(@entry)}</span>
+          </span>
+          <span
+            :if={!video?(@entry)}
+            class="flex min-h-14 items-center gap-3 rounded-xl bg-ground px-3 py-2"
+          >
+            <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent transition group-hover:scale-105">
+              <Lucideicons.play aria-hidden="true" class="size-4 fill-current" />
+            </span>
+            <span class="text-label font-semibold text-ink">{play_label(@entry)}</span>
+            <span :if={@runtime} class="ml-auto font-mono text-meta text-muted">{@runtime}</span>
+          </span>
+        </button>
       </div>
       <%!-- The card keeps the column's width; the notes stop at a reading measure in its middle. --%>
       <section class="border-t border-line pt-4">

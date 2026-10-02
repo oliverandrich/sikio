@@ -20,6 +20,8 @@ defmodule SikioWeb.PlayerTest do
   alias Sikio.Library
   alias SikioWeb.PlayerDockLive
 
+  @notes "#item-notes, #item-no-notes"
+
   setup %{session: session} do
     account = signed_up(session, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
@@ -50,10 +52,12 @@ defmodule SikioWeb.PlayerTest do
     assert Library.entry(account, entry.id).playback.session_id
   end
 
+  # The floating panel's button. Pinned in the detail the panel has no heading to carry it.
   feature "the compact button folds the panel without unmounting the audio", context do
     %{session: session, entry: entry} = context
 
     session
+    |> resize_window(500, 900)
     |> open("/library/#{entry.id}")
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel audio"))
@@ -66,6 +70,9 @@ defmodule SikioWeb.PlayerTest do
       fn display -> assert display == "none" end
     )
     |> assert_same_player()
+    # Pinned in a wide detail there is no button to unfold it, so nothing stays folded there.
+    |> resize_window(1280, 900)
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] .player-speed|))
   end
 
   feature "the player survives a dropped and restored socket", context do
@@ -111,8 +118,9 @@ defmodule SikioWeb.PlayerTest do
       %{video: video}
     end
 
-    feature "is the top of the detail that shows what plays", context do
-      %{session: session, entry: entry} = context
+    # The player sits where the detail shows it: under the title, above the notes.
+    feature "is in the detail that shows what plays, under its title", context do
+      %{session: session, account: account, entry: entry} = context
 
       session
       |> resize_window(1280, 900)
@@ -120,12 +128,44 @@ defmodule SikioWeb.PlayerTest do
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-panel[data-place="pinned"] audio|))
       |> execute_script(within("#player-panel", "#item-detail"), fn inside -> assert inside end)
-      # The detail beneath names the source and the title already.
-      |> assert_has(css("#player-panel .player-title", visible: false))
-      |> assert_has(css("#player-panel .player-source", visible: false))
+      # The detail around it names the source and the title, and choosing another item puts it
+      # away, so it needs no heading of its own and no button to close it.
+      |> assert_has(css("#player-panel .player-heading", visible: false))
+      |> assert_has(css("#close-player", visible: false))
       # It sits on the detail's card, not on the column around it.
-      |> execute_script(flush("#player-panel", "#item-detail article"), fn flush ->
-        assert flush
+      |> execute_script(flush("#player-panel", "#player-slot"), fn flush -> assert flush end)
+      |> execute_script(below("#player-panel", "#item-detail h2"), fn below ->
+        assert below, "the player lies below the title"
+      end)
+      |> then(fn session ->
+        assert {:ok, _} = retry(fn -> holds(session, below(@notes, "#player-panel")) end)
+        session
+      end)
+      # A saved place patches the detail and the dock. Neither patch may take the placement away,
+      # not even for the frame until it is worked out again: that frame is a flicker.
+      |> execute_script("""
+      window.sikioLost = []
+      const watch = (id, name) => new MutationObserver(() => {
+        if (!document.querySelector(id).hasAttribute(name)) window.sikioLost.push(name)
+      }).observe(document.querySelector(id), {attributes: true, attributeFilter: [name, 'style']})
+      watch('#player-slot', 'data-pinned')
+      watch('#player-panel', 'data-place')
+      """)
+      |> saved_at(account, entry, 30)
+      |> assert_has(css("#playback-status", text: "62 min left"))
+      |> then(fn session ->
+        # The dock's status is hidden while pinned, and webdriver reads only visible text.
+        status = "#player-panel .player-status"
+        script = "return document.querySelector('#{status}').textContent.includes('0:30')"
+        assert {:ok, _} = retry(fn -> holds(session, script) end)
+        session
+      end)
+      |> execute_script("return window.sikioLost", fn lost -> assert lost == [] end)
+      # Whatever changes the player's height, the slot follows, so the notes are never under it.
+      |> execute_script("document.querySelector('#player-panel audio').style.height = '300px'")
+      |> then(fn session ->
+        assert {:ok, _} = retry(fn -> holds(session, below(@notes, "#player-panel")) end)
+        session
       end)
     end
 
@@ -174,6 +214,19 @@ defmodule SikioWeb.PlayerTest do
       })
 
     session
+  end
+
+  # Whether a script returns true, for `retry/1`: what is painted may lag a frame behind the DOM.
+  defp holds(session, script) do
+    execute_script(session, script, fn value -> Process.put(:holds, value) end)
+    if Process.delete(:holds) == true, do: {:ok, session}, else: {:error, :not_yet}
+  end
+
+  defp below(lower, upper) do
+    """
+    return document.querySelector('#{lower}').getBoundingClientRect().top >=
+           document.querySelector('#{upper}').getBoundingClientRect().bottom
+    """
   end
 
   defp flush(a, b) do

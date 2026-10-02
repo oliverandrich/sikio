@@ -26,8 +26,8 @@ msgstr ""
 msgid "Actions"
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:429
-#: lib/sikio_web/components/layouts.ex:444
+#: lib/sikio_web/components/layouts.ex:433
+#: lib/sikio_web/components/layouts.ex:448
 #, elixir-autogen, elixir-format
 msgid "Attempting to reconnect"
 msgstr ""
@@ -144,7 +144,7 @@ msgstr ""
 msgid "Sign in with a recovery code"
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:313
+#: lib/sikio_web/components/layouts.ex:317
 #, elixir-autogen, elixir-format
 msgid "Sign out"
 msgstr ""
@@ -159,7 +159,7 @@ msgstr ""
 msgid "Somebody else has already claimed this instance."
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:436
+#: lib/sikio_web/components/layouts.ex:440
 #, elixir-autogen, elixir-format
 msgid "Something went wrong!"
 msgstr ""
@@ -279,7 +279,7 @@ msgstr ""
 msgid "Username %{message}."
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:421
+#: lib/sikio_web/components/layouts.ex:425
 #, elixir-autogen, elixir-format
 msgid "We can't find the internet"
 msgstr ""
@@ -376,7 +376,7 @@ msgstr ""
 msgid "Keep your recovery codes somewhere safe, separate from your devices."
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:303
+#: lib/sikio_web/components/layouts.ex:307
 #: lib/sikio_web/live/account_security_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Manage passkeys"
@@ -408,7 +408,7 @@ msgstr ""
 msgid "Please sign in again before adding a passkey."
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:307
+#: lib/sikio_web/components/layouts.ex:311
 #: lib/sikio_web/live/account_security_live.ex:131
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Recovery codes"
@@ -441,7 +441,7 @@ msgid_plural "You have %{count} unused recovery codes."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/sikio_web/components/layouts.ex:291
+#: lib/sikio_web/components/layouts.ex:295
 #, elixir-autogen, elixir-format
 msgid "Your account"
 msgstr ""
@@ -521,17 +521,17 @@ msgstr ""
 msgid "Use a recovery code instead"
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:299
+#: lib/sikio_web/components/layouts.ex:303
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitations"
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:252
+#: lib/sikio_web/components/layouts.ex:256
 #, elixir-autogen, elixir-format
 msgid "Main navigation"
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:175
+#: lib/sikio_web/components/layouts.ex:179
 #, elixir-autogen, elixir-format
 msgid "Sikio home"
 msgstr ""
@@ -820,8 +820,8 @@ msgstr ""
 msgid "Subscription not found."
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:205
-#: lib/sikio_web/components/layouts.ex:268
+#: lib/sikio_web/components/layouts.ex:209
+#: lib/sikio_web/components/layouts.ex:272
 #: lib/sikio_web/live/subscriptions_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Subscriptions"
@@ -892,18 +892,18 @@ msgstr ""
 msgid "← Your subscriptions"
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:210
+#: lib/sikio_web/components/layouts.ex:214
 #: lib/sikio_web/live/library_live.ex:374
 #, elixir-autogen, elixir-format
 msgid "Add a source"
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:245
+#: lib/sikio_web/live/player_dock_live.ex:247
 #, elixir-autogen, elixir-format
 msgid "Close player"
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:226
+#: lib/sikio_web/live/player_dock_live.ex:228
 #, elixir-autogen, elixir-format
 msgid "Compact player"
 msgstr ""
@@ -913,7 +913,7 @@ msgstr ""
 msgid "Completed"
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:226
+#: lib/sikio_web/live/player_dock_live.ex:228
 #, elixir-autogen, elixir-format
 msgid "Expand player"
 msgstr ""
@@ -929,7 +929,7 @@ msgstr ""
 msgid "In progress"
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:260
+#: lib/sikio_web/components/layouts.ex:264
 #: lib/sikio_web/live/library_live.ex:240
 #, elixir-autogen, elixir-format
 msgid "Library"
@@ -938,11 +938,6 @@ msgstr ""
 #: lib/sikio_web/components/media_components.ex:33
 #, elixir-autogen, elixir-format
 msgid "Listened"
-msgstr ""
-
-#: lib/sikio_web/live/player_dock_live.ex:350
-#, elixir-autogen, elixir-format
-msgid "Loading player…"
 msgstr ""
 
 #: lib/sikio_web/components/media_components.ex:42
@@ -971,7 +966,7 @@ msgstr ""
 msgid "New"
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:200
+#: lib/sikio_web/live/player_dock_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "Now playing"
 msgstr ""
@@ -996,7 +991,7 @@ msgstr ""
 msgid "Space for something good."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:315
+#: lib/sikio_web/live/player_dock_live.ex:313
 #, elixir-autogen, elixir-format
 msgid "Speed"
 msgstr ""
@@ -1028,19 +1023,14 @@ msgstr ""
 msgid "Your progress changed in another player or was marked manually. Open the episode to continue here."
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:774
+#: lib/sikio_web/live/library_live.ex:795
 #, elixir-autogen, elixir-format
 msgid "← Your library"
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:270
+#: lib/sikio_web/live/player_dock_live.ex:271
 #, elixir-autogen, elixir-format
 msgid "Connection lost. Playback paused; your latest position will save when reconnected."
-msgstr ""
-
-#: lib/sikio_web/live/player_dock_live.ex:288
-#, elixir-autogen, elixir-format
-msgid "Ready. Press play in the YouTube player."
 msgstr ""
 
 #: lib/sikio_web/live/player_dock_live.ex:278
@@ -1048,19 +1038,9 @@ msgstr ""
 msgid "Ready. Press play in the audio controls."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:277
-#, elixir-autogen, elixir-format
-msgid "Ready. Your place is saved as you listen."
-msgstr ""
-
-#: lib/sikio_web/live/player_dock_live.ex:275
+#: lib/sikio_web/live/player_dock_live.ex:276
 #, elixir-autogen, elixir-format
 msgid "Reconnect before switching or closing, so your place can be saved."
-msgstr ""
-
-#: lib/sikio_web/live/player_dock_live.ex:268
-#, elixir-autogen, elixir-format
-msgid "Saved in Sikio."
 msgstr ""
 
 #: lib/sikio_web/live/player_dock_live.ex:280
@@ -1068,42 +1048,37 @@ msgstr ""
 msgid "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:293
+#: lib/sikio_web/live/player_dock_live.ex:291
 #, elixir-autogen, elixir-format
 msgid "This video cannot be embedded. You can open it on YouTube."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:292
+#: lib/sikio_web/live/player_dock_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "This video is private or has been removed."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:300
+#: lib/sikio_web/live/player_dock_live.ex:298
 #, elixir-autogen, elixir-format
 msgid "YouTube cannot play this video. Try opening it on YouTube."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:290
+#: lib/sikio_web/live/player_dock_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "YouTube could not be loaded. Check your connection or content blocker."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:295
+#: lib/sikio_web/live/player_dock_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:267
+#: lib/sikio_web/live/player_dock_live.ex:269
 #, elixir-autogen, elixir-format
 msgid "Your progress changed elsewhere. Press Play to continue here."
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:284
-#, elixir-autogen, elixir-format
-msgid "Ready. Your place is saved as you watch."
-msgstr ""
-
-#: lib/sikio_web/live/player_dock_live.ex:286
+#: lib/sikio_web/live/player_dock_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "This instance could not be reached. It may be down or blocking this page."
 msgstr ""
@@ -1308,7 +1283,7 @@ msgstr ""
 msgid "Sources"
 msgstr ""
 
-#: lib/sikio_web/components/layouts.ex:184
+#: lib/sikio_web/components/layouts.ex:188
 #: lib/sikio_web/live/library_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Views"
@@ -1321,12 +1296,13 @@ msgid_plural "%{count} items"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/sikio_web/live/library_live.ex:724
+#: lib/sikio_web/live/library_live.ex:745
 #, elixir-autogen, elixir-format
 msgid "Progress"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:843
+#: lib/sikio_web/live/library_live.ex:848
+#: lib/sikio_web/live/library_live.ex:849
 #, elixir-autogen, elixir-format
 msgid "Open on YouTube"
 msgstr ""
@@ -1336,7 +1312,7 @@ msgstr ""
 msgid "Selected item"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:853
+#: lib/sikio_web/live/library_live.ex:901
 #, elixir-autogen, elixir-format
 msgid "The publisher sent no notes for this item."
 msgstr ""
@@ -1406,7 +1382,7 @@ msgstr ""
 msgid "Sep"
 msgstr ""
 
-#: lib/sikio_web/live/player_dock_live.ex:236
+#: lib/sikio_web/live/player_dock_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "Play or pause"
 msgstr ""
@@ -1416,7 +1392,7 @@ msgstr ""
 msgid "%{day} %{month}"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:751
+#: lib/sikio_web/live/library_live.ex:772
 #, elixir-autogen, elixir-format
 msgid "%{minutes} min left"
 msgstr ""

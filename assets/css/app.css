@@ -156,22 +156,24 @@
 /* From lg the panel is either pinned to the detail column or a now playing bar at the foot of the
    sidebar; assets/js/dock_place.mjs decides and sets data-place. Audio keeps playing out of sight
    in the bar, with a button to pause it. A video stays visible there with its own controls. */
-#player-panel[data-place="pinned"] { box-shadow: none; max-height: 60vh; border-radius: 1rem; }
-/* The detail column's top inset, which assets/js/dock_place.mjs reads to pin the panel there. */
-#item-detail { --dock-inset: 24px; }
-/* The detail beneath names the source and the title already. */
-#player-panel[data-place="pinned"] :is(.player-source, .player-title) { display: none; }
-#player-panel[data-place="pinned"] .player-heading { align-items: center; }
-#player-panel[data-place="pinned"] .player-status { margin-top: 0; }
+#player-panel[data-place="pinned"] {
+  box-shadow: none; max-height: 60vh; border-color: transparent; background: transparent; padding: 0;
+}
+/* The player pinned in the detail covers its slot, where the cue to start it waited. */
+#player-slot[data-pinned] > #start-playback { display: none; }
+/* The detail around it names source and title, and choosing another item puts it away. */
+#player-panel[data-place="pinned"] .player-heading { display: none; }
+/* A saved place says nothing; the line holds warnings and errors. */
+[data-player-message]:empty { display: none; }
 #player-panel[data-place="compact"] { padding: .625rem .75rem; max-height: none; }
 #player-panel[data-place="compact"] .player-heading { margin-bottom: 0; align-items: center; }
 :is(.compact-audio, #player-panel[data-place="compact"]) .player-title {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* The user's own compact toggle folds an audio panel anywhere; the sidebar's bar still says what
-   plays and how far it got. */
-.compact-audio :is(.player-source, .player-status, .player-speed) { display: none; }
-.compact-audio .player-heading { margin-bottom: .5rem; align-items: center; }
+/* The user's own compact toggle folds a floating audio panel. Pinned, there is no button to unfold
+   it, so it shows in full. The sidebar's bar still says what plays and how far it got. */
+.compact-audio:not([data-place="pinned"]) :is(.player-source, .player-status, .player-speed) { display: none; }
+.compact-audio:not([data-place="pinned"]) .player-heading { margin-bottom: .5rem; align-items: center; }
 #player-panel[data-place="compact"] :is(.player-source, .player-status) { display: block; }
 #player-panel[data-place="compact"] :is(#compact-player, .player-speed) { display: none; }
 #player-panel[data-place="compact"] #dock-toggle { display: flex; }

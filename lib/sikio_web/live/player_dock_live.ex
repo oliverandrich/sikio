@@ -162,14 +162,14 @@ defmodule SikioWeb.PlayerDockLive do
   defp assign_progress(socket, progress),
     do: assign(socket, :entry, %{socket.assigns.entry | playback: progress})
 
-  # The address the feed named, with the two things the embed needs from us: permission to speak
-  # through its api, and the second to resume at. Nothing here is built out of host and id, so a
+  # The address the feed named, with what the embed needs from us: permission to speak through
+  # its api, to start at once, and the second to resume at. Nothing here is built out of host and id, so a
   # release that spells its own addresses differently keeps working. What it named may already
   # carry a query, and a second question mark would hide everything this adds.
   defp peertube_url(entry, player) do
     entry.embed_url
     |> URI.parse()
-    |> URI.append_query(URI.encode_query(%{api: 1, start: trunc(player.position)}))
+    |> URI.append_query(URI.encode_query(%{api: 1, autoplay: 1, start: trunc(player.position)}))
     |> URI.to_string()
   end
 
@@ -178,6 +178,7 @@ defmodule SikioWeb.PlayerDockLive do
   defp youtube_url(entry, player) do
     query =
       URI.encode_query(%{
+        autoplay: 1,
         enablejsapi: 1,
         origin: SikioWeb.Endpoint.url(),
         playsinline: 1,
@@ -197,6 +198,7 @@ defmodule SikioWeb.PlayerDockLive do
       <aside
         :if={@entry || @notice}
         id="player-panel"
+        phx-mounted={JS.ignore_attributes(["style", "data-place"])}
         aria-label={gettext("Now playing")}
         tabindex="-1"
         class={[
@@ -265,7 +267,6 @@ defmodule SikioWeb.PlayerDockLive do
           data-session={@player.session_id}
           data-position={@player.position}
           data-stale={gettext("Your progress changed elsewhere. Press Play to continue here.")}
-          data-saved={gettext("Saved in Sikio.")}
           data-disconnected={
             gettext(
               "Connection lost. Playback paused; your latest position will save when reconnected."
@@ -274,18 +275,15 @@ defmodule SikioWeb.PlayerDockLive do
           data-reconnect-first={
             gettext("Reconnect before switching or closing, so your place can be saved.")
           }
-          data-ready-audio={gettext("Ready. Your place is saved as you listen.")}
           data-ready-audio-manual={gettext("Ready. Press play in the audio controls.")}
           data-audio-failed={
             gettext(
               "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
             )
           }
-          data-ready-peertube={gettext("Ready. Your place is saved as you watch.")}
           data-peertube-unavailable={
             gettext("This instance could not be reached. It may be down or blocking this page.")
           }
-          data-ready-youtube={gettext("Ready. Press play in the YouTube player.")}
           data-youtube-unavailable={
             gettext("YouTube could not be loaded. Check your connection or content blocker.")
           }
@@ -346,9 +344,8 @@ defmodule SikioWeb.PlayerDockLive do
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowfullscreen
           ></iframe>
-          <p data-player-message role="status" class="mt-4 text-label text-muted">
-            {gettext("Loading player…")}
-          </p>
+          <%!-- Empty while the player works; warnings and errors go here. --%>
+          <p data-player-message role="status" class="mt-4 text-label text-muted"></p>
         </div>
       </aside>
     </div>

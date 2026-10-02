@@ -8,19 +8,15 @@ import {createReporter, MediaPlayer} from "./media_player.mjs"
 // what the player says is what somebody reads when playback stops.
 const STRINGS = {
   stale: "Your progress changed elsewhere. Press Play to continue here.",
-  saved: "Saved in Sikio.",
   disconnected: "Connection lost. Playback paused; your latest position will save when reconnected.",
   reconnectFirst: "Reconnect before switching or closing, so your place can be saved.",
-  readyAudio: "Ready. Your place is saved as you listen.",
   readyAudioManual: "Ready. Press play in the audio controls.",
   audioFailed: "This audio could not be loaded.",
-  readyYoutube: "Ready. Press play in the YouTube player.",
   youtubeUnavailable: "YouTube could not be loaded.",
   youtubeMissing: "This video is private or has been removed.",
   youtubeBlocked: "This video cannot be embedded. You can open it on YouTube.",
   youtubeOrigin: "YouTube could not identify this site.",
   youtubeUnplayable: "YouTube cannot play this video.",
-  readyPeertube: "Ready. Your place is saved as you watch.",
   peertubeUnavailable: "This instance could not be reached."
 }
 
@@ -34,7 +30,7 @@ function reporterFixture() {
     stop: () => { stopped = true }, message: value => { message = value }
   })
   return {reporter, calls, advance: value => {time += value}, seek: value => {position = value},
-    stopped: () => stopped, message: () => message}
+    stopped: () => stopped, message: () => message, say: value => {message = value}}
 }
 
 test("progress is throttled, but pause/seek/end flush immediately and serialize replies", () => {
@@ -82,7 +78,26 @@ test("reconnect retries the latest position and ignores a late pre-disconnect re
   f.calls[0].reply({saved: false})
   assert.doesNotMatch(f.message(), /changed/)
   f.calls[1].reply({saved: true})
-  assert.match(f.message(), /Saved/)
+  assert.equal(f.message(), "", "a save clears the warning and says nothing of its own")
+})
+
+// The player's own hint, such as press play after a refused autoplay, is not the reporter's to
+// clear. A save only takes back a warning the reporter gave itself.
+test("a save leaves a message it did not give", () => {
+  const f = reporterFixture()
+  f.reporter.save()
+  f.calls[0].reply({saved: true})
+  assert.equal(f.calls.length, 1)
+  assert.equal(f.message(), "", "the first save of a working player says nothing")
+  f.reporter.disconnect()
+  f.reporter.reconnect()
+  f.calls[1].reply({saved: true})
+  assert.equal(f.message(), "")
+  f.say("Press play")
+  f.advance(10_000)
+  f.reporter.save()
+  f.calls[2].reply({saved: true})
+  assert.equal(f.message(), "Press play")
 })
 
 test("unknown live duration is omitted and invalid positions are not persisted", () => {
@@ -119,6 +134,7 @@ test("audio restores after metadata, offers speed control, saves end and cleans 
     audio.readyState = 1
     audio.dispatchEvent(new Event("loadedmetadata"))
     assert.equal(audio.currentTime, 42)
+    assert.equal(message.textContent, "", "a player that works says nothing")
     speed.dispatchEvent(new Event("change"))
     assert.equal(audio.playbackRate, 1.5)
     audio.currentTime = 100
@@ -220,6 +236,7 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     hook.mounted()
     await Promise.resolve()
     events.onReady()
+    assert.equal(message.textContent, "", "a player that works says nothing")
     poll()
     position = 30
     poll()
@@ -235,6 +252,27 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     globalThis.document = previous.document
     globalThis.window = previous.window
     globalThis.setInterval = previous.interval
+  }
+})
+
+// A browser may refuse to start sound on its own. Then the reader needs to know what to press.
+test("audio the browser refuses to start asks for the play button", async () => {
+  const audio = new EventTarget()
+  Object.assign(audio, {dataset: {}, currentTime: 0, duration: 100, readyState: 1, playbackRate: 1,
+    play: () => Promise.reject(new Error("NotAllowedError")), pause() {}, load() {}, removeAttribute() {}})
+  const message = {textContent: ""}
+  const previousDocument = globalThis.document
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false})
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "podcast", session: "abc", position: "0", ...STRINGS},
+    querySelector: selector => ({audio, "#playback-speed": new EventTarget(), "[data-player-message]": message}[selector])}),
+    pushEvent: () => {}}
+  try {
+    hook.mounted()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(message.textContent, STRINGS.readyAudioManual)
+  } finally {
+    hook.destroyed()
+    globalThis.document = previousDocument
   }
 })
 
@@ -297,7 +335,7 @@ test("PeerTube reports its own position and does not save before it has one", as
       params: {position: 42.5, duration: 100, playbackState: "playing"}})
     await Promise.resolve()
 
-    assert.ok(said.some(text => /saved as you watch/.test(text)), "the reader is told the player is up")
+    assert.ok(said.every(text => text === ""), "a player that works says nothing")
     assert.equal(samples.at(-1)?.position, 42.5)
     assert.equal(samples.at(-1)?.duration, 100)
 

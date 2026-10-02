@@ -198,6 +198,30 @@ defmodule SikioWeb.PlayerDockLiveTest do
     refute html =~ "youtube-nocookie", "nothing of YouTube's is loaded for a PeerTube video"
   end
 
+  # Pressing play on the detail's cue is the one click. The embed starts on its own, instead of
+  # showing its own picture with a second play button.
+  test "both embeds start playing once they load", %{conn: conn, user: user} do
+    for {body, url} <- [{peertube(), peertube_feed_url()}, {youtube(), youtube_feed_url()}] do
+      {:ok, preview} = Parser.parse(body, url)
+      {:ok, _} = Library.subscribe(user, preview)
+    end
+
+    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+
+    for kind <- [:peertube, :youtube] do
+      entry = Enum.find(Library.entries(user), &(&1.feed.kind == kind))
+      render_hook(dock, "start", %{"id" => entry.id})
+      [_, src] = Regex.run(~r|src="([^"]+)"|, dock |> element("iframe") |> render())
+      src = String.replace(src, "&amp;", "&")
+
+      assert src
+             |> URI.parse()
+             |> Map.fetch!(:query)
+             |> URI.decode_query()
+             |> Map.get("autoplay") == "1"
+    end
+  end
+
   # What the feed names is the instance's own address and may already carry a query. A second
   # question mark hides everything after it, so the embed never sees that it may speak.
   test "an embed address that already has a query still gets one question mark", %{
