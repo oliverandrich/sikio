@@ -4,19 +4,10 @@ defmodule SikioWeb.MobileLayoutTest do
   @moduledoc false
   use SikioWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
-  import Sikio.FeedFixtures
-  alias Ithibati.Web.Gate
-  alias Sikio.Accounts.User
-  alias Sikio.Feeds.Parser
-  alias Sikio.Library
-  alias Sikio.Repo
 
-  test "player can be compacted without removing the active media", %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
-    {:ok, preview} = Parser.parse(podcast(), feed_url())
-    Library.subscribe(user, preview)
-    [entry] = Library.entries(user)
-    conn = conn |> init_test_session(%{}) |> Gate.log_in(user)
+  setup :sign_in_with_episode
+
+  test "player can be compacted without removing the active media", %{conn: conn, entry: entry} do
     {:ok, dock, _} = live_isolated(conn, SikioWeb.PlayerDockLive)
     render_hook(dock, "start", %{id: entry.id})
     assert has_element?(dock, "#compact-player[aria-pressed=false]")

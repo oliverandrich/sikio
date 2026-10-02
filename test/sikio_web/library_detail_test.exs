@@ -17,13 +17,7 @@ defmodule SikioWeb.LibraryDetailTest do
   alias Sikio.Playback
   alias Sikio.Repo
 
-  setup %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
-    {:ok, preview} = Parser.parse(podcast(), feed_url())
-    {:ok, _} = Library.subscribe(user, preview)
-    [entry] = Library.entries(user)
-    %{conn: conn |> init_test_session(%{}) |> Gate.log_in(user), user: user, entry: entry}
-  end
+  setup :sign_in_with_episode
 
   test "library opens a player and shows reversible personal status", c do
     {:ok, view, _} = live(c.conn, ~p"/")

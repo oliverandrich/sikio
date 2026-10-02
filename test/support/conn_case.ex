@@ -19,6 +19,14 @@ defmodule SikioWeb.ConnCase do
 
   use ExUnit.CaseTemplate
 
+  alias Ithibati.Web.Gate
+  alias Sikio.Accounts.User
+  alias Sikio.DataCase
+  alias Sikio.FeedFixtures
+  alias Sikio.Feeds.Parser
+  alias Sikio.Library
+  alias Sikio.Repo
+
   using do
     quote do
       # The default endpoint for testing
@@ -45,5 +53,24 @@ defmodule SikioWeb.ConnCase do
   setup tags do
     Sikio.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
+  end
+
+  @doc """
+  A signed-in account subscribed to one podcast with one episode, for `setup`.
+
+  Answers the connection, the account as `user`, the episode as `entry` and the subscription.
+  """
+  def sign_in_with_episode(%{conn: conn}) do
+    user = Repo.insert!(User.changeset(%User{}, %{username: DataCase.unique_username()}))
+    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), FeedFixtures.feed_url())
+    {:ok, sub} = Library.subscribe(user, preview)
+    [entry] = Library.entries(user)
+
+    %{
+      conn: conn |> Phoenix.ConnTest.init_test_session(%{}) |> Gate.log_in(user),
+      user: user,
+      entry: entry,
+      sub: sub
+    }
   end
 end

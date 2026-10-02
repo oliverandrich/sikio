@@ -13,19 +13,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
   alias Sikio.Repo
   alias SikioWeb.PlayerDockLive
 
-  setup %{conn: conn} do
-    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
-    {:ok, preview} = Parser.parse(podcast(), feed_url())
-    {:ok, sub} = Library.subscribe(user, preview)
-    [entry] = Library.entries(user)
-
-    %{
-      conn: conn |> init_test_session(%{}) |> Gate.log_in(user),
-      user: user,
-      entry: entry,
-      sub: sub
-    }
-  end
+  setup :sign_in_with_episode
 
   test "the authenticated root layout owns an independent player outside routed content", c do
     for path <- [~p"/", ~p"/subscriptions", ~p"/invitations", ~p"/library/#{c.entry.id}"] do
