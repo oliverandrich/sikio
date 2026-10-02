@@ -134,6 +134,38 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
+  # The active count is tinted, not moved: its digits end where every other count's do, as far
+  # from the right edge as the name starts from the left.
+  feature "an active count lines up with the others", %{session: session} do
+    account = signed_up(session, "ada")
+    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
+    {:ok, _} = Library.subscribe(account, preview)
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/")
+    |> assert_has(css("#view-all[aria-current=page] #view-all-count"))
+    |> execute_script(
+      """
+      const right = id => {
+        const range = document.createRange()
+        range.selectNodeContents(document.getElementById(id))
+        return Math.round(range.getBoundingClientRect().right)
+      }
+      const link = document.getElementById('view-new').getBoundingClientRect()
+      const label = document.createRange()
+      label.selectNodeContents(document.querySelector('#view-new span span:last-child'))
+      return [right('view-all-count'), right('view-new-count'),
+              Math.round(label.getBoundingClientRect().left - link.left),
+              Math.round(link.right) - right('view-new-count')]
+      """,
+      fn [active, inactive, left_inset, right_inset] ->
+        assert active == inactive
+        assert left_inset == right_inset, "the digits sit as far from the edge as the name"
+      end
+    )
+  end
+
   defp wordmark do
     """
     const name = document.querySelector('#project-name')

@@ -369,8 +369,8 @@ defmodule SikioWeb.Layouts do
         :if={@count > 0}
         id={"#{@id}-count"}
         class={[
-          "font-mono text-meta font-normal",
-          @active && "rounded-full bg-accent/15 px-1.5",
+          "-mr-1.5 rounded-full px-1.5 font-mono text-meta font-normal",
+          @active && "bg-accent/15",
           !@active && "text-muted"
         ]}
       >
