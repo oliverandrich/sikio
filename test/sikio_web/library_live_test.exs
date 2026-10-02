@@ -142,8 +142,8 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
     row = element(view, "#entries-#{entry.id}") |> render()
 
-    assert row =~ "lucide-circle-play", "it is watched, so it carries the mark of a video"
-    refute row =~ "lucide-mic"
+    assert row =~ "PeerTube video", "it is watched, so the row names it a video"
+    refute row =~ "Podcast episode"
 
     {:ok, _view, page} = live(conn, ~p"/library/#{entry.id}")
     refute page =~ "YouTube receives your connection data"

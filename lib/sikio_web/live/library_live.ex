@@ -189,21 +189,33 @@ defmodule SikioWeb.LibraryLive do
       filters={@filters}
       counts={@counts}
       patch
+      bleed
       section={:library}
     >
       <div
         id="library"
         phx-hook="ReaderKeys"
-        class="lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start lg:gap-8"
+        class="lg:grid lg:min-h-svh lg:grid-cols-[28rem_minmax(0,1fr)] lg:items-start"
       >
-        <div class={["min-w-0", @selected && "hidden lg:block"]}>
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div class={[
+          "min-w-0 lg:min-h-svh lg:self-stretch lg:border-r lg:border-line lg:bg-surface",
+          @selected && "hidden lg:block"
+        ]}>
+          <div class="flex flex-wrap items-center justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:border-b lg:border-line lg:px-4 lg:pt-5 lg:pb-4">
             <div class="flex items-baseline gap-3">
               <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
               <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
                 {count_label(@shown, @total)}
               </span>
             </div>
+            <p
+              :if={!@empty? and !@no_matches?}
+              class="hidden items-center gap-1 text-meta text-muted lg:flex"
+            >
+              <kbd class={kbd_class()}>j</kbd>
+              <kbd class={kbd_class()}>k</kbd>
+              <span class="ml-0.5">{gettext("to browse")}</span>
+            </p>
             <.button id="add-subscription" class="lg:hidden" navigate={~p"/subscriptions"}>
               <Lucideicons.plus aria-hidden="true" class="size-4" />
               {gettext("Add a source")}
@@ -212,7 +224,7 @@ defmodule SikioWeb.LibraryLive do
           <nav
             id="library-chips"
             aria-label={gettext("Views")}
-            class="-mx-6 mb-3 flex gap-2 overflow-x-auto px-6 pb-1 sm:-mx-12 sm:px-12 lg:hidden"
+            class="mb-3 flex gap-2 overflow-x-auto px-6 pb-1 sm:px-12 lg:hidden"
           >
             <.chip
               :for={{status, key, label} <- views()}
@@ -241,7 +253,7 @@ defmodule SikioWeb.LibraryLive do
             :if={@sidebar.sources != [] or @filters["source"] != ""}
             id="chip-sources"
             open={@filters["source"] != ""}
-            class="mb-4 lg:hidden"
+            class="mb-4 px-6 sm:px-12 lg:hidden"
           >
             <summary class="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink">
               {if @filters["source"] != "", do: @heading, else: gettext("Sources")}
@@ -262,7 +274,7 @@ defmodule SikioWeb.LibraryLive do
           <section
             :if={@empty?}
             id="library-empty"
-            class="rounded-control border border-line bg-surface p-8"
+            class="mx-6 rounded-2xl bg-surface p-8 shadow-sm ring-1 ring-line sm:mx-12 lg:m-4"
           >
             <h2 class="text-title font-semibold">{gettext("Space for something good.")}</h2>
             <p class="mt-2 max-w-lg text-muted">
@@ -278,14 +290,14 @@ defmodule SikioWeb.LibraryLive do
             :if={!@empty? and @no_matches?}
             id="library-no-matches"
             role="status"
-            class="rounded-control border border-line bg-surface p-6 text-muted"
+            class="px-6 py-6 text-muted sm:px-12 lg:px-4"
           >
             {gettext("No items match this view. Try another filter, or wait for new episodes.")}
           </p>
           <div
             :if={!@empty?}
             id="entries"
-            class="overflow-hidden rounded-control border border-line bg-surface empty:hidden"
+            class="border-t border-line bg-surface empty:hidden lg:border-t-0"
           >
             <.entry_row
               :for={entry <- @entries}
@@ -301,7 +313,10 @@ defmodule SikioWeb.LibraryLive do
           id="item-detail"
           data-entry-id={@selected && @selected.id}
           aria-label={gettext("Selected item")}
-          class={["min-w-0 lg:sticky lg:top-10", !@selected && "hidden lg:block"]}
+          class={[
+            "min-w-0 px-6 py-6 sm:px-12 lg:sticky lg:top-0 lg:px-7 lg:pt-(--dock-inset) lg:pb-6",
+            !@selected && "hidden lg:block"
+          ]}
         >
           <.detail
             :if={@selected}
@@ -309,7 +324,7 @@ defmodule SikioWeb.LibraryLive do
             notes={@notes}
             back={SikioWeb.Sidebar.library_path(@filters)}
           />
-          <p :if={!@selected} class="rounded-control border border-dashed border-line p-8 text-muted">
+          <p :if={!@selected} class="rounded-2xl border border-dashed border-line p-8 text-muted">
             {gettext("Choose an item to see it here. j and k move through the list.")}
           </p>
         </section>
@@ -335,7 +350,7 @@ defmodule SikioWeb.LibraryLive do
       id={@id}
       data-status={@status}
       class={[
-        "flex items-start gap-1 border-b border-line last:border-b-0",
+        "flex items-start gap-1 border-b border-line last:border-b-0 lg:last:border-b",
         @selected && "bg-selection shadow-[inset_3px_0_0_var(--color-accent)]"
       ]}
     >
@@ -345,10 +360,10 @@ defmodule SikioWeb.LibraryLive do
         aria-current={@selected && "true"}
         class={[
           "flex min-w-0 grow gap-3 py-3 pl-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-          !@selected && "hover:bg-ground"
+          !@selected && "hover:bg-ground/50"
         ]}
       >
-        <span class="relative h-[54px] w-24 shrink-0 overflow-hidden rounded-md bg-line">
+        <span class="relative h-[54px] w-24 shrink-0 overflow-hidden rounded-lg bg-line">
           <img
             src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
             alt=""
@@ -363,7 +378,7 @@ defmodule SikioWeb.LibraryLive do
             {@runtime}
           </span>
         </span>
-        <span class="flex min-w-0 flex-col gap-1">
+        <span class="flex min-w-0 grow flex-col gap-1">
           <span class="truncate text-meta font-semibold text-accent">{@entry.feed.title}</span>
           <span class={[
             "line-clamp-2 text-body",
@@ -372,7 +387,7 @@ defmodule SikioWeb.LibraryLive do
           ]}>
             {@entry.title}
           </span>
-          <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted">
+          <span class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-meta text-muted">
             <.progress :if={@status == :in_progress} entry={@entry} />
             <span :if={@status != :in_progress} class="inline-flex items-center gap-1.5">
               <span :if={@status == :new} aria-hidden="true" class="size-1.5 rounded-full bg-signal"></span>
@@ -380,12 +395,10 @@ defmodule SikioWeb.LibraryLive do
               {status_label(@entry)}
             </span>
             <span class="inline-flex items-center gap-1">
-              <Lucideicons.circle_play :if={video?(@entry)} aria-hidden="true" class="size-3.5" />
-              <Lucideicons.mic :if={!video?(@entry)} aria-hidden="true" class="size-3.5" />
               {kind_label(@entry)}
-            </span>
-            <span :if={@entry.published_at} class="font-mono">
-              {date(@entry.published_at)}
+              <span :if={@entry.published_at} class="font-mono">
+                · {date(@entry.published_at)}
+              </span>
             </span>
           </span>
         </span>
@@ -504,26 +517,37 @@ defmodule SikioWeb.LibraryLive do
       )
 
     ~H"""
-    <article class="flex flex-col gap-4">
-      <.link patch={@back} class="text-label font-semibold text-accent lg:hidden">
-        {gettext("← Your library")}
-      </.link>
-      <div class="flex flex-col gap-2">
-        <p class="text-label font-semibold text-accent">{@entry.feed.title}</p>
-        <h2 class="text-title font-semibold">{@entry.title}</h2>
-        <p id="playback-status" aria-live="polite" class="text-meta text-muted">
-          {kind_label(@entry)}
-          <span :if={@entry.published_at}>
-            · <span class="font-mono">{date(@entry.published_at)}</span>
-          </span>
-          <span :if={@runtime}>· <span class="font-mono">{@runtime}</span></span>
-          · {status_label(@entry)}
-          <span :if={@entry.playback && @entry.playback.position > 0}>
-            · {gettext("Saved at")}
-            <span class="font-mono">{timestamp(@entry.playback.position)}</span>
-          </span>
-        </p>
+    <.link patch={@back} class="mb-4 inline-block text-label font-semibold text-accent lg:hidden">
+      {gettext("← Your library")}
+    </.link>
+    <article
+      data-dock-anchor
+      class="flex flex-col gap-4 rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-line"
+    >
+      <div class="flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          class="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-meta font-semibold text-accent"
+        >
+          {initial(@entry.feed.title)}
+        </span>
+        <div class="flex min-w-0 flex-col">
+          <p class="truncate text-label font-semibold text-accent">{@entry.feed.title}</p>
+          <p id="playback-status" aria-live="polite" class="text-meta text-muted">
+            {kind_label(@entry)}
+            <span :if={@entry.published_at}>
+              · <span class="font-mono">{date(@entry.published_at)}</span>
+            </span>
+            <span :if={@runtime}>· <span class="font-mono">{@runtime}</span></span>
+            · {status_label(@entry)}
+            <span :if={@entry.playback && @entry.playback.position > 0}>
+              · {gettext("Saved at")}
+              <span class="font-mono">{timestamp(@entry.playback.position)}</span>
+            </span>
+          </p>
+        </div>
       </div>
+      <h2 class="text-title font-semibold">{@entry.title}</h2>
       <div class="flex flex-wrap items-center gap-3">
         <.button
           id="start-playback"
@@ -565,16 +589,17 @@ defmodule SikioWeb.LibraryLive do
           {gettext("Open on YouTube")}
         </a>
       </div>
-      <div
-        :if={@notes}
-        id="item-notes"
-        class="notes max-w-prose border-t border-line pt-4 text-body text-ink"
-      >
-        {@notes}
-      </div>
-      <p :if={!@notes} id="item-no-notes" class="border-t border-line pt-4 text-muted">
-        {gettext("The publisher sent no notes for this item.")}
-      </p>
+      <section class="flex flex-col gap-3 border-t border-line pt-4">
+        <h3 class="text-meta font-semibold tracking-wider text-muted uppercase">
+          {gettext("From the feed")}
+        </h3>
+        <div :if={@notes} id="item-notes" class="notes max-w-prose text-body text-ink">
+          {@notes}
+        </div>
+        <p :if={!@notes} id="item-no-notes" class="text-muted">
+          {gettext("The publisher sent no notes for this item.")}
+        </p>
+      </section>
       <p class="text-meta text-muted">{privacy_note(@entry)}</p>
       <p class="border-t border-line pt-4 text-meta text-muted">
         {gettext(
@@ -584,6 +609,14 @@ defmodule SikioWeb.LibraryLive do
     </article>
     """
   end
+
+  # The first letter of a source, which stands for it where no artwork is shown.
+  defp initial(title),
+    do: title |> to_string() |> String.trim() |> String.first() |> String.upcase()
+
+  defp kbd_class,
+    do:
+      "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-line bg-ground px-1 font-mono text-[11px] font-medium text-ink"
 
   defp kind_mark(entry),
     do: if(video?(entry), do: ~p"/images/kind-video.svg", else: ~p"/images/kind-audio.svg")

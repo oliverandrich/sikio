@@ -122,6 +122,10 @@ defmodule SikioWeb.PlayerTest do
       # The detail beneath names the source and the title already.
       |> assert_has(css("#player-panel .player-title", visible: false))
       |> assert_has(css("#player-panel .player-source", visible: false))
+      # It sits on the detail's card, not on the column around it.
+      |> execute_script(flush("#player-panel", "#item-detail article"), fn flush ->
+        assert flush
+      end)
     end
 
     # Playback is global and selection is not. When they disagree the notes get the room, and on a
@@ -169,6 +173,14 @@ defmodule SikioWeb.PlayerTest do
       })
 
     session
+  end
+
+  defp flush(a, b) do
+    """
+    const a = document.querySelector('#{a}').getBoundingClientRect(),
+          b = document.querySelector('#{b}').getBoundingClientRect()
+    return Math.abs(a.left - b.left) <= 1 && Math.abs(a.width - b.width) <= 1
+    """
   end
 
   defp within(inner, outer) do

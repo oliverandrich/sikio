@@ -150,6 +150,10 @@ defmodule SikioWeb.Layouts do
     values: [nil, :library, :subscriptions, :invitations, :account],
     doc: "where the reader is, to mark it in the navigation"
 
+  attr :bleed, :boolean,
+    default: false,
+    doc: "whether the page lays out its own columns edge to edge, as the library does"
+
   slot :inner_block, required: true
 
   def member(assigns) do
@@ -288,7 +292,10 @@ defmodule SikioWeb.Layouts do
       <div class="min-w-0">
         <main
           id="main-content"
-          class="mx-auto min-h-[75vh] max-w-7xl px-6 py-6 sm:px-12 sm:py-12 lg:max-w-none lg:px-10 lg:py-10"
+          class={[
+            "min-h-[75vh]",
+            !@bleed && "mx-auto max-w-7xl px-6 py-6 sm:px-12 sm:py-12 lg:max-w-none lg:px-10 lg:py-10"
+          ]}
         >
           {render_slot(@inner_block)}
         </main>

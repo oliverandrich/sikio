@@ -31,16 +31,21 @@ function place() {
   }) : "floating"
 
   const room = panel ? panel.offsetHeight + GAP : 0
-  const box = where === "pinned" ? detail.getBoundingClientRect()
+  // Pinned, the panel sits on the detail's card: its width is the card's, and its top is the
+  // column's inset, which the stylesheet names once.
+  const inset = detail ? parseFloat(getComputedStyle(detail).getPropertyValue("--dock-inset")) || 0 : 0
+  const card = detail?.querySelector("[data-dock-anchor]") ?? detail
+  const box = where === "pinned" ? card.getBoundingClientRect()
     : where === "compact" && sidebar ? sidebar.getBoundingClientRect() : null
+  const top = where === "pinned" ? detail.getBoundingClientRect().top + inset : 0
 
-  if (detail) detail.style.paddingTop = where === "pinned" ? `${room}px` : ""
+  if (detail) detail.style.paddingTop = where === "pinned" ? `${room + inset}px` : ""
   if (sidebar) sidebar.style.paddingBottom = where === "compact" ? `${room + GAP}px` : ""
   if (!panel) return
 
   panel.dataset.place = where
   Object.assign(panel.style,
-    where === "pinned" ? {top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, right: "auto", bottom: "auto"}
+    where === "pinned" ? {top: `${top}px`, left: `${box.left}px`, width: `${box.width}px`, right: "auto", bottom: "auto"}
     : where === "compact" && box ? {top: "auto", left: `${box.left + 12}px`, width: `${box.width - 24}px`, right: "auto", bottom: `${GAP}px`}
     : AWAY)
 

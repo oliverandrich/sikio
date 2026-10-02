@@ -156,7 +156,9 @@
 /* From lg the panel is either pinned to the detail column or a now playing bar at the foot of the
    sidebar; assets/js/dock_place.mjs decides and sets data-place. Audio keeps playing out of sight
    in the bar, with a button to pause it. A video stays visible there with its own controls. */
-#player-panel[data-place="pinned"] { box-shadow: none; max-height: 60vh; }
+#player-panel[data-place="pinned"] { box-shadow: none; max-height: 60vh; border-radius: 1rem; }
+/* The detail column's top inset, which assets/js/dock_place.mjs reads to pin the panel there. */
+#item-detail { --dock-inset: 24px; }
 /* The detail beneath names the source and the title already. */
 #player-panel[data-place="pinned"] :is(.player-source, .player-title) { display: none; }
 #player-panel[data-place="pinned"] .player-heading { align-items: center; }
