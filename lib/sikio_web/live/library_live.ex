@@ -848,7 +848,7 @@ defmodule SikioWeb.LibraryLive do
             <:icon><Lucideicons.check aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
           <.card_action
-            :if={@status != :new}
+            :if={@status == :completed}
             id="mark-new"
             label={mark_new_label(@entry)}
             phx-click="mark"

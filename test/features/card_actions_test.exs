@@ -15,7 +15,7 @@ defmodule SikioWeb.CardActionsTest do
   alias Sikio.Library
   alias Sikio.Playback
 
-  # Started, a video offers all three: mark as watched, as new, and open on YouTube.
+  # Started, a video offers marking it as watched and opening it on YouTube.
   setup %{session: session} do
     account = signed_up(session, "ada")
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())

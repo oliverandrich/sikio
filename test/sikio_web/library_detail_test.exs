@@ -84,6 +84,30 @@ defmodule SikioWeb.LibraryDetailTest do
     refute has_element?(view, "#open-original")
   end
 
+  # One way at a time: anything not finished can be marked as finished, and only a finished item
+  # can be put back. Started counts as not finished.
+  test "the card offers the one mark that changes the status", c do
+    {:ok, _} = Playback.start(c.user, c.entry.id)
+    %{playback: %{session_id: session}} = Library.entry(c.user, c.entry.id)
+
+    {:ok, _} =
+      Playback.save(c.user, c.entry.id, session, %{
+        "sequence" => 1,
+        "position" => 30,
+        "duration" => 3723,
+        "ended" => false
+      })
+
+    {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+    assert has_element?(view, "#playback-status", "min left")
+    assert has_element?(view, "#mark-completed")
+    refute has_element?(view, "#mark-new")
+
+    view |> element("#mark-completed") |> render_click()
+    assert has_element?(view, "#mark-new")
+    refute has_element?(view, "#mark-completed")
+  end
+
   test "audio loads on request, resumes and saves only the active entry", c do
     {:ok, state} = Playback.start(c.user, c.entry.id)
     Playback.save(c.user, c.entry.id, state.session_id, sample(1, 42))
