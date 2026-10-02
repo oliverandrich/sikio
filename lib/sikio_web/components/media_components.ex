@@ -69,6 +69,11 @@ defmodule SikioWeb.MediaComponents do
   def kind_label(%{feed: %{kind: :peertube}}), do: gettext("PeerTube video")
   def kind_label(_entry), do: gettext("Podcast episode")
 
+  @doc "Where an item comes from, as a list row names it. Platforms keep their own names."
+  def medium_label(%{feed: %{kind: :youtube}}), do: "YouTube"
+  def medium_label(%{feed: %{kind: :peertube}}), do: "PeerTube"
+  def medium_label(_entry), do: gettext("Podcast")
+
   def timestamp(seconds) do
     seconds = trunc(seconds || 0)
     minutes = div(seconds, 60)
@@ -99,6 +104,16 @@ defmodule SikioWeb.MediaComponents do
   def date(datetime) do
     month = Enum.at(months(), datetime.month - 1)
     gettext("%{day} %{month} %{year}", day: datetime.day, month: month, year: datetime.year)
+  end
+
+  @doc "A date as a list shows it: the year only when it is not this one."
+  def short_date(datetime, today \\ Date.utc_today()) do
+    if datetime.year == today.year do
+      month = Enum.at(months(), datetime.month - 1)
+      gettext("%{day} %{month}", day: datetime.day, month: month)
+    else
+      date(datetime)
+    end
   end
 
   defp months do

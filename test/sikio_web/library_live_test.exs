@@ -66,8 +66,8 @@ defmodule SikioWeb.LibraryLiveTest do
   end
 
   test "marking and changes from another tab keep filtered membership current", c do
-    {:ok, view, _} = live(c.conn, ~p"/?kind=podcast&status=new")
-    view |> element("#complete-#{c.audio.id}") |> render_click()
+    {:ok, view, _} = live(c.conn, ~p"/library/#{c.audio.id}?kind=podcast&status=new")
+    view |> element("#mark-completed") |> render_click()
     refute has_element?(view, "#entries-#{c.audio.id}")
     assert has_element?(view, "#library-no-matches")
     Playback.mark(c.user, c.audio.id, :new)
@@ -142,8 +142,9 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
     row = element(view, "#entries-#{entry.id}") |> render()
 
-    assert row =~ "PeerTube video", "it is watched, so the row names it a video"
-    refute row =~ "Podcast episode"
+    assert row =~ "PeerTube", "the row names where it comes from"
+    refute row =~ "Podcast"
+    refute row =~ "PeerTube video", "the row says the platform, not what kind of item it is"
 
     {:ok, _view, page} = live(conn, ~p"/library/#{entry.id}")
     refute page =~ "YouTube receives your connection data"
@@ -189,7 +190,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
       {:ok, _} = Playback.save(c.user, c.audio.id, c.session, sample(2, 60))
 
-      assert has_element?(view, "#entries-#{c.audio.id}", "1:00")
+      assert has_element?(view, "#entries-#{c.audio.id}", "61 min left")
       refute has_element?(view, "#entries article", unseen)
     end
 
@@ -299,7 +300,8 @@ defmodule SikioWeb.LibraryLiveTest do
       {:ok, view, _} = live(c.conn, ~p"/")
       assert view |> element("#source-#{c.sub.feed_id}-count") |> render() =~ "1"
 
-      view |> element("#complete-#{c.audio.id}") |> render_click()
+      view |> element("#play-#{c.audio.id}") |> render_click()
+      view |> element("#mark-completed") |> render_click()
 
       refute has_element?(view, "#source-#{c.sub.feed_id}-count")
       assert view |> element("#view-completed-count") |> render() =~ "1"
@@ -371,6 +373,11 @@ defmodule SikioWeb.LibraryLiveTest do
 
       {:ok, view, _} = live(c.conn, ~p"/")
       assert has_element?(view, ~s|#entries-#{c.audio.id} [role=progressbar][aria-valuenow="50"]|)
+      # The time left says more than a word for having started.
+      assert has_element?(view, "#entries-#{c.audio.id}", "31 min left")
+      refute has_element?(view, "#entries-#{c.audio.id}", "In progress")
+      # Marking happens in the detail or with m, so the row carries no buttons of its own.
+      refute has_element?(view, "#entries-#{c.audio.id} button")
 
       # A feed may state a shorter runtime than the audio has. The bar stops at the end anyway.
       {:ok, _} =
@@ -386,7 +393,8 @@ defmodule SikioWeb.LibraryLiveTest do
                ~s|#entries-#{c.audio.id} [role=progressbar][aria-valuenow="100"]|
              )
 
-      view |> element("#complete-#{c.audio.id}") |> render_click()
+      view |> element("#play-#{c.audio.id}") |> render_click()
+      view |> element("#mark-completed") |> render_click()
       assert has_element?(view, ~s|#entries-#{c.audio.id}[data-status="completed"]|)
     end
   end

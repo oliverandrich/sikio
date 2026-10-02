@@ -64,6 +64,22 @@ defmodule SikioWeb.LibraryLive do
 
   def handle_event("move", _params, socket), do: {:noreply, socket}
 
+  def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
+    do: {:noreply, socket}
+
+  # The status is read again rather than taken from the selection, which the mark's broadcast
+  # only updates after a second press may already have arrived.
+  def handle_event("toggle_mark", _params, %{assigns: %{selected: selected}} = socket) do
+    case Library.entry(socket.assigns.current_account, selected.id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, gettext("This item is no longer in your library."))}
+
+      entry ->
+        status = if status(entry) == :completed, do: "new", else: "completed"
+        handle_event("mark", %{"id" => entry.id, "status" => status}, socket)
+    end
+  end
+
   def handle_event("mark", %{"id" => id, "status" => status}, socket)
       when status in ["new", "completed"] do
     status = if status == "new", do: :new, else: :completed
@@ -202,7 +218,7 @@ defmodule SikioWeb.LibraryLive do
           @selected && "hidden lg:block"
         ]}>
           <div class="flex flex-wrap items-center justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:border-b lg:border-line lg:px-4 lg:pt-5 lg:pb-4">
-            <div class="flex items-baseline gap-3">
+            <div class="flex flex-col gap-0.5">
               <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
               <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
                 {count_label(@shown, @total)}
@@ -215,6 +231,8 @@ defmodule SikioWeb.LibraryLive do
               <kbd class={kbd_class()}>j</kbd>
               <kbd class={kbd_class()}>k</kbd>
               <span class="ml-0.5">{gettext("to browse")}</span>
+              <kbd class={["ml-2", kbd_class()]}>m</kbd>
+              <span class="ml-0.5">{gettext("to mark")}</span>
             </p>
             <.button id="add-subscription" class="lg:hidden" navigate={~p"/subscriptions"}>
               <Lucideicons.plus aria-hidden="true" class="size-4" />
@@ -350,7 +368,7 @@ defmodule SikioWeb.LibraryLive do
       id={@id}
       data-status={@status}
       class={[
-        "flex items-start gap-1 border-b border-line last:border-b-0 lg:last:border-b",
+        "border-b border-line last:border-b-0 lg:last:border-b",
         @selected && "bg-selection shadow-[inset_3px_0_0_var(--color-accent)]"
       ]}
     >
@@ -359,11 +377,11 @@ defmodule SikioWeb.LibraryLive do
         patch={@to}
         aria-current={@selected && "true"}
         class={[
-          "flex min-w-0 grow gap-3 py-3 pl-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+          "flex min-w-0 gap-3 px-6 py-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-12 lg:px-4",
           !@selected && "hover:bg-ground/50"
         ]}
       >
-        <span class="relative h-[54px] w-24 shrink-0 overflow-hidden rounded-lg bg-line">
+        <span class="relative h-21 w-28 shrink-0 overflow-hidden rounded-lg bg-line">
           <img
             src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
             alt=""
@@ -373,77 +391,41 @@ defmodule SikioWeb.LibraryLive do
           <span
             :if={@runtime}
             id={"runtime-#{@entry.id}"}
-            class="absolute right-1 bottom-1 rounded bg-black/75 px-1 font-mono text-[11px] font-medium text-white"
+            class="absolute right-1 bottom-2 rounded bg-black/75 px-1 font-mono text-[11px] font-medium text-white"
           >
             {@runtime}
           </span>
+          <.progress :if={@status == :in_progress} entry={@entry} />
         </span>
         <span class="flex min-w-0 grow flex-col gap-1">
           <span class="truncate text-meta font-semibold text-accent">{@entry.feed.title}</span>
           <span class={[
-            "line-clamp-2 text-body",
+            "mb-auto line-clamp-2 text-body",
             @status == :completed && "text-muted",
             @status != :completed && "font-semibold text-ink"
           ]}>
             {@entry.title}
           </span>
-          <span class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-meta text-muted">
-            <.progress :if={@status == :in_progress} entry={@entry} />
+          <span class="flex flex-wrap items-center gap-x-1.5 text-meta text-muted">
+            <span
+              :if={@status == :in_progress}
+              class="font-mono font-medium text-signal-strong"
+            >
+              {time_left(@entry)}
+            </span>
             <span :if={@status != :in_progress} class="inline-flex items-center gap-1.5">
               <span :if={@status == :new} aria-hidden="true" class="size-1.5 rounded-full bg-signal"></span>
               <Lucideicons.check :if={@status == :completed} aria-hidden="true" class="size-3.5" />
               {status_label(@entry)}
             </span>
-            <span class="inline-flex items-center gap-1">
-              {kind_label(@entry)}
-              <span :if={@entry.published_at} class="font-mono">
-                · {date(@entry.published_at)}
-              </span>
-            </span>
+            <span aria-hidden="true">·</span>
+            <span>{medium_label(@entry)}</span>
+            <span :if={@entry.published_at} aria-hidden="true">·</span>
+            <span :if={@entry.published_at} class="font-mono">{short_date(@entry.published_at)}</span>
           </span>
         </span>
       </.link>
-      <.mark_button
-        :if={@status != :completed}
-        id={"complete-#{@entry.id}"}
-        entry={@entry}
-        status="completed"
-        label={mark_done_label(@entry)}
-      >
-        <Lucideicons.check aria-hidden="true" class="size-4" />
-      </.mark_button>
-      <.mark_button
-        :if={@status != :new}
-        id={"reset-#{@entry.id}"}
-        entry={@entry}
-        status="new"
-        label={mark_new_label(@entry)}
-      >
-        <Lucideicons.rotate_ccw aria-hidden="true" class="size-4" />
-      </.mark_button>
     </article>
-    """
-  end
-
-  attr :id, :string, required: true
-  attr :entry, :map, required: true
-  attr :status, :string, required: true
-  attr :label, :string, required: true
-  slot :inner_block, required: true
-
-  defp mark_button(assigns) do
-    ~H"""
-    <button
-      id={@id}
-      phx-click="mark"
-      phx-value-id={@entry.id}
-      phx-value-status={@status}
-      aria-label={@label}
-      title={@label}
-      class="m-1.5 flex size-11 shrink-0 items-center justify-center rounded-control text-muted hover:bg-ground hover:text-ink"
-    >
-      {render_slot(@inner_block)}
-    </button>
     """
   end
 
@@ -471,34 +453,42 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # How far somebody got, as a bar when the length is known and as a time when it is not.
+  # How far somebody got, as a bar along the foot of the picture when the length is known.
   attr :entry, :map, required: true
 
   defp progress(assigns) do
-    playback = assigns.entry.playback
-    duration = playback.duration || assigns.entry.duration
-
-    percent =
-      if duration && duration > 0, do: min(round(playback.position / duration * 100), 100)
-
-    assigns = assign(assigns, percent: percent, position: playback.position)
+    assigns = assign(assigns, :percent, percent(assigns.entry))
 
     ~H"""
-    <span class="inline-flex items-center gap-2 font-semibold text-signal-strong">
-      <span
-        :if={@percent}
-        role="progressbar"
-        aria-label={gettext("Progress")}
-        aria-valuemin="0"
-        aria-valuemax="100"
-        aria-valuenow={@percent}
-        class="h-1 w-16 overflow-hidden rounded-full bg-line"
-      >
-        <span class="block h-full bg-signal-strong" style={"width: #{@percent}%"}></span>
-      </span>
-      {status_label(@entry)} · <span class="font-mono font-normal">{timestamp(@position)}</span>
+    <span
+      :if={@percent}
+      role="progressbar"
+      aria-label={gettext("Progress")}
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow={@percent}
+      class="absolute inset-x-0 bottom-0 h-1 bg-black/40"
+    >
+      <span class="block h-full bg-signal" style={"width: #{@percent}%"}></span>
     </span>
     """
+  end
+
+  defp percent(%{playback: playback} = entry) do
+    duration = playback.duration || entry.duration
+    if duration && duration > 0, do: min(round(playback.position / duration * 100), 100)
+  end
+
+  # What is left to hear or watch, in whole minutes. Without a length, or past it, the status says it.
+  defp time_left(%{playback: playback} = entry) do
+    duration = playback.duration || entry.duration
+
+    if duration && duration > playback.position,
+      do:
+        gettext("%{minutes} min left",
+          minutes: max(round((duration - playback.position) / 60), 1)
+        ),
+      else: status_label(entry)
   end
 
   # The selected item: what it is, where the reader stands, and the way to play it. Playing

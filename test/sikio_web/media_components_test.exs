@@ -41,6 +41,15 @@ defmodule SikioWeb.MediaComponentsTest do
     end
   end
 
+  # A row has little room, and the source's kind is all it needs to say.
+  describe "medium_label/1" do
+    test "names the platform or the podcast, nothing more" do
+      assert medium_label(%{feed: %{kind: :youtube}}) == "YouTube"
+      assert medium_label(%{feed: %{kind: :peertube}}) == "PeerTube"
+      assert medium_label(%{feed: %{kind: :podcast}}) == "Podcast"
+    end
+  end
+
   # A date sits in translated text, so its month is translated too.
   describe "date/1" do
     test "names the month in the reader's language" do
@@ -49,6 +58,19 @@ defmodule SikioWeb.MediaComponentsTest do
 
       Gettext.with_locale(SikioWeb.Gettext, "de", fn ->
         assert date(published) == "18. Sept. 2026"
+      end)
+    end
+  end
+
+  # A list is mostly this year, so it leaves the year out until it differs.
+  describe "short_date/2" do
+    test "drops the year of this year and keeps any other" do
+      today = ~D[2026-10-02]
+      assert short_date(~U[2026-09-18 09:00:00Z], today) == "18 Sep"
+      assert short_date(~U[2025-12-24 09:00:00Z], today) == "24 Dec 2025"
+
+      Gettext.with_locale(SikioWeb.Gettext, "de", fn ->
+        assert short_date(~U[2026-09-18 09:00:00Z], today) == "18. Sept."
       end)
     end
   end

@@ -22,9 +22,10 @@ defmodule SikioWeb.LibraryDetailTest do
   test "library opens a player and shows reversible personal status", c do
     {:ok, view, _} = live(c.conn, ~p"/")
     assert has_element?(view, "#play-#{c.entry.id}[href='/library/#{c.entry.id}']")
-    view |> element("#complete-#{c.entry.id}") |> render_click()
+    view |> element("#play-#{c.entry.id}") |> render_click()
+    view |> element("#mark-completed") |> render_click()
     assert has_element?(view, "#entries-#{c.entry.id}", "Listened")
-    view |> element("#reset-#{c.entry.id}") |> render_click()
+    view |> element("#mark-new") |> render_click()
     assert %{playback: %{status: :new}} = Library.entry(c.user, c.entry.id)
   end
 
@@ -139,6 +140,24 @@ defmodule SikioWeb.LibraryDetailTest do
 
       render_hook(view, "move", %{"key" => "k"})
       assert_patch(view, "/library/#{c.entry.id}")
+    end
+
+    # The row carries no buttons, so marking what is selected is a key beside j and k. Pressed
+    # again it takes the mark back.
+    test "m marks the selected item done, and again marks it new", c do
+      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+
+      render_hook(view, "toggle_mark", %{})
+      assert %{playback: %{status: :completed}} = Library.entry(c.user, c.entry.id)
+
+      render_hook(view, "toggle_mark", %{})
+      assert %{playback: %{status: :new}} = Library.entry(c.user, c.entry.id)
+    end
+
+    test "m without a selected item does nothing", c do
+      {:ok, view, _} = live(c.conn, ~p"/")
+      render_hook(view, "toggle_mark", %{})
+      assert Library.entry(c.user, c.entry.id).playback == nil
     end
 
     # A selected item keeps its place in the list, opened by address or after an update alike.
