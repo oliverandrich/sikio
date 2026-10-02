@@ -43,3 +43,5 @@ jobs:
           key: ${{ runner.os }}-mix-${{ env.MIX_ENV }}-${{ hashFiles('mise.toml', 'mix.lock') }}
       - run: mix deps.get --check-locked
       - run: mise run check
+      # The release reads config/runtime.exs at boot, which no test above runs end to end.
+      - run: mise run smoke

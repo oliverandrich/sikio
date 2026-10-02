@@ -49,6 +49,7 @@ Production uses `DATABASE_URL` and `SECRET_KEY_BASE`; see [Operations](docs/oper
 | `mise run reset` | Drop and recreate the development database, migrate and seed |
 | `mise run debugserver` | IEx Phoenix server |
 | `mise run release` | A production release for this OS and architecture |
+| `mise run smoke` | Build the release and run it against a disposable database |
 
 `mise run check` and `mise run test` also run the player's JavaScript tests through node's
 own runner over `assets/js/*.test.mjs`. No npm package is installed for them.
@@ -86,10 +87,11 @@ infrastructure fails instead of silently skipping coverage.
 
 ```sh
 mise run check
-mise run release
 # Set PGHOST/PGPORT/PGUSER/PGPASSWORD for a local test server with CREATEDB rights:
-mise exec -- elixir scripts/smoke_release.exs
+mise run smoke
 ```
+
+`mise run smoke` builds the release first. CI runs it after `mise run check`.
 
 The smoke test checks that the package contains no backup operations, applies
 migrations twice to its own randomly named disposable database, checks the schema,

@@ -25,9 +25,12 @@ these variables in the environment used for both migration and startup:
 | --- | --- |
 | `DATABASE_URL` | `ecto://USER:URL_ENCODED_PASSWORD@HOST/DATABASE` |
 | `SECRET_KEY_BASE` | Generate with `mix phx.gen.secret` on the build machine; keep permanently |
-| `PHX_HOST` | Stable public hostname without scheme or port |
+| `PHX_HOST` | Stable public hostname without scheme or port; a missing value stops the boot |
 | `PORT` | Internal HTTP port, 4000 by default |
+| `PHX_BIND_IP` | Address the HTTP listener binds to, all interfaces by default; `127.0.0.1` behind a proxy on the same host |
 | `POOL_SIZE` | Database connections, 10 by default |
+| `ECTO_IPV6` | `true` to reach the database over IPv6 |
+| `DNS_CLUSTER_QUERY` | DNS name that lists other nodes to cluster with; unset for a single node |
 | `PICTURE_CACHE_DIR` | Absolute path for pictures fetched from publishers; outside the release, writable by the service |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
 | `TRUSTED_PROXIES` | Addresses that may forward a visitor's own; only needed for a proxy on another host |
@@ -46,7 +49,8 @@ unset to point at the upstream repository. A value that is not an absolute http 
 stops the boot, so a typo is refused by `bin/migrate` and `bin/server` rather than shown as a
 link that goes nowhere.
 
-The HTTP listener currently binds to `::` (all interfaces); `PORT` is configurable.
+The HTTP listener binds to `::` (all interfaces) unless `PHX_BIND_IP` names an address.
+A value that is not an address stops the boot. `PORT` is configurable.
 The release does not automatically load a `.env` file. Use a protected network
 path for a remote database; the current configuration does not enable database TLS.
 From the unpacked release directory:
@@ -64,7 +68,8 @@ The host manages process supervision and HTTPS. Caddy on the same machine is the
 tested shape: it terminates TLS, proxies to `PORT` on the loopback, and forwards
 the visitor's address. The proxy must support WebSockets and set
 `X-Forwarded-Proto`; the public URL uses HTTPS on port 443. Expose only the proxy
-publicly.
+publicly; with Caddy on the same machine, `PHX_BIND_IP=127.0.0.1` keeps the plain port off
+the network.
 
 Making an invitation is limited too, but per signed-in account rather than per
 address: 20 in a 24-hour window, configurable with the other budgets. The counter

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Run with `mise exec -- elixir scripts/smoke_release.exs` after building the release.
+# Run with `mise run smoke`, which builds the release first.
 # Uses PG* credentials with CREATEDB; only creates/drops its own random database.
 Code.require_file("support/smoke.exs", __DIR__)
 

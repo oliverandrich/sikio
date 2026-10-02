@@ -201,19 +201,43 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  # force_ssl redirects plain http to this host, so a default would send visitors elsewhere.
+  host =
+    case "PHX_HOST" |> System.get_env("") |> String.trim() do
+      "" ->
+        raise """
+        environment variable PHX_HOST is missing.
+        For example: sikio.example.org
+        """
+
+      host ->
+        host
+    end
+
+  # Every interface unless told otherwise. A proxy on the same host can narrow it to loopback.
+  bind_ip =
+    case "PHX_BIND_IP" |> System.get_env("") |> String.trim() do
+      "" ->
+        {0, 0, 0, 0, 0, 0, 0, 0}
+
+      address ->
+        case :inet.parse_strict_address(to_charlist(address)) do
+          {:ok, ip} ->
+            ip
+
+          {:error, _reason} ->
+            raise """
+            environment variable PHX_BIND_IP is not an address: #{inspect(address)}
+            For example: PHX_BIND_IP=127.0.0.1
+            """
+        end
+    end
 
   config :sikio, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :sikio, SikioWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://bandit.hexdocs.pm/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0}
-    ],
+    http: [ip: bind_ip],
     secret_key_base: secret_key_base
 
   # ## SSL Support

@@ -60,6 +60,11 @@ description = "Build a production release for the current OS and architecture"
 env.MIX_ENV = "prod"
 run = ["mix deps.get --only prod", "mix assets.setup", "mix compile --warnings-as-errors", "mix assets.deploy", "mix release --overwrite"]
 
+[tasks.smoke]
+description = "Build the release and run it against a disposable database"
+depends = ["release"]
+run = "elixir scripts/smoke_release.exs"
+
 [tasks.reset]
 description = "Drop and recreate the development database, migrate and seed it"
 env.MIX_ENV = "dev"
