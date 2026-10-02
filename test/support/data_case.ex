@@ -35,6 +35,44 @@ defmodule Sikio.DataCase do
   def unique, do: Integer.to_string(System.unique_integer([:positive]))
 
   @doc """
+  Runs `fun` and returns its result with the SQL that process `pid` sent meanwhile.
+
+  Repo telemetry runs in the process that queries, so other tests' queries never arrive here.
+  """
+  def queries(pid \\ self(), fun) do
+    test = self()
+    handler = "queries-#{unique()}"
+
+    :telemetry.attach(
+      handler,
+      [:sikio, :repo, :query],
+      &__MODULE__.forward_query/4,
+      {pid, test, handler}
+    )
+
+    try do
+      result = fun.()
+      {result, collect_queries(handler, [])}
+    after
+      :telemetry.detach(handler)
+    end
+  end
+
+  @doc false
+  # A module's function, because telemetry warns about a closure and calls it more slowly.
+  def forward_query(_event, _measurements, %{query: query}, {pid, test, handler}) do
+    if self() == pid, do: send(test, {handler, query})
+  end
+
+  defp collect_queries(handler, sql) do
+    receive do
+      {^handler, query} -> collect_queries(handler, [query | sql])
+    after
+      0 -> Enum.reverse(sql)
+    end
+  end
+
+  @doc """
   What the operator's code buys, for a test that makes the first account.
 
   Every instance protects its claim, so nothing claims one without this. Bought by issuing a code

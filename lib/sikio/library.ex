@@ -19,18 +19,22 @@ defmodule Sikio.Library do
   alias Sikio.Playback.State
   alias Sikio.Repo
 
-  @doc """
-  The one entry with this id that the account is allowed to see, or `nil`.
+  @doc "The one entry with this id that the account is allowed to see, or `nil`."
+  def entry(%User{id: user_id}, id),
+    do: with_id(id, &Repo.one(from e in entry_query(user_id), where: e.id == ^&1))
 
-  This is the authorization for everything that follows, so it is asked again at each write rather
-  than trusted from the request that started a player.
+  @doc """
+  The id of an entry the account is allowed to see, or `nil`.
+
+  This is the authorization for every write, so it is asked again each time rather than trusted
+  from the request that started a player. It reads the subscription only, not the item.
   """
-  def entry(%User{id: user_id}, id) do
-    case Ecto.Type.cast(:id, id) do
-      {:ok, id} -> Repo.one(from e in entry_query(user_id), where: e.id == ^id)
-      _ -> nil
-    end
-  end
+  def visible_entry_id(%User{id: user_id}, id),
+    do:
+      with_id(
+        id,
+        &Repo.one(from e in subscribed_entries(user_id), where: e.id == ^&1, select: e.id)
+      )
 
   def subscribe(%User{id: user_id}, preview) do
     result =
@@ -213,12 +217,17 @@ defmodule Sikio.Library do
     end
   end
 
-  # The join to subscriptions is what makes this account-scoped, and the left join carries this
-  # account's progress onto the shared row. Every query over entries starts here.
-  defp scoped_entries(user_id) do
+  # The join to subscriptions is what makes this account-scoped. Every query over entries starts
+  # here, including the ownership check on each write.
+  defp subscribed_entries(user_id) do
     from e in Entry,
       join: s in Subscription,
-      on: s.feed_id == e.feed_id and s.user_id == ^user_id,
+      on: s.feed_id == e.feed_id and s.user_id == ^user_id
+  end
+
+  # The left join carries this account's progress onto the shared row.
+  defp scoped_entries(user_id) do
+    from [e, s] in subscribed_entries(user_id),
       left_join: p in State,
       on: p.entry_id == e.id and p.user_id == ^user_id,
       join: f in assoc(e, :feed)
@@ -273,9 +282,13 @@ defmodule Sikio.Library do
   def active_feed?(id),
     do: Repo.exists?(from s in Subscription, where: s.feed_id == ^id and not s.paused)
 
-  defp owned(%User{id: user_id}, id) do
+  defp owned(%User{id: user_id}, id),
+    do: with_id(id, &Repo.get_by(Subscription, id: &1, user_id: user_id))
+
+  # An id from a request that is not one finds nothing, rather than raising.
+  defp with_id(id, fun) do
     case Ecto.Type.cast(:id, id) do
-      {:ok, id} -> Repo.get_by(Subscription, id: id, user_id: user_id)
+      {:ok, id} -> fun.(id)
       _ -> nil
     end
   end

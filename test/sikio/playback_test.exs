@@ -124,6 +124,19 @@ defmodule Sikio.PlaybackTest do
     assert Library.entry(c.alice, c.entry.id).playback.session_id == current.session_id
   end
 
+  # Ownership is checked on every write, a sample at least every five seconds per player, and
+  # while the row is locked. The check asks whether the account subscribes, not for the item.
+  test "a write checks ownership without loading the item", c do
+    {{:ok, %{session_id: session}}, started} =
+      queries(fn -> Playback.start(c.alice, c.entry.id) end)
+
+    {{:ok, _}, saved} =
+      queries(fn -> Playback.save(c.alice, c.entry.id, session, sample(1, 9)) end)
+
+    assert started != [] and saved != []
+    refute Enum.any?(started ++ saved, &(&1 =~ ~s("feeds")))
+  end
+
   defp sample(sequence, position),
     do: %{"sequence" => sequence, "position" => position, "duration" => 100, "ended" => false}
 end

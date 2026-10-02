@@ -90,7 +90,7 @@ defmodule Sikio.Playback do
     state = locked(account, id)
 
     if is_nil(state) or is_nil(session) or state.session_id != session or
-         state.sequence >= sample.sequence or is_nil(Library.entry(account, id)) do
+         state.sequence >= sample.sequence or is_nil(Library.visible_entry_id(account, id)) do
       Repo.rollback(:stale)
     end
 
@@ -108,9 +108,9 @@ defmodule Sikio.Playback do
   defp change(%User{id: user_id} = account, id, changes) do
     result =
       Repo.transaction(fn ->
-        entry = Library.entry(account, id) || Repo.rollback(:not_found)
-        Repo.insert!(%State{user_id: user_id, entry_id: entry.id}, on_conflict: :nothing)
-        state = locked(account, entry.id)
+        entry_id = Library.visible_entry_id(account, id) || Repo.rollback(:not_found)
+        Repo.insert!(%State{user_id: user_id, entry_id: entry_id}, on_conflict: :nothing)
+        state = locked(account, entry_id)
         persist(state, changes.(state))
       end)
 

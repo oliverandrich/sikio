@@ -268,33 +268,13 @@ defmodule SikioWeb.LibraryLiveTest do
 
   # Counts the database queries the view's own process makes while `fun` runs.
   defp queries_from(view, fun) do
-    test = self()
-    handler = "queries-#{Sikio.DataCase.unique()}"
+    {_, sql} =
+      Sikio.DataCase.queries(view.pid, fn ->
+        fun.()
+        render(view)
+      end)
 
-    :telemetry.attach(
-      handler,
-      [:sikio, :repo, :query],
-      &__MODULE__.forward_query/4,
-      {view.pid, test, handler}
-    )
-
-    fun.()
-    render(view)
-    :telemetry.detach(handler)
-    count_received({:query, handler}, 0)
-  end
-
-  # Telemetry calls a module's function faster than a closure, and warns about the closure.
-  def forward_query(_event, _measurements, _metadata, {pid, test, handler}) do
-    if self() == pid, do: send(test, {:query, handler})
-  end
-
-  defp count_received(message, count) do
-    receive do
-      ^message -> count_received(message, count + 1)
-    after
-      0 -> count
-    end
+    length(sql)
   end
 
   describe "the sidebar" do
