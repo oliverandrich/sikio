@@ -36,6 +36,12 @@ defmodule SikioWeb.MediaComponentsTest do
       assert runtime(59) == "0:59"
     end
 
+    # A player measures its media in fractions of a second.
+    test "a measured length counts whole seconds" do
+      assert runtime(3723.6) == "1:02:03"
+      assert runtime(59.9) == "0:59"
+    end
+
     test "a runtime nobody stated is no runtime" do
       assert runtime(nil) == nil
     end

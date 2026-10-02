@@ -361,7 +361,7 @@ defmodule SikioWeb.LibraryLive do
 
   defp entry_row(assigns) do
     assigns =
-      assign(assigns, status: status(assigns.entry), runtime: runtime(assigns.entry.duration))
+      assign(assigns, status: status(assigns.entry), runtime: runtime(length_of(assigns.entry)))
 
     ~H"""
     <article
@@ -475,13 +475,18 @@ defmodule SikioWeb.LibraryLive do
   end
 
   defp percent(%{playback: playback} = entry) do
-    duration = playback.duration || entry.duration
+    duration = length_of(entry)
     if duration && duration > 0, do: min(round(playback.position / duration * 100), 100)
   end
 
+  # The length the player measured, or else the one the feed stated. YouTube's feed states none,
+  # so a video has a length only once this account has played it.
+  defp length_of(%{playback: %{duration: duration}}) when is_number(duration), do: duration
+  defp length_of(entry), do: entry.duration
+
   # What is left to hear or watch, in whole minutes. Without a length, or past it, the status says it.
   defp time_left(%{playback: playback} = entry) do
-    duration = playback.duration || entry.duration
+    duration = length_of(entry)
 
     if duration && duration > playback.position,
       do:
@@ -503,7 +508,7 @@ defmodule SikioWeb.LibraryLive do
     assigns =
       assign(assigns,
         status: status(entry),
-        runtime: runtime(entry.duration)
+        runtime: runtime(length_of(entry))
       )
 
     ~H"""

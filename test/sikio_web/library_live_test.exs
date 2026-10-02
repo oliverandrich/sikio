@@ -360,6 +360,26 @@ defmodule SikioWeb.LibraryLiveTest do
       refute has_element?(view, "#runtime-#{thin.id}")
     end
 
+    # YouTube's feed states no length. Once the player has seen it, the row shows the one it
+    # reported, for this account alone.
+    test "a video's runtime comes from its player once it has played", c do
+      [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
+      {:ok, view, _} = live(c.conn, ~p"/")
+      refute has_element?(view, "#runtime-#{video.id}")
+
+      {:ok, %{session_id: session}} = Playback.start(c.user, video.id)
+
+      {:ok, _} =
+        Playback.save(c.user, video.id, session, %{
+          "sequence" => 1,
+          "position" => 30,
+          "duration" => 1_234,
+          "ended" => false
+        })
+
+      assert view |> element("#runtime-#{video.id}") |> render() =~ "20:34"
+    end
+
     test "says how far somebody got, and dims what was finished", c do
       {:ok, %{session_id: session}} = Playback.start(c.user, c.audio.id)
 

@@ -80,8 +80,9 @@ defmodule SikioWeb.MediaComponents do
     "#{minutes}:#{seconds |> rem(60) |> Integer.to_string() |> String.pad_leading(2, "0")}"
   end
 
-  @doc "A stated runtime as a list shows it: hours only when there are any, `nil` when unknown."
+  @doc "A runtime, stated or measured, as a list shows it: hours only when there are any, `nil` when unknown."
   def runtime(nil), do: nil
+  def runtime(seconds) when is_float(seconds), do: seconds |> trunc() |> runtime()
   def runtime(seconds) when seconds < 3600, do: timestamp(seconds)
 
   def runtime(seconds),
