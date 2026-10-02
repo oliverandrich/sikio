@@ -183,6 +183,12 @@ export const MediaPlayer = {
       this.listen(audio, event, () => this.reporter.save(false, true))
     }
     this.listen(audio, "ended", () => this.reporter.save(true, true))
+    // The sidebar's bar shows pause while this plays. The mark goes on the audio element: a
+    // patch drops data attributes from the ignored container itself, never from its children.
+    this.listen(audio, "play", () => {audio.dataset.playing = ""})
+    for (const event of ["pause", "ended"]) {
+      this.listen(audio, event, () => {delete audio.dataset.playing})
+    }
     this.listen(audio, "error", () => this.message(this.strings.audioFailed))
     const speed = this.el.querySelector("#playback-speed")
     this.listen(speed, "change", () => {audio.playbackRate = Number(speed.value)})

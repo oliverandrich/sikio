@@ -100,7 +100,7 @@ test("unknown live duration is omitted and invalid positions are not persisted",
 
 test("audio restores after metadata, offers speed control, saves end and cleans up", () => {
   const audio = new EventTarget()
-  Object.assign(audio, {currentTime: 0, duration: 100, readyState: 0, playbackRate: 1,
+  Object.assign(audio, {dataset: {}, currentTime: 0, duration: 100, readyState: 0, playbackRate: 1,
     play: () => Promise.resolve(), pause() {this.paused = true}, load() {}, removeAttribute() {}})
   const speed = new EventTarget()
   speed.value = "1.5"
@@ -139,7 +139,7 @@ test("audio restores after metadata, offers speed control, saves end and cleans 
 test("a toggle plays paused audio and pauses playing audio", () => {
   const calls = []
   const audio = new EventTarget()
-  Object.assign(audio, {currentTime: 0, duration: 100, readyState: 0, paused: true,
+  Object.assign(audio, {dataset: {}, currentTime: 0, duration: 100, readyState: 0, paused: true,
     play() {calls.push("play"); return Promise.resolve()}, pause() {calls.push("pause")}, load() {}, removeAttribute() {}})
   const message = {textContent: ""}
   const doc = new EventTarget()
@@ -155,6 +155,35 @@ test("a toggle plays paused audio and pauses playing audio", () => {
     audio.paused = false
     hook.el.dispatchEvent(new Event("sikio:toggle-play"))
     assert.deepEqual(calls, ["play", "pause"])
+  } finally {
+    hook.destroyed()
+    globalThis.document = previousDocument
+  }
+})
+
+// The sidebar's bar has one button. It shows pause while the audio plays, which only the audio
+// element knows. LiveView keeps a child's attributes under an ignored container.
+test("the audio element says whether it is playing", () => {
+  const audio = new EventTarget()
+  Object.assign(audio, {currentTime: 0, duration: 100, readyState: 0, paused: true, dataset: {},
+    play() {return Promise.resolve()}, pause() {}, load() {}, removeAttribute() {}})
+  const doc = new EventTarget()
+  doc.hidden = false
+  const previousDocument = globalThis.document
+  globalThis.document = doc
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "podcast", session: "abc", position: "0", ...STRINGS},
+    querySelector: selector => ({audio, "#playback-speed": new EventTarget(), "[data-player-message]": {textContent: ""}}[selector])}),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})}
+  try {
+    hook.mounted()
+    assert.equal(audio.dataset.playing, undefined)
+    audio.dispatchEvent(new Event("play"))
+    assert.equal(audio.dataset.playing, "")
+    audio.dispatchEvent(new Event("pause"))
+    assert.equal(audio.dataset.playing, undefined)
+    audio.dispatchEvent(new Event("play"))
+    audio.dispatchEvent(new Event("ended"))
+    assert.equal(audio.dataset.playing, undefined)
   } finally {
     hook.destroyed()
     globalThis.document = previousDocument

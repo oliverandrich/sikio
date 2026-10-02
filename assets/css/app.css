@@ -157,6 +157,10 @@
    sidebar; assets/js/dock_place.mjs decides and sets data-place. Audio keeps playing out of sight
    in the bar, with a button to pause it. A video stays visible there with its own controls. */
 #player-panel[data-place="pinned"] { box-shadow: none; max-height: 60vh; }
+/* The detail beneath names the source and the title already. */
+#player-panel[data-place="pinned"] :is(.player-source, .player-title) { display: none; }
+#player-panel[data-place="pinned"] .player-heading { align-items: center; }
+#player-panel[data-place="pinned"] .player-status { margin-top: 0; }
 #player-panel[data-place="compact"] { padding: .625rem .75rem; max-height: none; }
 #player-panel[data-place="compact"] .player-heading { margin-bottom: 0; align-items: center; }
 :is(.compact-audio, #player-panel[data-place="compact"]) .player-title {
@@ -169,6 +173,9 @@
 #player-panel[data-place="compact"] :is(.player-source, .player-status) { display: block; }
 #player-panel[data-place="compact"] :is(#compact-player, .player-speed) { display: none; }
 #player-panel[data-place="compact"] #dock-toggle { display: flex; }
+/* The audio element marks itself while it plays; see assets/js/media_player.mjs. */
+#player-panel:has(audio[data-playing]) #dock-toggle .dock-play { display: none; }
+#player-panel:has(audio[data-playing]) #dock-toggle .dock-pause { display: block; }
 #player-panel[data-place="compact"] iframe { min-height: 0; margin-top: .5rem; }
 #player-panel[data-place="compact"]:has(audio) [data-player-message] { display: none; }
 #player-panel[data-place="compact"] audio {

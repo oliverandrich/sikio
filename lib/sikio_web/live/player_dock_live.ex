@@ -205,7 +205,7 @@ defmodule SikioWeb.PlayerDockLive do
         ]}
       >
         <div class="player-heading mb-4 flex items-start justify-between gap-3">
-          <div :if={@entry} class="min-w-0">
+          <div :if={@entry} class="mr-auto min-w-0">
             <p class="player-source text-meta font-semibold text-accent">
               {@entry.feed.title}
             </p>
@@ -236,7 +236,8 @@ defmodule SikioWeb.PlayerDockLive do
             aria-label={gettext("Play or pause")}
             class="hidden size-11 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent"
           >
-            <Lucideicons.play aria-hidden="true" class="size-4 fill-current" />
+            <Lucideicons.play aria-hidden="true" class="dock-play size-4 fill-current" />
+            <Lucideicons.pause aria-hidden="true" class="dock-pause hidden size-4 fill-current" />
           </button>
           <button
             id="close-player"

@@ -119,12 +119,15 @@ defmodule SikioWeb.PlayerTest do
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-panel[data-place="pinned"] audio|))
       |> execute_script(within("#player-panel", "#item-detail"), fn inside -> assert inside end)
+      # The detail beneath names the source and the title already.
+      |> assert_has(css("#player-panel .player-title", visible: false))
+      |> assert_has(css("#player-panel .player-source", visible: false))
     end
 
     # Playback is global and selection is not. When they disagree the notes get the room, and on a
     # page without a detail the bar still says what plays and can pause it.
     feature "folds into the sidebar when the detail shows something else", context do
-      %{session: session, entry: entry, video: video} = context
+      %{session: session, account: account, entry: entry, video: video} = context
 
       session
       |> resize_window(1280, 900)
@@ -140,7 +143,32 @@ defmodule SikioWeb.PlayerTest do
       |> click(css("#subscriptions-link"))
       |> assert_has(css(~s|#player-panel[data-place="compact"]|))
       |> assert_same_player()
+      # Nothing is served to play here, so the audio's own play event is what the test sends.
+      |> assert_has(css("#dock-toggle .dock-play"))
+      |> execute_script(
+        "document.querySelector('#player-panel audio').dispatchEvent(new Event('play'))"
+      )
+      |> assert_has(css("#dock-toggle .dock-pause"))
+      |> assert_has(css("#dock-toggle .dock-play", visible: false))
+      |> saved_at(account, entry, 30)
+      # A saved place patches the bar. The button has to keep saying pause through it.
+      |> assert_has(css("#player-panel .player-status", text: "0:30"))
+      |> assert_has(css("#dock-toggle .dock-pause"))
     end
+  end
+
+  defp saved_at(session, account, entry, position) do
+    %{session_id: player} = Library.entry(account, entry.id).playback
+
+    {:ok, _} =
+      Sikio.Playback.save(account, entry.id, player, %{
+        "sequence" => 1,
+        "position" => position,
+        "duration" => 3723,
+        "ended" => false
+      })
+
+    session
   end
 
   defp within(inner, outer) do
