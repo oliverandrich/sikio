@@ -31,7 +31,8 @@ defmodule SikioWeb.LibraryLive do
        filters: nil,
        entries: [],
        more?: false,
-       search_open?: false
+       search_open?: false,
+       chosen_for_width: nil
      )}
   end
 
@@ -42,6 +43,12 @@ defmodule SikioWeb.LibraryLive do
     filters = params |> Library.normalize_filters() |> offered()
     # An address with a search shows the field, a reload or the Back button included.
     socket = assign(socket, :search_open?, socket.assigns.search_open? or filters["q"] != "")
+
+    # Any other item than the one the page chose for a wide screen is the reader's own choice.
+    socket =
+      if to_string(socket.assigns.chosen_for_width) == to_string(params["id"]),
+        do: socket,
+        else: assign(socket, :chosen_for_width, nil)
 
     socket =
       if filters == socket.assigns.filters,
@@ -106,6 +113,36 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("move", _params, socket), do: {:noreply, socket}
 
   def handle_event("load_more", _params, socket), do: {:noreply, load_more(socket)}
+
+  # A wide screen keeps something in the detail; the browser asks when nothing is chosen. The
+  # address is replaced, so Back does not return to the empty view.
+  def handle_event(
+        "select_first",
+        _params,
+        %{assigns: %{selected: nil, entries: [first | _]}} = socket
+      ),
+      do:
+        {:noreply,
+         socket
+         |> assign(:chosen_for_width, first.id)
+         |> push_patch(
+           to: SikioWeb.Sidebar.library_path(socket.assigns.filters, first.id),
+           replace: true
+         )}
+
+  def handle_event("select_first", _params, socket), do: {:noreply, socket}
+
+  # Turned narrow, the detail would cover the list. An item the page chose is let go; one the
+  # reader chose stays.
+  def handle_event("release_first", _params, %{assigns: %{chosen_for_width: nil}} = socket),
+    do: {:noreply, socket}
+
+  def handle_event("release_first", _params, socket),
+    do:
+      {:noreply,
+       socket
+       |> assign(:chosen_for_width, nil)
+       |> push_patch(to: SikioWeb.Sidebar.library_path(socket.assigns.filters), replace: true)}
 
   def handle_event("search", %{"q" => text}, socket), do: {:noreply, searched(socket, text)}
   # The field is open or folded on the page's word, so a patch never folds it mid-edit. Opening
@@ -298,6 +335,8 @@ defmodule SikioWeb.LibraryLive do
       <div
         id="library"
         phx-hook="ReaderKeys"
+        data-selected={@selected && @selected.id}
+        data-rows={length(@entries)}
         class="lg:grid lg:min-h-svh lg:grid-cols-[28rem_minmax(0,1fr)] lg:items-start"
       >
         <div class={[
@@ -486,9 +525,6 @@ defmodule SikioWeb.LibraryLive do
             notes={@notes}
             back={SikioWeb.Sidebar.library_path(@filters)}
           />
-          <p :if={!@selected} class="rounded-2xl border border-dashed border-line p-8 text-muted">
-            {gettext("Choose an item to see it here. j and k move through the list.")}
-          </p>
         </section>
       </div>
     </Layouts.member>

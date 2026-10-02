@@ -107,6 +107,21 @@ defmodule SikioWeb.LibraryTest do
     )
   end
 
+  # Beside the list there is room for the detail, so a wide screen shows the first item. A phone
+  # stays on the list, where a chosen item would cover it.
+  feature "a wide screen shows the first item, a phone the list", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/")
+    |> assert_has(css("#item-detail h2", text: "Episode 40"))
+    |> resize_window(500, 900)
+    |> open("/")
+    # Absent before the page connects proves nothing; the hook only asks once it has.
+    |> assert_has(css("[data-phx-main].phx-connected"))
+    |> assert_has(css("#entries article", count: 25))
+    |> refute_has(css("#item-detail h2"))
+  end
+
   feature "the list loads the next batch when its end comes into view", %{session: session} do
     session
     |> resize_window(1440, 900)

@@ -155,6 +155,32 @@ defmodule SikioWeb.LibraryDetailTest do
       assert_patch(view, "/library/#{c.entry.id}")
     end
 
+    # On a wide screen the browser asks for the first item when none is chosen. The address is
+    # replaced, so Back does not land on the empty view again.
+    test "the first item is chosen when the browser asks and nothing is", c do
+      {:ok, view, _} = live(c.conn, ~p"/?status=new")
+      render_hook(view, "select_first", %{})
+      assert_patch(view, "/library/#{c.entry.id}?status=new")
+
+      view |> element("#play-#{c.video.id}") |> render_click()
+      render_hook(view, "select_first", %{})
+      assert has_element?(view, "#item-detail h2", "A good video")
+    end
+
+    # An item the page chose for a wide screen is let go when the screen turns narrow, where it
+    # would cover the list. One the reader chose stays.
+    test "an item chosen for a wide screen is let go when it narrows", c do
+      {:ok, view, _} = live(c.conn, ~p"/?status=new")
+      render_hook(view, "select_first", %{})
+      assert_patch(view, "/library/#{c.entry.id}?status=new")
+      render_hook(view, "release_first", %{})
+      assert_patch(view, "/?status=new")
+
+      view |> element("#play-#{c.video.id}") |> render_click()
+      render_hook(view, "release_first", %{})
+      assert has_element?(view, "#item-detail h2", "A good video")
+    end
+
     # The row carries no buttons, so marking what is selected is a key beside j and k. Pressed
     # again it takes the mark back.
     test "m marks the selected item done, and again marks it new", c do

@@ -2,7 +2,7 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {closesSearch, readerKey} from "./reader_keys.mjs"
+import {closesSearch, readerKey, wantsFirst} from "./reader_keys.mjs"
 
 const press = (key, extra = {}) => ({key, target: {tagName: "BODY"}, ...extra})
 
@@ -25,6 +25,15 @@ test("Escape closes the search only from inside it", () => {
   assert.equal(closesSearch(press("Escape", {target: {tagName: "INPUT", id: "search-input"}})), true)
   assert.equal(closesSearch(press("Escape", {target: {tagName: "INPUT", id: "other"}})), false)
   assert.equal(closesSearch(press("x", {target: {tagName: "INPUT", id: "search-input"}})), false)
+})
+
+// Beside the list there is room for the detail, so something is always shown there. On a phone
+// the detail would cover the list, so nothing is chosen for the reader.
+test("a wide screen with rows and nothing chosen asks for the first", () => {
+  assert.equal(wantsFirst({wide: true, selected: "", rows: 3}), true)
+  assert.equal(wantsFirst({wide: false, selected: "", rows: 3}), false)
+  assert.equal(wantsFirst({wide: true, selected: "12", rows: 3}), false)
+  assert.equal(wantsFirst({wide: true, selected: "", rows: 0}), false)
 })
 
 test("a key held with a modifier belongs to something else", () => {
