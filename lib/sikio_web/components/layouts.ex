@@ -71,7 +71,7 @@ defmodule SikioWeb.Layouts do
     ~H"""
     sikio<span
       aria-hidden="true"
-      class="ml-2 inline-block size-2 rounded-full bg-signal align-middle ring-4 ring-signal/20"
+      class="ml-[0.12em] inline-block size-[0.28em] rounded-full bg-signal align-baseline ring-[0.1em] ring-signal/25"
     ></span>
     """
   end
@@ -172,7 +172,7 @@ defmodule SikioWeb.Layouts do
           class="flex items-center gap-3 lg:px-2.5"
           aria-label={gettext("Sikio home")}
         >
-          <span class="text-2xl font-semibold tracking-tight"><.wordmark /></span>
+          <span class="text-[30px] leading-none font-bold tracking-tight"><.wordmark /></span>
         </.link>
         <div
           :if={@sidebar}
