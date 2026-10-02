@@ -260,10 +260,10 @@ defmodule SikioWeb.LibraryLiveTest do
     refute row =~ "Podcast"
     refute row =~ "PeerTube video", "the row says the platform, not what kind of item it is"
 
-    {:ok, _view, page} = live(conn, ~p"/library/#{entry.id}")
-    refute page =~ "YouTube receives your connection data"
-    refute page =~ "Audio streams directly from the podcast publisher"
-    assert page =~ "video.example.org"
+    {:ok, view, _page} = live(conn, ~p"/library/#{entry.id}")
+    assert has_element?(view, "#playback-status", "PeerTube")
+    refute has_element?(view, "#playback-status", "PeerTube video")
+    refute has_element?(view, "#playback-status", "Podcast")
   end
 
   test "a PeerTube source says what it is in the list of sources", %{conn: conn, user: user} do

@@ -78,6 +78,35 @@ defmodule SikioWeb.LibraryTest do
     )
   end
 
+  # Long lines read badly. The card keeps the column's width, and the notes inside it stop at
+  # about eighty characters, a block in the middle of the card, its text set from the left.
+  feature "the notes read at a measure of about eighty characters", %{session: session} do
+    session
+    |> resize_window(1600, 900)
+    |> open("/")
+    |> click(css("#entries article:first-child a"))
+    |> assert_has(css("#item-notes"))
+    |> execute_script(
+      """
+      const column = document.getElementById('item-detail')
+      const card = column.querySelector('article').getBoundingClientRect()
+      const notes = document.getElementById('item-notes')
+      const box = notes.getBoundingClientRect()
+      const inner = column.getBoundingClientRect()
+      return [Math.round(card.width), Math.round(inner.width), Math.round(box.width),
+              Math.round(box.left - card.left), Math.round(card.right - box.right),
+              getComputedStyle(column.querySelector('article h2')).fontSize, getComputedStyle(notes).textAlign]
+      """,
+      fn [card, column, width, left, right, size, align] ->
+        assert card > column - 80, "the card keeps the column's width"
+        assert width < card - 100, "the notes stop short of the card's width"
+        assert abs(left - right) <= 1
+        assert size == "26px"
+        assert align in ["start", "left"]
+      end
+    )
+  end
+
   feature "the list loads the next batch when its end comes into view", %{session: session} do
     session
     |> resize_window(1440, 900)

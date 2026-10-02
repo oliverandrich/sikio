@@ -20,12 +20,6 @@ defmodule SikioWeb.MediaComponentsTest do
       assert mark_done_label(entry(:peertube)) == "Mark as watched"
       assert mark_new_label(entry(:peertube)) == "Mark as unwatched"
     end
-
-    test "its own name, not YouTube's and not a podcast's" do
-      assert kind_label(entry(:peertube)) == "PeerTube video"
-      assert kind_label(entry(:youtube)) == "YouTube video"
-      assert kind_label(entry(:podcast)) == "Podcast episode"
-    end
   end
 
   # A runtime is read at a glance in a list, so an hour gets its own place and nothing else does.

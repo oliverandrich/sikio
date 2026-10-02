@@ -57,6 +57,19 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#playback-status", "New")
   end
 
+  # The detail says what it is, when it appeared, how long it runs and where the reader stands:
+  # how much is left once started. Nothing else trails beneath the notes.
+  test "the detail's meta line says the status, and the time left once started", c do
+    {:ok, %{session_id: session}} = Playback.start(c.user, c.entry.id)
+    {:ok, _} = Playback.save(c.user, c.entry.id, session, %{sample(1, 900) | "duration" => 3723})
+
+    {:ok, view, html} = live(c.conn, ~p"/library/#{c.entry.id}")
+    assert has_element?(view, "#playback-status", "47 min left")
+    refute has_element?(view, "#playback-status", "Saved at")
+    refute html =~ "Playback stays with you"
+    refute html =~ "Audio streams directly"
+  end
+
   test "YouTube is not contacted before play and iframe identifies only the origin", c do
     {:ok, preview} =
       Parser.parse(

@@ -18,28 +18,6 @@ defmodule SikioWeb.MediaComponents do
   def source_label(%{kind: :peertube}), do: gettext("PeerTube")
   def source_label(%{kind: :podcast}), do: gettext("Podcast")
 
-  @doc """
-  What pressing play hands your connection to.
-
-  Each kind reaches a different stranger, and saying which is the point of the sentence.
-  """
-  def privacy_note(%{feed: %{kind: :youtube}}),
-    do:
-      gettext(
-        "Loads the YouTube player. YouTube receives your connection data when you press Play."
-      )
-
-  def privacy_note(%{feed: %{kind: :peertube}} = entry),
-    do:
-      gettext(
-        "Plays through %{host}, the instance holding this video. Your place is saved in Sikio.",
-        host: URI.parse(entry.embed_url || "").host || gettext("the instance")
-      )
-
-  def privacy_note(_entry),
-    do:
-      gettext("Audio streams directly from the podcast publisher. Your place is saved in Sikio.")
-
   def status(%{playback: nil}), do: :new
   def status(%{playback: state}), do: state.status
 
@@ -65,10 +43,6 @@ defmodule SikioWeb.MediaComponents do
 
   def mark_new_label(entry),
     do: if(video?(entry), do: gettext("Mark as unwatched"), else: gettext("Mark as unlistened"))
-
-  def kind_label(%{feed: %{kind: :youtube}}), do: gettext("YouTube video")
-  def kind_label(%{feed: %{kind: :peertube}}), do: gettext("PeerTube video")
-  def kind_label(_entry), do: gettext("Podcast episode")
 
   @doc "What a failed refresh means for the reader, from the reason `Sikio.Feeds` stored."
   def refresh_problem(reason) when reason in ["invalid_feed", "unsupported_encoding"],

@@ -551,17 +551,7 @@ defmodule SikioWeb.LibraryLive do
             {@entry.title}
           </span>
           <span class="flex flex-wrap items-center gap-x-1.5 text-meta text-muted">
-            <span
-              :if={@status == :in_progress}
-              class="font-mono font-medium text-signal-strong"
-            >
-              {time_left(@entry)}
-            </span>
-            <span :if={@status != :in_progress} class="inline-flex items-center gap-1.5">
-              <span :if={@status == :new} aria-hidden="true" class="size-1.5 rounded-full bg-signal"></span>
-              <Lucideicons.check :if={@status == :completed} aria-hidden="true" class="size-3.5" />
-              {status_label(@entry)}
-            </span>
+            <.status_mark entry={@entry} status={@status} />
             <span aria-hidden="true">·</span>
             <span>{medium_label(@entry)}</span>
             <span :if={@entry.published_at} aria-hidden="true">·</span>
@@ -668,6 +658,23 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
+  attr :entry, :map, required: true
+  attr :status, :atom, required: true
+
+  # Where the reader stands, as the row and the detail say it: new, the time left, or done.
+  defp status_mark(assigns) do
+    ~H"""
+    <span :if={@status == :in_progress} class="font-mono font-medium text-signal-strong">
+      {time_left(@entry)}
+    </span>
+    <span :if={@status != :in_progress} class="inline-flex items-center gap-1.5">
+      <span :if={@status == :new} aria-hidden="true" class="size-1.5 rounded-full bg-signal"></span>
+      <Lucideicons.check :if={@status == :completed} aria-hidden="true" class="size-3.5" />
+      {status_label(@entry)}
+    </span>
+    """
+  end
+
   # How far somebody got, as a bar along the foot of the picture when the length is known.
   attr :entry, :map, required: true
 
@@ -743,21 +750,22 @@ defmodule SikioWeb.LibraryLive do
         </span>
         <div class="flex min-w-0 flex-col">
           <p class="truncate text-label font-semibold text-accent">{@entry.feed.title}</p>
-          <p id="playback-status" aria-live="polite" class="text-meta text-muted">
-            {kind_label(@entry)}
-            <span :if={@entry.published_at}>
-              · <span class="font-mono">{date(@entry.published_at)}</span>
-            </span>
-            <span :if={@runtime}>· <span class="font-mono">{@runtime}</span></span>
-            · {status_label(@entry)}
-            <span :if={@entry.playback && @entry.playback.position > 0}>
-              · {gettext("Saved at")}
-              <span class="font-mono">{timestamp(@entry.playback.position)}</span>
-            </span>
+          <p
+            id="playback-status"
+            aria-live="polite"
+            class="flex flex-wrap items-center gap-x-1.5 text-meta text-muted"
+          >
+            <span>{medium_label(@entry)}</span>
+            <span :if={@entry.published_at} aria-hidden="true">·</span>
+            <span :if={@entry.published_at} class="font-mono">{date(@entry.published_at)}</span>
+            <span :if={@runtime} aria-hidden="true">·</span>
+            <span :if={@runtime} class="font-mono">{@runtime}</span>
+            <span aria-hidden="true">·</span>
+            <.status_mark entry={@entry} status={@status} />
           </p>
         </div>
       </div>
-      <h2 class="text-title font-semibold">{@entry.title}</h2>
+      <h2 class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
       <div class="flex flex-wrap items-center gap-3">
         <.button
           id="start-playback"
@@ -799,23 +807,17 @@ defmodule SikioWeb.LibraryLive do
           {gettext("Open on YouTube")}
         </a>
       </div>
-      <section class="flex flex-col gap-3 border-t border-line pt-4">
-        <h3 class="text-meta font-semibold tracking-wider text-muted uppercase">
-          {gettext("From the feed")}
-        </h3>
-        <div :if={@notes} id="item-notes" class="notes max-w-prose text-body text-ink">
-          {@notes}
+      <%!-- The card keeps the column's width; the notes stop at a reading measure in its middle. --%>
+      <section class="border-t border-line pt-4">
+        <div class="mx-auto flex max-w-[80ch] flex-col gap-3">
+          <div :if={@notes} id="item-notes" class="notes text-body text-ink">
+            {@notes}
+          </div>
+          <p :if={!@notes} id="item-no-notes" class="text-muted">
+            {gettext("The publisher sent no notes for this item.")}
+          </p>
         </div>
-        <p :if={!@notes} id="item-no-notes" class="text-muted">
-          {gettext("The publisher sent no notes for this item.")}
-        </p>
       </section>
-      <p class="text-meta text-muted">{privacy_note(@entry)}</p>
-      <p class="border-t border-line pt-4 text-meta text-muted">
-        {gettext(
-          "Playback stays with you as you browse your library and subscriptions. Your place is saved every five seconds, on pause and after seeking. Reaching the end marks this item complete. You can always change that yourself."
-        )}
-      </p>
     </article>
     """
   end
