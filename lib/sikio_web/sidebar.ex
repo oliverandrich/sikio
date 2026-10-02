@@ -5,7 +5,11 @@ defmodule SikioWeb.Sidebar do
   What the reader's sidebar shows: the sources and how many items each view holds.
 
   Mounted for every member page, so a page that is not the library still shows where things
-  stand. It listens to the library's events itself and refreshes on each of them.
+  stand. It listens to the library's events itself and refreshes on them.
+
+  New episodes arrive in bursts, from an import or a poll of many feeds. The first one refreshes
+  at once and opens a window of a second. Those that follow inside it share one refresh at its
+  end, which opens the next window.
 
   A view that wants the events as well defines `handle_library_event/2`, which answers like
   `handle_info/2`. Its own `handle_info/2` never sees them.
@@ -13,10 +17,12 @@ defmodule SikioWeb.Sidebar do
   use SikioWeb, :verified_routes
 
   import Phoenix.Component, only: [assign: 3]
-  import Phoenix.LiveView, only: [attach_hook: 4, connected?: 1]
+  import Phoenix.LiveView, only: [attach_hook: 4, connected?: 1, put_private: 3]
 
   alias Sikio.Library
   alias Sikio.Library.Events
+
+  @window_ms 1000
 
   def on_mount(:default, _params, _session, socket) do
     if connected?(socket) do
@@ -24,7 +30,11 @@ defmodule SikioWeb.Sidebar do
       Events.subscribe_updates(socket.assigns.current_account)
     end
 
-    {:cont, socket |> refresh() |> attach_hook(:sidebar, :handle_info, &follow/2)}
+    {:cont,
+     socket
+     |> put_private(:library_window, :closed)
+     |> refresh()
+     |> attach_hook(:sidebar, :handle_info, &follow/2)}
   end
 
   @doc "Reads the counts and sources again."
@@ -64,10 +74,28 @@ defmodule SikioWeb.Sidebar do
     filters |> Map.put(key, value) |> library_path()
   end
 
+  # The window is private, because an assign would render the page for nothing.
+  defp follow(:library_changed, %{private: %{library_window: :closed}} = socket),
+    do: {:halt, socket |> refresh() |> passed_on(:library_changed) |> open_window()}
+
+  defp follow(:library_changed, socket),
+    do: {:halt, put_private(socket, :library_window, :pending)}
+
+  defp follow(:library_window_closed, %{private: %{library_window: :pending}} = socket),
+    do: follow(:library_changed, put_private(socket, :library_window, :closed))
+
+  defp follow(:library_window_closed, socket),
+    do: {:halt, put_private(socket, :library_window, :closed)}
+
   defp follow(message, socket) do
     if library_event?(message),
       do: {:halt, socket |> refresh_for(message) |> passed_on(message)},
       else: {:cont, socket}
+  end
+
+  defp open_window(socket) do
+    Process.send_after(self(), :library_window_closed, @window_ms)
+    put_private(socket, :library_window, :open)
   end
 
   # The counts follow statuses, and a player saves its place every few seconds without changing
@@ -78,7 +106,6 @@ defmodule SikioWeb.Sidebar do
   defp library_event?({:playback_progressed, _state}), do: true
   defp library_event?({:playback_changed, _state}), do: true
   defp library_event?({:subscription_removed, _feed_id}), do: true
-  defp library_event?(:library_changed), do: true
   defp library_event?(_message), do: false
 
   defp passed_on(socket, message) do

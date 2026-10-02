@@ -244,6 +244,59 @@ defmodule SikioWeb.LibraryLiveTest do
     Repo.insert_all(Sikio.Feeds.Entry, rows)
   end
 
+  # An import subscribes to up to fifty sources in a row, and a poll refreshes many feeds at
+  # once. Each sends an event, and every open tab would reread the library for each of them.
+  # The test closes the window itself rather than waiting the second it lasts.
+  test "a burst of new episodes rereads the library at its start and its end", c do
+    {:ok, view, _} = live(c.conn, ~p"/")
+
+    single =
+      queries_from(view, fn ->
+        send(view.pid, :library_changed)
+        send(view.pid, :library_window_closed)
+      end)
+
+    burst =
+      queries_from(view, fn ->
+        for _ <- 1..5, do: send(view.pid, :library_changed)
+        send(view.pid, :library_window_closed)
+      end)
+
+    assert single > 0
+    assert burst == 2 * single
+  end
+
+  # Counts the database queries the view's own process makes while `fun` runs.
+  defp queries_from(view, fun) do
+    test = self()
+    handler = "queries-#{Sikio.DataCase.unique()}"
+
+    :telemetry.attach(
+      handler,
+      [:sikio, :repo, :query],
+      &__MODULE__.forward_query/4,
+      {view.pid, test, handler}
+    )
+
+    fun.()
+    render(view)
+    :telemetry.detach(handler)
+    count_received({:query, handler}, 0)
+  end
+
+  # Telemetry calls a module's function faster than a closure, and warns about the closure.
+  def forward_query(_event, _measurements, _metadata, {pid, test, handler}) do
+    if self() == pid, do: send(test, {:query, handler})
+  end
+
+  defp count_received(message, count) do
+    receive do
+      ^message -> count_received(message, count + 1)
+    after
+      0 -> count
+    end
+  end
+
   describe "the sidebar" do
     test "narrows the list through the address and marks where the reader is", c do
       {:ok, view, _} = live(c.conn, ~p"/")
