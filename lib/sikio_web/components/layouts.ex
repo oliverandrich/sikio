@@ -265,16 +265,9 @@ defmodule SikioWeb.Layouts do
           >
             {gettext("Subscriptions")}
           </.link>
-          <.link
-            id="invitations-link"
-            aria-current={@section == :invitations && "page"}
-            navigate={~p"/invitations"}
-            class={nav_link_class()}
-          >
-            {gettext("Invitations")}
-          </.link>
           <details
             id="user-menu"
+            data-active={@section in [:account, :invitations]}
             class="relative shrink-0"
             phx-click-away={JS.remove_attribute("open", to: "#user-menu")}
             phx-window-keydown={JS.remove_attribute("open", to: "#user-menu")}
@@ -282,7 +275,7 @@ defmodule SikioWeb.Layouts do
           >
             <summary class={[
               "flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control px-2 focus-visible:outline-2 focus-visible:outline-accent lg:min-h-9 lg:px-2.5 lg:hover:bg-surface",
-              @section == :account && "font-semibold text-accent lg:bg-selection"
+              @section in [:account, :invitations] && "font-semibold text-accent lg:bg-selection"
             ]}>
               <.initial name={@current_account.username} class="hidden lg:flex" /><span
                 class="max-w-32 truncate"
@@ -296,6 +289,12 @@ defmodule SikioWeb.Layouts do
               aria-label={gettext("Your account")}
               class="absolute right-0 bottom-full z-20 mb-2 w-56 rounded-control border border-line bg-surface p-1 font-normal shadow-lg lg:right-auto lg:left-0"
             >
+              <.link
+                id="invitations-link"
+                navigate={~p"/invitations"}
+                aria-current={@section == :invitations && "page"}
+                class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
+              >{gettext("Invitations")}</.link>
               <.link
                 navigate={~p"/account/passkeys"}
                 class="block rounded-control px-3 py-2 hover:bg-ground"

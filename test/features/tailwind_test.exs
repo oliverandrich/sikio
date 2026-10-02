@@ -102,7 +102,7 @@ defmodule SikioWeb.TailwindTest do
       document.body.append(probe)
       const color = el => getComputedStyle(el).color
       return [color(probe), color(document.getElementById('subscriptions-heading')),
-              color(document.getElementById('invitations-link'))]
+              color(document.getElementById('view-all'))]
       """,
       fn [accent, active, inactive] ->
         assert active == accent

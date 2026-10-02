@@ -356,6 +356,16 @@ defmodule SikioWeb.LibraryLiveTest do
              )
     end
 
+    # Inviting is done now and then, so it sits in the account's menu rather than among the
+    # places a reader moves between, on a phone as on a desktop.
+    test "keeps invitations in the account menu", c do
+      {:ok, view, _} = live(c.conn, ~p"/invitations")
+
+      refute has_element?(view, "#main-navigation > a[href='/invitations']")
+      assert has_element?(view, ~s|#user-menu a[href="/invitations"][aria-current="page"]|)
+      assert has_element?(view, "#user-menu[data-active]")
+    end
+
     # A source whose last refresh failed says so beside its name, and what went wrong on hover.
     # The words are there for a screen reader too; a flash of lightning alone says nothing.
     test "marks a source whose last refresh failed", c do

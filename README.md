@@ -29,8 +29,8 @@ mise dev
 ```
 
 Open **http://localhost:4000**, enter the code the previous command printed, and register your
-first passkey. Save the recovery codes; they are shown once. Under Invitations you can then
-create links. Invitations last seven days, are bound to the username you choose, and can be
+first passkey. Save the recovery codes; they are shown once. Under Invitations in the account
+menu you can then create links. Invitations last seven days, are bound to the username you choose, and can be
 used once, and each member may make twenty a day. After `mise run reset` the database is
 unclaimed again, so issue another code.
 
