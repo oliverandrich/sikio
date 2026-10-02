@@ -24,7 +24,15 @@ defmodule SikioWeb.LibraryLive do
   @batch 25
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, selected: nil, notes: nil, filters: nil, entries: [], more?: false)}
+    {:ok,
+     assign(socket,
+       selected: nil,
+       notes: nil,
+       filters: nil,
+       entries: [],
+       more?: false,
+       search_open?: false
+     )}
   end
 
   # The list is read again only when the filters change. The rows are keyed, so choosing another
@@ -32,6 +40,8 @@ defmodule SikioWeb.LibraryLive do
   @impl true
   def handle_params(params, _uri, socket) do
     filters = params |> Library.normalize_filters() |> offered()
+    # An address with a search shows the field, a reload or the Back button included.
+    socket = assign(socket, :search_open?, socket.assigns.search_open? or filters["q"] != "")
 
     socket =
       if filters == socket.assigns.filters,
@@ -96,6 +106,30 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("move", _params, socket), do: {:noreply, socket}
 
   def handle_event("load_more", _params, socket), do: {:noreply, load_more(socket)}
+
+  def handle_event("search", %{"q" => text}, socket), do: {:noreply, searched(socket, text)}
+  # The field is open or folded on the page's word, so a patch never folds it mid-edit. Opening
+  # puts the cursor in it; folding clears the search and gives the focus back to the magnifier.
+  def handle_event("open_search", _params, socket) do
+    {:noreply,
+     socket |> assign(:search_open?, true) |> push_event("focus", %{id: "search-input"})}
+  end
+
+  def handle_event("close_search", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:search_open?, false)
+     |> push_event("focus", %{id: "toggle-search"})
+     |> searched("")}
+  end
+
+  def handle_event("toggle_search", params, socket),
+    do:
+      handle_event(
+        if(socket.assigns.search_open?, do: "close_search", else: "open_search"),
+        params,
+        socket
+      )
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
     do: {:noreply, socket}
@@ -190,6 +224,12 @@ defmodule SikioWeb.LibraryLive do
   defp notes(_socket, entry),
     do: Notes.notes(entry.description, entry.description_format || :html)
 
+  # The tally counts every place without a query. A search is counted by the database.
+  defp total(socket, %{"q" => ""} = filters),
+    do: socket.assigns.sidebar.counts |> Library.tally(filters) |> Library.total(filters)
+
+  defp total(socket, filters), do: Library.count(socket.assigns.current_account, filters)
+
   defp position(%{assigns: %{selected: nil}}), do: nil
 
   defp position(%{assigns: %{selected: selected, entries: entries}}),
@@ -222,7 +262,7 @@ defmodule SikioWeb.LibraryLive do
       entries: entries,
       more?: length(entries) == limit,
       counts: counts,
-      total: socket.assigns.sidebar.counts |> Library.tally(filters) |> Library.total(filters),
+      total: total(socket, filters),
       heading: heading(filters, subscriptions),
       filtered?: place_of(filters) != filters
     )
@@ -265,17 +305,31 @@ defmodule SikioWeb.LibraryLive do
           "min-w-0 lg:min-h-svh lg:self-stretch lg:border-r lg:border-line lg:bg-surface",
           @selected && "hidden lg:block"
         ]}>
-          <div class="flex flex-wrap items-center justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
-            <div class="flex flex-col gap-0.5">
+          <div class="flex items-start justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
+            <div class="flex min-w-0 flex-col gap-0.5">
               <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
               <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
                 {count_label(@total)}
               </span>
             </div>
-            <.button id="add-subscription" class="lg:hidden" navigate={~p"/subscriptions"}>
-              <Lucideicons.plus aria-hidden="true" class="size-4" />
-              {gettext("Add a source")}
-            </.button>
+            <div class="flex shrink-0 items-center gap-2">
+              <button
+                :if={!@empty?}
+                id="toggle-search"
+                type="button"
+                aria-controls="search-form"
+                aria-expanded={to_string(@search_open?)}
+                aria-label={gettext("Search")}
+                phx-click="toggle_search"
+                class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-expanded:text-accent"
+              >
+                <Lucideicons.search aria-hidden="true" class="size-4.5" />
+              </button>
+              <.button id="add-subscription" class="shrink-0 lg:hidden" navigate={~p"/subscriptions"}>
+                <Lucideicons.plus aria-hidden="true" class="size-4" />
+                {gettext("Add a source")}
+              </.button>
+            </div>
           </div>
           <nav
             id="library-chips"
@@ -314,6 +368,27 @@ defmodule SikioWeb.LibraryLive do
               </.chip>
             </div>
           </details>
+          <form
+            :if={!@empty?}
+            id="search-form"
+            role="search"
+            phx-change="search"
+            phx-submit="search"
+            hidden={!@search_open?}
+            class="px-6 pb-3 sm:px-12 lg:px-4"
+          >
+            <input
+              id="search-input"
+              type="search"
+              name="q"
+              value={@filters["q"]}
+              phx-debounce="300"
+              placeholder={gettext("Search in %{place}", place: @heading)}
+              aria-label={gettext("Search in %{place}", place: @heading)}
+              autocomplete="off"
+              class="w-full rounded-full border border-control bg-surface px-4 py-2 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
+            />
+          </form>
           <div :if={!@empty?} class="px-6 pb-3 sm:px-12 lg:border-b lg:border-line lg:px-4 lg:pb-4">
             <button
               id="toggle-filters"
@@ -498,6 +573,24 @@ defmodule SikioWeb.LibraryLive do
       </.link>
     </article>
     """
+  end
+
+  # A reconnect sends the form again, so an unchanged search changes nothing. A search keeps the
+  # item that is open and replaces the address rather than adding a step for each word typed.
+  defp searched(socket, text) do
+    filters = Map.put(socket.assigns.filters, "q", text)
+
+    if Library.normalize_filters(filters) == Library.normalize_filters(socket.assigns.filters),
+      do: socket,
+      else:
+        push_patch(socket,
+          replace: true,
+          to:
+            SikioWeb.Sidebar.library_path(
+              filters,
+              socket.assigns.selected && socket.assigns.selected.id
+            )
+        )
   end
 
   # Only filters the page offers may narrow it: a source has one medium and no medium filter.

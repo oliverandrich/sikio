@@ -99,6 +99,41 @@ defmodule Sikio.LibraryTest do
     assert id == oldest.id
   end
 
+  # A search looks where a reader remembers words from: the title, the notes and the excerpt. It
+  # stays inside the account's own subscriptions and takes what was typed as text, not a pattern.
+  test "search finds words in titles, notes and excerpts", ctx do
+    entry = hd(ctx.preview.entries)
+
+    entries = [
+      %{entry | external_id: "a", title: "Bridges that sing", description: nil, excerpt: nil},
+      %{
+        entry
+        | external_id: "b",
+          title: "Bread",
+          description: "<p>About old BRIDGES</p>",
+          excerpt: nil
+      },
+      %{entry | external_id: "c", title: "Tea", description: nil, excerpt: "bridges at dawn"},
+      %{entry | external_id: "d", title: "50% off", description: nil, excerpt: nil}
+    ]
+
+    Library.subscribe(ctx.alice, %{ctx.preview | entries: entries})
+
+    titles = fn filters ->
+      ctx.alice |> Library.entries(filters) |> Enum.map(& &1.title) |> Enum.sort()
+    end
+
+    assert titles.(%{"q" => "bridges"}) == ["Bread", "Bridges that sing", "Tea"]
+    assert titles.(%{"q" => "  sing "}) == ["Bridges that sing"]
+    assert titles.(%{"q" => "%"}) == ["50% off"]
+    assert titles.(%{"q" => "_"}) == []
+    # The notes are HTML. Their markup is not what anybody remembers.
+    assert titles.(%{"q" => "<p>"}) == []
+    assert titles.(%{"q" => "p>"}) == []
+    assert Library.count(ctx.alice, %{"q" => "bridges"}) == 3
+    assert Library.entries(ctx.bob, %{"q" => "bridges"}) == []
+  end
+
   # A list grows as it is scrolled. Each batch continues after the last entry shown, by date and
   # then id, so an episode that arrives meanwhile neither repeats one nor skips one. Entries
   # without a date come last.

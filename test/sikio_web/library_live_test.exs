@@ -166,6 +166,61 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#entries article", "One & two")
   end
 
+  # The magnifier opens a field that searches the place as it is filtered. What was typed is in
+  # the address; Escape clears it, and another place starts without it.
+  test "a search narrows the place and counts what it finds", c do
+    {:ok, view, _} = live(c.conn, ~p"/?status=new")
+
+    view |> form("#search-form", %{q: "good"}) |> render_change()
+    assert_patch(view, "/?q=good&status=new")
+    assert has_element?(view, "#entries article", "A good video")
+    refute has_element?(view, "#entries article", "One & two")
+    assert has_element?(view, "#library-count", "1 item")
+    assert has_element?(view, ~s|#search-form input[value="good"]|)
+
+    # Escape in the field sends this; the browser test presses the key itself.
+    render_hook(view, "close_search", %{})
+    assert_patch(view, "/?status=new")
+
+    {:ok, view, _} = live(c.conn, ~p"/?q=good&status=new")
+    view |> element("#view-all") |> render_click()
+    assert_patch(view, "/")
+  end
+
+  # After a reconnect the browser sends every form again, the search with it. An unchanged search
+  # leaves the address alone, and a search keeps the item that is open.
+  test "a search keeps the open item, and an unchanged one changes nothing", c do
+    {:ok, view, _} = live(c.conn, ~p"/library/#{c.audio.id}")
+
+    view |> form("#search-form", %{q: ""}) |> render_change()
+    assert has_element?(view, "#item-detail h2", "One & two")
+
+    view |> form("#search-form", %{q: "one"}) |> render_change()
+    assert_patch(view, "/library/#{c.audio.id}?q=one")
+  end
+
+  # Whether the field is open is the page's to say: an address with a search shows it, emptying it
+  # keeps it open, and only the magnifier or Escape folds it away again.
+  test "the search field opens with a search and stays open while it is edited", c do
+    {:ok, view, _} = live(c.conn, ~p"/")
+    assert has_element?(view, "#search-form[hidden]")
+
+    render_hook(view, "open_search", %{})
+    refute has_element?(view, "#search-form[hidden]")
+    assert has_element?(view, ~s|#toggle-search[aria-expanded="true"]|)
+
+    view |> form("#search-form", %{q: "good"}) |> render_change()
+    view |> form("#search-form", %{q: ""}) |> render_change()
+    refute has_element?(view, "#search-form[hidden]")
+
+    view |> element("#toggle-search") |> render_click()
+    assert has_element?(view, "#search-form[hidden]")
+    assert has_element?(view, ~s|#toggle-search[aria-expanded="false"]|)
+
+    {:ok, view, _} = live(c.conn, ~p"/?q=good")
+    refute has_element?(view, "#search-form[hidden]")
+  end
+
   # Choosing another place starts it unfiltered.
   test "a new place drops the filters of the last", c do
     {:ok, view, _} = live(c.conn, ~p"/?kind=video&status=new")

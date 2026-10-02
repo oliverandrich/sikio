@@ -170,6 +170,16 @@ defmodule Sikio.Library do
     |> Map.put(:sources, Map.merge(sources, sum_by(new_or_chosen, :feed_id)))
   end
 
+  @doc "How many entries match `filters`, however many a list has loaded. Searches count this way."
+  def count(%User{id: user_id}, filters) do
+    user_id
+    |> filtered_entries(filters)
+    |> exclude(:preload)
+    |> exclude(:select)
+    |> select([e], count(e.id))
+    |> Repo.one()
+  end
+
   @doc "How many items match `filters` altogether, read from their `tally/2`."
   def total(tally, filters) do
     status = normalize_filters(filters)["status"]
@@ -200,9 +210,14 @@ defmodule Sikio.Library do
     %{
       "kind" => kind(params["kind"]),
       "status" => choice(params["status"], ~w(new in_progress completed)),
-      "source" => source_id(params["source"])
+      "source" => source_id(params["source"]),
+      "q" => search_text(params["q"])
     }
   end
+
+  # What was typed, trimmed and of a length worth asking for.
+  defp search_text(text) when is_binary(text), do: text |> String.trim() |> String.slice(0, 100)
+  defp search_text(_text), do: ""
 
   defp choice(value, values), do: if(value in values, do: value, else: "")
 
@@ -236,12 +251,31 @@ defmodule Sikio.Library do
         "audio" -> where(query, [e, s, p, f], f.kind not in ^Feed.video_kinds())
       end
 
-    case filters["status"] do
-      "" -> query
-      # An entry nobody has opened has no row at all, which is the same thing as new.
-      "new" -> where(query, [e, s, p], is_nil(p.id) or p.status == :new)
-      status -> where(query, [e, s, p], p.status == ^status)
-    end
+    query =
+      case filters["status"] do
+        "" -> query
+        # An entry nobody has opened has no row at all, which is the same thing as new.
+        "new" -> where(query, [e, s, p], is_nil(p.id) or p.status == :new)
+        status -> where(query, [e, s, p], p.status == ^status)
+      end
+
+    matching(query, filters["q"])
+  end
+
+  # Words a reader remembers, in the title, the notes or the excerpt. What was typed is text, so
+  # the pattern characters in it are escaped. The notes are HTML; their tags are not searched.
+  defp matching(query, ""), do: query
+
+  defp matching(query, text) do
+    pattern = "%" <> String.replace(text, ["\\", "%", "_"], &("\\" <> &1)) <> "%"
+
+    where(
+      query,
+      [e],
+      ilike(e.title, ^pattern) or
+        fragment("regexp_replace(?, '<[^>]*>', ' ', 'g') ILIKE ?", e.description, ^pattern) or
+        ilike(e.excerpt, ^pattern)
+    )
   end
 
   # The join to subscriptions is what makes this account-scoped. Every query over entries starts

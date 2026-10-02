@@ -2,14 +2,15 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {readerKey} from "./reader_keys.mjs"
+import {closesSearch, readerKey} from "./reader_keys.mjs"
 
 const press = (key, extra = {}) => ({key, target: {tagName: "BODY"}, ...extra})
 
-test("j and k move and m marks, other keys do not", () => {
+test("j and k move, m marks and f searches, other keys do not", () => {
   assert.equal(readerKey(press("j")), "j")
   assert.equal(readerKey(press("k")), "k")
   assert.equal(readerKey(press("m")), "m")
+  assert.equal(readerKey(press("f")), "f")
   assert.equal(readerKey(press("x")), null)
 })
 
@@ -17,6 +18,13 @@ test("j and k move and m marks, other keys do not", () => {
 test("a held m marks once, a held j keeps moving", () => {
   assert.equal(readerKey(press("m", {repeat: true})), null)
   assert.equal(readerKey(press("j", {repeat: true})), "j")
+})
+
+// Escape in the search field clears and folds it; elsewhere Escape belongs to someone else.
+test("Escape closes the search only from inside it", () => {
+  assert.equal(closesSearch(press("Escape", {target: {tagName: "INPUT", id: "search-input"}})), true)
+  assert.equal(closesSearch(press("Escape", {target: {tagName: "INPUT", id: "other"}})), false)
+  assert.equal(closesSearch(press("x", {target: {tagName: "INPUT", id: "search-input"}})), false)
 })
 
 test("a key held with a modifier belongs to something else", () => {
