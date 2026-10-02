@@ -25,6 +25,42 @@ defmodule Sikio.FeedFixtures do
   @doc "A PeerTube instance feed address no other test writes."
   def peertube_feed_url, do: feed_url("feeds/videos.xml")
 
+  @doc """
+  Answers a stubbed request with `respond` once the test lets it go.
+
+  Each held request reports itself to `test`. Two reports before any release show that two
+  requests ran at once; one after another, the second never starts while the first waits.
+  """
+  def held(test, respond) do
+    send(test, {:held, self()})
+
+    receive do
+      :release -> respond.()
+    end
+  end
+
+  @doc "Waits until `count` requests are held at once, then releases them and any that follow."
+  def release_together(%Task{} = task, count) do
+    import ExUnit.Assertions
+    held = for _ <- 1..count, do: assert_receive({:held, _pid}, 1_000) |> elem(1)
+    Enum.each(held, &send(&1, :release))
+    released(task)
+  end
+
+  defp released(%Task{ref: ref} = task) do
+    receive do
+      {:held, pid} ->
+        send(pid, :release)
+        released(task)
+
+      {^ref, result} ->
+        Process.demonitor(ref, [:flush])
+        result
+    after
+      1_000 -> ExUnit.Assertions.flunk("the task neither finished nor sent another request")
+    end
+  end
+
   @doc "The resolver the test environment pins every host to, so no test reaches real DNS."
   def resolve(_host), do: {:ok, [{93, 184, 216, 34}]}
 

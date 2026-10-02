@@ -119,6 +119,30 @@ defmodule Sikio.Feeds.DiscoveryTest do
     assert Enum.map(feeds, & &1.title) == ["First", "Second"]
   end
 
+  # A page may advertise five feeds. Asking them one after another makes whoever pasted the page
+  # wait for the slowest five times over.
+  test "a webpage's candidate feeds are fetched at the same time" do
+    test = self()
+
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/.well-known/nodeinfo" ->
+          Plug.Conn.send_resp(conn, 404, "")
+
+        "/shows" ->
+          Plug.Conn.send_resp(conn, 200, ~s(<a href="/one.rss">1</a><a href="/two.rss">2</a>))
+
+        "/" <> name ->
+          held(test, fn -> Plug.Conn.send_resp(conn, 200, podcast(name)) end)
+      end
+    end)
+
+    task = Task.async(fn -> Discovery.discover("https://example.org/shows") end)
+
+    assert {:ok, feeds} = release_together(task, 2)
+    assert Enum.map(feeds, & &1.title) == ["one.rss", "two.rss"]
+  end
+
   test "direct podcast RSS is accepted and bogus pages yield a useful failure" do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
     assert {:ok, [%{kind: :podcast}]} = Discovery.discover("https://example.org/rss")

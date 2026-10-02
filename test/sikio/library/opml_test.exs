@@ -82,6 +82,31 @@ defmodule Sikio.Library.OPMLTest do
     assert [%{status: :existing}] = OPML.import_sources(user, [Enum.at(sources, 1)])
   end
 
+  # Fifty sources one after another can take minutes. They are fetched a few at a time, so a slow
+  # server delays its own source rather than every one behind it.
+  test "sources are fetched at the same time and reported in the file's order" do
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    test = self()
+
+    Req.Test.stub(HTTP, fn conn ->
+      held(test, fn -> Plug.Conn.send_resp(conn, 200, podcast(conn.request_path)) end)
+    end)
+
+    sources = for n <- 1..3, do: %{title: "#{n}", url: feed_url("source#{n}")}
+    task = Task.async(fn -> OPML.import_sources(user, sources) end)
+
+    result = release_together(task, 2)
+
+    assert Enum.map(result, &{&1.title, &1.status}) == [
+             {"1", :imported},
+             {"2", :imported},
+             {"3", :imported}
+           ]
+
+    assert user |> Library.subscriptions() |> Enum.map(& &1.feed.title) |> Enum.sort() ==
+             ["/source1", "/source2", "/source3"]
+  end
+
   test "private addresses never reach the HTTP transport" do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     Req.Test.stub(HTTP, fn _ -> flunk("private address reached transport") end)

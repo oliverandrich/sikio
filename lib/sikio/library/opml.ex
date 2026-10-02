@@ -66,21 +66,39 @@ defmodule Sikio.Library.OPML do
     known = account |> Library.subscriptions() |> Map.new(&{&1.feed.url, &1.id})
 
     {results, _} =
-      Enum.map_reduce(sources, known, fn source, known ->
+      sources
+      |> fetched(known)
+      |> Enum.map_reduce(known, fn {:ok, {source, fetched}}, known ->
         if Map.has_key?(known, source.url) do
           {Map.put(source, :status, :existing), known}
         else
-          import_source(account, source, known)
+          import_source(account, source, fetched, known)
         end
       end)
 
     results
   end
 
+  # The network part, a few sources at a time: a slow server delays its own source, not every one
+  # behind it, and no host is asked for more than a handful at once. The stream is consumed in
+  # the file's order, so subscribing stays in order and only a few fetched feeds wait in memory.
+  defp fetched(sources, known) do
+    Task.async_stream(
+      sources,
+      fn source ->
+        if Map.has_key?(known, source.url),
+          do: {source, :known},
+          else: {source, Discovery.fetch(source.url)}
+      end,
+      max_concurrency: 5,
+      timeout: :infinity
+    )
+  end
+
   # Two addresses are remembered for one subscription: the one the file named and the one the feed
   # finally answered from. A list that holds both an alias and the real address imports once.
-  defp import_source(account, source, known) do
-    with {:ok, preview} <- Discovery.fetch(source.url),
+  defp import_source(account, source, fetched, known) do
+    with {:ok, preview} <- fetched,
          {:ok, subscription} <- Library.subscribe(account, preview) do
       status = if subscription.id in Map.values(known), do: :existing, else: :imported
       result = Map.put(source, :status, status)

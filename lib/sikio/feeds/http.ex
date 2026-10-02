@@ -144,13 +144,17 @@ defmodule Sikio.Feeds.HTTP do
     end
   end
 
+  # Both families at once, so a name without an answer for one costs its timeout once. The order
+  # stays IPv4 first, which is the address a request then uses.
   defp resolve(host) do
+    name = String.to_charlist(host)
+
     addresses =
-      Enum.flat_map([:inet, :inet6], fn family ->
-        case :inet.getaddrs(String.to_charlist(host), family, 2_000) do
-          {:ok, ips} -> ips
-          _ -> []
-        end
+      [:inet, :inet6]
+      |> Task.async_stream(&:inet.getaddrs(name, &1, 2_000), timeout: :infinity)
+      |> Enum.flat_map(fn
+        {:ok, {:ok, ips}} -> ips
+        _ -> []
       end)
 
     {:ok, addresses}

@@ -345,7 +345,8 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   # Five candidates at most, and each one is fetched. A page that advertises a hundred links is not
-  # worth a hundred requests to somebody else's server.
+  # worth a hundred requests to somebody else's server. The five are asked at once, so whoever
+  # pasted the page waits for the slowest, not for all of them in turn.
   defp discover_links(body, base_url) do
     with {:ok, doc} <- Floki.parse_document(body) do
       urls =
@@ -358,7 +359,10 @@ defmodule Sikio.Feeds.Discovery do
         |> Enum.uniq()
         |> Enum.take(5)
 
-      feeds = Enum.flat_map(urls, &candidate/1)
+      feeds =
+        urls
+        |> Task.async_stream(&candidate/1, max_concurrency: 5, timeout: :infinity)
+        |> Enum.flat_map(fn {:ok, found} -> found end)
 
       if feeds == [], do: {:error, :not_found}, else: {:ok, Enum.uniq_by(feeds, & &1.url)}
     end
