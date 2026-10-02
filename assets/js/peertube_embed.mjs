@@ -27,9 +27,11 @@ export function connect(iframe, {origin, onStatus = () => {}, onError = () => {}
   const pending = new Map()
   const queued = []
 
+  // A frame taken out of the page has no window. There is nobody left to tell, and throwing here
+  // would break whatever removed it.
   const post = message => {
     if (destroyed) return
-    iframe.contentWindow.postMessage(JSON.stringify(message), origin)
+    iframe.contentWindow?.postMessage(JSON.stringify(message), origin)
   }
 
   const receive = event => {

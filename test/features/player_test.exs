@@ -204,6 +204,43 @@ defmodule SikioWeb.PlayerTest do
       )
     end
 
+    # Starting one item after another hands the player on each time, and the last one still
+    # closes. Each start waits for the previous player to save its place.
+    feature "starts one item after another and still closes", context do
+      %{session: session, account: account} = context
+      {:ok, preview} = Parser.parse(podcast(), feed_url("three"))
+
+      entries =
+        for n <- 1..3,
+            do: %{hd(preview.entries) | external_id: "three-#{n}", title: "Part #{n}"}
+
+      {:ok, _} = Library.subscribe(account, %{preview | entries: entries})
+
+      ids =
+        account
+        |> Library.entries()
+        |> Enum.filter(&String.starts_with?(&1.title, "Part"))
+        |> Enum.map(& &1.id)
+
+      session = session |> resize_window(1280, 900) |> open("/")
+
+      # Through the list, as a reader moves: the page and its player are never loaded again.
+      for id <- ids do
+        session
+        |> click(css("#entries-#{id} a"))
+        |> assert_has(css(~s|#item-detail[data-entry-id="#{id}"]|))
+        |> click(css("#start-playback"))
+        |> assert_has(css(~s|#player-control[data-entry-id="#{id}"]|))
+      end
+
+      session
+      |> click(css("#entries-#{hd(ids)} a"))
+      |> assert_has(css(~s|#player-panel[data-place="compact"]|))
+      |> click(css("#close-player"))
+      # refute_has fails at once while the panel is still there; a count of none waits for it.
+      |> assert_has(css("#player-panel", count: 0))
+    end
+
     # Playback is global and selection is not. When they disagree the notes get the room, and on a
     # page without a detail the bar still says what plays and can pause it.
     feature "folds into the sidebar when the detail shows something else", context do

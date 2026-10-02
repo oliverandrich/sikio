@@ -6,12 +6,13 @@ import {connect} from "./peertube_embed.mjs"
 export function createReporter({session, read, send, stop, message, strings, now = Date.now}) {
   let sequence = 0, inFlight = null, pending = null, lastSave = -Infinity
   let connected = true, closed = false, completed = false
-  let finishDone = null, warned = false
+  let finishDone = null, finishing = false, warned = false
   const warn = text => { warned = true; message(text) }
 
   function finishResult(saved) {
     const done = finishDone
     finishDone = null
+    finishing = false
     done?.(saved)
   }
 
@@ -39,7 +40,9 @@ export function createReporter({session, read, send, stop, message, strings, now
 
   return {
     save(ended = false, force = false) {
-      if (closed || (!force && now() - lastSave < 5000)) return
+      // Finishing, the stopped player's last place is already asked for. A paused PeerTube embed
+      // keeps reporting, and taking each report would keep the queue from ever running dry.
+      if (closed || finishing || (!force && now() - lastSave < 5000)) return
       const current = read()
       if (!current || !Number.isFinite(current.position) || current.position < 0) return
       lastSave = now()
@@ -70,6 +73,7 @@ export function createReporter({session, read, send, stop, message, strings, now
       }
       finishDone = done
       this.save(false, true)
+      finishing = true
       if (inFlight === null && !pending) finishResult(true)
     },
     destroy() { closed = true; pending = null; finishResult(false) }
@@ -159,8 +163,14 @@ export const MediaPlayer = {
         }
 
         if (!this.ready) return
-        if (state === "ended") this.reporter.save(true, true)
-        else if (state === "paused") this.reporter.save(false, true)
+        // The embed repeats its state and place with every report. Becoming paused is worth a
+        // forced save, and so is a seek while paused; the same place again is not.
+        const changed = state !== this.lastState
+        const moved = typeof status === "object" && status.position !== this.lastPosition
+        this.lastState = state
+        if (typeof status === "object") this.lastPosition = status.position
+        if (state === "ended" && changed) this.reporter.save(true, true)
+        else if (state === "paused" && (changed || moved)) this.reporter.save(false, true)
         else if (state === "playing") this.reporter.save()
       }
     })
@@ -245,10 +255,13 @@ export const MediaPlayer = {
     this.reporter?.destroy()
     this.cleanups?.forEach(cleanup => cleanup())
     clearInterval(this.poll)
-    this.stop?.()
+    // LiveView has already taken the element out of the page. A frame out of the page plays
+    // nothing and has no window to tell, and an exception here would abort LiveView's patch, so
+    // the channels close first and only audio, which keeps playing detached, is paused.
     this.peertube?.destroy?.()
     this.youtube?.destroy?.()
     if (this.audio) {
+      this.audio.pause()
       this.audio.removeAttribute("src")
       this.audio.load()
     }

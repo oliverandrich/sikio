@@ -100,6 +100,19 @@ test("a save leaves a message it did not give", () => {
   assert.equal(f.message(), "Press play")
 })
 
+// A paused PeerTube embed keeps reporting twice a second, and each report asks for a save. A
+// switch that waited for the queue to run dry would never end, and no button would work again.
+test("finishing ends although the player keeps asking to save", () => {
+  const f = reporterFixture()
+  const results = []
+  f.reporter.finish(saved => results.push(saved))
+  for (let n = 0; n < 5 && results.length === 0; n++) {
+    f.reporter.save(false, true)
+    f.calls.at(-1).reply({saved: true})
+  }
+  assert.deepEqual(results, [true])
+})
+
 test("unknown live duration is omitted and invalid positions are not persisted", () => {
   const calls = []
   let position = NaN
@@ -343,8 +356,87 @@ test("PeerTube reports its own position and does not save before it has one", as
     await Promise.resolve()
     assert.equal(samples.at(-1).ended, true)
 
-    hook.destroyed()
+    // Closing flushes first, while the frame is still in the page, and that is what pauses it.
+    hook.el.dispatchEvent(new CustomEvent("sikio:flush", {detail: {done: () => {}}}))
     assert.ok(posted.some(m => m.method === "peertube::pause"), "closing stops the instance's player")
+    hook.destroyed()
+  } finally {
+    hook.destroyed()
+    globalThis.document = previous.document
+    globalThis.window = previous.window
+  }
+})
+
+// LiveView removes the player's element before it calls destroyed, so the iframe is detached and
+// has no window to write to. Cleaning up must not throw: an exception there aborts LiveView's patch
+// before the dock's reply arrives, and from then on no button works.
+test("a PeerTube player whose frame is gone cleans up quietly and hears nothing more", () => {
+  const previous = {document: globalThis.document, window: globalThis.window}
+  const samples = []
+  globalThis.document = new EventTarget()
+  globalThis.window = new EventTarget()
+
+  const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
+    querySelector: selector => selector === "[data-player-message]" ? {textContent: ""} : selector === "iframe" ? iframe : null}),
+    pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
+
+  const fromEmbed = payload => {
+    const event = new Event("message")
+    event.data = JSON.stringify(payload)
+    event.origin = "https://video.example.org"
+    window.dispatchEvent(event)
+  }
+
+  try {
+    hook.mounted()
+    fromEmbed({method: "peertube::__ready", params: {type: "publish-request", publish: []}})
+    fromEmbed({method: "peertube::playbackStatusUpdate", params: {position: 5, duration: 36, playbackState: "playing"}})
+    iframe.contentWindow = null
+    assert.doesNotThrow(() => hook.destroyed())
+    const count = samples.length
+    fromEmbed({method: "peertube::playbackStatusChange", params: "paused"})
+    assert.equal(samples.length, count, "a destroyed player saves nothing for another embed")
+  } finally {
+    globalThis.document = previous.document
+    globalThis.window = previous.window
+  }
+})
+
+// A paused embed keeps reporting the same place twice a second. Only becoming paused is news.
+test("a paused PeerTube video saves its place once, not with every report", async () => {
+  const previous = {document: globalThis.document, window: globalThis.window}
+  const samples = []
+  globalThis.document = new EventTarget()
+  globalThis.window = new EventTarget()
+
+  const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
+    querySelector: selector => selector === "[data-player-message]" ? {textContent: ""} : selector === "iframe" ? iframe : null}),
+    pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
+
+  const report = (state, position = 12) => {
+    const event = new Event("message")
+    event.data = JSON.stringify({method: "peertube::playbackStatusUpdate", params: {position, duration: 36, playbackState: state}})
+    event.origin = "https://video.example.org"
+    window.dispatchEvent(event)
+  }
+
+  try {
+    hook.mounted()
+    const ready = new Event("message")
+    ready.data = JSON.stringify({method: "peertube::__ready", params: {type: "publish-request", publish: []}})
+    ready.origin = "https://video.example.org"
+    window.dispatchEvent(ready)
+    report("playing")
+    const playing = samples.length
+    for (let n = 0; n < 4; n++) report("paused")
+    assert.equal(samples.length, playing + 1)
+    // A seek while paused moves the place, and that is saved at once.
+    report("paused", 300)
+    report("paused", 300)
+    assert.equal(samples.length, playing + 2)
+    assert.equal(samples.at(-1).position, 300)
   } finally {
     hook.destroyed()
     globalThis.document = previous.document
