@@ -70,22 +70,14 @@ defmodule SikioWeb.Sidebar do
   def place_path(key, value), do: library_path(%{key => value})
 
   @doc """
-  The one place `filters` name: a source before a status, and never a kind.
+  Whether `filters` show that place, which is what marks it as current.
 
-  Addresses from before places were chosen one at a time may name several.
+  The list may narrow a place further: by medium anywhere, and by status within a source.
   """
-  def place(%{"source" => source} = filters) when source not in [nil, ""],
-    do: %{filters | "status" => "", "kind" => ""}
-
-  def place(filters), do: %{filters | "source" => "", "kind" => ""}
-
-  @doc "Whether `filters` show exactly that place, which is what marks it as current."
   def place?(filters, "source", id), do: filters["source"] == id
 
   def place?(filters, "status", value),
-    do:
-      Enum.all?(["source", "kind"], &((filters[&1] || "") == "")) and
-        (filters["status"] || "") == value
+    do: (filters["source"] || "") == "" and (filters["status"] || "") == value
 
   # The window is private, because an assign would render the page for nothing.
   defp follow(:library_changed, %{private: %{library_window: :closed}} = socket),

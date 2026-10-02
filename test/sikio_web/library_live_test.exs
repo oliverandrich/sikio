@@ -124,16 +124,53 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(reloaded, "#entries-#{c.audio.id}", "New")
   end
 
-  # An address from before places were one at a time may still name several, or a kind. It is
-  # taken to the one place it names, a source before a status, so nothing narrows unseen.
-  test "an address naming several places opens the one it names first", c do
-    for {old, place} <- [
-          {"/?kind=audio", "/"},
-          {"/?kind=audio&status=new", "/?status=new"},
-          {"/?source=#{c.sub.feed_id}&status=completed", "/?source=#{c.sub.feed_id}"}
-        ] do
-      assert {:error, {:live_redirect, %{to: ^place}}} = live(c.conn, old)
-    end
+  # The sidebar chooses the place; the list narrows it. A filter is in the address and the place
+  # stays marked. "All" is the way back.
+  test "the medium filter narrows a place and says so", c do
+    {:ok, view, _} = live(c.conn, ~p"/?status=new")
+
+    view |> element("#filter-kind-video") |> render_click()
+    assert_patch(view, "/?kind=video&status=new")
+    assert has_element?(view, "#entries article", "A good video")
+    refute has_element?(view, "#entries article", "One & two")
+    assert has_element?(view, "#view-new[aria-current=page]")
+    assert has_element?(view, ~s|#filter-kind-video[aria-current="true"]|)
+    assert has_element?(view, "#library-count", "1 item")
+
+    view |> element("#filter-kind-all") |> render_click()
+    assert_patch(view, "/?status=new")
+  end
+
+  # Within a source the statuses are a filter; elsewhere they are the place itself. A source has
+  # one medium, so it offers no medium filter.
+  test "a chosen source filters by status, other places do not offer it", c do
+    Playback.mark(c.user, c.audio.id, :completed)
+    {:ok, view, _} = live(c.conn, ~p"/?status=new")
+    refute has_element?(view, "#filter-status-completed")
+
+    {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
+    refute has_element?(view, "#filter-kind-video")
+    view |> element("#filter-status-completed") |> render_click()
+    assert_patch(view, "/?source=#{c.sub.feed_id}&status=completed")
+    assert has_element?(view, "#entries article", "One & two")
+    assert has_element?(view, "#source-#{c.sub.feed_id}[aria-current=page]")
+
+    view |> element("#filter-status-new") |> render_click()
+    refute has_element?(view, "#entries article", "One & two")
+  end
+
+  # A source offers no medium filter, so an address naming one with a source does not narrow
+  # what nobody could see narrowed.
+  test "a source ignores a medium in its address", c do
+    {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}&kind=video")
+    assert has_element?(view, "#entries article", "One & two")
+  end
+
+  # Choosing another place starts it unfiltered.
+  test "a new place drops the filters of the last", c do
+    {:ok, view, _} = live(c.conn, ~p"/?kind=video&status=new")
+    view |> element("#view-all") |> render_click()
+    assert_patch(view, "/")
   end
 
   test "removing the selected source leaves a clear empty view until another place is chosen",

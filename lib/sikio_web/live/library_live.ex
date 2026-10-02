@@ -28,17 +28,8 @@ defmodule SikioWeb.LibraryLive do
   # item sends only the two rows whose selection changed and the list stands.
   @impl true
   def handle_params(params, _uri, socket) do
-    filters = Library.normalize_filters(params)
-    place = SikioWeb.Sidebar.place(filters)
+    filters = params |> Library.normalize_filters() |> offered()
 
-    if place == filters,
-      do: show(params, filters, socket),
-      else:
-        {:noreply,
-         push_patch(socket, to: SikioWeb.Sidebar.library_path(place, params["id"]), replace: true)}
-  end
-
-  defp show(params, filters, socket) do
     socket =
       if filters == socket.assigns.filters,
         do: socket,
@@ -182,7 +173,8 @@ defmodule SikioWeb.LibraryLive do
       shown: length(entries),
       counts: counts,
       total: socket.assigns.sidebar.counts |> Library.tally(filters) |> Library.total(filters),
-      heading: heading(filters, subscriptions)
+      heading: heading(filters, subscriptions),
+      filtered?: place_of(filters) != filters
     )
   end
 
@@ -226,23 +218,13 @@ defmodule SikioWeb.LibraryLive do
           "min-w-0 lg:min-h-svh lg:self-stretch lg:border-r lg:border-line lg:bg-surface",
           @selected && "hidden lg:block"
         ]}>
-          <div class="flex flex-wrap items-center justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:border-b lg:border-line lg:px-4 lg:pt-5 lg:pb-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
             <div class="flex flex-col gap-0.5">
               <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
               <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
                 {count_label(@shown, @total)}
               </span>
             </div>
-            <p
-              :if={!@empty? and !@no_matches?}
-              class="hidden items-center gap-1 text-meta text-muted lg:flex"
-            >
-              <kbd class={kbd_class()}>j</kbd>
-              <kbd class={kbd_class()}>k</kbd>
-              <span class="ml-0.5">{gettext("to browse")}</span>
-              <kbd class={["ml-2", kbd_class()]}>m</kbd>
-              <span class="ml-0.5">{gettext("to mark")}</span>
-            </p>
             <.button id="add-subscription" class="lg:hidden" navigate={~p"/subscriptions"}>
               <Lucideicons.plus aria-hidden="true" class="size-4" />
               {gettext("Add a source")}
@@ -285,6 +267,51 @@ defmodule SikioWeb.LibraryLive do
               </.chip>
             </div>
           </details>
+          <div :if={!@empty?} class="px-6 pb-3 sm:px-12 lg:border-b lg:border-line lg:px-4 lg:pb-4">
+            <button
+              id="toggle-filters"
+              type="button"
+              aria-controls="list-filters"
+              aria-expanded="false"
+              phx-click={toggle_filters()}
+              class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink lg:hidden"
+            >
+              <Lucideicons.sliders_horizontal aria-hidden="true" class="size-3.5" />
+              {gettext("Filter")}
+            </button>
+            <div
+              id="list-filters"
+              phx-mounted={@filtered? && show_filters()}
+              class="mt-3 hidden flex-wrap items-center gap-x-4 gap-y-2 lg:mt-0 lg:flex"
+            >
+              <.segments :if={@filters["source"] == ""} label={gettext("Medium")}>
+                <.segment
+                  :for={
+                    {value, label} <- [
+                      {"", gettext("All")},
+                      {"video", gettext("Video")},
+                      {"audio", gettext("Audio")}
+                    ]
+                  }
+                  id={"filter-kind-#{if value == "", do: "all", else: value}"}
+                  to={SikioWeb.Sidebar.library_path(Map.put(@filters, "kind", value))}
+                  active={@filters["kind"] == value}
+                >
+                  {label}
+                </.segment>
+              </.segments>
+              <.segments :if={@filters["source"] != ""} label={gettext("Status")}>
+                <.segment
+                  :for={{value, key, label} <- views()}
+                  id={"filter-status-#{key}"}
+                  to={SikioWeb.Sidebar.library_path(Map.put(@filters, "status", value))}
+                  active={@filters["status"] == value}
+                >
+                  {label}
+                </.segment>
+              </.segments>
+            </div>
+          </div>
           <section
             :if={@empty?}
             id="library-empty"
@@ -422,6 +449,59 @@ defmodule SikioWeb.LibraryLive do
         </span>
       </.link>
     </article>
+    """
+  end
+
+  # Only filters the page offers may narrow it: a source has one medium and no medium filter.
+  defp offered(%{"source" => source} = filters) when source != "", do: %{filters | "kind" => ""}
+  defp offered(filters), do: filters
+
+  # On a phone the filters fold away. The browser alone opens and closes them, so a patch never
+  # folds them under the reader's finger; a filtered page opens with them shown.
+  defp toggle_filters do
+    JS.toggle_class("hidden flex", to: "#list-filters")
+    |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#toggle-filters")
+  end
+
+  defp show_filters do
+    JS.remove_class("hidden", to: "#list-filters")
+    |> JS.add_class("flex", to: "#list-filters")
+    |> JS.set_attribute({"aria-expanded", "true"}, to: "#toggle-filters")
+  end
+
+  # The place the filters narrow: a source, or else a view by its status.
+  defp place_of(%{"source" => source} = filters) when source != "",
+    do: %{filters | "status" => "", "kind" => ""}
+
+  defp place_of(filters), do: %{filters | "kind" => ""}
+
+  attr :label, :string, required: true
+  slot :inner_block, required: true
+
+  # A row of choices of which one holds, labelled for those who do not see the row.
+  defp segments(assigns) do
+    ~H"""
+    <div role="group" aria-label={@label} class="flex flex-wrap gap-2">
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :to, :string, required: true
+  attr :active, :boolean, required: true
+  slot :inner_block, required: true
+
+  defp segment(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      patch={@to}
+      aria-current={@active && "true"}
+      class="inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-3 text-label text-ink hover:bg-ground aria-[current=true]:border-transparent aria-[current=true]:bg-selection aria-[current=true]:font-semibold aria-[current=true]:text-accent"
+    >
+      {render_slot(@inner_block)}
+    </.link>
     """
   end
 
@@ -600,8 +680,4 @@ defmodule SikioWeb.LibraryLive do
     </article>
     """
   end
-
-  defp kbd_class,
-    do:
-      "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-line bg-ground px-1 font-mono text-[11px] font-medium text-ink"
 end
