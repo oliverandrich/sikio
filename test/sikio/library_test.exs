@@ -99,6 +99,42 @@ defmodule Sikio.LibraryTest do
     assert id == oldest.id
   end
 
+  # A list grows as it is scrolled. Each batch continues after the last entry shown, by date and
+  # then id, so an episode that arrives meanwhile neither repeats one nor skips one. Entries
+  # without a date come last.
+  test "entries continue after the last one shown", ctx do
+    dated =
+      for n <- 1..5,
+          do: %{
+            hd(ctx.preview.entries)
+            | external_id: "episode-#{n}",
+              title: "Episode #{n}",
+              published_at: ~U[2026-09-01 00:00:00Z] |> DateTime.add(div(n, 2), :day)
+          }
+
+    undated = for n <- 6..7, do: %{hd(dated) | external_id: "episode-#{n}", published_at: nil}
+    Library.subscribe(ctx.alice, %{ctx.preview | entries: dated ++ undated})
+
+    all = Library.entries(ctx.alice, %{}, limit: 10)
+    assert length(all) == 7
+
+    pages =
+      Stream.unfold(nil, fn
+        :done ->
+          nil
+
+        last ->
+          page = Library.entries(ctx.alice, %{}, limit: 2, after: last)
+
+          if page == [],
+            do: nil,
+            else: {page, if(length(page) < 2, do: :done, else: List.last(page))}
+      end)
+      |> Enum.concat()
+
+    assert Enum.map(pages, & &1.id) == Enum.map(all, & &1.id)
+  end
+
   test "refresh deduplicates episodes, sends validators and preserves subscriptions", ctx do
     {:ok, sub} = Library.subscribe(ctx.alice, Map.put(ctx.preview, :etag, "v1"))
 

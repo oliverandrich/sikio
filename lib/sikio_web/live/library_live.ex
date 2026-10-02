@@ -20,8 +20,11 @@ defmodule SikioWeb.LibraryLive do
   alias SikioWeb.Pictures
 
   @impl true
+  # Enough rows for the tallest screen, so the next batch is asked for before the list runs out.
+  @batch 25
+
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, selected: nil, notes: nil, filters: nil, entries: [])}
+    {:ok, assign(socket, selected: nil, notes: nil, filters: nil, entries: [], more?: false)}
   end
 
   # The list is read again only when the filters change. The rows are keyed, so choosing another
@@ -33,18 +36,46 @@ defmodule SikioWeb.LibraryLive do
     socket =
       if filters == socket.assigns.filters,
         do: socket,
-        else: socket |> assign(:filters, filters) |> reload()
+        else: socket |> assign(filters: filters, entries: []) |> reload()
 
     case select(socket, params["id"]) do
-      {:ok, socket} -> {:noreply, socket}
+      {:ok, socket} -> {:noreply, reach(socket)}
       :error -> {:noreply, push_navigate(socket, to: ~p"/")}
+    end
+  end
+
+  # An item opened by its address may lie beyond the batches loaded. The list grows until it
+  # shows the item, or until it has passed where the item would be, which a filtered-out item is.
+  defp reach(%{assigns: %{selected: nil}} = socket), do: socket
+
+  defp reach(%{assigns: %{selected: selected, entries: entries, more?: more?}} = socket) do
+    if position(socket) || !more? || (entries != [] and !before?(List.last(entries), selected)),
+      do: socket,
+      else: socket |> load_more() |> reach()
+  end
+
+  # Whether `a` comes before `b` in the list: newer first, undated last, the higher id first.
+  defp before?(%{published_at: nil}, %{published_at: %DateTime{}}), do: false
+  defp before?(%{published_at: %DateTime{}}, %{published_at: nil}), do: true
+
+  defp before?(a, b) do
+    case a.published_at && DateTime.compare(a.published_at, b.published_at) do
+      :gt -> true
+      :lt -> false
+      _ -> a.id > b.id
     end
   end
 
   @impl true
   def handle_event("move", %{"key" => key}, socket) when key in ["j", "k"] do
+    current = position(socket)
+    # j past the last row loaded loads the next batch first.
+    socket =
+      if key == "j" and current == length(socket.assigns.entries) - 1,
+        do: load_more(socket),
+        else: socket
+
     ids = Enum.map(socket.assigns.entries, & &1.id)
-    current = socket.assigns.selected && Enum.find_index(ids, &(&1 == socket.assigns.selected.id))
 
     next =
       case {key, current} do
@@ -63,6 +94,8 @@ defmodule SikioWeb.LibraryLive do
   end
 
   def handle_event("move", _params, socket), do: {:noreply, socket}
+
+  def handle_event("load_more", _params, socket), do: {:noreply, load_more(socket)}
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
     do: {:noreply, socket}
@@ -157,11 +190,28 @@ defmodule SikioWeb.LibraryLive do
   defp notes(_socket, entry),
     do: Notes.notes(entry.description, entry.description_format || :html)
 
+  defp position(%{assigns: %{selected: nil}}), do: nil
+
+  defp position(%{assigns: %{selected: selected, entries: entries}}),
+    do: Enum.find_index(entries, &(&1.id == selected.id))
+
+  # The list grows by a batch as its end comes into view; there are no pages to turn.
+  defp load_more(%{assigns: %{more?: false}} = socket), do: socket
+
+  defp load_more(socket) do
+    %{current_account: account, filters: filters, entries: entries} = socket.assigns
+    batch = Library.entries(account, filters, limit: @batch, after: List.last(entries))
+    assign(socket, entries: entries ++ batch, more?: length(batch) == @batch)
+  end
+
+  # Read again after an update, as many rows as were loaded, so the list never shrinks under the
+  # reader's scroll.
   defp reload(socket) do
     account = socket.assigns.current_account
     filters = socket.assigns.filters
     subscriptions = socket.assigns.sidebar.sources
-    entries = Library.entries(account, filters)
+    limit = max(length(socket.assigns.entries), @batch)
+    entries = Library.entries(account, filters, limit: limit)
     # The sidebar and the chips count each place on its own; the heading counts what is shown.
     counts = Library.tally(socket.assigns.sidebar.counts, %{})
 
@@ -170,7 +220,7 @@ defmodule SikioWeb.LibraryLive do
       empty?: subscriptions == [],
       no_matches?: entries == [],
       entries: entries,
-      shown: length(entries),
+      more?: length(entries) == limit,
       counts: counts,
       total: socket.assigns.sidebar.counts |> Library.tally(filters) |> Library.total(filters),
       heading: heading(filters, subscriptions),
@@ -191,10 +241,7 @@ defmodule SikioWeb.LibraryLive do
     end)
   end
 
-  defp count_label(shown, total) when shown < total,
-    do: gettext("%{shown} of %{total} items", shown: shown, total: total)
-
-  defp count_label(_shown, total), do: ngettext("%{count} item", "%{count} items", total)
+  defp count_label(total), do: ngettext("%{count} item", "%{count} items", total)
 
   @impl true
   def render(assigns) do
@@ -222,7 +269,7 @@ defmodule SikioWeb.LibraryLive do
             <div class="flex flex-col gap-0.5">
               <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
               <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
-                {count_label(@shown, @total)}
+                {count_label(@total)}
               </span>
             </div>
             <.button id="add-subscription" class="lg:hidden" navigate={~p"/subscriptions"}>
@@ -338,6 +385,7 @@ defmodule SikioWeb.LibraryLive do
           <div
             :if={!@empty?}
             id="entries"
+            phx-viewport-bottom={@more? && "load_more"}
             class="border-t border-line bg-surface empty:hidden lg:border-t-0"
           >
             <.entry_row

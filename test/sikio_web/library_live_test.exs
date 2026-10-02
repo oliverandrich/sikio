@@ -529,12 +529,74 @@ defmodule SikioWeb.LibraryLiveTest do
 
   describe "the heading" do
     # The list stops at a hundred. The heading says how many there are, not how many fit.
-    test "counts every matching item, and says when the list shows fewer", c do
+    test "counts every matching item, however many are loaded", c do
       insert_entries(c, for(n <- 1..120, do: "Bulk #{n}"))
       {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
 
-      assert view |> element("#library-count") |> render() =~ "100 of 121"
+      assert view |> element("#library-count") |> render() =~ "121 items"
     end
+  end
+
+  # The list loads enough for a screen and the next batch as its end comes into view. There are
+  # no pages to turn.
+  describe "the list grows" do
+    setup c do
+      insert_entries(c, for(n <- 1..40, do: "Bulk #{n}"))
+      :ok
+    end
+
+    test "by a batch when its end comes into view", c do
+      {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
+      assert length(rows(view)) == 25
+
+      render_hook(view, "load_more", %{})
+      assert length(rows(view)) == 41
+    end
+
+    test "when j moves past the last entry loaded", c do
+      {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
+      last = view |> rows() |> List.last() |> String.replace_prefix("entries-", "")
+
+      {:ok, view, _} = live(c.conn, ~p"/library/#{last}?source=#{c.sub.feed_id}")
+      render_hook(view, "move", %{"key" => "j"})
+
+      assert length(rows(view)) == 41
+      assert_patch(view)
+    end
+
+    # An item opened by its address may lie beyond the first batch. The list loads up to it, so
+    # it is marked in place and j goes on to the one after it.
+    test "far enough to show an item opened by its address", c do
+      {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
+      render_hook(view, "load_more", %{})
+      ids = rows(view)
+      fortieth = ids |> Enum.at(39) |> String.replace_prefix("entries-", "")
+      after_it = ids |> Enum.at(40) |> String.replace_prefix("entries-", "")
+
+      {:ok, view, _} = live(c.conn, ~p"/library/#{fortieth}?source=#{c.sub.feed_id}")
+      assert has_element?(view, ~s|#play-#{fortieth}[aria-current="true"]|)
+
+      render_hook(view, "move", %{"key" => "j"})
+      assert_patch(view, "/library/#{after_it}?source=#{c.sub.feed_id}")
+    end
+
+    # An update rereads the list. It keeps what was loaded, or the list would shrink under the
+    # reader's scroll.
+    test "and keeps its length when it is read again", c do
+      {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
+      render_hook(view, "load_more", %{})
+      send(view.pid, :library_window_closed)
+      send(view.pid, :library_changed)
+      assert length(rows(view)) == 41
+    end
+  end
+
+  defp rows(view) do
+    view
+    |> render()
+    |> Floki.parse_document!()
+    |> Floki.find("#entries article")
+    |> Floki.attribute("id")
   end
 
   defp preview_feed_id(user, preview) do

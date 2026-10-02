@@ -101,13 +101,36 @@ defmodule Sikio.Library do
     end
   end
 
-  def entries(%User{id: user_id}, filters \\ %{}) do
+  @doc """
+  The account's entries under `filters`, newest first and undated last.
+
+  `:limit` caps how many come back, 100 by default. `:after` names the last entry a list already
+  shows, and the batch continues behind it by date and then id, so nothing repeats or is skipped
+  when an episode arrives in between.
+  """
+  def entries(%User{id: user_id}, filters \\ %{}, opts \\ []) do
+    query = user_id |> filtered_entries(filters) |> behind(opts[:after])
+
     Repo.all(
-      from e in filtered_entries(user_id, filters),
+      from e in query,
         order_by: [desc_nulls_last: e.published_at, desc: e.id],
-        limit: 100
+        limit: ^Keyword.get(opts, :limit, 100)
     )
   end
+
+  defp behind(query, nil), do: query
+
+  defp behind(query, %{published_at: nil, id: id}),
+    do: where(query, [e], is_nil(e.published_at) and e.id < ^id)
+
+  defp behind(query, %{published_at: published_at, id: id}),
+    do:
+      where(
+        query,
+        [e],
+        e.published_at < ^published_at or (e.published_at == ^published_at and e.id < ^id) or
+          is_nil(e.published_at)
+      )
 
   @doc """
   This account's entries grouped by source, medium and status, from one query.
