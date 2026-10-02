@@ -165,7 +165,7 @@ defmodule SikioWeb.Layouts do
     assigns = assign(assigns, :counts, counts)
 
     ~H"""
-    <div class="min-h-svh pb-[calc(var(--nav-bar)+env(safe-area-inset-bottom))] lg:grid lg:grid-cols-[248px_minmax(0,1fr)] lg:pb-0">
+    <div class="min-h-svh pb-[calc(var(--nav-bar)+env(safe-area-inset-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
       <header class="flex flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-12 sm:py-7 lg:sticky lg:top-0 lg:h-svh lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-start lg:gap-5 lg:overflow-y-auto lg:border-r lg:border-line lg:px-3 lg:py-4">
         <.link
           navigate={~p"/"}
@@ -174,7 +174,11 @@ defmodule SikioWeb.Layouts do
         >
           <span class="text-2xl font-semibold tracking-tight"><.wordmark /></span>
         </.link>
-        <div :if={@sidebar} id="sidebar" class="hidden flex-col gap-5 lg:flex">
+        <div
+          :if={@sidebar}
+          id="sidebar"
+          class="hidden flex-col gap-5 lg:-mx-3 lg:flex lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-3 lg:py-1"
+        >
           <nav aria-label={gettext("Views")} class="flex flex-col gap-0.5">
             <.sidebar_link
               :for={{status, key, label} <- SikioWeb.MediaComponents.views()}
@@ -188,9 +192,16 @@ defmodule SikioWeb.Layouts do
             </.sidebar_link>
           </nav>
           <nav aria-labelledby="sources-heading" class="flex flex-col gap-0.5">
-            <div class="flex items-center justify-between px-2.5 pb-1">
-              <h2 id="sources-heading" class="text-meta font-semibold text-muted">
-                {gettext("Sources")}
+            <div class="flex items-center justify-between pb-1">
+              <h2 id="sources-heading" class="text-meta">
+                <.link
+                  id="subscriptions-heading"
+                  navigate={~p"/subscriptions"}
+                  aria-current={@section == :subscriptions && "page"}
+                  class="flex min-h-7 items-center rounded-control px-2.5 font-semibold tracking-wider text-muted uppercase hover:text-ink aria-[current=page]:text-accent"
+                >
+                  {gettext("Subscriptions")}
+                </.link>
               </h2>
               <.link
                 navigate={~p"/subscriptions"}
@@ -210,6 +221,21 @@ defmodule SikioWeb.Layouts do
               }
               count={Map.get(@counts.sources, source.feed_id, 0)}
             >
+              <:mark>
+                <img
+                  :if={source.feed.icon_url}
+                  src={
+                    SikioWeb.Pictures.path(
+                      [source.feed.icon_url],
+                      SikioWeb.MediaComponents.kind_mark(source.feed)
+                    )
+                  }
+                  alt=""
+                  loading="lazy"
+                  class="size-5 shrink-0 rounded-full bg-line object-cover"
+                />
+                <.initial :if={!source.feed.icon_url} name={source.feed.title} />
+              </:mark>
               {source.feed.title}
             </.sidebar_link>
           </nav>
@@ -231,7 +257,7 @@ defmodule SikioWeb.Layouts do
             id="subscriptions-link"
             aria-current={@section == :subscriptions && "page"}
             navigate={~p"/subscriptions"}
-            class={nav_link_class()}
+            class={[nav_link_class(), "lg:hidden"]}
           >
             {gettext("Subscriptions")}
           </.link>
@@ -254,7 +280,10 @@ defmodule SikioWeb.Layouts do
               "flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control px-2 focus-visible:outline-2 focus-visible:outline-accent lg:min-h-9 lg:px-2.5 lg:hover:bg-surface",
               @section == :account && "font-semibold text-accent lg:bg-selection"
             ]}>
-              <span class="max-w-32 truncate" title={@current_account.username}>{@current_account.username}</span><Lucideicons.chevron_down
+              <.initial name={@current_account.username} class="hidden lg:flex" /><span
+                class="max-w-32 truncate"
+                title={@current_account.username}
+              >{@current_account.username}</span><Lucideicons.chevron_down
                 aria-hidden="true"
                 class="size-4 shrink-0 transition"
               />
@@ -307,6 +336,7 @@ defmodule SikioWeb.Layouts do
   attr :patch, :boolean, required: true
   attr :active, :boolean, required: true
   attr :count, :integer, required: true
+  slot :mark, doc: "a picture or an initial before the name"
   slot :inner_block, required: true
 
   defp sidebar_link(assigns) do
@@ -322,7 +352,10 @@ defmodule SikioWeb.Layouts do
         !@active && "hover:bg-surface"
       ]}
     >
-      <span class="min-w-0 truncate">{render_slot(@inner_block)}</span>
+      <span class="flex min-w-0 items-center gap-2.5">
+        {render_slot(@mark)}
+        <span class="min-w-0 truncate">{render_slot(@inner_block)}</span>
+      </span>
       <span
         :if={@count > 0}
         id={"#{@id}-count"}
@@ -335,6 +368,25 @@ defmodule SikioWeb.Layouts do
         {@count}
       </span>
     </.link>
+    """
+  end
+
+  attr :name, :string, required: true
+  attr :class, :any, default: nil
+
+  # A name's first letter in a tinted circle, where no picture stands for it.
+  defp initial(assigns) do
+    ~H"""
+    <span
+      aria-hidden="true"
+      data-initial
+      class={[
+        "size-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent",
+        @class || "flex"
+      ]}
+    >
+      {SikioWeb.MediaComponents.initial(@name)}
+    </span>
     """
   end
 

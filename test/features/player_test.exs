@@ -36,10 +36,11 @@ defmodule SikioWeb.PlayerTest do
     |> open("/")
     |> click(css("#play-#{entry.id}"))
     |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel", text: entry.title))
+    # Pinned to the detail the panel leaves the title to it, so the player says what it plays.
+    |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
     |> assert_has(css("#player-panel audio"))
     |> mark_player()
-    |> click(css("#subscriptions-link"))
+    |> click(css("#subscriptions-heading"))
     |> assert_has(css("h1", text: "Make room"))
     # From lg the panel folds into the sidebar's bar there, which keeps the audio mounted but
     # out of sight. What this asks is that it is the same element.
@@ -144,7 +145,7 @@ defmodule SikioWeb.PlayerTest do
       |> execute_script(within("#player-panel", "header:has(#main-navigation)"), fn inside ->
         assert inside
       end)
-      |> click(css("#subscriptions-link"))
+      |> click(css("#subscriptions-heading"))
       |> assert_has(css(~s|#player-panel[data-place="compact"]|))
       |> assert_same_player()
       # Nothing is served to play here, so the audio's own play event is what the test sends.

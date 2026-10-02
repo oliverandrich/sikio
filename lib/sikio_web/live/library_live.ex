@@ -601,14 +601,7 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # The first letter of a source, which stands for it where no artwork is shown.
-  defp initial(title),
-    do: title |> to_string() |> String.trim() |> String.first() |> String.upcase()
-
   defp kbd_class,
     do:
       "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-line bg-ground px-1 font-mono text-[11px] font-medium text-ink"
-
-  defp kind_mark(entry),
-    do: if(video?(entry), do: ~p"/images/kind-video.svg", else: ~p"/images/kind-audio.svg")
 end

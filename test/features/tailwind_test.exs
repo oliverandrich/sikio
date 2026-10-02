@@ -101,12 +101,35 @@ defmodule SikioWeb.TailwindTest do
       probe.className = 'text-accent'
       document.body.append(probe)
       const color = el => getComputedStyle(el).color
-      return [color(probe), color(document.getElementById('subscriptions-link')),
+      return [color(probe), color(document.getElementById('subscriptions-heading')),
               color(document.getElementById('invitations-link'))]
       """,
       fn [accent, active, inactive] ->
         assert active == accent
         refute inactive == accent
+      end
+    )
+  end
+
+  # From lg the sources may run long. They scroll, while the wordmark above and the account below
+  # stay where they are. Only a window too short for those two scrolls the whole column. The
+  # heading over the sources leads to managing them, so the link to subscriptions is the phone's.
+  feature "the sidebar scrolls between a standing wordmark and account", %{session: session} do
+    signed_up(session, "ada")
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/subscriptions")
+    |> execute_script(
+      """
+      const style = selector => getComputedStyle(document.querySelector(selector))
+      return [style('#sidebar').overflowY, style('header:has(#sidebar)').overflowY,
+              style('#subscriptions-link').display]
+      """,
+      fn [sidebar, header, link] ->
+        assert sidebar == "auto"
+        assert header == "auto"
+        assert link == "none"
       end
     )
   end

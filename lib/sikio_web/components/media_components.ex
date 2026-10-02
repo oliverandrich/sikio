@@ -8,6 +8,7 @@ defmodule SikioWeb.MediaComponents do
   three templates that would drift apart.
   """
   use Gettext, backend: SikioWeb.Gettext
+  use SikioWeb, :verified_routes
 
   @doc "Whether this is something somebody watches. Two of the three kinds are."
   def video?(%{feed: %{kind: kind}}), do: kind in [:youtube, :peertube]
@@ -68,6 +69,14 @@ defmodule SikioWeb.MediaComponents do
   def kind_label(%{feed: %{kind: :youtube}}), do: gettext("YouTube video")
   def kind_label(%{feed: %{kind: :peertube}}), do: gettext("PeerTube video")
   def kind_label(_entry), do: gettext("Podcast episode")
+
+  @doc "The picture that stands for an item or a source that brings none of its own."
+  def kind_mark(%{feed: feed}), do: kind_mark(feed)
+  def kind_mark(%{kind: kind}) when kind in [:youtube, :peertube], do: ~p"/images/kind-video.svg"
+  def kind_mark(_source), do: ~p"/images/kind-audio.svg"
+
+  @doc "The first letter of a name, which stands for it where no picture is shown."
+  def initial(name), do: name |> to_string() |> String.trim() |> String.first() |> String.upcase()
 
   @doc "Where an item comes from, as a list row names it. Platforms keep their own names."
   def medium_label(%{feed: %{kind: :youtube}}), do: "YouTube"

@@ -337,9 +337,33 @@ defmodule SikioWeb.LibraryLiveTest do
 
       assert has_element?(view, "#sidebar #source-#{c.sub.feed_id}", "Small Hours")
       assert has_element?(view, ~s|#view-new[href="/?status=new"]|)
-      refute has_element?(view, "#sidebar [aria-current]")
+      refute has_element?(view, "#sidebar [aria-current]:not(#subscriptions-heading)")
       assert has_element?(view, ~s|#subscriptions-link[aria-current="page"]|)
       refute has_element?(view, ~s|#library-link[aria-current="page"]|)
+    end
+
+    # The heading over the sources is where they are managed, so it leads there and says when
+    # the reader is there.
+    test "names the sources as subscriptions and leads to managing them", c do
+      {:ok, view, _} = live(c.conn, ~p"/subscriptions")
+
+      assert has_element?(
+               view,
+               ~s|#sources-heading a#subscriptions-heading[href="/subscriptions"][aria-current="page"]|,
+               "Subscriptions"
+             )
+    end
+
+    # A source is recognised by its picture, through this host like every other. A source that
+    # names none shows its first letter.
+    test "shows each source's picture, or its initial without one", c do
+      {:ok, view, _} = live(c.conn, ~p"/")
+      [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
+
+      assert has_element?(view, ~s|#source-#{c.sub.feed_id} img[src^="/pictures/"]|)
+      refute has_element?(view, "#source-#{video.feed_id} img")
+      assert has_element?(view, "#source-#{video.feed_id} [data-initial]", "G")
+      assert has_element?(view, "#user-menu summary [data-initial]")
     end
   end
 
