@@ -804,7 +804,8 @@ defmodule SikioWeb.LibraryLive do
     assigns =
       assign(assigns,
         status: status(entry),
-        runtime: runtime(length_of(entry))
+        runtime: runtime(length_of(entry)),
+        original: original(entry)
       )
 
     ~H"""
@@ -857,10 +858,10 @@ defmodule SikioWeb.LibraryLive do
             <:icon><Lucideicons.rotate_ccw aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
           <.card_action
-            :if={@entry.feed.kind == :youtube}
+            :if={@original}
             id="open-original"
-            label={gettext("Open on YouTube")}
-            href={"https://www.youtube.com/watch?v=#{@entry.video_id}"}
+            label={elem(@original, 1)}
+            href={elem(@original, 0)}
             target="_blank"
             rel="noopener noreferrer"
           >

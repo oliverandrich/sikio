@@ -39,6 +39,51 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#item-actions #mark-completed", "Mark as listened")
   end
 
+  # Every item with a page of its own offers it, named for where it leads.
+  test "the detail opens the original page of each kind", c do
+    for {body, url} <- [{peertube(), peertube_feed_url()}, {youtube(), youtube_feed_url()}] do
+      {:ok, preview} = Parser.parse(body, url)
+      {:ok, _} = Library.subscribe(c.user, preview)
+    end
+
+    entries = Library.entries(c.user)
+
+    for {kind, href, label} <- [
+          {:podcast, podcast_page(), "Open episode page"},
+          {:peertube, "https://video.example.org/w/mSh0rtUu1d", "Open on PeerTube"},
+          {:youtube, "https://www.youtube.com/watch?v=abcdefghijk", "Open on YouTube"}
+        ] do
+      entry = Enum.find(entries, &(&1.feed.kind == kind))
+      {:ok, view, _} = live(c.conn, ~p"/library/#{entry.id}")
+
+      assert has_element?(
+               view,
+               ~s|#item-actions #open-original[href="#{href}"][target="_blank"]|,
+               label
+             )
+    end
+  end
+
+  # An item imported before pages were kept has none until a poll names it again. A YouTube video
+  # is still found by its id; anything else offers nothing rather than a guessed address.
+  test "without a stored page only a YouTube video is still opened", c do
+    {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
+    {:ok, _} = Library.subscribe(c.user, preview)
+    Repo.update_all(Sikio.Feeds.Entry, set: [page_url: nil])
+    entries = Library.entries(c.user)
+    video = Enum.find(entries, &(&1.feed.kind == :youtube))
+
+    {:ok, view, _} = live(c.conn, ~p"/library/#{video.id}")
+
+    assert has_element?(
+             view,
+             "#open-original[href='https://www.youtube.com/watch?v=abcdefghijk']"
+           )
+
+    {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+    refute has_element?(view, "#open-original")
+  end
+
   test "audio loads on request, resumes and saves only the active entry", c do
     {:ok, state} = Playback.start(c.user, c.entry.id)
     Playback.save(c.user, c.entry.id, state.session_id, sample(1, 42))

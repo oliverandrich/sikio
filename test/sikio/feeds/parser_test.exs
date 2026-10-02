@@ -244,6 +244,43 @@ defmodule Sikio.Feeds.ParserTest do
 
   # One video among audio does not make a show a video channel, and reading every episode with
   # the wrong reader drops all of them.
+  # Each kind names an item's own page in its own way. The page is what the detail opens.
+  test "every kind keeps the page its item names" do
+    {:ok, %{entries: [podcast]}} = Parser.parse(podcast(), "https://example.org/rss")
+    {:ok, %{entries: [peertube]}} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, %{entries: [youtube]}} = Parser.parse(youtube(), youtube_feed_url())
+
+    assert podcast.page_url == podcast_page()
+    assert peertube.page_url == "https://video.example.org/w/mSh0rtUu1d"
+    assert youtube.page_url == "https://www.youtube.com/watch?v=abcdefghijk"
+  end
+
+  # The page comes from a stranger and ends up in a link, so it passes the check artwork passes.
+  test "a page is resolved against the feed and must be the web's" do
+    page = fn link ->
+      body = String.replace(podcast(), podcast_page(), link)
+      {:ok, %{entries: [entry]}} = Parser.parse(body, "https://example.org/feeds/rss")
+      entry.page_url
+    end
+
+    assert page.("/episodes/2") == "https://example.org/episodes/2"
+    assert page.("javascript:alert(1)") == nil
+    assert page.("") == nil
+  end
+
+  # Atom names several links. Only the alternate one is the video's page.
+  test "a YouTube entry's page is its alternate link and nothing else" do
+    body =
+      String.replace(
+        youtube(),
+        ~s|<link rel="alternate" href="https://www.youtube.com/watch?v=abcdefghijk"/>|,
+        ~s|<link rel="self" href="https://www.youtube.com/feeds/x"/>|
+      )
+
+    {:ok, %{entries: [entry]}} = Parser.parse(body, youtube_feed_url())
+    assert entry.page_url == nil
+  end
+
   test "a show that publishes one video is still a podcast" do
     item = """
     <item><guid>bonus</guid><title>A bonus clip</title>

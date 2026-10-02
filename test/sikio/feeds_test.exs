@@ -176,6 +176,7 @@ defmodule Sikio.FeedsTest do
         media_url: "https://audio.example.org/moved.mp3",
         video_id: "abcdefghijk",
         embed_url: "https://video.example.org/videos/embed/moved",
+        page_url: "https://example.org/episodes/moved",
         published_at: ~U[2026-09-19 09:00:00.000000Z],
         image_url: "https://img.example.org/new.jpg",
         duration: 99,
@@ -278,7 +279,7 @@ defmodule Sikio.FeedsTest do
 
   # The feed keeps its picture when a poll carries none. The entries did the opposite and wiped
   # artwork and notes off every episode of a show that left them out once.
-  test "a poll that omits artwork and notes keeps what was stored" do
+  test "a poll that omits artwork, notes and the page keeps what was stored" do
     {:ok, _feed} = Feeds.store(preview())
 
     assert {:ok, _feed} = Feeds.store(preview(thin_podcast()))
@@ -287,6 +288,7 @@ defmodule Sikio.FeedsTest do
     assert entry.image_url == "https://img.example.org/1.jpg"
     assert entry.duration == 3723
     assert entry.excerpt == "Notes with a link."
+    assert entry.page_url == podcast_page()
   end
 
   # A YouTube refresh fetches the Atom feed and nothing else, so it carries no picture. Replacing

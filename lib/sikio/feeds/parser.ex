@@ -128,6 +128,7 @@ defmodule Sikio.Feeds.Parser do
         media_url: URI.to_string(uri),
         video_id: nil,
         embed_url: nil,
+        page_url: rss_page(item, feed_url),
         published_at: date(value(item, "pubDate")),
         image_url: image_url(item, feed_url),
         duration: duration(value(item, "itunes:duration")),
@@ -156,6 +157,7 @@ defmodule Sikio.Feeds.Parser do
         media_url: nil,
         video_id: nil,
         embed_url: embed,
+        page_url: rss_page(item, feed_url),
         published_at: date(value(item, "pubDate")),
         image_url: image_url(item, feed_url),
         duration: duration(playable_duration(group)),
@@ -188,6 +190,7 @@ defmodule Sikio.Feeds.Parser do
         media_url: nil,
         video_id: id,
         embed_url: nil,
+        page_url: youtube_page(item, feed_url),
         published_at: date(value(item, "published")),
         image_url: image_url(group, feed_url),
         duration: nil,
@@ -196,6 +199,20 @@ defmodule Sikio.Feeds.Parser do
         excerpt: excerpt(notes, format)
       }
     end
+  end
+
+  # An item's own page, where the publisher shows it. RSS names it as text, and it is not cut the
+  # way a title is: a shortened address leads somewhere else. It is a stranger's address bound for
+  # a link, so it passes the check artwork passes.
+  defp rss_page(item, feed_url),
+    do: item |> child("link") |> text() |> String.trim() |> HTTP.resolve(feed_url)
+
+  # Atom names several links. The alternate one is the video's page.
+  defp youtube_page(item, feed_url) do
+    item
+    |> children("link")
+    |> Enum.find_value(fn link -> attr(link, "rel") == "alternate" && attr(link, "href") end)
+    |> HTTP.resolve(feed_url)
   end
 
   # Artwork is named three different ways depending on who is publishing. The URL still comes from

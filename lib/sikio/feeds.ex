@@ -110,7 +110,14 @@ defmodule Sikio.Feeds do
   defp compared_with(other, _feed), do: other
 
   @replaced_entry_fields [:title, :media_url, :video_id, :embed_url, :published_at]
-  @kept_entry_fields [:image_url, :duration, :description, :description_format, :excerpt]
+  @kept_entry_fields [
+    :image_url,
+    :duration,
+    :description,
+    :description_format,
+    :excerpt,
+    :page_url
+  ]
 
   defp import_entries(feed_id, entries) do
     now = DateTime.utc_now()
@@ -132,7 +139,7 @@ defmodule Sikio.Feeds do
   end
 
   # What identifies and locates an episode is replaced outright, because a feed that moves its
-  # audio has moved it. Artwork, runtime and notes are not: a poll that leaves them out is a poll
+  # audio has moved it. Artwork, runtime, notes and the page are not: a poll that leaves them out is a poll
   # that said nothing about them, and a show that trims one document should not strip every
   # episode it ever published. The same rule the feed's own picture follows.
   #
@@ -146,11 +153,11 @@ defmodule Sikio.Feeds do
       where:
         fragment(
           """
-          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IS DISTINCT FROM
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IS DISTINCT FROM
           (EXCLUDED.title, EXCLUDED.media_url, EXCLUDED.video_id, EXCLUDED.embed_url,
            EXCLUDED.published_at, COALESCE(EXCLUDED.image_url, ?), COALESCE(EXCLUDED.duration, ?),
            COALESCE(EXCLUDED.description, ?), COALESCE(EXCLUDED.description_format, ?),
-           COALESCE(EXCLUDED.excerpt, ?))
+           COALESCE(EXCLUDED.excerpt, ?), COALESCE(EXCLUDED.page_url, ?))
           """,
           e.title,
           e.media_url,
@@ -162,11 +169,13 @@ defmodule Sikio.Feeds do
           e.description,
           e.description_format,
           e.excerpt,
+          e.page_url,
           e.image_url,
           e.duration,
           e.description,
           e.description_format,
-          e.excerpt
+          e.excerpt,
+          e.page_url
         ),
       update: [
         set: [
@@ -181,6 +190,7 @@ defmodule Sikio.Feeds do
           description_format:
             fragment("COALESCE(EXCLUDED.description_format, ?)", e.description_format),
           excerpt: fragment("COALESCE(EXCLUDED.excerpt, ?)", e.excerpt),
+          page_url: fragment("COALESCE(EXCLUDED.page_url, ?)", e.page_url),
           updated_at: fragment("EXCLUDED.updated_at")
         ]
       ]

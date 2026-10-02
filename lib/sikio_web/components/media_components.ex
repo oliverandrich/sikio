@@ -71,6 +71,23 @@ defmodule SikioWeb.MediaComponents do
   def medium_label(%{feed: %{kind: :peertube}}), do: "PeerTube"
   def medium_label(_entry), do: gettext("Podcast")
 
+  @doc """
+  Where an item can be opened at its source, and what the action is called: `{href, label}`.
+
+  The page the feed named comes first. A YouTube video without one is still found by its id;
+  any other item without one offers nothing rather than a guessed address.
+  """
+  def original(%{page_url: url} = entry) when is_binary(url), do: {url, original_label(entry)}
+
+  def original(%{feed: %{kind: :youtube}, video_id: id} = entry) when is_binary(id),
+    do: {"https://www.youtube.com/watch?v=#{id}", original_label(entry)}
+
+  def original(_entry), do: nil
+
+  defp original_label(%{feed: %{kind: :youtube}}), do: gettext("Open on YouTube")
+  defp original_label(%{feed: %{kind: :peertube}}), do: gettext("Open on PeerTube")
+  defp original_label(_entry), do: gettext("Open episode page")
+
   def timestamp(seconds) do
     seconds = trunc(seconds || 0)
     minutes = div(seconds, 60)

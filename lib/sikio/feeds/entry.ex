@@ -15,6 +15,8 @@ defmodule Sikio.Feeds.Entry do
     # Where a PeerTube instance plays this video. The feed states it, so nothing here builds
     # an address out of parts a later release may spell differently.
     field :embed_url, :string
+    # The item's own page as the feed names it: the episode's, the video's on its platform.
+    field :page_url, :string
     field :published_at, :utc_datetime_usec
     field :image_url, :string
     field :duration, :integer
