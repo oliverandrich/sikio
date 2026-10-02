@@ -36,7 +36,7 @@ defmodule SikioWeb.LibraryDetailTest do
 
     assert has_element?(view, "#item-detail #player-slot #start-playback")
     refute has_element?(view, "#item-detail audio")
-    assert has_element?(view, ~s|#item-actions #mark-completed[aria-label="Mark as listened"]|)
+    assert has_element?(view, "#item-actions #mark-completed", "Mark as listened")
   end
 
   test "audio loads on request, resumes and saves only the active entry", c do
@@ -102,7 +102,8 @@ defmodule SikioWeb.LibraryDetailTest do
 
     assert has_element?(
              view,
-             "#open-original[href='https://www.youtube.com/watch?v=abcdefghijk']"
+             "#item-actions #open-original[href='https://www.youtube.com/watch?v=abcdefghijk']",
+             "Open on YouTube"
            )
   end
 

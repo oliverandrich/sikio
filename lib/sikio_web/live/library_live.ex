@@ -672,21 +672,29 @@ defmodule SikioWeb.LibraryLive do
 
   attr :id, :string, required: true
   attr :label, :string, required: true
-  attr :rest, :global
-  slot :inner_block, required: true
+  attr :href, :string, default: nil
+  attr :rest, :global, include: ~w(target rel)
+  slot :icon, required: true
 
-  # An action at the card's head: an icon, named for screen readers and on hover.
-  defp icon_action(assigns) do
+  # An action at the card's head: an icon and its name, a link when it leads somewhere. A card
+  # narrower than three names and the meta line keeps the names for screen readers only. The
+  # card's width follows the columns beside it, so it decides rather than the window.
+  defp card_action(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :class,
+        "inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-label font-medium text-muted hover:bg-ground hover:text-ink"
+      )
+
     ~H"""
-    <button
-      id={@id}
-      type="button"
-      aria-label={@label}
-      title={@label}
-      class="flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
-      {@rest}
-    >
-      {render_slot(@inner_block)}
+    <a :if={@href} id={@id} href={@href} class={@class} {@rest}>
+      {render_slot(@icon)}
+      <span class="@max-2xl:sr-only">{@label}</span>
+    </a>
+    <button :if={!@href} id={@id} type="button" class={@class} {@rest}>
+      {render_slot(@icon)}
+      <span class="@max-2xl:sr-only">{@label}</span>
     </button>
     """
   end
@@ -794,7 +802,7 @@ defmodule SikioWeb.LibraryLive do
     <.link patch={@back} class="mb-4 inline-block text-label font-semibold text-accent lg:hidden">
       {gettext("← Your library")}
     </.link>
-    <article class="flex flex-col gap-4 rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-line">
+    <article class="@container flex flex-col gap-4 rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-line">
       <div class="flex items-start gap-3">
         <span
           aria-hidden="true"
@@ -818,8 +826,8 @@ defmodule SikioWeb.LibraryLive do
             <.status_mark entry={@entry} status={@status} />
           </p>
         </div>
-        <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center">
-          <.icon_action
+        <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center gap-1">
+          <.card_action
             :if={@status != :completed}
             id="mark-completed"
             label={mark_done_label(@entry)}
@@ -827,9 +835,9 @@ defmodule SikioWeb.LibraryLive do
             phx-value-id={@entry.id}
             phx-value-status="completed"
           >
-            <Lucideicons.check aria-hidden="true" class="size-4.5" />
-          </.icon_action>
-          <.icon_action
+            <:icon><Lucideicons.check aria-hidden="true" class="size-4.5" /></:icon>
+          </.card_action>
+          <.card_action
             :if={@status != :new}
             id="mark-new"
             label={mark_new_label(@entry)}
@@ -837,20 +845,18 @@ defmodule SikioWeb.LibraryLive do
             phx-value-id={@entry.id}
             phx-value-status="new"
           >
-            <Lucideicons.rotate_ccw aria-hidden="true" class="size-4.5" />
-          </.icon_action>
-          <a
+            <:icon><Lucideicons.rotate_ccw aria-hidden="true" class="size-4.5" /></:icon>
+          </.card_action>
+          <.card_action
             :if={@entry.feed.kind == :youtube}
             id="open-original"
+            label={gettext("Open on YouTube")}
             href={"https://www.youtube.com/watch?v=#{@entry.video_id}"}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={gettext("Open on YouTube")}
-            title={gettext("Open on YouTube")}
-            class="flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
           >
-            <Lucideicons.external_link aria-hidden="true" class="size-4.5" />
-          </a>
+            <:icon><Lucideicons.external_link aria-hidden="true" class="size-4.5" /></:icon>
+          </.card_action>
         </div>
       </div>
       <h2 class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
