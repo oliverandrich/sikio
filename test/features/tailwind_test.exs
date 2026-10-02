@@ -87,6 +87,30 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
+  # The entry the reader is on reads as the accent, with its count as a tinted pill. A tint on its
+  # own all but vanishes against the light ground.
+  feature "the active navigation entry carries the accent", %{session: session} do
+    signed_up(session, "ada")
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/subscriptions")
+    |> execute_script(
+      """
+      const probe = document.createElement('span')
+      probe.className = 'text-accent'
+      document.body.append(probe)
+      const color = el => getComputedStyle(el).color
+      return [color(probe), color(document.getElementById('subscriptions-link')),
+              color(document.getElementById('invitations-link'))]
+      """,
+      fn [accent, active, inactive] ->
+        assert active == accent
+        refute inactive == accent
+      end
+    )
+  end
+
   defp wordmark do
     """
     const name = document.querySelector('#project-name')

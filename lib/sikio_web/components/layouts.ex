@@ -256,8 +256,8 @@ defmodule SikioWeb.Layouts do
             phx-key="Escape"
           >
             <summary class={[
-              "flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control px-2 font-semibold focus-visible:outline-2 focus-visible:outline-accent lg:min-h-9 lg:px-2.5 lg:hover:bg-surface",
-              @section == :account && "text-accent"
+              "flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control px-2 focus-visible:outline-2 focus-visible:outline-accent lg:min-h-9 lg:px-2.5 lg:hover:bg-surface",
+              @section == :account && "font-semibold text-accent lg:bg-selection"
             ]}>
               <span class="max-w-32 truncate" title={@current_account.username}>{@current_account.username}</span><Lucideicons.chevron_down
                 aria-hidden="true"
@@ -320,12 +320,20 @@ defmodule SikioWeb.Layouts do
       aria-current={@active && "page"}
       class={[
         "flex min-h-9 items-center justify-between gap-2 rounded-control px-2.5 text-label",
-        @active && "bg-selection font-semibold",
+        @active && "bg-selection font-semibold text-accent",
         !@active && "hover:bg-surface"
       ]}
     >
       <span class="min-w-0 truncate">{render_slot(@inner_block)}</span>
-      <span :if={@count > 0} id={"#{@id}-count"} class="font-mono text-meta font-normal text-muted">
+      <span
+        :if={@count > 0}
+        id={"#{@id}-count"}
+        class={[
+          "font-mono text-meta font-normal",
+          @active && "rounded-full bg-accent/15 px-1.5",
+          !@active && "text-muted"
+        ]}
+      >
         {@count}
       </span>
     </.link>
@@ -334,7 +342,7 @@ defmodule SikioWeb.Layouts do
 
   defp nav_link_class,
     do:
-      "inline-flex min-h-11 items-center px-2 aria-[current=page]:text-accent lg:min-h-9 lg:rounded-control lg:px-2.5 lg:hover:bg-surface lg:aria-[current=page]:bg-selection lg:aria-[current=page]:text-ink"
+      "inline-flex min-h-11 items-center px-2 aria-[current=page]:text-accent lg:min-h-9 lg:rounded-control lg:px-2.5 lg:hover:bg-surface aria-[current=page]:font-semibold lg:aria-[current=page]:bg-selection"
 
   @doc """
   Shows the flash group with standard titles and content.
