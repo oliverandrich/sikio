@@ -36,26 +36,32 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Chalk, Sikio's visual language. Colours are named by role, not by hue, so markup never
-   chooses a shade. Dark mode follows the system and redefines the same names below. */
+/* Night radio, Sikio's visual language: Tailwind's slate for everything neutral, blue for
+   sources and actions, amber as the on-air signal for what is new or playing. Colours are named
+   by role, not by hue, so markup never chooses a shade. Dark mode follows the system and
+   redefines the same names below. */
 @theme {
   --font-sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
   /* Until the views drop `font-display` for the type scale. */
   --font-display: var(--font-sans);
 
-  --color-ground: #f3f3f0;
-  --color-surface: #ffffff;
-  --color-ink: #222322;
-  --color-muted: #5e605b;
-  --color-line: #dedfd9;
-  --color-control: #8d8f89;
-  --color-accent: #356246;
-  --color-on-accent: #ffffff;
-  --color-selection: #dce9df;
-  --color-danger: #a3302a;
-  --color-danger-surface: #fbedeb;
-  --color-warning: #8a5a00;
-  --color-warning-surface: #fbf1dc;
+  --color-ground: var(--color-slate-100);
+  --color-surface: var(--color-white);
+  --color-ink: var(--color-slate-900);
+  /* slate-500 would miss 4.5:1 for small text on the ground. */
+  --color-muted: var(--color-slate-600);
+  --color-line: var(--color-slate-200);
+  --color-control: var(--color-slate-500);
+  --color-accent: var(--color-blue-700);
+  --color-on-accent: var(--color-white);
+  --color-selection: var(--color-blue-50);
+  --color-signal: var(--color-amber-500);
+  /* For text and for fills on a track, which amber-500 is too light for on slate. */
+  --color-signal-strong: var(--color-amber-700);
+  --color-danger: var(--color-red-700);
+  --color-danger-surface: var(--color-red-50);
+  --color-warning: var(--color-amber-800);
+  --color-warning-surface: var(--color-amber-50);
 
   /* Sized for dense lists that are read for hours, not for landing pages. */
   --text-meta: 12px;
@@ -73,19 +79,21 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-ground: #161716;
-    --color-surface: #1f211f;
-    --color-ink: #e6e7e3;
-    --color-muted: #a0a39b;
-    --color-line: #30332f;
-    --color-control: #6e716b;
-    --color-accent: #8fc09f;
-    --color-on-accent: #161716;
-    --color-selection: #25372b;
-    --color-danger: #f0a39d;
-    --color-danger-surface: #3a1e1c;
-    --color-warning: #e7b65a;
-    --color-warning-surface: #3a2e14;
+    --color-ground: var(--color-slate-950);
+    --color-surface: var(--color-slate-900);
+    --color-ink: var(--color-slate-100);
+    --color-muted: var(--color-slate-400);
+    --color-line: var(--color-slate-800);
+    --color-control: var(--color-slate-500);
+    --color-accent: var(--color-blue-400);
+    --color-on-accent: var(--color-slate-950);
+    --color-selection: var(--color-blue-950);
+    --color-signal: var(--color-amber-400);
+    --color-signal-strong: var(--color-amber-400);
+    --color-danger: var(--color-red-300);
+    --color-danger-surface: var(--color-red-950);
+    --color-warning: var(--color-amber-300);
+    --color-warning-surface: var(--color-amber-950);
   }
 }
 

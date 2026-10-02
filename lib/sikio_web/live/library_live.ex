@@ -375,7 +375,7 @@ defmodule SikioWeb.LibraryLive do
           <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-muted">
             <.progress :if={@status == :in_progress} entry={@entry} />
             <span :if={@status != :in_progress} class="inline-flex items-center gap-1.5">
-              <span :if={@status == :new} aria-hidden="true" class="size-1.5 rounded-full bg-accent"></span>
+              <span :if={@status == :new} aria-hidden="true" class="size-1.5 rounded-full bg-signal"></span>
               <Lucideicons.check :if={@status == :completed} aria-hidden="true" class="size-3.5" />
               {status_label(@entry)}
             </span>
@@ -471,7 +471,7 @@ defmodule SikioWeb.LibraryLive do
     assigns = assign(assigns, percent: percent, position: playback.position)
 
     ~H"""
-    <span class="inline-flex items-center gap-2 font-semibold text-accent">
+    <span class="inline-flex items-center gap-2 font-semibold text-signal-strong">
       <span
         :if={@percent}
         role="progressbar"
@@ -481,7 +481,7 @@ defmodule SikioWeb.LibraryLive do
         aria-valuenow={@percent}
         class="h-1 w-16 overflow-hidden rounded-full bg-line"
       >
-        <span class="block h-full bg-accent" style={"width: #{@percent}%"}></span>
+        <span class="block h-full bg-signal-strong" style={"width: #{@percent}%"}></span>
       </span>
       {status_label(@entry)} · {timestamp(@position)}
     </span>

@@ -66,10 +66,13 @@ defmodule SikioWeb.Layouts do
     """
   end
 
-  @doc "The name, with the full stop that carries the accent. Written once, rendered in both shells."
+  @doc "The name, with the dot that carries the signal. Written once, rendered in both shells."
   def wordmark(assigns) do
     ~H"""
-    sikio<span class="text-accent">.</span>
+    sikio<span
+      aria-hidden="true"
+      class="ml-2 inline-block size-2 rounded-full bg-signal align-middle ring-4 ring-signal/20"
+    ></span>
     """
   end
 
@@ -86,7 +89,7 @@ defmodule SikioWeb.Layouts do
         <div class="w-full max-w-sm">
           <p
             id="project-name"
-            class="mb-3 text-center text-4xl font-semibold tracking-tight text-accent break-words"
+            class="mb-3 text-center text-4xl font-semibold tracking-tight break-words"
           >
             <.wordmark />
           </p>
@@ -164,9 +167,6 @@ defmodule SikioWeb.Layouts do
           class="flex items-center gap-3 lg:px-2.5"
           aria-label={gettext("Sikio home")}
         >
-          <span class="flex size-9 items-center justify-center rounded-control bg-accent text-on-accent lg:size-8">
-            <Lucideicons.play aria-hidden="true" class="size-4 fill-current" />
-          </span>
           <span class="text-2xl font-semibold tracking-tight"><.wordmark /></span>
         </.link>
         <div :if={@sidebar} id="sidebar" class="hidden flex-col gap-5 lg:flex">
