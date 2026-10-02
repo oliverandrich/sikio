@@ -120,11 +120,11 @@ defmodule SikioWeb.LibraryDetailTest do
     end
 
     test "patches the address, keeps the list standing and marks the row", c do
-      {:ok, view, _} = live(c.conn, ~p"/?kind=audio")
+      {:ok, view, _} = live(c.conn, ~p"/?status=new")
 
       view |> element("#play-#{c.entry.id}") |> render_click()
 
-      assert_patch(view, "/library/#{c.entry.id}?kind=audio")
+      assert_patch(view, "/library/#{c.entry.id}?status=new")
       assert has_element?(view, "#entries #entries-#{c.entry.id}")
       assert has_element?(view, "#item-detail h2", "One & two")
       assert has_element?(view, ~s|#play-#{c.entry.id}[aria-current="true"]|)

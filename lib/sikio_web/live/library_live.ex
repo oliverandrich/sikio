@@ -29,7 +29,16 @@ defmodule SikioWeb.LibraryLive do
   @impl true
   def handle_params(params, _uri, socket) do
     filters = Library.normalize_filters(params)
+    place = SikioWeb.Sidebar.place(filters)
 
+    if place == filters,
+      do: show(params, filters, socket),
+      else:
+        {:noreply,
+         push_patch(socket, to: SikioWeb.Sidebar.library_path(place, params["id"]), replace: true)}
+  end
+
+  defp show(params, filters, socket) do
     socket =
       if filters == socket.assigns.filters,
         do: socket,
@@ -162,7 +171,8 @@ defmodule SikioWeb.LibraryLive do
     filters = socket.assigns.filters
     subscriptions = socket.assigns.sidebar.sources
     entries = Library.entries(account, filters)
-    counts = Library.tally(socket.assigns.sidebar.counts, filters)
+    # The sidebar and the chips count each place on its own; the heading counts what is shown.
+    counts = Library.tally(socket.assigns.sidebar.counts, %{})
 
     socket
     |> assign(
@@ -171,9 +181,8 @@ defmodule SikioWeb.LibraryLive do
       entries: entries,
       shown: length(entries),
       counts: counts,
-      total: Library.total(counts, filters),
-      heading: heading(filters, subscriptions),
-      filters_active?: Enum.any?(filters, fn {_, value} -> value != "" end)
+      total: socket.assigns.sidebar.counts |> Library.tally(filters) |> Library.total(filters),
+      heading: heading(filters, subscriptions)
     )
   end
 
@@ -247,24 +256,11 @@ defmodule SikioWeb.LibraryLive do
             <.chip
               :for={{status, key, label} <- views()}
               id={"chip-view-#{key}"}
-              to={SikioWeb.Sidebar.filter_path(@filters, "status", status)}
-              active={@filters["status"] == status}
+              to={SikioWeb.Sidebar.place_path("status", status)}
+              active={SikioWeb.Sidebar.place?(@filters, "status", status)}
               count={@counts[key]}
             >
               {label}
-            </.chip>
-            <.chip
-              :for={{kind, key, label} <- kinds()}
-              id={"chip-kind-#{kind}"}
-              to={SikioWeb.Sidebar.filter_path(@filters, "kind", kind)}
-              active={@filters["kind"] == kind}
-              count={@counts[key]}
-            >
-              {label}
-            </.chip>
-            <.chip :if={@filters_active?} id="clear-filters" to={~p"/"}>
-              <Lucideicons.x aria-hidden="true" class="size-3.5" />
-              {gettext("Clear filters")}
             </.chip>
           </nav>
           <details
@@ -281,8 +277,8 @@ defmodule SikioWeb.LibraryLive do
               <.chip
                 :for={source <- @sidebar.sources}
                 id={"chip-source-#{source.feed_id}"}
-                to={SikioWeb.Sidebar.filter_path(@filters, "source", to_string(source.feed_id))}
-                active={@filters["source"] == to_string(source.feed_id)}
+                to={SikioWeb.Sidebar.place_path("source", to_string(source.feed_id))}
+                active={SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))}
                 count={Map.get(@counts.sources, source.feed_id, 0)}
               >
                 {source.feed.title}

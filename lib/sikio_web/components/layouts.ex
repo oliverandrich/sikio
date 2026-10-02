@@ -132,8 +132,9 @@ defmodule SikioWeb.Layouts do
   The signed-in application shell.
 
   Below `lg` the header is a bar across the top. From `lg` the same element is the reader's left
-  column, so every link exists once in the page. The library views, kinds and sources appear in
-  it when `sidebar` is given, which `SikioWeb.Sidebar` assigns on every member page.
+  column, so every link exists once in the page. The library's views and sources appear in it
+  when `sidebar` is given, which `SikioWeb.Sidebar` assigns on every member page. Each is a place
+  of its own; choosing one lets go of the others.
   """
   attr :flash, :map, required: true
   attr :current_account, :map, required: true
@@ -143,7 +144,7 @@ defmodule SikioWeb.Layouts do
 
   attr :counts, :map,
     default: nil,
-    doc: "the tally under `filters`, when the page has one already"
+    doc: "how much each place holds, when the page has counted already"
 
   attr :section, :atom,
     default: nil,
@@ -159,7 +160,7 @@ defmodule SikioWeb.Layouts do
   def member(assigns) do
     counts =
       assigns.counts ||
-        (assigns.sidebar && Sikio.Library.tally(assigns.sidebar.counts, assigns.filters))
+        (assigns.sidebar && Sikio.Library.tally(assigns.sidebar.counts, %{}))
 
     assigns = assign(assigns, :counts, counts)
 
@@ -178,21 +179,9 @@ defmodule SikioWeb.Layouts do
             <.sidebar_link
               :for={{status, key, label} <- SikioWeb.MediaComponents.views()}
               id={"view-#{key}"}
-              to={SikioWeb.Sidebar.filter_path(@filters, "status", status)}
+              to={SikioWeb.Sidebar.place_path("status", status)}
               patch={@patch}
-              active={@patch and (@filters["status"] || "") == status}
-              count={@counts[key]}
-            >
-              {label}
-            </.sidebar_link>
-          </nav>
-          <nav aria-label={gettext("Media")} class="flex flex-col gap-0.5">
-            <.sidebar_link
-              :for={{kind, key, label} <- SikioWeb.MediaComponents.kinds()}
-              id={"kind-#{kind}"}
-              to={SikioWeb.Sidebar.filter_path(@filters, "kind", kind)}
-              patch={@patch}
-              active={@patch and @filters["kind"] == kind}
+              active={@patch and SikioWeb.Sidebar.place?(@filters, "status", status)}
               count={@counts[key]}
             >
               {label}
@@ -214,9 +203,11 @@ defmodule SikioWeb.Layouts do
             <.sidebar_link
               :for={source <- @sidebar.sources}
               id={"source-#{source.feed_id}"}
-              to={SikioWeb.Sidebar.filter_path(@filters, "source", to_string(source.feed_id))}
+              to={SikioWeb.Sidebar.place_path("source", to_string(source.feed_id))}
               patch={@patch}
-              active={@patch and @filters["source"] == to_string(source.feed_id)}
+              active={
+                @patch and SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))
+              }
               count={Map.get(@counts.sources, source.feed_id, 0)}
             >
               {source.feed.title}

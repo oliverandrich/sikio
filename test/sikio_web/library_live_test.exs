@@ -41,32 +41,32 @@ defmodule SikioWeb.LibraryLiveTest do
     }
   end
 
-  # The chips are what a phone narrows the list with. They build the same addresses the sidebar
-  # does, so a narrowed view survives a reload either way.
-  test "filters combine, survive reload and reset through the chips", c do
+  # The chips are what a phone moves through the library with. Each one is a place of its own:
+  # choosing it lets go of whatever was chosen before, and the place survives a reload.
+  test "a chip chooses one place and lets go of the others", c do
     Playback.mark(c.user, c.audio.id, :completed)
-    {:ok, view, _} = live(c.conn, ~p"/")
+    {:ok, view, _} = live(c.conn, ~p"/?status=completed")
+    refute has_element?(view, "#chip-kind-audio")
 
-    view |> element("#chip-kind-audio") |> render_click()
-    assert_patch(view, "/?kind=audio")
-    view |> element("#chip-view-completed") |> render_click()
-    assert_patch(view, "/?kind=audio&status=completed")
     view |> element("#chip-source-#{c.sub.feed_id}") |> render_click()
-
-    path = assert_patch(view)
-    assert path =~ "source=#{c.sub.feed_id}"
+    assert_patch(view, "/?source=#{c.sub.feed_id}")
     assert has_element?(view, "#entries article", "One & two")
     refute has_element?(view, "#entries article", "A good video")
-    {:ok, reloaded, _} = live(c.conn, path)
+
+    view |> element("#chip-view-new") |> render_click()
+    assert_patch(view, "/?status=new")
+
+    {:ok, reloaded, _} = live(c.conn, "/?source=#{c.sub.feed_id}")
     assert has_element?(reloaded, "#entries article", "One & two")
-    refute has_element?(reloaded, "#entries article", "A good video")
-    reloaded |> element("#clear-filters") |> render_click()
+    reloaded |> element("#chip-view-all") |> render_click()
     assert_patch(reloaded, "/")
     assert has_element?(reloaded, "#entries article", "A good video")
   end
 
   test "marking and changes from another tab keep filtered membership current", c do
-    {:ok, view, _} = live(c.conn, ~p"/library/#{c.audio.id}?kind=podcast&status=new")
+    [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
+    Playback.mark(c.user, video.id, :completed)
+    {:ok, view, _} = live(c.conn, ~p"/library/#{c.audio.id}?status=new")
     view |> element("#mark-completed") |> render_click()
     refute has_element?(view, "#entries-#{c.audio.id}")
     assert has_element?(view, "#library-no-matches")
@@ -79,7 +79,7 @@ defmodule SikioWeb.LibraryLiveTest do
   end
 
   test "feed imports update matching entries without reloading", c do
-    {:ok, view, _} = live(c.conn, ~p"/?kind=podcast&status=new")
+    {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
 
     Req.Test.stub(HTTP, fn conn ->
       xml =
@@ -122,12 +122,25 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(reloaded, "#entries-#{c.audio.id}", "New")
   end
 
-  test "removing the selected source leaves a clear empty view until filters are cleared", c do
+  # An address from before places were one at a time may still name several, or a kind. It is
+  # taken to the one place it names, a source before a status, so nothing narrows unseen.
+  test "an address naming several places opens the one it names first", c do
+    for {old, place} <- [
+          {"/?kind=audio", "/"},
+          {"/?kind=audio&status=new", "/?status=new"},
+          {"/?source=#{c.sub.feed_id}&status=completed", "/?source=#{c.sub.feed_id}"}
+        ] do
+      assert {:error, {:live_redirect, %{to: ^place}}} = live(c.conn, old)
+    end
+  end
+
+  test "removing the selected source leaves a clear empty view until another place is chosen",
+       c do
     {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
     Library.unsubscribe(c.user, c.sub.id)
     assert has_element?(view, "#library-no-matches")
     assert has_element?(view, "#library-heading", "Unavailable source")
-    view |> element("#clear-filters") |> render_click()
+    view |> element("#chip-view-all") |> render_click()
     assert has_element?(view, "#entries article", "A good video")
   end
 
@@ -279,20 +292,22 @@ defmodule SikioWeb.LibraryLiveTest do
   end
 
   describe "the sidebar" do
-    test "narrows the list through the address and marks where the reader is", c do
-      {:ok, view, _} = live(c.conn, ~p"/")
+    # The sidebar is where the reader is, not a set of filters: one entry at a time.
+    test "chooses one place at a time and marks where the reader is", c do
+      {:ok, view, _} = live(c.conn, ~p"/?status=new")
+      refute has_element?(view, "#kind-audio")
 
-      view |> element("#kind-audio") |> render_click()
-      assert_patch(view, "/?kind=audio")
+      view |> element("#source-#{c.sub.feed_id}") |> render_click()
+      assert_patch(view, "/?source=#{c.sub.feed_id}")
       assert has_element?(view, "#entries article", "One & two")
       refute has_element?(view, "#entries article", "A good video")
-      assert has_element?(view, "#kind-audio[aria-current=page]")
+      assert has_element?(view, "#source-#{c.sub.feed_id}[aria-current=page]")
+      refute has_element?(view, "#view-new[aria-current=page]")
+
+      # A count says what is in that place, whichever place is open.
+      assert view |> element("#view-all-count") |> render() =~ "2"
 
       view |> element("#view-new") |> render_click()
-      assert_patch(view, "/?kind=audio&status=new")
-
-      # Choosing the active kind again lets it go.
-      view |> element("#kind-audio") |> render_click()
       assert_patch(view, "/?status=new")
     end
 
@@ -423,7 +438,7 @@ defmodule SikioWeb.LibraryLiveTest do
     # The list stops at a hundred. The heading says how many there are, not how many fit.
     test "counts every matching item, and says when the list shows fewer", c do
       insert_entries(c, for(n <- 1..120, do: "Bulk #{n}"))
-      {:ok, view, _} = live(c.conn, ~p"/?kind=audio")
+      {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
 
       assert view |> element("#library-count") |> render() =~ "100 of 121"
     end

@@ -35,9 +35,10 @@ defmodule SikioWeb.MobileTest do
     |> resize_window(500, 900)
     |> open("/")
     |> execute_script(gap_below("#main-navigation"), fn gap -> assert gap == 0 end)
-    |> click(css("#chip-kind-audio"))
+    |> click(css("#chip-sources summary"))
+    |> click(css("#chip-source-#{entries.podcast.feed_id}"))
     # `refute_has/2` asks once, so the patch is waited for by the chip it marks.
-    |> assert_has(css(~s|#chip-kind-audio[aria-current="page"]|))
+    |> assert_has(css(~s|#chip-source-#{entries.podcast.feed_id}[aria-current="page"]|))
     |> assert_has(css("#entries article", text: entries.podcast.title))
     |> refute_has(css("#entries article", text: entries.youtube.title))
   end

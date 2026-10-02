@@ -62,17 +62,30 @@ defmodule SikioWeb.Sidebar do
   end
 
   @doc """
-  The library's address with one filter changed and the others kept.
+  The library's address for one place: a view by its status, or a source.
 
-  A status is set; a kind or a source chosen again is let go, so the same link narrows and widens.
+  The sidebar and the phone's chips are where the reader is, not filters to combine, so nothing
+  chosen before comes along.
   """
-  def filter_path(filters, "status", value),
-    do: filters |> Map.put("status", value) |> library_path()
+  def place_path(key, value), do: library_path(%{key => value})
 
-  def filter_path(filters, key, value) do
-    value = if filters[key] == value, do: "", else: value
-    filters |> Map.put(key, value) |> library_path()
-  end
+  @doc """
+  The one place `filters` name: a source before a status, and never a kind.
+
+  Addresses from before places were chosen one at a time may name several.
+  """
+  def place(%{"source" => source} = filters) when source not in [nil, ""],
+    do: %{filters | "status" => "", "kind" => ""}
+
+  def place(filters), do: %{filters | "source" => "", "kind" => ""}
+
+  @doc "Whether `filters` show exactly that place, which is what marks it as current."
+  def place?(filters, "source", id), do: filters["source"] == id
+
+  def place?(filters, "status", value),
+    do:
+      Enum.all?(["source", "kind"], &((filters[&1] || "") == "")) and
+        (filters["status"] || "") == value
 
   # The window is private, because an assign would render the page for nothing.
   defp follow(:library_changed, %{private: %{library_window: :closed}} = socket),
