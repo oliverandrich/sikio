@@ -72,15 +72,26 @@ defmodule Sikio.ReleaseSmoke.Smoke do
   end
 
   def http(host, port, path) do
+    case request(host, port, path, [{"host", "localhost"}, {"x-forwarded-proto", "https"}]) do
+      {200, _headers, body} -> body
+      _ -> raise "HTTP probe failed"
+    end
+  end
+
+  @doc "One request without following redirects: the status, the headers by lowercase name and the body."
+  def request(address, port, path, headers) do
     Application.ensure_all_started(:inets)
-    url = String.to_charlist("http://#{host}:#{port}#{path}")
-    headers = [{~c"host", ~c"localhost"}, {~c"x-forwarded-proto", ~c"https"}]
+    url = String.to_charlist("http://#{address}:#{port}#{path}")
+    headers = Enum.map(headers, fn {name, value} -> {~c"#{name}", ~c"#{value}"} end)
 
     case :httpc.request(:get, {url, headers}, [timeout: 3_000, autoredirect: false],
            body_format: :binary
          ) do
-      {:ok, {{_, 200, _}, _, body}} -> body
-      _ -> raise "HTTP probe failed"
+      {:ok, {{_, status, _}, response_headers, body}} ->
+        {status, Map.new(response_headers, fn {name, value} -> {"#{name}", "#{value}"} end), body}
+
+      {:error, _reason} ->
+        raise "HTTP probe failed"
     end
   end
 

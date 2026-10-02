@@ -93,8 +93,10 @@ mise exec -- elixir scripts/smoke_release.exs
 
 The smoke test checks that the package contains no backup operations, applies
 migrations twice to its own randomly named disposable database, checks the schema,
-and starts the release over HTTP on a free loopback port. It removes only that
-database afterward. It needs the build machine's Elixir and PostgreSQL client tools;
+and starts the release over HTTP on a free loopback port. It asks for a host outside
+the `force_ssl` exclude list: plain HTTP must redirect, and `x-forwarded-proto: https`
+must be served with HSTS. It removes only that database and a temporary picture
+directory afterward. It needs the build machine's Elixir and PostgreSQL client tools;
 these test tools are not runtime dependencies of the application.
 
 ## Local Beans tracking

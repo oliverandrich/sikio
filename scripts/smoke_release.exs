@@ -15,9 +15,12 @@ defmodule Sikio.ReleaseSmoke do
            "Release must contain only the application, not backup/restore operations"
 
     source = "sikio_smoke_" <> Support.token(6)
-    env = Smoke.database_env(source)
 
-    Smoke.with_database(source, env, fn -> check(release, env) end)
+    # The release refuses to start without a place for pictures outside itself.
+    Support.temporary(fn pictures ->
+      env = source |> Smoke.database_env() |> Map.put("PICTURE_CACHE_DIR", pictures)
+      Smoke.with_database(source, env, fn -> check(release, env) end)
+    end)
 
     IO.puts("Release migration, repeat migration and HTTP startup passed.")
   end
@@ -36,7 +39,25 @@ defmodule Sikio.ReleaseSmoke do
 
     Smoke.with_server(Path.join(release, "server"), env, fn ->
       assert Smoke.await_landing("127.0.0.1", env["PORT"], "release HTTP startup") =~ "Sikio"
+      check_https(env)
     end)
+  end
+
+  # `force_ssl` is compiled into the release and excludes localhost, which every other probe here
+  # uses. So these ask for another name. Plain http has to be sent to https on the configured
+  # host, never the one asked for, and a request Caddy marks as https has to be served: a wrong
+  # rewrite key loops behind the proxy instead.
+  defp check_https(env) do
+    host = {"host", "sikio.example"}
+    port = env["PORT"]
+
+    assert {301, headers, _} = Smoke.request("127.0.0.1", port, "/health", [host])
+    assert headers["location"] == "https://#{env["PHX_HOST"]}/health"
+
+    assert {200, headers, _} =
+             Smoke.request("127.0.0.1", port, "/health", [host, {"x-forwarded-proto", "https"}])
+
+    assert headers["strict-transport-security"] =~ "max-age="
   end
 end
 
