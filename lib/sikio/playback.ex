@@ -84,13 +84,11 @@ defmodule Sikio.Playback do
     end
   end
 
-  # Authorization is rechecked here, inside the transaction, rather than trusted from the request
-  # that started the player: a subscription may have been removed since.
   defp save_sample(account, id, session, sample) do
     state = locked(account, id)
 
     if is_nil(state) or is_nil(session) or state.session_id != session or
-         state.sequence >= sample.sequence or is_nil(Library.visible_entry_id(account, id)) do
+         state.sequence >= sample.sequence do
       Repo.rollback(:stale)
     end
 
@@ -110,7 +108,8 @@ defmodule Sikio.Playback do
       Repo.transaction(fn ->
         entry_id = Library.visible_entry_id(account, id) || Repo.rollback(:not_found)
         Repo.insert!(%State{user_id: user_id, entry_id: entry_id}, on_conflict: :nothing)
-        state = locked(account, entry_id)
+        # An unsubscribe may commit between the check above and this lock.
+        state = locked(account, entry_id) || Repo.rollback(:not_found)
         persist(state, changes.(state))
       end)
 
@@ -129,11 +128,17 @@ defmodule Sikio.Playback do
   defp event(%{status: status}, status), do: :playback_progressed
   defp event(_state, _previous_status), do: :playback_changed
 
-  defp locked(%User{id: user_id}, id) do
+  # Authorization is rechecked with every write, rather than trusted from the request that started
+  # the player: a subscription may have been removed since. Without one there is nothing to lock.
+  # A subquery is not locked, so an unsubscribe or a feed refresh never waits for a player.
+  defp locked(%User{id: user_id} = account, id) do
     case Ecto.Type.cast(:id, id) do
       {:ok, id} ->
         Repo.one(
-          from p in State, where: p.user_id == ^user_id and p.entry_id == ^id, lock: "FOR UPDATE"
+          from p in State,
+            where: p.user_id == ^user_id and p.entry_id == ^id,
+            where: p.entry_id in subquery(Library.visible_entry_ids(account)),
+            lock: "FOR UPDATE"
         )
 
       _ ->

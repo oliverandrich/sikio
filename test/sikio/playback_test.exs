@@ -45,6 +45,7 @@ defmodule Sikio.PlaybackTest do
     assert {:error, :stale} = Playback.save(c.bob, c.entry.id, state.session_id, sample(1, 20))
     {:ok, _} = Library.unsubscribe(c.alice, c.sub.id)
     assert {:error, :stale} = Playback.save(c.alice, c.entry.id, state.session_id, sample(1, 20))
+    assert {:error, :stale} = Playback.stop(c.alice, c.entry.id, state.session_id)
   end
 
   test "a new player and explicit marks invalidate old events; sequence prevents rewinds", c do
@@ -126,6 +127,7 @@ defmodule Sikio.PlaybackTest do
 
   # Ownership is checked on every write, a sample at least every five seconds per player, and
   # while the row is locked. The check asks whether the account subscribes, not for the item.
+  # A sample asks it in the statement that locks.
   test "a write checks ownership without loading the item", c do
     {{:ok, %{session_id: session}}, started} =
       queries(fn -> Playback.start(c.alice, c.entry.id) end)
@@ -135,6 +137,9 @@ defmodule Sikio.PlaybackTest do
 
     assert started != [] and saved != []
     refute Enum.any?(started ++ saved, &(&1 =~ ~s("feeds")))
+    assert [lock] = Enum.filter(saved, &String.starts_with?(&1, "SELECT"))
+    assert lock =~ ~s("subscriptions")
+    assert lock =~ ~r/FOR UPDATE$/
   end
 
   defp sample(sequence, position),

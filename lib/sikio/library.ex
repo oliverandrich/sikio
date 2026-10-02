@@ -36,6 +36,10 @@ defmodule Sikio.Library do
         &Repo.one(from e in subscribed_entries(user_id), where: e.id == ^&1, select: e.id)
       )
 
+  @doc "A query for the ids of the entries the account is allowed to see, to filter other queries by."
+  def visible_entry_ids(%User{id: user_id}),
+    do: from(e in subscribed_entries(user_id), select: e.id)
+
   def subscribe(%User{id: user_id}, preview) do
     result =
       Repo.transaction(fn ->
