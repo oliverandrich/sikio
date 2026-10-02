@@ -70,6 +70,20 @@ defmodule SikioWeb.MediaComponents do
   def kind_label(%{feed: %{kind: :peertube}}), do: gettext("PeerTube video")
   def kind_label(_entry), do: gettext("Podcast episode")
 
+  @doc "What a failed refresh means for the reader, from the reason `Sikio.Feeds` stored."
+  def refresh_problem(reason) when reason in ["invalid_feed", "unsupported_encoding"],
+    do: gettext("The address no longer serves a feed Sikio can read.")
+
+  def refresh_problem("gone"), do: gettext("The address no longer exists on its server.")
+  def refresh_problem("too_large"), do: gettext("The feed is larger than Sikio reads.")
+  def refresh_problem("too_many_redirects"), do: gettext("The address redirects too often.")
+
+  def refresh_problem("unsafe_url"),
+    do: gettext("The address leads somewhere Sikio does not fetch from.")
+
+  def refresh_problem(_reason),
+    do: gettext("The server could not be reached. Sikio will try again.")
+
   @doc "The picture that stands for an item or a source that brings none of its own."
   def kind_mark(%{feed: feed}), do: kind_mark(feed)
   def kind_mark(%{kind: kind}) when kind in [:youtube, :peertube], do: ~p"/images/kind-video.svg"

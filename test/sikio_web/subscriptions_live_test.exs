@@ -4,12 +4,15 @@ defmodule SikioWeb.SubscriptionsLiveTest do
   @moduledoc false
   use SikioWeb.ConnCase, async: true
 
+  import Ecto.Query, only: [from: 2]
   import Phoenix.LiveViewTest
   import Sikio.FeedFixtures
 
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
+  alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
+  alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Repo
 
@@ -82,6 +85,20 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     html = render(view)
     assert html =~ "https://example.org/rs"
     assert html =~ "small ho"
+  end
+
+  # The sidebar's mark says it only on hover. Here the reason is written out, for keyboards and
+  # touch screens too.
+  test "a source whose last refresh failed says why", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+
+    Repo.update_all(from(f in Feed, where: f.id == ^subscription.feed_id),
+      set: [last_error: "gone"]
+    )
+
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    assert has_element?(view, "#subscription-#{subscription.id}", "no longer exists")
   end
 
   test "pausing and unsubscribing act only on our own rows", %{conn: conn, user: user} do

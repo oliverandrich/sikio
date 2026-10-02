@@ -49,6 +49,34 @@ defmodule Sikio.FeedsTest do
     assert Repo.aggregate(Entry, :count) == 1
   end
 
+  # A gone feed is not one that is down for a while. The reader is told which it is.
+  test "a source that is gone records that it is gone" do
+    {:ok, stored} = Feeds.store(preview())
+
+    for status <- [404, 410] do
+      Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, status, "") end)
+      assert {:error, :gone} = Feeds.refresh(stored.id)
+      assert Repo.get(Feed, stored.id).last_error == "gone"
+    end
+  end
+
+  # The sidebar marks a failing source. Starting to fail and recovering are news, once each;
+  # failing again is not, or every poll of a broken feed would reload every open library.
+  test "a source that starts failing or recovers notifies its subscribers once" do
+    {:ok, stored} = Feeds.store(preview())
+    Events.subscribe_updates(%User{id: subscriber(stored.id)})
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "try later") end)
+
+    {:error, :unavailable} = Feeds.refresh(stored.id)
+    assert_received :library_changed
+    {:error, :unavailable} = Feeds.refresh(stored.id)
+    refute_received :library_changed
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 304, "") end)
+    {:ok, _} = Feeds.refresh(stored.id)
+    assert_received :library_changed
+  end
+
   test "a source that has not changed clears the error it reported before" do
     {:ok, stored} = Feeds.store(preview())
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "try later") end)

@@ -47,6 +47,19 @@ defmodule SikioWeb.MediaComponentsTest do
     end
   end
 
+  # A failed refresh is stored as its reason. The reader is told what it means, in a sentence.
+  describe "refresh_problem/1" do
+    test "says what went wrong in words, and something general for the rest" do
+      assert refresh_problem("invalid_feed") =~ "no longer serves a feed"
+      assert refresh_problem("too_large") =~ "larger"
+      assert refresh_problem("too_many_redirects") =~ "redirects"
+      assert refresh_problem("unsafe_url") =~ "does not fetch"
+      assert refresh_problem("gone") =~ "no longer exists"
+      assert refresh_problem("unavailable") =~ "could not be reached"
+      assert refresh_problem("something new") =~ "could not be reached"
+    end
+  end
+
   # A row has little room, and the source's kind is all it needs to say.
   describe "medium_label/1" do
     test "names the platform or the podcast, nothing more" do

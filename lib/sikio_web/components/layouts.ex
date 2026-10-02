@@ -220,6 +220,10 @@ defmodule SikioWeb.Layouts do
                 @patch and SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))
               }
               count={Map.get(@counts.sources, source.feed_id, 0)}
+              problem={
+                source.feed.last_error &&
+                  SikioWeb.MediaComponents.refresh_problem(source.feed.last_error)
+              }
             >
               <:mark>
                 <img
@@ -336,6 +340,7 @@ defmodule SikioWeb.Layouts do
   attr :patch, :boolean, required: true
   attr :active, :boolean, required: true
   attr :count, :integer, required: true
+  attr :problem, :string, default: nil, doc: "what went wrong with the source, if anything"
   slot :mark, doc: "a picture or an initial before the name"
   slot :inner_block, required: true
 
@@ -355,6 +360,10 @@ defmodule SikioWeb.Layouts do
       <span class="flex min-w-0 items-center gap-2.5">
         {render_slot(@mark)}
         <span class="min-w-0 truncate">{render_slot(@inner_block)}</span>
+        <span :if={@problem} data-problem title={@problem} class="shrink-0 text-warning">
+          <Lucideicons.zap aria-hidden="true" class="size-3.5 fill-current" />
+          <span class="sr-only">{@problem}</span>
+        </span>
       </span>
       <span
         :if={@count > 0}

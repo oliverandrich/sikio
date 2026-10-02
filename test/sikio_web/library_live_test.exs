@@ -4,6 +4,8 @@ defmodule SikioWeb.LibraryLiveTest do
   @moduledoc false
   use SikioWeb.ConnCase, async: true
 
+  import Ecto.Query, only: [from: 2]
+
   import Phoenix.LiveViewTest
   import Sikio.FeedFixtures
 
@@ -352,6 +354,26 @@ defmodule SikioWeb.LibraryLiveTest do
                ~s|#sources-heading a#subscriptions-heading[href="/subscriptions"][aria-current="page"]|,
                "Subscriptions"
              )
+    end
+
+    # A source whose last refresh failed says so beside its name, and what went wrong on hover.
+    # The words are there for a screen reader too; a flash of lightning alone says nothing.
+    test "marks a source whose last refresh failed", c do
+      Repo.update_all(
+        from(f in Sikio.Feeds.Feed, where: f.id == ^c.sub.feed_id),
+        set: [last_error: "invalid_feed"]
+      )
+
+      {:ok, view, _} = live(c.conn, ~p"/")
+      [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
+
+      assert has_element?(
+               view,
+               ~s|#source-#{c.sub.feed_id} [data-problem][title*="no longer serves a feed"]|
+             )
+
+      assert has_element?(view, "#source-#{c.sub.feed_id} .sr-only", "no longer serves a feed")
+      refute has_element?(view, "#source-#{video.feed_id} [data-problem]")
     end
 
     # A source is recognised by its picture, through this host like every other. A source that

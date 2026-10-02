@@ -15,7 +15,7 @@ defmodule SikioWeb.SubscriptionsLive do
   """
   use SikioWeb, :live_view
 
-  import SikioWeb.MediaComponents, only: [source_label: 1]
+  import SikioWeb.MediaComponents, only: [refresh_problem: 1, source_label: 1]
 
   alias Sikio.Feeds.Discovery
   alias Sikio.Library
@@ -352,7 +352,8 @@ defmodule SikioWeb.SubscriptionsLive do
                 :if={subscription.feed.last_error}
                 class="mt-2 text-label text-warning"
               >
-                {gettext("Last refresh failed. Sikio will retry; imported items are safe.")}
+                {refresh_problem(subscription.feed.last_error)}
+                {gettext("Imported items are safe.")}
               </p>
             </div>
             <div class="flex gap-5 text-label">

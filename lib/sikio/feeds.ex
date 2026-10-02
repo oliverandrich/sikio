@@ -55,19 +55,21 @@ defmodule Sikio.Feeds do
         {:error, :not_found}
 
       feed ->
-        case refresh_feed(feed) do
-          {:ok, refreshed} ->
-            Events.feed_updated(feed.id)
-            {:ok, refreshed}
+        result = refresh_feed(feed)
+        if news?(result, feed), do: Events.feed_updated(feed.id)
 
-          {:unchanged, refreshed} ->
-            {:ok, refreshed}
-
-          other ->
-            other
+        case result do
+          {:unchanged, refreshed} -> {:ok, refreshed}
+          other -> other
         end
     end
   end
+
+  # Subscribers hear of new content, and of a source that starts failing or recovers: the sidebar
+  # marks a failing one. Failing again, or answering the same, is nothing new.
+  defp news?({:ok, _refreshed}, _feed), do: true
+  defp news?({:unchanged, _refreshed}, feed), do: feed.last_error != nil
+  defp news?({:error, _reason}, feed), do: feed.last_error == nil
 
   defp refresh_feed(feed) do
     headers =

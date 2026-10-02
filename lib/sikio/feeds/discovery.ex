@@ -58,6 +58,8 @@ defmodule Sikio.Feeds.Discovery do
       {:ok, Map.merge(feed, validators(response))}
     else
       {:ok, %{status: 304}} -> :not_modified
+      # Gone for good, rather than down for a while.
+      {:ok, %{status: status}} when status in [404, 410] -> {:error, :gone}
       {:error, reason} -> {:error, reason}
       _ -> {:error, :unavailable}
     end
