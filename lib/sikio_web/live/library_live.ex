@@ -258,7 +258,6 @@ defmodule SikioWeb.LibraryLive do
     socket
     |> assign(
       empty?: subscriptions == [],
-      no_matches?: entries == [],
       entries: entries,
       more?: length(entries) == limit,
       counts: counts,
@@ -305,133 +304,140 @@ defmodule SikioWeb.LibraryLive do
           "min-w-0 lg:min-h-svh lg:self-stretch lg:border-r lg:border-line lg:bg-surface",
           @selected && "hidden lg:block"
         ]}>
-          <div class="flex items-start justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
-            <div class="flex min-w-0 flex-col gap-0.5">
-              <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
-              <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
-                {count_label(@total)}
-              </span>
+          <%!-- Heading, search and filters stay in view while the list scrolls beneath them. --%>
+          <div id="list-head" class="lg:sticky lg:top-0 lg:z-10 lg:bg-surface">
+            <div class="flex items-start justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
+              <div class="flex min-w-0 flex-col gap-0.5">
+                <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
+                <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
+                  {count_label(@total)}
+                </span>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <button
+                  :if={!@empty?}
+                  id="toggle-search"
+                  type="button"
+                  aria-controls="search-form"
+                  aria-expanded={to_string(@search_open?)}
+                  aria-label={gettext("Search")}
+                  phx-click="toggle_search"
+                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-expanded:text-accent"
+                >
+                  <Lucideicons.search aria-hidden="true" class="size-4.5" />
+                </button>
+                <.button
+                  id="add-subscription"
+                  class="shrink-0 lg:hidden"
+                  navigate={~p"/subscriptions"}
+                >
+                  <Lucideicons.plus aria-hidden="true" class="size-4" />
+                  {gettext("Add a source")}
+                </.button>
+              </div>
             </div>
-            <div class="flex shrink-0 items-center gap-2">
-              <button
-                :if={!@empty?}
-                id="toggle-search"
-                type="button"
-                aria-controls="search-form"
-                aria-expanded={to_string(@search_open?)}
-                aria-label={gettext("Search")}
-                phx-click="toggle_search"
-                class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-expanded:text-accent"
-              >
-                <Lucideicons.search aria-hidden="true" class="size-4.5" />
-              </button>
-              <.button id="add-subscription" class="shrink-0 lg:hidden" navigate={~p"/subscriptions"}>
-                <Lucideicons.plus aria-hidden="true" class="size-4" />
-                {gettext("Add a source")}
-              </.button>
-            </div>
-          </div>
-          <nav
-            id="library-chips"
-            aria-label={gettext("Views")}
-            class="mb-3 flex gap-2 overflow-x-auto px-6 pb-1 sm:px-12 lg:hidden"
-          >
-            <.chip
-              :for={{status, key, label} <- views()}
-              id={"chip-view-#{key}"}
-              to={SikioWeb.Sidebar.place_path("status", status)}
-              active={SikioWeb.Sidebar.place?(@filters, "status", status)}
-              count={@counts[key]}
+            <nav
+              id="library-chips"
+              aria-label={gettext("Views")}
+              class="mb-3 flex gap-2 overflow-x-auto px-6 pb-1 sm:px-12 lg:hidden"
             >
-              {label}
-            </.chip>
-          </nav>
-          <details
-            :if={@sidebar.sources != [] or @filters["source"] != ""}
-            id="chip-sources"
-            open={@filters["source"] != ""}
-            class="mb-4 px-6 sm:px-12 lg:hidden"
-          >
-            <summary class="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink">
-              {if @filters["source"] != "", do: @heading, else: gettext("Sources")}
-              <Lucideicons.chevron_down aria-hidden="true" class="size-3.5" />
-            </summary>
-            <div class="mt-2 flex flex-wrap gap-2">
               <.chip
-                :for={source <- @sidebar.sources}
-                id={"chip-source-#{source.feed_id}"}
-                to={SikioWeb.Sidebar.place_path("source", to_string(source.feed_id))}
-                active={SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))}
-                count={Map.get(@counts.sources, source.feed_id, 0)}
+                :for={{status, key, label} <- views()}
+                id={"chip-view-#{key}"}
+                to={SikioWeb.Sidebar.place_path("status", status)}
+                active={SikioWeb.Sidebar.place?(@filters, "status", status)}
+                count={@counts[key]}
               >
-                {source.feed.title}
+                {label}
               </.chip>
-            </div>
-          </details>
-          <form
-            :if={!@empty?}
-            id="search-form"
-            role="search"
-            phx-change="search"
-            phx-submit="search"
-            hidden={!@search_open?}
-            class="px-6 pb-3 sm:px-12 lg:px-4"
-          >
-            <input
-              id="search-input"
-              type="search"
-              name="q"
-              value={@filters["q"]}
-              phx-debounce="300"
-              placeholder={gettext("Search in %{place}", place: @heading)}
-              aria-label={gettext("Search in %{place}", place: @heading)}
-              autocomplete="off"
-              class="w-full rounded-full border border-control bg-surface px-4 py-2 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
-            />
-          </form>
-          <div :if={!@empty?} class="px-6 pb-3 sm:px-12 lg:border-b lg:border-line lg:px-4 lg:pb-4">
-            <button
-              id="toggle-filters"
-              type="button"
-              aria-controls="list-filters"
-              aria-expanded="false"
-              phx-click={toggle_filters()}
-              class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink lg:hidden"
+            </nav>
+            <details
+              :if={@sidebar.sources != [] or @filters["source"] != ""}
+              id="chip-sources"
+              open={@filters["source"] != ""}
+              class="mb-4 px-6 sm:px-12 lg:hidden"
             >
-              <Lucideicons.sliders_horizontal aria-hidden="true" class="size-3.5" />
-              {gettext("Filter")}
-            </button>
-            <div
-              id="list-filters"
-              phx-mounted={@filtered? && show_filters()}
-              class="mt-3 hidden flex-wrap items-center gap-x-4 gap-y-2 lg:mt-0 lg:flex"
+              <summary class="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink">
+                {if @filters["source"] != "", do: @heading, else: gettext("Sources")}
+                <Lucideicons.chevron_down aria-hidden="true" class="size-3.5" />
+              </summary>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <.chip
+                  :for={source <- @sidebar.sources}
+                  id={"chip-source-#{source.feed_id}"}
+                  to={SikioWeb.Sidebar.place_path("source", to_string(source.feed_id))}
+                  active={SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))}
+                  count={Map.get(@counts.sources, source.feed_id, 0)}
+                >
+                  {source.feed.title}
+                </.chip>
+              </div>
+            </details>
+            <form
+              :if={!@empty?}
+              id="search-form"
+              role="search"
+              phx-change="search"
+              phx-submit="search"
+              hidden={!@search_open?}
+              class="px-6 pb-3 sm:px-12 lg:px-4"
             >
-              <.segments :if={@filters["source"] == ""} label={gettext("Medium")}>
-                <.segment
-                  :for={
-                    {value, label} <- [
-                      {"", gettext("All")},
-                      {"video", gettext("Video")},
-                      {"audio", gettext("Audio")}
-                    ]
-                  }
-                  id={"filter-kind-#{if value == "", do: "all", else: value}"}
-                  to={SikioWeb.Sidebar.library_path(Map.put(@filters, "kind", value))}
-                  active={@filters["kind"] == value}
-                >
-                  {label}
-                </.segment>
-              </.segments>
-              <.segments :if={@filters["source"] != ""} label={gettext("Status")}>
-                <.segment
-                  :for={{value, key, label} <- views()}
-                  id={"filter-status-#{key}"}
-                  to={SikioWeb.Sidebar.library_path(Map.put(@filters, "status", value))}
-                  active={@filters["status"] == value}
-                >
-                  {label}
-                </.segment>
-              </.segments>
+              <input
+                id="search-input"
+                type="search"
+                name="q"
+                value={@filters["q"]}
+                phx-debounce="300"
+                placeholder={gettext("Search in %{place}", place: @heading)}
+                aria-label={gettext("Search in %{place}", place: @heading)}
+                autocomplete="off"
+                class="w-full rounded-full border border-control bg-surface px-4 py-2 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
+              />
+            </form>
+            <div :if={!@empty?} class="px-6 pb-3 sm:px-12 lg:border-b lg:border-line lg:px-4 lg:pb-4">
+              <button
+                id="toggle-filters"
+                type="button"
+                aria-controls="list-filters"
+                aria-expanded="false"
+                phx-click={toggle_filters()}
+                class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink lg:hidden"
+              >
+                <Lucideicons.sliders_horizontal aria-hidden="true" class="size-3.5" />
+                {gettext("Filter")}
+              </button>
+              <div
+                id="list-filters"
+                phx-mounted={@filtered? && show_filters()}
+                class="mt-3 hidden flex-wrap items-center gap-x-4 gap-y-2 lg:mt-0 lg:flex"
+              >
+                <.segments :if={@filters["source"] == ""} label={gettext("Medium")}>
+                  <.segment
+                    :for={
+                      {value, label} <- [
+                        {"", gettext("All")},
+                        {"video", gettext("Video")},
+                        {"audio", gettext("Audio")}
+                      ]
+                    }
+                    id={"filter-kind-#{if value == "", do: "all", else: value}"}
+                    to={SikioWeb.Sidebar.library_path(Map.put(@filters, "kind", value))}
+                    active={@filters["kind"] == value}
+                  >
+                    {label}
+                  </.segment>
+                </.segments>
+                <.segments :if={@filters["source"] != ""} label={gettext("Status")}>
+                  <.segment
+                    :for={{value, key, label} <- views()}
+                    id={"filter-status-#{key}"}
+                    to={SikioWeb.Sidebar.library_path(Map.put(@filters, "status", value))}
+                    active={@filters["status"] == value}
+                  >
+                    {label}
+                  </.segment>
+                </.segments>
+              </div>
             </div>
           </div>
           <section
@@ -449,14 +455,6 @@ defmodule SikioWeb.LibraryLive do
               {gettext("Find your first source →")}
             </.button>
           </section>
-          <p
-            :if={!@empty? and @no_matches?}
-            id="library-no-matches"
-            role="status"
-            class="px-6 py-6 text-muted sm:px-12 lg:px-4"
-          >
-            {gettext("No items match this view. Try another filter, or wait for new episodes.")}
-          </p>
           <div
             :if={!@empty?}
             id="entries"

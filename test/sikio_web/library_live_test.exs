@@ -71,7 +71,7 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, view, _} = live(c.conn, ~p"/library/#{c.audio.id}?status=new")
     view |> element("#mark-completed") |> render_click()
     refute has_element?(view, "#entries-#{c.audio.id}")
-    assert has_element?(view, "#library-no-matches")
+    refute has_element?(view, "#entries article")
     Playback.mark(c.user, c.audio.id, :new)
     assert has_element?(view, "#entries-#{c.audio.id}")
     {:ok, old} = Playback.start(c.user, c.audio.id)
@@ -139,6 +139,13 @@ defmodule SikioWeb.LibraryLiveTest do
 
     view |> element("#filter-kind-all") |> render_click()
     assert_patch(view, "/?status=new")
+  end
+
+  # An empty place is simply empty; no sentence explains it.
+  test "an empty place shows no hint", c do
+    {:ok, view, _} = live(c.conn, ~p"/?status=completed")
+    refute has_element?(view, "#entries article")
+    refute render(view) =~ "Try another filter"
   end
 
   # Within a source the statuses are a filter; elsewhere they are the place itself. A source has
@@ -232,7 +239,7 @@ defmodule SikioWeb.LibraryLiveTest do
        c do
     {:ok, view, _} = live(c.conn, ~p"/?source=#{c.sub.feed_id}")
     Library.unsubscribe(c.user, c.sub.id)
-    assert has_element?(view, "#library-no-matches")
+    refute has_element?(view, "#entries article")
     assert has_element?(view, "#library-heading", "Unavailable source")
     view |> element("#chip-view-all") |> render_click()
     assert has_element?(view, "#entries article", "A good video")

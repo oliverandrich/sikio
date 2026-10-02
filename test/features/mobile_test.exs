@@ -58,6 +58,27 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
   end
 
+  # The account menu opens upwards into the room a playing panel takes. It holds the offer of the
+  # source code, which nothing may cover.
+  feature "the account menu opens over a playing panel", context do
+    %{session: session, entries: entries} = context
+
+    session
+    |> resize_window(500, 900)
+    |> open("/library/#{entries.podcast.id}")
+    |> click(css("#start-playback"))
+    |> assert_has(css("#player-panel audio"))
+    |> click(css("#user-menu summary"))
+    |> execute_script(
+      """
+      const link = document.querySelector('#user-menu nav a[href^="http"]')
+      const box = link.getBoundingClientRect()
+      return link.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2))
+      """,
+      fn on_top -> assert on_top, "the player panel covers the account menu" end
+    )
+  end
+
   feature "the player panel floats above the bar, not over it", context do
     %{session: session, entries: entries} = context
 

@@ -62,6 +62,22 @@ defmodule SikioWeb.LibraryTest do
     end)
   end
 
+  # The list's head, with its heading, search and filters, stays in view while the list scrolls.
+  feature "the list's head stays put while the list scrolls", %{session: session} do
+    session
+    |> resize_window(1440, 700)
+    |> open("/")
+    |> assert_has(css("#entries article", count: 25))
+    |> execute_script("window.scrollTo(0, 1200)")
+    |> execute_script(
+      "return [window.scrollY, Math.round(document.getElementById('list-head').getBoundingClientRect().top)]",
+      fn [scrolled, top] ->
+        assert scrolled > 0
+        assert top == 0
+      end
+    )
+  end
+
   feature "the list loads the next batch when its end comes into view", %{session: session} do
     session
     |> resize_window(1440, 900)

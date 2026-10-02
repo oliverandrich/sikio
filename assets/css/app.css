@@ -192,6 +192,8 @@
 
 @media (width < 64rem) {
   #player-panel { bottom: calc(var(--nav-bar) + 1rem + env(safe-area-inset-bottom)); max-height: 75dvh; }
+  /* The account menu opens upwards into the panel's room and holds the offer of the source. */
+  #main-navigation:has(#user-menu[open]) { z-index: 50; }
   body:has(#player-panel) #page-content { padding-bottom: 28rem; }
   body:has(.compact-audio) #page-content { padding-bottom: 14rem; }
 }
@@ -203,3 +205,8 @@
 }
 
 /* This file is for your main application CSS */
+
+/* From lg the list's head stays in view, so a row the keyboard reaches is scrolled clear of it. */
+@media (width >= 64rem) {
+  #entries article { scroll-margin-top: 12rem; }
+}

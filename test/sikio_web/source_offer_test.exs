@@ -27,6 +27,17 @@ defmodule SikioWeb.SourceOfferTest do
     assert html =~ @configured
   end
 
+  # Member pages have no footer. The offer lives in the account menu, which every one of them has.
+  test "a signed-in reader finds it in the account menu", %{conn: conn} do
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    conn = conn |> init_test_session(%{}) |> Gate.log_in(user)
+
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert has_element?(view, ~s|#user-menu a[href="#{@configured}"]|)
+    refute html =~ "<footer"
+  end
+
   # Somebody who has not signed in is still interacting with the application over a network, and
   # on a fresh instance the first thing they meet is the setup page.
   test "so is a visitor who has not signed in", %{conn: conn} do
