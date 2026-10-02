@@ -7,13 +7,14 @@ import {PlayerDock, rejoinParams} from "./player_dock.mjs"
 function fixture() {
   const previousWindow = globalThis.window
   globalThis.window = new EventTarget()
-  const media = new EventTarget(), calls = []
+  const media = new EventTarget(), calls = [], focused = []
+  const player = {focus: () => focused.push("player")}
   let finish
   media.addEventListener("sikio:flush", event => {finish = event.detail.done})
-  const hook = {...PlayerDock, el: {dataset: {entryId: "1"}, querySelector: selector => selector.includes("MediaPlayer") ? media : null},
-    pushEvent: (event, params, reply) => {calls.push({event, params}); reply({})}}
+  const hook = {...PlayerDock, el: {dataset: {entryId: "1"}, querySelector: selector => selector.includes("MediaPlayer") ? media : selector.includes("iframe") ? player : null},
+    pushEvent: (event, params, reply) => {calls.push({event, params}); reply(event === "start" ? {started: true} : {})}}
   hook.mounted()
-  return {hook, calls, finish: saved => {assert.equal(typeof finish, "function", "player must request a flush"); finish(saved)},
+  return {hook, calls, focused, finish: saved => {assert.equal(typeof finish, "function", "player must request a flush"); finish(saved)},
     play: id => window.dispatchEvent(new CustomEvent("sikio:play", {detail: {id}})),
     close: () => window.dispatchEvent(new CustomEvent("sikio:close-player")),
     cleanup: () => {hook.destroyed(); globalThis.window = previousWindow}}
@@ -26,6 +27,16 @@ test("changing episodes waits for the current player's save before replacing it"
     assert.equal(f.calls.length, 0)
     f.finish(true)
     assert.deepEqual(f.calls, [{event: "start", params: {id: 2}}])
+  } finally {f.cleanup()}
+})
+
+// Pressing play hands the keyboard to the player that starts, whose letters mean something else.
+test("a started player takes the focus", () => {
+  const f = fixture()
+  try {
+    f.play(2)
+    f.finish(true)
+    assert.deepEqual(f.focused, ["player"])
   } finally {f.cleanup()}
 })
 

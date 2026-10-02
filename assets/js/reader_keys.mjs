@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // j and k move through the reader's list, m marks what is selected and f opens the search. A key
-// held with a modifier, or typed into a form control, belongs to something else.
+// held with a modifier, typed into a form control or pressed into a player belongs to something
+// else: a player uses letters of its own.
 export function readerKey(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) return null
   const target = event.target
-  if (["INPUT", "SELECT", "TEXTAREA"].includes(target?.tagName) || target?.isContentEditable) return null
+  if (["INPUT", "SELECT", "TEXTAREA", "AUDIO", "VIDEO", "IFRAME"].includes(target?.tagName) ||
+      target?.isContentEditable) return null
   if (event.key === "m" || event.key === "f") return event.repeat ? null : event.key
   return event.key === "j" || event.key === "k" ? event.key : null
 }

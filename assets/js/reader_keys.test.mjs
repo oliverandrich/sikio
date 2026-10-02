@@ -14,6 +14,12 @@ test("j and k move, m marks and f searches, other keys do not", () => {
   assert.equal(readerKey(press("x")), null)
 })
 
+// A player that has the keyboard uses letters of its own, so its keys are not the library's.
+test("keys pressed into a player belong to the player", () => {
+  assert.equal(readerKey(press("m", {target: {tagName: "AUDIO"}})), null)
+  assert.equal(readerKey(press("j", {target: {tagName: "IFRAME"}})), null)
+})
+
 // Held down, m would mark and unmark in a stream. j and k may repeat; moving on is what they do.
 test("a held m marks once, a held j keeps moving", () => {
   assert.equal(readerKey(press("m", {repeat: true})), null)

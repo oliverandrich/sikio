@@ -30,7 +30,12 @@ export const PlayerDock = {
     const proceed = saved => {
       if (this.closed) return
       if (!saved) {this.busy = false; return}
-      this.pushEvent(event, params, () => {this.busy = false})
+      this.pushEvent(event, params, reply => {
+        this.busy = false
+        // The player that starts takes the keyboard. Its letters mean something else: m mutes,
+        // f fills the screen, j and k seek. Clicking anywhere else gives them back.
+        if (reply?.started) this.el.querySelector("#player-panel :is(iframe, audio)")?.focus()
+      })
     }
     const media = this.el.querySelector("[phx-hook='MediaPlayer']")
     if (media) media.dispatchEvent(new CustomEvent("sikio:flush", {detail: {done: proceed}}))

@@ -169,6 +169,25 @@ defmodule SikioWeb.PlayerTest do
       end)
     end
 
+    # The players use letters of their own: m mutes, f fills the screen, j and k seek. Once play
+    # is pressed the player has the keyboard, so those keys reach it rather than the library.
+    feature "takes the keyboard once play is pressed", context do
+      %{session: session, account: account, entry: entry} = context
+
+      session
+      |> resize_window(1280, 900)
+      |> open("/library/#{entry.id}")
+      |> click(css("#start-playback"))
+      |> assert_has(css(~s|#player-panel[data-place="pinned"] audio|))
+      |> execute_script("return document.activeElement.tagName", fn tag ->
+        assert tag == "AUDIO"
+      end)
+      |> send_keys(["m"])
+      |> execute_script("return new Promise(r => setTimeout(r, 300))")
+
+      assert Library.entry(account, entry.id).playback.status == :new
+    end
+
     # The detail scrolls in its own column, and the pinned player moves with its slot.
     feature "moves with the detail as it scrolls", context do
       %{session: session, entry: entry} = context
