@@ -55,7 +55,7 @@ defmodule Sikio.LibraryTest do
     assert length(Library.entries(ctx.bob)) == 1
   end
 
-  test "filters status, media and source independently and together within the account", ctx do
+  test "filters status and source independently and together within the account", ctx do
     {:ok, sub} = Library.subscribe(ctx.alice, ctx.preview)
     [audio] = Library.entries(ctx.alice)
 
@@ -72,7 +72,6 @@ defmodule Sikio.LibraryTest do
     assert Library.entries(ctx.alice, %{"status" => "completed"}) == []
     assert [item] = Library.entries(ctx.alice, %{"source" => to_string(sub.feed_id)})
     assert item.id == audio.id
-    assert [%{feed: %{kind: :youtube}}] = Library.entries(ctx.alice, %{"kind" => "youtube"})
     {:ok, state} = Playback.start(ctx.alice, audio.id)
 
     Playback.save(ctx.alice, audio.id, state.session_id, %{
@@ -85,12 +84,10 @@ defmodule Sikio.LibraryTest do
     assert [%{id: id}] =
              Library.entries(ctx.alice, %{
                "status" => "in_progress",
-               "kind" => "podcast",
                "source" => to_string(sub.feed_id)
              })
 
     assert id == audio.id
-    assert Library.entries(ctx.bob, %{"kind" => "youtube"}) == []
     Playback.mark(ctx.alice, audio.id, :new)
     assert length(Library.entries(ctx.alice, %{"status" => "new"})) == 2
   end
@@ -295,30 +292,10 @@ defmodule Sikio.LibraryTest do
     assert length(Library.entries(ctx.alice)) == 1
   end
 
-  describe "media kinds" do
-    setup :three_kinds
-
-    # A reader asks for something to watch or something to hear, not for a platform.
-    test "video covers YouTube and PeerTube, audio covers podcasts", ctx do
-      kinds = fn filters -> ctx.alice |> Library.entries(filters) |> Enum.map(& &1.feed.kind) end
-
-      assert Enum.sort(kinds.(%{"kind" => "video"})) == [:peertube, :youtube]
-      assert kinds.(%{"kind" => "audio"}) == [:podcast]
-    end
-
-    # Links written before the two kinds existed keep narrowing to what they meant.
-    test "the platform names of older links still narrow the list", ctx do
-      assert Library.normalize_filters(%{"kind" => "youtube"})["kind"] == "video"
-      assert Library.normalize_filters(%{"kind" => "podcast"})["kind"] == "audio"
-      assert Library.normalize_filters(%{"kind" => "peertube"})["kind"] == ""
-      assert length(Library.entries(ctx.alice, %{"kind" => "youtube"})) == 2
-    end
-  end
-
   describe "counts/1" do
     setup :three_kinds
 
-    test "every view, kind and source is counted for this account alone", ctx do
+    test "every view and source is counted for this account alone", ctx do
       {:ok, _} = Library.subscribe(ctx.bob, ctx.preview)
       entries = ctx.entries
       {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :completed)
@@ -340,8 +317,6 @@ defmodule Sikio.LibraryTest do
       assert Map.take(counts, [:all, :new, :in_progress, :completed]) ==
                %{all: 3, new: 1, in_progress: 1, completed: 1}
 
-      assert Map.take(counts, [:video, :audio]) == %{video: 2, audio: 1}
-
       assert counts.sources == %{
                entries.podcast.feed_id => 0,
                entries.youtube.feed_id => 0,
@@ -356,11 +331,8 @@ defmodule Sikio.LibraryTest do
       {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :completed)
       rows = Library.counts(ctx.alice)
 
-      videos = Library.tally(rows, %{"kind" => "video"})
-      assert Map.take(videos, [:all, :new, :completed]) == %{all: 2, new: 2, completed: 0}
-
       finished = Library.tally(rows, %{"status" => "completed"})
-      assert Map.take(finished, [:video, :audio]) == %{video: 0, audio: 1}
+      assert Map.take(finished, [:all, :new, :completed]) == %{all: 3, new: 2, completed: 1}
       assert finished.sources[entries.podcast.feed_id] == 1
       assert finished.sources[entries.youtube.feed_id] == 0
     end
@@ -372,8 +344,6 @@ defmodule Sikio.LibraryTest do
                  new: 0,
                  in_progress: 0,
                  completed: 0,
-                 video: 0,
-                 audio: 0,
                  sources: %{},
                  tags: %{}
                }

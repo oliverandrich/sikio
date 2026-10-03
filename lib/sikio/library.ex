@@ -13,7 +13,6 @@ defmodule Sikio.Library do
   alias Sikio.Accounts.User
   alias Sikio.Feeds
   alias Sikio.Feeds.Entry
-  alias Sikio.Feeds.Feed
   alias Sikio.Library.Events
   alias Sikio.Library.Subscription
   alias Sikio.Playback.State
@@ -174,19 +173,19 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  This account's entries grouped by source, medium and status, from one query.
+  This account's entries grouped by source and status, from one query.
 
-  The rows are what `tally/2` adds up for whichever filters are in force. An entry nobody has
+  The rows are what `tally/3` adds up for whichever filters are in force. An entry nobody has
   opened has no progress row and is counted as new.
   """
   def counts(%User{id: user_id}) do
     Repo.all(
-      from [e, s, p, f] in scoped_entries(user_id),
-        group_by: [e.feed_id, f.kind, p.status],
-        select: {e.feed_id, f.kind, p.status, count(e.id)}
+      from [e, s, p] in scoped_entries(user_id),
+        group_by: [e.feed_id, p.status],
+        select: {e.feed_id, p.status, count(e.id)}
     )
-    |> Enum.map(fn {feed_id, kind, status, count} ->
-      %{feed_id: feed_id, medium: Feed.medium(kind), status: status || :new, count: count}
+    |> Enum.map(fn {feed_id, status, count} ->
+      %{feed_id: feed_id, status: status || :new, count: count}
     end)
   end
 
@@ -213,9 +212,8 @@ defmodule Sikio.Library do
 
     by_feed = sum_by(new_or_chosen, :feed_id)
 
-    %{all: 0, new: 0, in_progress: 0, completed: 0, video: 0, audio: 0}
+    %{all: 0, new: 0, in_progress: 0, completed: 0}
     |> Map.merge(sum_by(beside.([:status]), :status))
-    |> Map.merge(sum_by(beside.([:kind]), :medium))
     |> Map.update!(:all, fn _ -> beside.([:status]) |> Enum.map(& &1.count) |> Enum.sum() end)
     |> Map.put(:sources, Map.merge(sources, by_feed))
     |> Map.put(
@@ -273,10 +271,9 @@ defmodule Sikio.Library do
   end
 
   defp matches_except?(row, filters, own, tagged) do
-    Enum.all?([:source, :tag, :kind, :status] -- own, fn
+    Enum.all?([:source, :tag, :status] -- own, fn
       :source -> filters["source"] in ["", to_string(row.feed_id)]
       :tag -> filters["tag"] == "" or row.feed_id in tagged
-      :kind -> filters["kind"] in ["", Atom.to_string(row.medium)]
       :status -> filters["status"] in ["", Atom.to_string(row.status)]
     end)
   end
@@ -289,7 +286,6 @@ defmodule Sikio.Library do
   """
   def normalize_filters(params) do
     %{
-      "kind" => kind(params["kind"]),
       "status" => choice(params["status"], ~w(new in_progress completed)),
       "source" => source_id(params["source"]),
       "tag" => source_id(params["tag"]),
@@ -304,10 +300,6 @@ defmodule Sikio.Library do
   defp choice(value, values), do: if(value in values, do: value, else: "")
 
   # Two kinds, by what a reader does with them. The platform names are what links said before.
-  defp kind(value) when value in ["video", "youtube"], do: "video"
-  defp kind(value) when value in ["audio", "podcast"], do: "audio"
-  defp kind(_value), do: ""
-
   defp source_id(value) when is_binary(value) do
     case Integer.parse(value) do
       {id, ""} when id > 0 and id <= 9_223_372_036_854_775_807 -> Integer.to_string(id)
@@ -329,13 +321,6 @@ defmodule Sikio.Library do
   defp filtered_entries(user_id, params) do
     filters = normalize_filters(params)
     query = user_id |> entry_query() |> in_place(user_id, filters)
-
-    query =
-      case filters["kind"] do
-        "" -> query
-        "video" -> where(query, [e, s, p, f], f.kind in ^Feed.video_kinds())
-        "audio" -> where(query, [e, s, p, f], f.kind not in ^Feed.video_kinds())
-      end
 
     query =
       case filters["status"] do

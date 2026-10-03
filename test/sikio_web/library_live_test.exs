@@ -143,21 +143,12 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(reloaded, "#entries-#{c.audio.id}", "New")
   end
 
-  # The sidebar chooses the place; the list narrows it. A filter is in the address and the place
-  # stays marked. "All" is the way back.
-  test "the medium filter narrows a place and says so", c do
-    {:ok, view, _} = live(c.conn, ~p"/new")
-
-    view |> element("#filter-kind-video") |> render_click()
-    assert_patch(view, "/new?kind=video")
+  # No list is narrowed by medium. An old address that names one is set right and narrows nothing.
+  test "no list offers a medium filter", c do
+    {:ok, view, _} = c.conn |> live("/new?kind=video") |> follow_redirect(c.conn, "/new")
+    refute has_element?(view, "[id^=filter-kind]")
     assert has_element?(view, "#entries article", "A good video")
-    refute has_element?(view, "#entries article", "One & two")
-    assert has_element?(view, "#view-new[aria-current=page]")
-    assert has_element?(view, ~s|#filter-kind-video[aria-current="true"]|)
-    assert has_element?(view, "#library-count", "1 item")
-
-    view |> element("#filter-kind-all") |> render_click()
-    assert_patch(view, "/new")
+    assert has_element?(view, "#entries article", "One & two")
   end
 
   # An empty place is simply empty; no sentence explains it.
@@ -167,8 +158,7 @@ defmodule SikioWeb.LibraryLiveTest do
     refute render(view) =~ "Try another filter"
   end
 
-  # Within a source the statuses are a filter; elsewhere they are the place itself. A source has
-  # one medium, so it offers no medium filter.
+  # Within a source the statuses are a filter; elsewhere they are the place itself.
   test "a chosen source filters by status, other places do not offer it", c do
     Playback.mark(c.user, c.audio.id, :completed)
     {:ok, view, _} = live(c.conn, ~p"/new")
@@ -189,14 +179,6 @@ defmodule SikioWeb.LibraryLiveTest do
 
     view |> element("#filter-status-all") |> render_click()
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/all")
-    assert has_element?(view, "#entries article", "One & two")
-  end
-
-  # A source offers no medium filter, so an address naming one with a source does not narrow
-  # what nobody could see narrowed.
-  test "a source ignores a medium in its address", c do
-    feed = "/feeds/#{c.sub.feed_id}-small-hours"
-    {:ok, view, _} = c.conn |> live("#{feed}?kind=video") |> follow_redirect(c.conn, feed)
     assert has_element?(view, "#entries article", "One & two")
   end
 
@@ -257,7 +239,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
   # Choosing another place starts it unfiltered.
   test "a new place drops the filters of the last", c do
-    {:ok, view, _} = live(c.conn, ~p"/new?kind=video")
+    {:ok, view, _} = live(c.conn, ~p"/new?q=one")
     view |> element("#view-all") |> render_click()
     assert_patch(view, "/all")
   end
@@ -336,7 +318,7 @@ defmodule SikioWeb.LibraryLiveTest do
     end
 
     test "marks what the list shows and reads it again", c do
-      {:ok, view, _} = live(c.conn, ~p"/new?kind=audio")
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
       view |> element("#mark-all") |> render_click()
       assert has_element?(view, "dialog#mark-all-confirm", "1 item in this list")
 

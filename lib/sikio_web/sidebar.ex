@@ -73,8 +73,8 @@ defmodule SikioWeb.Sidebar do
 
   A source is named by its number and its title, an item by its number and its title, so an
   address reads as what it shows while only the number is looked up. `feed_titles` maps a
-  source's number to its title, and `item` is an entry, an id or nil. Medium and search are
-  filters within a list and stay in the query.
+  source's number to its title, and `item` is an entry, an id or nil. A search is a filter
+  within a list and stays in the query.
 
       /new  /in-progress  /completed  /all
       /feeds/106-metacheles-tonspur  /feeds/106-metacheles-tonspur/all
@@ -87,7 +87,7 @@ defmodule SikioWeb.Sidebar do
     path = "/" <> Enum.join(place(filters, feed_titles) ++ item_segment(item), "/")
 
     case filters
-         |> Map.take(["kind", "q"])
+         |> Map.take(["q"])
          |> Enum.reject(fn {_key, value} -> value in [nil, ""] end) do
       [] -> path
       query -> path <> "?" <> URI.encode_query(query)
@@ -169,7 +169,7 @@ defmodule SikioWeb.Sidebar do
           {%{"status" => status(status)}, item_id(item)}
       end
 
-    {Library.normalize_filters(Map.merge(Map.take(query, ["kind", "q"]), place)), item}
+    {Library.normalize_filters(Map.merge(Map.take(query, ["q"]), place)), item}
   end
 
   # Below a source or a tag the next segment is a status, or else an item of what is new.
@@ -214,7 +214,7 @@ defmodule SikioWeb.Sidebar do
   @doc """
   Whether `filters` show that place, which is what marks it as current.
 
-  The list may narrow a place further: by medium anywhere, and by status within a source or a tag.
+  The list may narrow a place further: by status within a source or a tag.
   """
   def place?(filters, "source", id), do: filters["source"] == id
   def place?(filters, "tag", id), do: filters["tag"] == id

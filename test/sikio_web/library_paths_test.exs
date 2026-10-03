@@ -4,14 +4,14 @@ defmodule SikioWeb.LibraryPathsTest do
   @moduledoc """
   The library's addresses: a list on screen and the item in it, as paths.
 
-  The library works on filters by status, source, medium and search. Only how they are spelled
+  The library works on filters by status, source, tag and search. Only how they are spelled
   in an address is decided here, both ways.
   """
   use ExUnit.Case, async: true
 
   alias SikioWeb.Sidebar
 
-  @none %{"status" => "", "source" => "", "tag" => "", "kind" => "", "q" => ""}
+  @none %{"status" => "", "source" => "", "tag" => "", "q" => ""}
   @feeds %{106 => "MeTacheles Tonspur"}
   @item %{id: 4056, title: "KI-Verfassung - Die irre Selbstkontrolle der Tech-Bros"}
 
@@ -85,9 +85,8 @@ defmodule SikioWeb.LibraryPathsTest do
     assert Sidebar.library_path(filters(%{"status" => "completed"}), 12) == "/completed/12"
   end
 
-  test "medium and search stay in the query" do
-    assert Sidebar.library_path(filters(%{"status" => "new", "kind" => "video", "q" => "akku"})) ==
-             "/new?kind=video&q=akku"
+  test "a search stays in the query" do
+    assert Sidebar.library_path(filters(%{"status" => "new", "q" => "akku"})) == "/new?q=akku"
   end
 
   test "a title becomes letters, digits and dashes" do
@@ -104,8 +103,8 @@ defmodule SikioWeb.LibraryPathsTest do
     assert Sidebar.read_path("/new", %{}) == {filters(%{"status" => "new"}), nil}
     assert Sidebar.read_path("/all", %{}) == {@none, nil}
 
-    assert Sidebar.read_path("/in-progress/4056-ki", %{"kind" => "audio"}) ==
-             {filters(%{"status" => "in_progress", "kind" => "audio"}), "4056"}
+    assert Sidebar.read_path("/in-progress/4056-ki", %{"q" => "akku", "kind" => "audio"}) ==
+             {filters(%{"status" => "in_progress", "q" => "akku"}), "4056"}
 
     assert Sidebar.read_path("/feeds/106-metacheles-tonspur", %{}) ==
              {filters(%{"source" => "106", "status" => "new"}), nil}

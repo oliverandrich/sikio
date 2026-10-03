@@ -65,7 +65,6 @@ defmodule SikioWeb.LibraryLive do
   def handle_params(params, uri, socket) do
     %URI{path: path, query: query} = URI.parse(uri)
     {filters, item} = SikioWeb.Sidebar.read_path(path, params)
-    filters = offered(filters)
     # An address with a search shows the field, a reload or the Back button included.
     socket = assign(socket, :search_open?, socket.assigns.search_open? or filters["q"] != "")
 
@@ -759,7 +758,11 @@ defmodule SikioWeb.LibraryLive do
           ]}
         >
           <%!-- Heading, search and filters stay in view while the list scrolls beneath them. --%>
-          <div id="list-head" phx-hook="ListHead" class="lg:sticky lg:top-0 lg:z-10 lg:bg-surface">
+          <div
+            id="list-head"
+            phx-hook="ListHead"
+            class="lg:sticky lg:top-0 lg:z-10 lg:border-b lg:border-line lg:bg-surface"
+          >
             <div class="flex items-start justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
               <div class="flex min-w-0 flex-col gap-0.5">
                 <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
@@ -1037,7 +1040,11 @@ defmodule SikioWeb.LibraryLive do
                 class="w-full rounded-full border border-control bg-surface px-4 py-2 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
               />
             </form>
-            <div :if={!@empty?} class="px-6 pb-3 sm:px-12 lg:border-b lg:border-line lg:px-4 lg:pb-4">
+            <%!-- Within a source or a tag the statuses narrow the list; elsewhere they are places. --%>
+            <div
+              :if={!@empty? and (@filters["source"] != "" or @filters["tag"] != "")}
+              class="px-6 pb-3 sm:px-12 lg:px-4 lg:pb-4"
+            >
               <button
                 id="toggle-filters"
                 type="button"
@@ -1054,32 +1061,7 @@ defmodule SikioWeb.LibraryLive do
                 phx-mounted={@filtered? && show_filters()}
                 class="mt-3 hidden flex-wrap items-center gap-x-4 gap-y-2 lg:mt-0 lg:flex"
               >
-                <.segments :if={@filters["source"] == ""} label={gettext("Medium")}>
-                  <.segment
-                    :for={
-                      {value, label} <- [
-                        {"", gettext("All")},
-                        {"video", gettext("Video")},
-                        {"audio", gettext("Audio")}
-                      ]
-                    }
-                    id={"filter-kind-#{if value == "", do: "all", else: value}"}
-                    to={
-                      SikioWeb.Sidebar.library_path(
-                        Map.put(@filters, "kind", value),
-                        nil,
-                        @sidebar.titles
-                      )
-                    }
-                    active={@filters["kind"] == value}
-                  >
-                    {label}
-                  </.segment>
-                </.segments>
-                <.segments
-                  :if={@filters["source"] != "" or @filters["tag"] != ""}
-                  label={gettext("Status")}
-                >
+                <.segments label={gettext("Status")}>
                   <.segment
                     :for={{value, key, label} <- views()}
                     id={"filter-status-#{key}"}
@@ -1237,10 +1219,6 @@ defmodule SikioWeb.LibraryLive do
         )
   end
 
-  # Only filters the page offers may narrow it: a source has one medium and no medium filter.
-  defp offered(%{"source" => source} = filters) when source != "", do: %{filters | "kind" => ""}
-  defp offered(filters), do: filters
-
   # On a phone the filters fold away. The browser alone opens and closes them, so a patch never
   # folds them under the reader's finger; a filtered page opens with them shown.
   defp toggle_filters do
@@ -1256,12 +1234,12 @@ defmodule SikioWeb.LibraryLive do
 
   # The place the filters narrow: a source or a tag, or else a view by its status.
   defp place_of(%{"source" => source} = filters) when source != "",
-    do: %{filters | "status" => "", "kind" => ""}
+    do: %{filters | "status" => ""}
 
   defp place_of(%{"tag" => tag} = filters) when tag != "",
-    do: %{filters | "status" => "", "kind" => ""}
+    do: %{filters | "status" => ""}
 
-  defp place_of(filters), do: %{filters | "kind" => ""}
+  defp place_of(filters), do: filters
 
   attr :label, :string, required: true
   slot :inner_block, required: true

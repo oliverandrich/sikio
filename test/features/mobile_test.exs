@@ -46,15 +46,15 @@ defmodule SikioWeb.MobileTest do
   # On a phone the filters fold away behind a button. Once open they stay open while the reader
   # moves between them, however the page was reached.
   feature "the filters stay open while the reader changes them", context do
-    %{session: session} = context
+    %{session: session, entries: entries} = context
 
     session
     |> resize_window(500, 900)
-    |> open("/?kind=video")
-    |> assert_has(css("#filter-kind-all"))
-    |> click(css("#filter-kind-all"))
-    |> assert_has(css(~s|#filter-kind-all[aria-current="true"]|))
-    |> assert_has(css("#filter-kind-video"))
+    |> open("/feeds/#{entries.podcast.feed_id}/completed")
+    |> assert_has(css("#filter-status-all"))
+    |> click(css("#filter-status-all"))
+    |> assert_has(css(~s|#filter-status-all[aria-current="true"]|))
+    |> assert_has(css("#filter-status-new"))
     |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
   end
 
