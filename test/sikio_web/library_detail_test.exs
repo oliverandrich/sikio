@@ -116,6 +116,80 @@ defmodule SikioWeb.LibraryDetailTest do
     refute has_element?(view, "#mark-completed")
   end
 
+  # Chapters a publisher listed in the notes stand in a box between the title and the notes,
+  # and only there. Each starts the item at its place; the one reached is marked.
+  test "the detail lists the chapters the notes name, once", c do
+    chapters = "<p>Worum es geht.</p><p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>"
+
+    body =
+      String.replace(
+        podcast(),
+        ~r|<content:encoded>.*?</content:encoded>|s,
+        "<content:encoded><![CDATA[#{chapters}]]></content:encoded>"
+      )
+
+    {:ok, preview} = Parser.parse(body, feed_url())
+    {:ok, _} = Library.subscribe(c.user, preview)
+    entry = Enum.find(Library.entries(c.user), &(&1.feed_id != c.entry.feed_id))
+
+    {:ok, view, _} = live(c.conn, item_path(entry))
+    assert has_element?(view, "#item-chapters li", "Akkus")
+    assert view |> element("#item-chapters") |> render() =~ "1:58"
+    refute view |> element("#item-notes") |> render() =~ "Akkus"
+    assert has_element?(view, "#item-notes", "Worum es geht.")
+
+    play = view |> element("#item-chapters li:nth-child(2) button") |> render()
+    assert play =~ "sikio:play"
+    assert play =~ "&quot;position&quot;:118"
+    refute has_element?(view, "#item-chapters [aria-current]")
+
+    {:ok, state} = Playback.start(c.user, entry.id)
+
+    Playback.save(c.user, entry.id, state.session_id, %{
+      "sequence" => 1,
+      "position" => 130,
+      "duration" => 3723,
+      "ended" => false
+    })
+
+    assert has_element?(view, ~s|#item-chapters li:nth-child(2) button[aria-current="true"]|)
+  end
+
+  # A player that measures the length, or corrects one the feed got wrong, may make a list
+  # possible that the stated length ruled out. The detail reads the chapters again then.
+  test "chapters a wrong length hid appear once the length is measured", c do
+    chapters = "<p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>"
+
+    body =
+      podcast()
+      |> String.replace(
+        ~r|<content:encoded>.*?</content:encoded>|s,
+        "<content:encoded><![CDATA[#{chapters}]]></content:encoded>"
+      )
+      |> String.replace(
+        ~r|<itunes:duration>[^<]*</itunes:duration>|,
+        "<itunes:duration>100</itunes:duration>"
+      )
+
+    {:ok, preview} = Parser.parse(body, feed_url())
+    {:ok, _} = Library.subscribe(c.user, preview)
+    entry = Enum.find(Library.entries(c.user), &(&1.feed_id != c.entry.feed_id))
+
+    {:ok, view, _} = live(c.conn, item_path(entry))
+    refute has_element?(view, "#item-chapters")
+
+    {:ok, state} = Playback.start(c.user, entry.id)
+
+    Playback.save(c.user, entry.id, state.session_id, %{
+      "sequence" => 1,
+      "position" => 10,
+      "duration" => 1000,
+      "ended" => false
+    })
+
+    assert has_element?(view, "#item-chapters li", "Solar")
+  end
+
   # A feed may name no length. The bar then has no range of its own, so it keeps the saved place
   # rather than falling back to the start, and cannot be dragged before the audio knows its length.
   test "without a length the card's player keeps the saved place", c do

@@ -16,6 +16,7 @@ defmodule SikioWeb.LibraryLive do
   import SikioWeb.AudioFace
   import SikioWeb.MediaComponents
 
+  alias Sikio.Chapters
   alias Sikio.Library
   alias Sikio.Playback
   alias SikioWeb.Notes
@@ -30,6 +31,8 @@ defmodule SikioWeb.LibraryLive do
      assign(socket,
        selected: nil,
        notes: nil,
+       chapters: [],
+       read: nil,
        filters: nil,
        entries: [],
        more?: false,
@@ -285,20 +288,27 @@ defmodule SikioWeb.LibraryLive do
 
       entry ->
         {:ok,
-         assign(socket, selected: entry, page_title: entry.title, notes: notes(socket, entry))}
+         socket
+         |> assign(reading(socket, entry))
+         |> assign(selected: entry, page_title: entry.title)}
     end
   end
 
-  # Filtering notes is the costly part of the detail, and an event rereads the same item several
-  # times a minute while it plays. The notes are filtered again only when they changed.
-  defp notes(%{assigns: %{selected: %{id: id, description: description}, notes: notes}}, %{
-         id: id,
-         description: description
-       }),
-       do: notes
+  # Reading the notes is the costly part of the detail, and an event rereads the same item several
+  # times a minute while it plays. Chapters and notes are read again only when the notes changed.
+  # The chapters a publisher listed come out of the notes, so they show once, in their own box.
+  # The chapters depend on the length as well, which a player may measure only later.
+  defp reading(socket, entry) do
+    read = {entry.id, entry.description, length_of(entry)}
 
-  defp notes(_socket, entry),
-    do: Notes.notes(entry.description, entry.description_format || :html)
+    if socket.assigns.read == read do
+      Map.take(socket.assigns, [:notes, :chapters, :read])
+    else
+      format = entry.description_format || :html
+      {chapters, rest} = Chapters.split(entry.description, format, length_of(entry))
+      %{chapters: chapters, notes: Notes.notes(rest, format), read: read}
+    end
+  end
 
   # The tally counts every place without a query. A search is counted by the database.
   defp total(socket, %{"q" => ""} = filters),
@@ -585,6 +595,7 @@ defmodule SikioWeb.LibraryLive do
             :if={@selected}
             entry={@selected}
             notes={@notes}
+            chapters={@chapters}
             back={SikioWeb.Sidebar.library_path(@filters, nil, @sidebar.titles)}
           />
         </section>
@@ -847,8 +858,45 @@ defmodule SikioWeb.LibraryLive do
 
   # The selected item: what it is, where the reader stands, and the way to play it. Playing
   # happens in the dock, which this asks through a browser event so the media never moves.
+  attr :chapters, :list, required: true
+  attr :entry, :map, required: true
+
+  # The chapters the publisher listed. Each starts the item at its place, or moves the player
+  # there when it already plays; the one reached is marked.
+  defp chapters(assigns) do
+    assigns = assign(assigns, :current, current_chapter(assigns.chapters, assigns.entry))
+
+    ~H"""
+    <nav id="item-chapters" aria-label={gettext("Chapters")} class="rounded-xl bg-ground p-2">
+      <ol class="flex flex-col">
+        <li :for={chapter <- @chapters}>
+          <button
+            type="button"
+            phx-click={JS.dispatch("sikio:play", detail: %{id: @entry.id, position: chapter.at})}
+            aria-current={chapter == @current && "true"}
+            class="flex w-full items-baseline gap-3 rounded-lg px-2 py-1.5 text-left text-label hover:bg-surface aria-[current]:bg-surface aria-[current]:font-semibold aria-[current]:text-accent"
+          >
+            <span class="w-14 shrink-0 font-mono text-meta text-muted tabular-nums">
+              {runtime(chapter.at) || "0:00"}
+            </span>
+            <span>{chapter.title}</span>
+          </button>
+        </li>
+      </ol>
+    </nav>
+    """
+  end
+
+  # The chapter the item has reached, once it was started and until it was heard to the end.
+  defp current_chapter(chapters, %{playback: %{status: :in_progress, position: position}}) do
+    chapters |> Enum.filter(&(&1.at <= position)) |> List.last()
+  end
+
+  defp current_chapter(_chapters, _entry), do: nil
+
   attr :entry, :map, required: true
   attr :notes, :any, required: true, doc: "the filtered notes, or nil"
+  attr :chapters, :list, required: true, doc: "the chapters the notes listed"
   attr :back, :string, required: true
 
   defp detail(assigns) do
@@ -968,6 +1016,7 @@ defmodule SikioWeb.LibraryLive do
       reading measure in the card's middle; the card keeps the column's width. --%>
       <section class="mx-auto flex w-full max-w-[80ch] flex-col gap-3 pt-2">
         <h2 class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
+        <.chapters :if={@chapters != []} chapters={@chapters} entry={@entry} />
         <div class="flex flex-col gap-3 border-t border-line pt-4">
           <div :if={@notes} id="item-notes" class="notes text-body text-ink">
             {@notes}

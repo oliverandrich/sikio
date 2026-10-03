@@ -14,12 +14,19 @@ export const PlayerDock = {
     this.closed = false
     this.play = event => {
       const id = event.detail.id
+      const position = event.detail.position ?? null
       if (String(id) === this.el.dataset.entryId) {
-        this.el.querySelector("#player-panel")?.focus()
+        // A chapter of what already plays moves its player there; play alone shows it.
+        const media = this.el.querySelector("[phx-hook='MediaPlayer']")
+        if (position !== null && media) {
+          media.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position}}))
+        } else {
+          this.el.querySelector("#player-panel")?.focus()
+        }
         return
       }
-      // The card's player may name the place it was dragged or skipped to; null resumes.
-      this.change("start", {id, position: event.detail.position ?? null})
+      // The card's player and a chapter may name a place to begin at; null resumes.
+      this.change("start", {id, position})
     }
     this.close = () => this.change("close", {})
     window.addEventListener("sikio:play", this.play)

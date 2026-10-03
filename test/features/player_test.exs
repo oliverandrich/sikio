@@ -238,6 +238,44 @@ defmodule SikioWeb.PlayerTest do
       assert Library.entry(account, entry.id).playback.position == 600.0
     end
 
+    # A chapter starts the item at its place; once it plays, another chapter moves the player.
+    feature "a chapter starts the item there and later moves the player", context do
+      %{session: session, account: account} = context
+      notes = "<p>Worum es geht.</p><p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>"
+
+      body =
+        String.replace(
+          podcast("Chapters"),
+          ~r|<content:encoded>.*?</content:encoded>|s,
+          "<content:encoded><![CDATA[#{notes}]]></content:encoded>"
+        )
+
+      {:ok, preview} = Parser.parse(body, feed_url("chapters"))
+      {:ok, subscription} = Library.subscribe(account, preview)
+
+      [entry] =
+        Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+
+      session
+      |> resize_window(1280, 900)
+      |> open(item_path(entry))
+      |> click(css("#item-chapters li:nth-child(2) button"))
+      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-seek][value="118"]|))
+      # The audio never loads here, and what an element without media does with a place depends
+      # on when its failed load ends. That the player moves the audio is the node tests' to show;
+      # this one shows that the click reaches the player that plays, with the chapter's place.
+      |> execute_script("""
+      window.sought = []
+      document.querySelector("#player-control [phx-hook='MediaPlayer']")
+        .addEventListener('sikio:seek', event => window.sought.push(event.detail.position))
+      """)
+      |> click(css("#item-chapters li:nth-child(3) button"))
+      |> then(fn session ->
+        assert {:ok, _} = retry(fn -> holds(session, "return window.sought.join() === '291'") end)
+        session
+      end)
+    end
+
     # Sikio's own controls act on the audio element underneath: dragging moves it on letting go,
     # the skips jump, the speed steps on. The audio itself never loads here, so the element's
     # own answers are what is checked.

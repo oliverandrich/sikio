@@ -30,6 +30,21 @@ test("changing episodes waits for the current player's save before replacing it"
   } finally {f.cleanup()}
 })
 
+// A chapter of the item that already plays moves its player there rather than starting anew.
+test("a place for the item that plays moves its player", () => {
+  const f = fixture()
+  const seeks = []
+  const media = f.hook.el.querySelector("[phx-hook='MediaPlayer']")
+  media.addEventListener("sikio:seek", event => seeks.push(event.detail.position))
+  try {
+    f.play(1, 118)
+    assert.deepEqual(seeks, [118])
+    assert.deepEqual(f.calls, [], "nothing is started again")
+    f.play(1)
+    assert.deepEqual(seeks, [118], "play alone does not move it")
+  } finally {f.cleanup()}
+})
+
 // The card's player names the place it was dragged or skipped to.
 test("a start carries the place to begin at", () => {
   const f = fixture()

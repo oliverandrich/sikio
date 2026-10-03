@@ -134,6 +134,9 @@ export const MediaPlayer = {
       send: (sample, reply) => this.pushEvent("progress", sample, reply),
       stop: this.stop, message: this.message, strings: this.strings})
     this.listen(this.el, "sikio:flush", event => this.reporter.finish(event.detail.done))
+    // A chapter moves the player. Each player is moved its own way; the save follows as for a
+    // seek by hand.
+    this.listen(this.el, "sikio:seek", event => this.seek(event.detail.position))
     this.listen(document, "visibilitychange", () => {
       if (document.hidden) this.reporter.save(false, true)
     })
@@ -178,7 +181,9 @@ export const MediaPlayer = {
     const audio = this.audio
     const restore = () => {
       if (this.ready || this.closed) return
-      const position = Number(this.el.dataset.position)
+      // A chapter chosen meanwhile is where it starts, rather than the saved place.
+      const position = this.pendingSeek ?? Number(this.el.dataset.position)
+      this.pendingSeek = null
       audio.currentTime = Number.isFinite(audio.duration) ? Math.min(position, audio.duration) : position
       this.ready = true
       audio.play().catch(() => this.message(this.strings.readyAudioManual))
@@ -207,6 +212,7 @@ export const MediaPlayer = {
         onReady: () => {
           if (this.closed) return
           this.ready = true
+          if (this.pendingSeek !== null && this.pendingSeek !== undefined) this.seek(this.pendingSeek)
           let previousPosition = this.youtube.getCurrentTime()
           this.poll = setInterval(() => {
             const state = this.youtube.getPlayerState()
@@ -233,6 +239,24 @@ export const MediaPlayer = {
       }})
     } catch (error) {
       this.message(error.message)
+    }
+  },
+
+  // A chapter moves the player, each its own way; the save follows as for a seek by hand. The
+  // PeerTube channel queues what it is asked before the embed opens. Audio takes a place at once,
+  // but restoring the saved one once it is ready would undo it, so a chapter chosen before then
+  // is kept for that. YouTube answers only once ready, and a chapter chosen earlier waits.
+  seek(position) {
+    if (this.peertube) {
+      this.peertube.call("seek", position).catch(() => {})
+    } else if (this.audio) {
+      if (!this.ready) this.pendingSeek = position
+      this.audio.currentTime = position
+    } else if (!this.ready) {
+      this.pendingSeek = position
+    } else {
+      this.pendingSeek = null
+      this.youtube?.seekTo?.(position, true)
     }
   },
 

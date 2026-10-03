@@ -142,10 +142,14 @@ test("audio restores after metadata, saves end and cleans up", () => {
   try {
     hook.mounted()
     assert.equal(audio.currentTime, 0)
+    // A chapter chosen before the audio knows itself is where it starts, not the saved place.
+    hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 33}}))
     audio.readyState = 1
     audio.dispatchEvent(new Event("loadedmetadata"))
-    assert.equal(audio.currentTime, 42)
+    assert.equal(audio.currentTime, 33)
     assert.equal(message.textContent, "", "a player that works says nothing")
+    hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 70}}))
+    assert.equal(audio.currentTime, 70, "a chapter moves the audio")
     audio.currentTime = 100
     audio.dispatchEvent(new Event("ended"))
     assert.equal(samples.at(-1).ended, true)
@@ -172,7 +176,7 @@ test("an end event survives a disconnect before its acknowledgement", () => {
 test("YouTube saves a seek while paused, maps errors and destroys the iframe", async () => {
   const previous = {document: globalThis.document, window: globalThis.window, interval: globalThis.setInterval}
   const doc = new EventTarget(), message = {textContent: ""}, samples = []
-  let events, poll, position = 0, destroyed = false
+  let events, poll, position = 0, destroyed = false, sought = null, playerReady = false
   globalThis.document = doc
   globalThis.window = {YT: {PlayerState: {PLAYING: 1, PAUSED: 2, ENDED: 0}, Player: class {
     constructor(_frame, options) {events = options.events}
@@ -180,6 +184,8 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     getDuration() {return 100}
     getPlayerState() {return 2}
     pauseVideo() {}
+    // Like YouTube's own, the player answers only once it said it is ready.
+    seekTo(at) {if (playerReady) sought = at}
     destroy() {destroyed = true}
   }}}
   globalThis.setInterval = callback => {poll = callback; return 0}
@@ -189,8 +195,14 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
   try {
     hook.mounted()
     await Promise.resolve()
+    // A chapter chosen before the player is ready is not lost.
+    hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 21}}))
+    playerReady = true
     events.onReady()
+    assert.equal(sought, 21)
     assert.equal(message.textContent, "", "a player that works says nothing")
+    hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 55}}))
+    assert.equal(sought, 55, "a chapter moves the video")
     poll()
     position = 30
     poll()
@@ -296,6 +308,10 @@ test("PeerTube reports its own position and does not save before it has one", as
     fromEmbed({method: "peertube::playbackStatusChange", params: "ended"})
     await Promise.resolve()
     assert.equal(samples.at(-1).ended, true)
+
+    // A chapter moves the instance's player.
+    hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 118}}))
+    assert.ok(posted.some(m => m.method === "peertube::seek" && m.params === 118), "the instance seeks")
 
     // Closing flushes first, while the frame is still in the page, and that is what pauses it.
     hook.el.dispatchEvent(new CustomEvent("sikio:flush", {detail: {done: () => {}}}))
