@@ -51,7 +51,8 @@ defmodule SikioWeb.Sidebar do
     assign(socket, :sidebar, %{counts: Library.counts(account), sources: sources, titles: titles})
   end
 
-  # A status as the address spells it. All items are the place without a status.
+  # A status as the address spells it. What is new is the place without a status, at the
+  # library's front as within a source, and every item is `all`.
   @statuses %{"new" => "new", "in_progress" => "in-progress", "completed" => "completed"}
   @status_segments Map.new(@statuses, fn {status, segment} -> {segment, status} end)
 
@@ -64,7 +65,7 @@ defmodule SikioWeb.Sidebar do
   filters within a list and stay in the query.
 
       /new  /in-progress  /completed  /all
-      /feeds/106-metacheles-tonspur  /feeds/106-metacheles-tonspur/new
+      /feeds/106-metacheles-tonspur  /feeds/106-metacheles-tonspur/all
       /new/4056-ki-verfassung  /feeds/106-metacheles-tonspur/4056-ki-verfassung
 
   Built by hand rather than with `~p`: the router declares every shape, and this module is
@@ -90,7 +91,9 @@ defmodule SikioWeb.Sidebar do
 
       source ->
         title = Map.get(feed_titles, String.to_integer(source))
-        ["feeds", named(source, title)] ++ List.wrap(status)
+
+        segment = if status == "new", do: [], else: [status || "all"]
+        ["feeds", named(source, title) | segment]
     end
   end
 
@@ -132,7 +135,7 @@ defmodule SikioWeb.Sidebar do
     {place, item} =
       case String.split(path, "/", trim: true) do
         [] -> {%{"status" => "new"}, nil}
-        ["feeds", feed] -> {%{"source" => number(feed)}, nil}
+        ["feeds", feed] -> {feed_status(feed, "new"), nil}
         ["feeds", feed, segment] -> feed_place(feed, segment)
         ["feeds", feed, status, item] -> {feed_status(feed, status), item_id(item)}
         [status] -> {%{"status" => status(status)}, nil}
@@ -142,11 +145,11 @@ defmodule SikioWeb.Sidebar do
     {Library.normalize_filters(Map.merge(Map.take(query, ["kind", "q"]), place)), item}
   end
 
-  # Below a source the next segment is a status, or else an item of every status.
+  # Below a source the next segment is a status, or else an item of what is new.
   defp feed_place(feed, segment) do
     if Map.has_key?(@status_segments, segment) or segment == "all",
       do: {feed_status(feed, segment), nil},
-      else: {%{"source" => number(feed)}, item_id(segment)}
+      else: {feed_status(feed, "new"), item_id(segment)}
   end
 
   defp feed_status(feed, status), do: %{"source" => number(feed), "status" => status(status)}
@@ -171,10 +174,14 @@ defmodule SikioWeb.Sidebar do
   The library's address for one place: a view by its status, or a source.
 
   The sidebar and the phone's chips are where the reader is, not filters to combine, so nothing
-  chosen before comes along.
+  chosen before comes along. A source opens on what is new in it, as the library does.
   """
-  def place_path(key, value, feed_titles \\ %{}),
-    do: library_path(%{key => value}, nil, feed_titles)
+  def place_path(key, value, feed_titles \\ %{})
+
+  def place_path("source", value, feed_titles),
+    do: library_path(%{"source" => value, "status" => "new"}, nil, feed_titles)
+
+  def place_path(key, value, feed_titles), do: library_path(%{key => value}, nil, feed_titles)
 
   @doc """
   Whether `filters` show that place, which is what marks it as current.

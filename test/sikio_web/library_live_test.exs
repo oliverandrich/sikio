@@ -50,15 +50,16 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, view, _} = live(c.conn, ~p"/completed")
     refute has_element?(view, "#chip-kind-audio")
 
+    # A source opens on what is new in it, so its finished episode waits under all.
     view |> element("#chip-source-#{c.sub.feed_id}") |> render_click()
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours")
-    assert has_element?(view, "#entries article", "One & two")
+    refute has_element?(view, "#entries article", "One & two")
     refute has_element?(view, "#entries article", "A good video")
 
     view |> element("#chip-view-new") |> render_click()
     assert_patch(view, "/new")
 
-    {:ok, reloaded, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    {:ok, reloaded, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours/all")
     assert has_element?(reloaded, "#entries article", "One & two")
     reloaded |> element("#chip-view-all") |> render_click()
     assert_patch(reloaded, "/all")
@@ -74,7 +75,7 @@ defmodule SikioWeb.LibraryLiveTest do
     Playback.mark(c.user, c.audio.id, :completed)
     {:ok, view, _} = live(c.conn, ~p"/new")
     render_hook(view, "show", %{"id" => c.audio.id})
-    assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/#{c.audio.id}-one-two")
+    assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/all/#{c.audio.id}-one-two")
 
     # What plays may have left the library, its source removed meanwhile. The page says so.
     {:ok, _} = Library.unsubscribe(c.user, c.sub.id)
@@ -131,8 +132,8 @@ defmodule SikioWeb.LibraryLiveTest do
     other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, preview} = Parser.parse(podcast(), c.podcast_url)
     Library.subscribe(other, preview)
-    # Nonsense in an address is set right, here to the list of all items.
-    {:ok, view, _} = c.conn |> live("/feeds/oops?kind=invalid") |> follow_redirect(c.conn, "/all")
+    # Nonsense in an address is set right, here to the library's front.
+    {:ok, view, _} = c.conn |> live("/feeds/oops?kind=invalid") |> follow_redirect(c.conn, "/new")
 
     # Both halves matter. Their write has to land, or this proves only that a stranger cannot
     # write, which is a different test and one that passes for the wrong reason.
@@ -173,7 +174,9 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, view, _} = live(c.conn, ~p"/new")
     refute has_element?(view, "#filter-status-completed")
 
+    # A source opens on what is new in it, and says so.
     {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    assert has_element?(view, ~s|#filter-status-new[aria-current="true"]|)
     refute has_element?(view, "#filter-kind-video")
     view |> element("#filter-status-completed") |> render_click()
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/completed")
@@ -181,7 +184,12 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#source-#{c.sub.feed_id}[aria-current=page]")
 
     view |> element("#filter-status-new") |> render_click()
+    assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours")
     refute has_element?(view, "#entries article", "One & two")
+
+    view |> element("#filter-status-all") |> render_click()
+    assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/all")
+    assert has_element?(view, "#entries article", "One & two")
   end
 
   # A source offers no medium filter, so an address naming one with a source does not narrow
