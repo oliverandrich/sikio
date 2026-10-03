@@ -153,6 +153,19 @@ defmodule SikioWeb.LibraryLiveTest do
     refute has_element?(view, "#entries-#{c.audio.id} [data-source]")
   end
 
+  # Search is a place of its own on a phone: every item, with the field open and taking the keys.
+  test "search opens every item with the field ready", c do
+    {:ok, view, _} = live(c.conn, ~p"/search")
+    assert has_element?(view, "#search-input")
+    assert_push_event(view, "focus", %{id: "search-input"})
+    assert has_element?(view, "#entries article", "One & two")
+    assert has_element?(view, "#entries article", "A good video")
+
+    view |> form("#search-form", %{"q" => "video"}) |> render_change()
+    assert_patch(view, "/all?q=video")
+    refute has_element?(view, "#entries article", "One & two")
+  end
+
   # No list is narrowed by medium. An old address that names one is set right and narrows nothing.
   test "no list offers a medium filter", c do
     {:ok, view, _} = c.conn |> live("/new?kind=video") |> follow_redirect(c.conn, "/new")
@@ -661,8 +674,25 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#sidebar #source-#{c.sub.feed_id}", "Small Hours")
       assert has_element?(view, ~s|#view-new[href="/new"]|)
       refute has_element?(view, "#sidebar [aria-current]:not(#subscriptions-heading)")
-      assert has_element?(view, ~s|#subscriptions-link[aria-current="page"]|)
-      refute has_element?(view, ~s|#library-link[aria-current="page"]|)
+      assert has_element?(view, ~s|#tab-library[aria-current="page"]|)
+      refute has_element?(view, ~s|#tab-new[aria-current="page"]|)
+    end
+
+    # A phone moves between three tabs, and the one it is in is marked.
+    test "a phone's tabs lead to new, the library and search, and mark where it is", c do
+      for {path, tab} <- [
+            {"/new", "new"},
+            {"/library", "library"},
+            {"/in-progress", "library"},
+            {"/feeds/#{c.sub.feed_id}-small-hours", "library"},
+            {"/search", "search"}
+          ] do
+        {:ok, view, _} = live(c.conn, path)
+        assert has_element?(view, ~s|#tab-new[href="/new"]|)
+        assert has_element?(view, ~s|#tab-library[href="/library"]|)
+        assert has_element?(view, ~s|#tab-search[href="/search"]|)
+        assert has_element?(view, ~s|#tab-#{tab}[aria-current="page"]|), path
+      end
     end
 
     # The heading over the sources is where they are managed, so it leads there and says when

@@ -150,8 +150,14 @@ defmodule SikioWeb.Layouts do
 
   attr :section, :atom,
     default: nil,
-    values: [nil, :library, :subscriptions, :invitations, :account],
+    values: [nil, :library, :places, :subscriptions, :invitations, :account],
     doc: "where the reader is, to mark it in the navigation"
+
+  attr :tab, :atom,
+    default: nil,
+    values: [nil, :new, :library, :search],
+    doc:
+      "the phone's tab the page belongs to; the library's own pages and the subscriptions are the library's"
 
   attr :bleed, :boolean,
     default: false,
@@ -165,7 +171,8 @@ defmodule SikioWeb.Layouts do
         (assigns.sidebar &&
            Sikio.Library.tally(assigns.sidebar.counts, %{}, assigns.sidebar.tag_feeds))
 
-    assigns = assign(assigns, :counts, counts)
+    tab = assigns.tab || if(assigns.section in [:places, :subscriptions], do: :library)
+    assigns = assign(assigns, counts: counts, tab: tab)
 
     ~H"""
     <div class="min-h-svh pb-[calc(var(--nav-bar)+env(safe-area-inset-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
@@ -354,27 +361,27 @@ defmodule SikioWeb.Layouts do
             <.source_offer class="font-semibold text-ink hover:text-accent" />
           </p>
         </div>
+        <%!-- A phone's tab bar, in the manner of iOS: an icon and a label for each tab, on a
+             translucent bar above the home indicator. --%>
         <nav
           id="main-navigation"
-          class="fixed inset-x-0 bottom-0 z-30 flex min-h-[var(--nav-bar)] items-center justify-around border-t border-line bg-ground pb-[env(safe-area-inset-bottom)] text-label font-semibold lg:hidden"
+          class="fixed inset-x-0 bottom-0 z-30 flex min-h-[var(--nav-bar)] items-stretch justify-around border-t border-line bg-ground/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
           aria-label={gettext("Main navigation")}
         >
-          <.link
-            id="library-link"
-            aria-current={@section == :library && "page"}
-            navigate={~p"/"}
-            class={nav_link_class()}
+          <.tab id="tab-new" to={~p"/new"} current={@tab == :new} label={gettext("New")}>
+            <Lucideicons.sparkles aria-hidden="true" class="size-6" />
+          </.tab>
+          <.tab
+            id="tab-library"
+            to={~p"/library"}
+            current={@tab == :library}
+            label={gettext("Library")}
           >
-            {gettext("Library")}
-          </.link>
-          <.link
-            id="subscriptions-link"
-            aria-current={@section == :subscriptions && "page"}
-            navigate={~p"/subscriptions"}
-            class={nav_link_class()}
-          >
-            {gettext("Subscriptions")}
-          </.link>
+            <Lucideicons.library aria-hidden="true" class="size-6" />
+          </.tab>
+          <.tab id="tab-search" to={~p"/search"} current={@tab == :search} label={gettext("Search")}>
+            <Lucideicons.search aria-hidden="true" class="size-6" />
+          </.tab>
         </nav>
       </header>
       <div class="min-w-0">
@@ -550,9 +557,25 @@ defmodule SikioWeb.Layouts do
     """
   end
 
-  defp nav_link_class,
-    do:
-      "inline-flex min-h-11 items-center px-2 aria-[current=page]:text-accent lg:min-h-9 lg:rounded-control lg:px-2.5 lg:hover:bg-surface aria-[current=page]:font-semibold lg:aria-[current=page]:bg-selection"
+  attr :id, :string, required: true
+  attr :to, :string, required: true
+  attr :current, :boolean, required: true
+  attr :label, :string, required: true
+  slot :inner_block, required: true
+
+  defp tab(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      navigate={@to}
+      aria-current={@current && "page"}
+      class="flex min-w-16 flex-1 flex-col items-center justify-center gap-0.5 pt-1.5 pb-1 text-[11px] font-medium text-muted aria-[current=page]:text-accent"
+    >
+      {render_slot(@inner_block)}
+      <span>{@label}</span>
+    </.link>
+    """
+  end
 
   @doc """
   Shows the flash group with standard titles and content.

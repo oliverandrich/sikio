@@ -47,7 +47,8 @@ defmodule SikioWeb.LibraryLive do
        renaming: nil,
        deleting: nil,
        chosen_for_width: nil,
-       time_zone_offset: time_zone_offset(get_connect_params(socket))
+       time_zone_offset: time_zone_offset(get_connect_params(socket)),
+       tab: :new
      )}
   end
 
@@ -65,8 +66,21 @@ defmodule SikioWeb.LibraryLive do
   def handle_params(params, uri, socket) do
     %URI{path: path, query: query} = URI.parse(uri)
     {filters, item} = SikioWeb.Sidebar.read_path(path, params)
-    # An address with a search shows the field, a reload or the Back button included.
-    socket = assign(socket, :search_open?, socket.assigns.search_open? or filters["q"] != "")
+    # An address with a search shows the field, a reload or the Back button included. Search, a
+    # phone's tab of its own, opens every item with the field ready for the keys.
+    socket =
+      assign(
+        socket,
+        :search_open?,
+        socket.assigns.search_open? or filters["q"] != "" or path == "/search"
+      )
+
+    socket =
+      if path == "/search" and connected?(socket),
+        do: push_event(socket, "focus", %{id: "search-input"}),
+        else: socket
+
+    socket = assign(socket, :tab, tab(path, filters))
 
     # Any other item than the one the page chose for a wide screen is the reader's own choice.
     socket =
@@ -99,6 +113,7 @@ defmodule SikioWeb.LibraryLive do
   # An address names a source and an item by number; the titles after the numbers are for the
   # reader. One that reads otherwise, after a rename or typed by hand, is corrected in place.
   defp named(socket, "/", _query), do: socket
+  defp named(socket, "/search", _query), do: socket
 
   defp named(socket, path, query) do
     canonical = address(socket, socket.assigns.filters, socket.assigns.selected)
@@ -229,6 +244,12 @@ defmodule SikioWeb.LibraryLive do
     />
     """
   end
+
+  # A phone's tab: searching is Search, what is new is New, every other place is the Library's.
+  defp tab("/search", _filters), do: :search
+  defp tab(_path, %{"q" => q}) when q != "", do: :search
+  defp tab(_path, %{"status" => "new", "source" => "", "tag" => ""}), do: :new
+  defp tab(_path, _filters), do: :library
 
   # The library's address for `filters` and `item`, naming sources by their titles.
   defp address(socket, filters, item \\ nil),
@@ -738,6 +759,7 @@ defmodule SikioWeb.LibraryLive do
       patch
       bleed
       section={:library}
+      tab={@tab}
     >
       <div
         id="library"
