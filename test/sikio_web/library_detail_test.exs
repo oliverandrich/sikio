@@ -20,8 +20,8 @@ defmodule SikioWeb.LibraryDetailTest do
   setup :sign_in_with_episode
 
   test "library opens a player and shows reversible personal status", c do
-    {:ok, view, _} = live(c.conn, ~p"/")
-    assert has_element?(view, "#play-#{c.entry.id}[href='/library/#{c.entry.id}']")
+    {:ok, view, _} = live(c.conn, ~p"/all")
+    assert has_element?(view, "#play-#{c.entry.id}[href='/all/#{c.entry.id}-one-two']")
     view |> element("#play-#{c.entry.id}") |> render_click()
     view |> element("#mark-completed") |> render_click()
     assert has_element?(view, "#entries-#{c.entry.id}", "Listened")
@@ -32,7 +32,7 @@ defmodule SikioWeb.LibraryDetailTest do
   # Under the title is the player's place. Until play is pressed it shows what plays there and
   # loads nothing from anybody else; marking and the original sit at the card's head.
   test "the detail offers the player under its title and its actions at its head", c do
-    {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
 
     assert has_element?(view, "#item-detail #player-slot #start-playback")
     refute has_element?(view, "#item-detail audio")
@@ -62,7 +62,7 @@ defmodule SikioWeb.LibraryDetailTest do
           {:youtube, "https://www.youtube.com/watch?v=abcdefghijk", "Open on YouTube"}
         ] do
       entry = Enum.find(entries, &(&1.feed.kind == kind))
-      {:ok, view, _} = live(c.conn, ~p"/library/#{entry.id}")
+      {:ok, view, _} = live(c.conn, item_path(entry))
 
       assert has_element?(
                view,
@@ -81,14 +81,14 @@ defmodule SikioWeb.LibraryDetailTest do
     entries = Library.entries(c.user)
     video = Enum.find(entries, &(&1.feed.kind == :youtube))
 
-    {:ok, view, _} = live(c.conn, ~p"/library/#{video.id}")
+    {:ok, view, _} = live(c.conn, item_path(video))
 
     assert has_element?(
              view,
              "#open-original[href='https://www.youtube.com/watch?v=abcdefghijk']"
            )
 
-    {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
     refute has_element?(view, "#open-original")
   end
 
@@ -106,7 +106,7 @@ defmodule SikioWeb.LibraryDetailTest do
         "ended" => false
       })
 
-    {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
     assert has_element?(view, "#playback-status", "min left")
     assert has_element?(view, "#mark-completed")
     refute has_element?(view, "#mark-new")
@@ -131,7 +131,7 @@ defmodule SikioWeb.LibraryDetailTest do
       "ended" => false
     })
 
-    {:ok, view, _} = live(c.conn, ~p"/library/#{entry.id}")
+    {:ok, view, _} = live(c.conn, item_path(entry))
 
     assert has_element?(
              view,
@@ -144,7 +144,7 @@ defmodule SikioWeb.LibraryDetailTest do
   test "audio loads on request, resumes and saves only the active entry", c do
     {:ok, state} = Playback.start(c.user, c.entry.id)
     Playback.save(c.user, c.entry.id, state.session_id, sample(1, 42))
-    {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
     refute has_element?(view, "audio")
     assert has_element?(view, "#start-playback[aria-label='Resume']")
     assert has_element?(view, "#audio-cue input[data-audio-seek][value='42']")
@@ -204,7 +204,7 @@ defmodule SikioWeb.LibraryDetailTest do
     {:ok, %{session_id: session}} = Playback.start(c.user, c.entry.id)
     {:ok, _} = Playback.save(c.user, c.entry.id, session, %{sample(1, 900) | "duration" => 3723})
 
-    {:ok, view, html} = live(c.conn, ~p"/library/#{c.entry.id}")
+    {:ok, view, html} = live(c.conn, item_path(c.entry))
     assert has_element?(view, "#playback-status", "47 min left")
     refute has_element?(view, "#playback-status", "Saved at")
     refute html =~ "Playback stays with you"
@@ -220,7 +220,7 @@ defmodule SikioWeb.LibraryDetailTest do
 
     {:ok, sub} = Library.subscribe(c.user, preview)
     entry = Enum.find(Library.entries(c.user), &(&1.feed_id == sub.feed_id))
-    {:ok, view, _} = live(c.conn, ~p"/library/#{entry.id}")
+    {:ok, view, _} = live(c.conn, item_path(entry))
     refute has_element?(view, "iframe")
     refute has_element?(view, "[phx-hook='MediaPlayer']")
     {:ok, dock, _} = live_isolated(c.conn, SikioWeb.PlayerDockLive)
@@ -249,18 +249,29 @@ defmodule SikioWeb.LibraryDetailTest do
   end
 
   test "late notifications cannot undo a manual status change on the detail page", c do
-    {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
     {:ok, old} = Playback.start(c.user, c.entry.id)
     view |> element("#mark-completed") |> render_click()
     send(view.pid, {:playback_changed, old})
     assert has_element?(view, "#playback-status", "Listened")
   end
 
+  # Only the number in an address is looked up. A title after it that reads otherwise, from a
+  # rename or typed by hand, is set right.
+  test "an address with another title after the number is corrected", c do
+    {:ok, view, _} =
+      c.conn
+      |> live("/all/#{c.entry.id}-renamed")
+      |> follow_redirect(c.conn, "/all/#{c.entry.id}-one-two")
+
+    assert has_element?(view, "#item-detail h2", "One & two")
+  end
+
   test "private entries and malformed IDs cannot be opened", c do
     other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     conn = build_conn() |> init_test_session(%{}) |> Gate.log_in(other)
-    assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/library/#{c.entry.id}")
-    assert {:error, {:live_redirect, %{to: "/"}}} = live(c.conn, ~p"/library/invalid")
+    assert {:error, {:live_redirect, %{to: "/all"}}} = live(conn, item_path(c.entry))
+    assert {:error, {:live_redirect, %{to: "/all"}}} = live(c.conn, "/all/invalid")
   end
 
   defp sample(sequence, position),
@@ -275,11 +286,11 @@ defmodule SikioWeb.LibraryDetailTest do
     end
 
     test "patches the address, keeps the list standing and marks the row", c do
-      {:ok, view, _} = live(c.conn, ~p"/?status=new")
+      {:ok, view, _} = live(c.conn, ~p"/new")
 
       view |> element("#play-#{c.entry.id}") |> render_click()
 
-      assert_patch(view, "/library/#{c.entry.id}?status=new")
+      assert_patch(view, "/new/#{c.entry.id}-one-two")
       assert has_element?(view, "#entries #entries-#{c.entry.id}")
       assert has_element?(view, "#item-detail h2", "One & two")
       assert has_element?(view, ~s|#play-#{c.entry.id}[aria-current="true"]|)
@@ -288,21 +299,21 @@ defmodule SikioWeb.LibraryDetailTest do
     # j and k, as readers have moved through lists since Google Reader. The browser half that
     # decides which key presses count is `assets/js/reader_keys.mjs`.
     test "j and k move to the next and the previous item", c do
-      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+      {:ok, view, _} = live(c.conn, item_path(c.entry))
 
       render_hook(view, "move", %{"key" => "j"})
-      assert_patch(view, "/library/#{c.video.id}")
+      assert_patch(view, item_path(c.video))
 
       render_hook(view, "move", %{"key" => "k"})
-      assert_patch(view, "/library/#{c.entry.id}")
+      assert_patch(view, item_path(c.entry))
     end
 
     # On a wide screen the browser asks for the first item when none is chosen. The address is
     # replaced, so Back does not land on the empty view again.
     test "the first item is chosen when the browser asks and nothing is", c do
-      {:ok, view, _} = live(c.conn, ~p"/?status=new")
+      {:ok, view, _} = live(c.conn, ~p"/new")
       render_hook(view, "select_first", %{})
-      assert_patch(view, "/library/#{c.entry.id}?status=new")
+      assert_patch(view, "/new/#{c.entry.id}-one-two")
 
       view |> element("#play-#{c.video.id}") |> render_click()
       render_hook(view, "select_first", %{})
@@ -312,11 +323,11 @@ defmodule SikioWeb.LibraryDetailTest do
     # An item the page chose for a wide screen is let go when the screen turns narrow, where it
     # would cover the list. One the reader chose stays.
     test "an item chosen for a wide screen is let go when it narrows", c do
-      {:ok, view, _} = live(c.conn, ~p"/?status=new")
+      {:ok, view, _} = live(c.conn, ~p"/new")
       render_hook(view, "select_first", %{})
-      assert_patch(view, "/library/#{c.entry.id}?status=new")
+      assert_patch(view, "/new/#{c.entry.id}-one-two")
       render_hook(view, "release_first", %{})
-      assert_patch(view, "/?status=new")
+      assert_patch(view, "/new")
 
       view |> element("#play-#{c.video.id}") |> render_click()
       render_hook(view, "release_first", %{})
@@ -326,7 +337,7 @@ defmodule SikioWeb.LibraryDetailTest do
     # The row carries no buttons, so marking what is selected is a key beside j and k. Pressed
     # again it takes the mark back.
     test "m marks the selected item done, and again marks it new", c do
-      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+      {:ok, view, _} = live(c.conn, item_path(c.entry))
 
       render_hook(view, "toggle_mark", %{})
       assert %{playback: %{status: :completed}} = Library.entry(c.user, c.entry.id)
@@ -336,7 +347,7 @@ defmodule SikioWeb.LibraryDetailTest do
     end
 
     test "m without a selected item does nothing", c do
-      {:ok, view, _} = live(c.conn, ~p"/")
+      {:ok, view, _} = live(c.conn, ~p"/all")
       render_hook(view, "toggle_mark", %{})
       assert Library.entry(c.user, c.entry.id).playback == nil
     end
@@ -344,7 +355,7 @@ defmodule SikioWeb.LibraryDetailTest do
     # A selected item keeps its place in the list, opened by address or after an update alike.
     # Drawn again out of turn, it would sink to the bottom and j would skip what is on screen.
     test "the selected item keeps its place in the list", c do
-      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+      {:ok, view, _} = live(c.conn, item_path(c.entry))
       assert rows(view) == ["entries-#{c.entry.id}", "entries-#{c.video.id}"]
 
       send(view.pid, :library_changed)
@@ -352,20 +363,20 @@ defmodule SikioWeb.LibraryDetailTest do
     end
 
     test "an item whose source goes away leaves the detail", c do
-      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+      {:ok, view, _} = live(c.conn, item_path(c.entry))
 
       subscription = Enum.find(Library.subscriptions(c.user), &(&1.feed_id == c.entry.feed_id))
 
       {:ok, _} = Library.unsubscribe(c.user, subscription.id)
 
-      assert_patch(view, "/")
+      assert_patch(view, "/all")
       refute has_element?(view, "#item-detail h2")
     end
   end
 
   describe "the notes" do
     test "show what the publisher wrote, without what it smuggled in", c do
-      {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
+      {:ok, view, _} = live(c.conn, item_path(c.entry))
 
       assert has_element?(view, "#item-notes p", "Notes with a")
       assert has_element?(view, ~s|#item-notes a[target="_blank"]|, "link")
@@ -377,7 +388,7 @@ defmodule SikioWeb.LibraryDetailTest do
       {:ok, _} = Library.subscribe(c.user, preview)
       thin = Enum.find(Library.entries(c.user), &(&1.description == nil))
 
-      {:ok, view, _} = live(c.conn, ~p"/library/#{thin.id}")
+      {:ok, view, _} = live(c.conn, item_path(thin))
 
       refute has_element?(view, "#item-notes")
       assert has_element?(view, "#item-no-notes")

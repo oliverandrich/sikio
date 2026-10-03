@@ -2,7 +2,7 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {closesSearch, readerKey, wantsFirst, reveal} from "./reader_keys.mjs"
+import {closesSearch, readerKey, wantsFirst, reveal, shownEntry} from "./reader_keys.mjs"
 
 const press = (key, extra = {}) => ({key, target: {tagName: "BODY"}, ...extra})
 
@@ -60,4 +60,17 @@ test("a row above the head's edge or below the pane's end is scrolled into view"
   assert.equal(reveal({top: 100, bottom: 600, rowTop: 150, rowBottom: 250}), 0)
   assert.equal(reveal({top: 100, bottom: 600, rowTop: 60, rowBottom: 160}), -40)
   assert.equal(reveal({top: 100, bottom: 600, rowTop: 560, rowBottom: 660}), 60)
+})
+
+// The mini player's title asks the library to show what plays. A click that opens a tab or a
+// window, or one on something else, is left to the browser.
+test("a plain click on the mini player's title names the entry to show", () => {
+  const link = {dataset: {showEntry: "4056"}}
+  const click = (extra = {}) => ({button: 0, target: {closest: s => s === "[data-show-entry]" ? link : null}, ...extra})
+  assert.equal(shownEntry(click()), "4056")
+  assert.equal(shownEntry(click({metaKey: true})), null)
+  assert.equal(shownEntry(click({ctrlKey: true})), null)
+  assert.equal(shownEntry(click({shiftKey: true})), null)
+  assert.equal(shownEntry(click({button: 1})), null)
+  assert.equal(shownEntry({button: 0, target: {closest: () => null}}), null)
 })

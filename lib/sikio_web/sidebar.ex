@@ -46,18 +46,124 @@ defmodule SikioWeb.Sidebar do
       |> Library.subscriptions()
       |> Enum.sort_by(&String.downcase(&1.feed.title || ""))
 
-    assign(socket, :sidebar, %{counts: Library.counts(account), sources: sources})
+    # Addresses name a source by its title as well as its number.
+    titles = Map.new(sources, &{&1.feed_id, &1.feed.title})
+    assign(socket, :sidebar, %{counts: Library.counts(account), sources: sources, titles: titles})
   end
 
-  @doc "The library's address under `filters`, at an item when `id` is given; empty filters are left out."
-  def library_path(filters, id \\ nil) do
-    query = filters |> Enum.reject(fn {_key, value} -> value in [nil, ""] end) |> Map.new()
+  # A status as the address spells it. All items are the place without a status.
+  @statuses %{"new" => "new", "in_progress" => "in-progress", "completed" => "completed"}
+  @status_segments Map.new(@statuses, fn {status, segment} -> {segment, status} end)
 
-    case {id, query == %{}} do
-      {nil, true} -> ~p"/"
-      {nil, false} -> ~p"/?#{query}"
-      {id, true} -> ~p"/library/#{id}"
-      {id, false} -> ~p"/library/#{id}?#{query}"
+  @doc """
+  The library's address: the list on screen as a path, the item shown beside it appended.
+
+  A source is named by its number and its title, an item by its number and its title, so an
+  address reads as what it shows while only the number is looked up. `feed_titles` maps a
+  source's number to its title, and `item` is an entry, an id or nil. Medium and search are
+  filters within a list and stay in the query.
+
+      /new  /in-progress  /completed  /all
+      /feeds/106-metacheles-tonspur  /feeds/106-metacheles-tonspur/new
+      /new/4056-ki-verfassung  /feeds/106-metacheles-tonspur/4056-ki-verfassung
+
+  Built by hand rather than with `~p`: the router declares every shape, and this module is
+  where an address is spelled and read.
+  """
+  def library_path(filters, item \\ nil, feed_titles \\ %{}) do
+    path = "/" <> Enum.join(place(filters, feed_titles) ++ item_segment(item), "/")
+
+    case filters
+         |> Map.take(["kind", "q"])
+         |> Enum.reject(fn {_key, value} -> value in [nil, ""] end) do
+      [] -> path
+      query -> path <> "?" <> URI.encode_query(query)
+    end
+  end
+
+  defp place(filters, feed_titles) do
+    status = Map.get(@statuses, filters["status"])
+
+    case filters["source"] do
+      source when source in [nil, ""] ->
+        [status || "all"]
+
+      source ->
+        title = Map.get(feed_titles, String.to_integer(source))
+        ["feeds", named(source, title)] ++ List.wrap(status)
+    end
+  end
+
+  defp item_segment(nil), do: []
+  defp item_segment(%{id: id, title: title}), do: [named(id, title)]
+  defp item_segment(id), do: [to_string(id)]
+
+  defp named(number, title) do
+    case slug(title) do
+      "" -> to_string(number)
+      slug -> "#{number}-#{slug}"
+    end
+  end
+
+  @umlauts %{"ä" => "ae", "ö" => "oe", "ü" => "ue", "ß" => "ss"}
+
+  @doc "A title as an address spells it: lower case letters and digits joined by dashes."
+  def slug(nil), do: ""
+
+  def slug(title) do
+    title
+    |> String.downcase()
+    |> String.replace(Map.keys(@umlauts), &Map.fetch!(@umlauts, &1))
+    |> :unicode.characters_to_nfd_binary()
+    |> String.replace(~r/\p{Mn}/u, "")
+    |> String.replace(~r/[^a-z0-9]+/, "-")
+    |> String.trim("-")
+    |> String.slice(0, 60)
+    |> String.trim_trailing("-")
+  end
+
+  @doc """
+  The filters and the item an address names, read back from its path and query.
+
+  Only the leading number of a source or an item is read. An item that names no number answers
+  `:invalid`, a source that names none shows every source.
+  """
+  def read_path(path, query) do
+    {place, item} =
+      case String.split(path, "/", trim: true) do
+        [] -> {%{"status" => "new"}, nil}
+        ["feeds", feed] -> {%{"source" => number(feed)}, nil}
+        ["feeds", feed, segment] -> feed_place(feed, segment)
+        ["feeds", feed, status, item] -> {feed_status(feed, status), item_id(item)}
+        [status] -> {%{"status" => status(status)}, nil}
+        [status, item] -> {%{"status" => status(status)}, item_id(item)}
+      end
+
+    {Library.normalize_filters(Map.merge(Map.take(query, ["kind", "q"]), place)), item}
+  end
+
+  # Below a source the next segment is a status, or else an item of every status.
+  defp feed_place(feed, segment) do
+    if Map.has_key?(@status_segments, segment) or segment == "all",
+      do: {feed_status(feed, segment), nil},
+      else: {%{"source" => number(feed)}, item_id(segment)}
+  end
+
+  defp feed_status(feed, status), do: %{"source" => number(feed), "status" => status(status)}
+
+  defp status(segment), do: Map.get(@status_segments, segment, "")
+
+  defp number(segment) do
+    case Integer.parse(segment) do
+      {number, _title} when number > 0 -> Integer.to_string(number)
+      _ -> ""
+    end
+  end
+
+  defp item_id(segment) do
+    case number(segment) do
+      "" -> :invalid
+      id -> id
     end
   end
 
@@ -67,7 +173,8 @@ defmodule SikioWeb.Sidebar do
   The sidebar and the phone's chips are where the reader is, not filters to combine, so nothing
   chosen before comes along.
   """
-  def place_path(key, value), do: library_path(%{key => value})
+  def place_path(key, value, feed_titles \\ %{}),
+    do: library_path(%{key => value}, nil, feed_titles)
 
   @doc """
   Whether `filters` show that place, which is what marks it as current.

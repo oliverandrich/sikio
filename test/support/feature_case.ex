@@ -40,6 +40,9 @@ defmodule SikioWeb.FeatureCase do
     end
   end
 
+  @doc "An item's address in the list of all items, as the library itself spells it."
+  def item_path(entry), do: SikioWeb.ConnCase.item_path(entry)
+
   @doc """
   Goes to a page and waits until its LiveView has actually connected.
 

@@ -90,8 +90,19 @@ defmodule SikioWeb.Router do
         {SikioWeb.Locale, :set},
         SikioWeb.Sidebar
       ] do
+      # The library's places and the item shown in one; see SikioWeb.Sidebar.library_path/3.
       live "/", LibraryLive, :index
-      live "/library/:id", LibraryLive, :show
+      live "/new", LibraryLive, :index
+      live "/new/:item", LibraryLive, :index
+      live "/in-progress", LibraryLive, :index
+      live "/in-progress/:item", LibraryLive, :index
+      live "/completed", LibraryLive, :index
+      live "/completed/:item", LibraryLive, :index
+      live "/all", LibraryLive, :index
+      live "/all/:item", LibraryLive, :index
+      live "/feeds/:feed", LibraryLive, :index
+      live "/feeds/:feed/:place", LibraryLive, :index
+      live "/feeds/:feed/:status/:item", LibraryLive, :index
       live "/invitations", InvitationsLive
       live "/subscriptions", SubscriptionsLive
       live "/subscriptions/import", OPMLLive

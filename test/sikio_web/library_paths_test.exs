@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+defmodule SikioWeb.LibraryPathsTest do
+  @moduledoc """
+  The library's addresses: a list on screen and the item in it, as paths.
+
+  The library works on filters by status, source, medium and search. Only how they are spelled
+  in an address is decided here, both ways.
+  """
+  use ExUnit.Case, async: true
+
+  alias SikioWeb.Sidebar
+
+  @none %{"status" => "", "source" => "", "kind" => "", "q" => ""}
+  @feeds %{106 => "MeTacheles Tonspur"}
+  @item %{id: 4056, title: "KI-Verfassung - Die irre Selbstkontrolle der Tech-Bros"}
+
+  defp filters(changes), do: Map.merge(@none, changes)
+
+  test "a list by status is its own path, and new is the library's front" do
+    assert Sidebar.library_path(filters(%{"status" => "new"})) == "/new"
+    assert Sidebar.library_path(filters(%{"status" => "in_progress"})) == "/in-progress"
+    assert Sidebar.library_path(filters(%{"status" => "completed"})) == "/completed"
+    assert Sidebar.library_path(@none) == "/all"
+  end
+
+  test "a source is named by its number and its title" do
+    assert Sidebar.library_path(filters(%{"source" => "106"}), nil, @feeds) ==
+             "/feeds/106-metacheles-tonspur"
+
+    assert Sidebar.library_path(filters(%{"source" => "106", "status" => "new"}), nil, @feeds) ==
+             "/feeds/106-metacheles-tonspur/new"
+
+    assert Sidebar.library_path(filters(%{"source" => "7"})) == "/feeds/7",
+           "a source without a known title keeps its number alone"
+  end
+
+  test "an item follows the list it is shown in" do
+    assert Sidebar.library_path(filters(%{"status" => "new"}), @item) ==
+             "/new/4056-ki-verfassung-die-irre-selbstkontrolle-der-tech-bros"
+
+    assert Sidebar.library_path(filters(%{"source" => "106"}), @item, @feeds) ==
+             "/feeds/106-metacheles-tonspur/4056-ki-verfassung-die-irre-selbstkontrolle-der-tech-bros"
+
+    assert Sidebar.library_path(filters(%{"status" => "completed"}), 12) == "/completed/12"
+  end
+
+  test "medium and search stay in the query" do
+    assert Sidebar.library_path(filters(%{"status" => "new", "kind" => "video", "q" => "akku"})) ==
+             "/new?kind=video&q=akku"
+  end
+
+  test "a title becomes letters, digits and dashes" do
+    assert Sidebar.slug("Großbatteriespeicher: Nützlich, netzdienlich (& mehr)!") ==
+             "grossbatteriespeicher-nuetzlich-netzdienlich-mehr"
+
+    assert Sidebar.slug("Ça va? Élan") == "ca-va-elan"
+    assert Sidebar.slug("🚨 !!!") == ""
+    assert String.length(Sidebar.slug(String.duplicate("long words ", 40))) <= 60
+  end
+
+  test "an address reads back into the filters and the item" do
+    assert Sidebar.read_path("/", %{}) == {filters(%{"status" => "new"}), nil}
+    assert Sidebar.read_path("/new", %{}) == {filters(%{"status" => "new"}), nil}
+    assert Sidebar.read_path("/all", %{}) == {@none, nil}
+
+    assert Sidebar.read_path("/in-progress/4056-ki", %{"kind" => "audio"}) ==
+             {filters(%{"status" => "in_progress", "kind" => "audio"}), "4056"}
+
+    assert Sidebar.read_path("/feeds/106-metacheles-tonspur", %{}) ==
+             {filters(%{"source" => "106"}), nil}
+
+    assert Sidebar.read_path("/feeds/106-x/new", %{"q" => "akku"}) ==
+             {filters(%{"source" => "106", "status" => "new", "q" => "akku"}), nil}
+
+    assert Sidebar.read_path("/feeds/106-x/4056-y", %{}) ==
+             {filters(%{"source" => "106"}), "4056"}
+
+    assert Sidebar.read_path("/feeds/106/completed/4056", %{}) ==
+             {filters(%{"source" => "106", "status" => "completed"}), "4056"}
+  end
+
+  test "an address that names no item or source by number names none" do
+    assert Sidebar.read_path("/new/ki-verfassung", %{}) ==
+             {filters(%{"status" => "new"}), :invalid}
+
+    assert Sidebar.read_path("/feeds/metacheles", %{}) == {filters(%{"source" => ""}), nil}
+  end
+end

@@ -218,7 +218,14 @@ defmodule SikioWeb.PlayerDockLive do
               {@entry.feed.title}
             </p>
             <.link
-              navigate={~p"/library/#{@entry.id}"}
+              navigate={
+                SikioWeb.Sidebar.library_path(
+                  %{"source" => to_string(@entry.feed_id)},
+                  @entry,
+                  %{@entry.feed_id => @entry.feed.title}
+                )
+              }
+              data-show-entry={@entry.id}
               class="player-title mt-1 block text-label leading-snug font-semibold break-words"
             >{@entry.title}</.link>
             <p class="player-status mt-2 text-meta text-muted">

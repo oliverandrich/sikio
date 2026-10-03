@@ -143,7 +143,7 @@ defmodule SikioWeb.TailwindTest do
 
     session
     |> resize_window(1440, 900)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#view-all[aria-current=page] #view-all-count"))
     |> execute_script(
       """

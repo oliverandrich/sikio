@@ -4,9 +4,10 @@ defmodule SikioWeb.LibraryLive do
   @moduledoc """
   The personal inbox: the newest items from the sources this account subscribed to.
 
-  The filters live in the URL, so a narrowed view survives a reload and the browser's back button.
-  Selecting an item patches the address to `/library/:id` and keeps the list standing: from `lg`
-  the item shows in a column beside the list, below it on its own.
+  The list and the item shown in it live in the URL, so both survive a reload and the browser's
+  back button; `SikioWeb.Sidebar.library_path/3` spells the addresses. Selecting an item patches
+  the address and keeps the list standing: from `lg` the item shows in a column beside the list,
+  below it on its own.
   Everything on the page is kept current from notifications rather than by polling: new episodes,
   progress from another tab, manual status changes and subscriptions added or removed elsewhere.
   """
@@ -40,14 +41,16 @@ defmodule SikioWeb.LibraryLive do
   # The list is read again only when the filters change. The rows are keyed, so choosing another
   # item sends only the two rows whose selection changed and the list stands.
   @impl true
-  def handle_params(params, _uri, socket) do
-    filters = params |> Library.normalize_filters() |> offered()
+  def handle_params(params, uri, socket) do
+    %URI{path: path, query: query} = URI.parse(uri)
+    {filters, item} = SikioWeb.Sidebar.read_path(path, params)
+    filters = offered(filters)
     # An address with a search shows the field, a reload or the Back button included.
     socket = assign(socket, :search_open?, socket.assigns.search_open? or filters["q"] != "")
 
     # Any other item than the one the page chose for a wide screen is the reader's own choice.
     socket =
-      if to_string(socket.assigns.chosen_for_width) == to_string(params["id"]),
+      if to_string(socket.assigns.chosen_for_width) == to_string(item),
         do: socket,
         else: assign(socket, :chosen_for_width, nil)
 
@@ -56,11 +59,28 @@ defmodule SikioWeb.LibraryLive do
         do: socket,
         else: socket |> assign(filters: filters, entries: []) |> reload()
 
-    case select(socket, params["id"]) do
-      {:ok, socket} -> {:noreply, reach(socket)}
-      :error -> {:noreply, push_navigate(socket, to: ~p"/")}
+    case select(socket, item) do
+      {:ok, socket} -> {:noreply, socket |> reach() |> named(path, query)}
+      :error -> {:noreply, push_navigate(socket, to: address(socket, filters))}
     end
   end
+
+  # An address names a source and an item by number; the titles after the numbers are for the
+  # reader. One that reads otherwise, after a rename or typed by hand, is corrected in place.
+  defp named(socket, "/", _query), do: socket
+
+  defp named(socket, path, query) do
+    canonical = address(socket, socket.assigns.filters, socket.assigns.selected)
+    current = if query in [nil, ""], do: path, else: "#{path}?#{query}"
+
+    if canonical == current,
+      do: socket,
+      else: push_patch(socket, to: canonical, replace: true)
+  end
+
+  # The library's address for `filters` and `item`, naming sources by their titles.
+  defp address(socket, filters, item \\ nil),
+    do: SikioWeb.Sidebar.library_path(filters, item, socket.assigns.sidebar.titles)
 
   # An item opened by its address may lie beyond the batches loaded. The list grows until it
   # shows the item, or until it has passed where the item would be, which a filtered-out item is.
@@ -93,27 +113,45 @@ defmodule SikioWeb.LibraryLive do
         do: load_more(socket),
         else: socket
 
-    ids = Enum.map(socket.assigns.entries, & &1.id)
+    entries = socket.assigns.entries
 
     next =
       case {key, current} do
-        {"j", nil} -> List.first(ids)
+        {"j", nil} -> List.first(entries)
         {"k", nil} -> nil
-        {"j", index} -> Enum.at(ids, index + 1)
+        {"j", index} -> Enum.at(entries, index + 1)
         {"k", 0} -> nil
-        {"k", index} -> Enum.at(ids, index - 1)
+        {"k", index} -> Enum.at(entries, index - 1)
       end
 
     if next,
-      do:
-        {:noreply,
-         push_patch(socket, to: SikioWeb.Sidebar.library_path(socket.assigns.filters, next))},
+      do: {:noreply, push_patch(socket, to: address(socket, socket.assigns.filters, next))},
       else: {:noreply, socket}
   end
 
   def handle_event("move", _params, socket), do: {:noreply, socket}
 
   def handle_event("load_more", _params, socket), do: {:noreply, load_more(socket)}
+
+  # The mini player's title: what plays, in the list on screen when that holds it, else in the
+  # list of its source. The link's own navigation was cancelled for this, so a playing item that
+  # has left the library meanwhile is said rather than left silent.
+  def handle_event("show", %{"id" => id}, socket) do
+    %{current_account: account, filters: filters} = socket.assigns
+
+    case Library.entry(account, id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, gettext("This item is no longer in your library."))}
+
+      entry ->
+        filters =
+          if Library.listed?(account, filters, entry.id),
+            do: filters,
+            else: Library.normalize_filters(%{"source" => to_string(entry.feed_id)})
+
+        {:noreply, push_patch(socket, to: address(socket, filters, entry))}
+    end
+  end
 
   # A wide screen keeps something in the detail; the browser asks when nothing is chosen. The
   # address is replaced, so Back does not return to the empty view.
@@ -127,7 +165,7 @@ defmodule SikioWeb.LibraryLive do
          socket
          |> assign(:chosen_for_width, first.id)
          |> push_patch(
-           to: SikioWeb.Sidebar.library_path(socket.assigns.filters, first.id),
+           to: address(socket, socket.assigns.filters, first),
            replace: true
          )}
 
@@ -143,7 +181,7 @@ defmodule SikioWeb.LibraryLive do
       {:noreply,
        socket
        |> assign(:chosen_for_width, nil)
-       |> push_patch(to: SikioWeb.Sidebar.library_path(socket.assigns.filters), replace: true)}
+       |> push_patch(to: address(socket, socket.assigns.filters), replace: true)}
 
   def handle_event("search", %{"q" => text}, socket), do: {:noreply, searched(socket, text)}
   # The field is open or folded on the page's word, so a patch never folds it mid-edit. Opening
@@ -226,7 +264,7 @@ defmodule SikioWeb.LibraryLive do
         {:noreply, socket}
 
       :error ->
-        {:noreply, push_patch(socket, to: SikioWeb.Sidebar.library_path(socket.assigns.filters))}
+        {:noreply, push_patch(socket, to: address(socket, socket.assigns.filters))}
     end
   end
 
@@ -412,7 +450,9 @@ defmodule SikioWeb.LibraryLive do
                 <.chip
                   :for={source <- @sidebar.sources}
                   id={"chip-source-#{source.feed_id}"}
-                  to={SikioWeb.Sidebar.place_path("source", to_string(source.feed_id))}
+                  to={
+                    SikioWeb.Sidebar.place_path("source", to_string(source.feed_id), @sidebar.titles)
+                  }
                   active={SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))}
                   count={Map.get(@counts.sources, source.feed_id, 0)}
                 >
@@ -468,7 +508,13 @@ defmodule SikioWeb.LibraryLive do
                       ]
                     }
                     id={"filter-kind-#{if value == "", do: "all", else: value}"}
-                    to={SikioWeb.Sidebar.library_path(Map.put(@filters, "kind", value))}
+                    to={
+                      SikioWeb.Sidebar.library_path(
+                        Map.put(@filters, "kind", value),
+                        nil,
+                        @sidebar.titles
+                      )
+                    }
                     active={@filters["kind"] == value}
                   >
                     {label}
@@ -478,7 +524,13 @@ defmodule SikioWeb.LibraryLive do
                   <.segment
                     :for={{value, key, label} <- views()}
                     id={"filter-status-#{key}"}
-                    to={SikioWeb.Sidebar.library_path(Map.put(@filters, "status", value))}
+                    to={
+                      SikioWeb.Sidebar.library_path(
+                        Map.put(@filters, "status", value),
+                        nil,
+                        @sidebar.titles
+                      )
+                    }
                     active={@filters["status"] == value}
                   >
                     {label}
@@ -513,7 +565,7 @@ defmodule SikioWeb.LibraryLive do
               :key={entry.id}
               id={"entries-#{entry.id}"}
               entry={entry}
-              to={SikioWeb.Sidebar.library_path(@filters, entry.id)}
+              to={SikioWeb.Sidebar.library_path(@filters, entry, @sidebar.titles)}
               selected={@selected && @selected.id == entry.id}
             />
           </div>
@@ -533,7 +585,7 @@ defmodule SikioWeb.LibraryLive do
             :if={@selected}
             entry={@selected}
             notes={@notes}
-            back={SikioWeb.Sidebar.library_path(@filters)}
+            back={SikioWeb.Sidebar.library_path(@filters, nil, @sidebar.titles)}
           />
         </section>
       </div>
@@ -619,11 +671,7 @@ defmodule SikioWeb.LibraryLive do
       else:
         push_patch(socket,
           replace: true,
-          to:
-            SikioWeb.Sidebar.library_path(
-              filters,
-              socket.assigns.selected && socket.assigns.selected.id
-            )
+          to: address(socket, filters, socket.assigns.selected)
         )
   end
 

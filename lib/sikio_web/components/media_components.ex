@@ -102,13 +102,17 @@ defmodule SikioWeb.MediaComponents do
   def runtime(seconds),
     do: "#{div(seconds, 3600)}:" <> String.pad_leading(timestamp(rem(seconds, 3600)), 5, "0")
 
-  @doc "The library's views by status: the filter value, the count's key and the name."
+  @doc """
+  The library's views by status: the filter value, the count's key and the name.
+
+  New comes first, the library's front. All items come last.
+  """
   def views do
     [
-      {"", :all, gettext("All items")},
       {"new", :new, gettext("New")},
       {"in_progress", :in_progress, gettext("In progress")},
-      {"completed", :completed, gettext("Completed")}
+      {"completed", :completed, gettext("Completed")},
+      {"", :all, gettext("All items")}
     ]
   end
 

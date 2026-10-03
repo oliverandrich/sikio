@@ -55,6 +55,9 @@ defmodule SikioWeb.ConnCase do
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
+  @doc "An item's address in the list of all items, as the library itself spells it."
+  def item_path(entry), do: SikioWeb.Sidebar.library_path(%{"status" => ""}, entry)
+
   @doc """
   A signed-in account subscribed to one podcast with one episode, for `setup`.
 

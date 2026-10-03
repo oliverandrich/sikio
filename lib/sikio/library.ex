@@ -170,6 +170,18 @@ defmodule Sikio.Library do
     |> Map.put(:sources, Map.merge(sources, sum_by(new_or_chosen, :feed_id)))
   end
 
+  @doc "Whether the list under `filters` holds the entry, for this account alone."
+  def listed?(%User{id: user_id}, filters, id) do
+    with_id(id, fn id ->
+      user_id
+      |> filtered_entries(filters)
+      |> exclude(:preload)
+      |> exclude(:select)
+      |> where([e], e.id == ^id)
+      |> Repo.exists?()
+    end) || false
+  end
+
   @doc "How many entries match `filters`, however many a list has loaded. Searches count this way."
   def count(%User{id: user_id}, filters) do
     user_id

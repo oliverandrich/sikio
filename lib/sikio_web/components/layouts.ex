@@ -220,7 +220,7 @@ defmodule SikioWeb.Layouts do
             <.sidebar_link
               :for={source <- @sidebar.sources}
               id={"source-#{source.feed_id}"}
-              to={SikioWeb.Sidebar.place_path("source", to_string(source.feed_id))}
+              to={SikioWeb.Sidebar.place_path("source", to_string(source.feed_id), @sidebar.titles)}
               patch={@patch}
               active={
                 @patch and SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))

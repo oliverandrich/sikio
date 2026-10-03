@@ -35,7 +35,7 @@ defmodule SikioWeb.PlayerTest do
     %{session: session, account: account, entry: entry} = context
 
     session
-    |> open("/")
+    |> open("/all")
     |> click(css("#play-#{entry.id}"))
     |> click(css("#start-playback"))
     # Pinned to the detail the panel leaves the title to it, so the player says what it plays.
@@ -58,7 +58,7 @@ defmodule SikioWeb.PlayerTest do
 
     session
     |> resize_window(500, 900)
-    |> open("/library/#{entry.id}")
+    |> open(item_path(entry))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> mark_player()
@@ -82,7 +82,7 @@ defmodule SikioWeb.PlayerTest do
 
     session
     |> resize_window(500, 900)
-    |> open("/library/#{entry.id}")
+    |> open(item_path(entry))
     |> assert_has(css("#audio-cue"))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel [data-audio-face]"))
@@ -93,7 +93,7 @@ defmodule SikioWeb.PlayerTest do
     %{session: session, account: account, entry: entry} = context
 
     session
-    |> open("/library/#{entry.id}")
+    |> open(item_path(entry))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> mark_player()
@@ -111,7 +111,7 @@ defmodule SikioWeb.PlayerTest do
 
     session
     |> resize_window(500, 900)
-    |> open("/library/#{entry.id}")
+    |> open(item_path(entry))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel"))
     |> execute_script(padding(), fn padding -> refute padding == "0px" end)
@@ -138,7 +138,7 @@ defmodule SikioWeb.PlayerTest do
 
       session
       |> resize_window(1280, 900)
-      |> open("/library/#{entry.id}")
+      |> open(item_path(entry))
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
       |> execute_script(within("#player-panel", "#item-detail"), fn inside -> assert inside end)
@@ -196,7 +196,7 @@ defmodule SikioWeb.PlayerTest do
 
       session
       |> resize_window(1280, 900)
-      |> open("/library/#{entry.id}")
+      |> open(item_path(entry))
       |> refute_has(css("#player-panel"))
       |> execute_script(box, ["#audio-cue"], fn cue -> Process.put(:cue, cue) end)
       |> execute_script("""
@@ -233,7 +233,7 @@ defmodule SikioWeb.PlayerTest do
 
       session
       |> resize_window(1280, 900)
-      |> open("/library/#{entry.id}")
+      |> open(item_path(entry))
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
       |> execute_script(
@@ -272,7 +272,7 @@ defmodule SikioWeb.PlayerTest do
 
       session
       |> resize_window(1280, 900)
-      |> open("/library/#{entry.id}")
+      |> open(item_path(entry))
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
       |> execute_script(
@@ -293,7 +293,7 @@ defmodule SikioWeb.PlayerTest do
 
       session
       |> resize_window(1280, 320)
-      |> open("/library/#{entry.id}")
+      |> open(item_path(entry))
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
       # Settled first, so nothing still pending places the player after the scroll.
@@ -322,6 +322,41 @@ defmodule SikioWeb.PlayerTest do
       )
     end
 
+    # The mini player's title shows what plays in the list on screen when it holds it. The list
+    # stays; before, the title led to an address without one and the list became all items.
+    feature "its title shows what plays without leaving the list", context do
+      %{session: session, account: account} = context
+      {:ok, preview} = Parser.parse(podcast("Two Parts"), feed_url("two"))
+
+      entries =
+        for n <- 1..2,
+            do: %{
+              hd(preview.entries)
+              | external_id: "two-#{n}",
+                title: "Part #{n}",
+                published_at: DateTime.add(hd(preview.entries).published_at, -n, :day)
+            }
+
+      {:ok, subscription} = Library.subscribe(account, %{preview | entries: entries})
+      [first, second] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+
+      session
+      |> resize_window(1280, 900)
+      |> open("/new")
+      |> click(css("#entries-#{first.id} a"))
+      |> click(css("#start-playback"))
+      |> assert_has(css(~s|#player-control[data-entry-id="#{first.id}"]|))
+      |> click(css("#entries-#{second.id} a"))
+      |> assert_has(css(~s|#player-panel[data-place="compact"] .player-title|))
+      |> click(css("#player-panel .player-title"))
+      |> assert_has(css("#item-detail h2", text: "Part 1"))
+      |> assert_has(css("#library-heading", text: "New"))
+      |> then(fn session ->
+        assert current_path(session) == "/new/#{first.id}-part-1"
+        session
+      end)
+    end
+
     # Starting one item after another hands the player on each time, and the last one still
     # closes. Each start waits for the previous player to save its place.
     feature "starts one item after another and still closes", context do
@@ -340,7 +375,7 @@ defmodule SikioWeb.PlayerTest do
         |> Enum.filter(&String.starts_with?(&1.title, "Part"))
         |> Enum.map(& &1.id)
 
-      session = session |> resize_window(1280, 900) |> open("/")
+      session = session |> resize_window(1280, 900) |> open("/all")
 
       # Through the list, as a reader moves: the page and its player are never loaded again.
       for id <- ids do
@@ -366,7 +401,7 @@ defmodule SikioWeb.PlayerTest do
 
       session
       |> resize_window(1280, 900)
-      |> open("/library/#{entry.id}")
+      |> open(item_path(entry))
       |> click(css("#start-playback"))
       |> assert_has(css("#player-panel [data-audio-face]"))
       |> mark_player()

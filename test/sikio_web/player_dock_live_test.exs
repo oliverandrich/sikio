@@ -16,7 +16,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
   setup :sign_in_with_episode
 
   test "the authenticated root layout owns an independent player outside routed content", c do
-    for path <- [~p"/", ~p"/subscriptions", ~p"/invitations", ~p"/library/#{c.entry.id}"] do
+    for path <- [~p"/", ~p"/subscriptions", ~p"/invitations", item_path(c.entry)] do
       html = c.conn |> get(path) |> html_response(200)
       document = Floki.parse_document!(html)
 

@@ -31,7 +31,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the magnifier opens a search that narrows the list", %{session: session} do
     session
     |> resize_window(1440, 900)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#entries article", count: 25))
     |> refute_has(css("#search-input"))
     |> click(css("#toggle-search"))
@@ -51,7 +51,7 @@ defmodule SikioWeb.LibraryTest do
   feature "f opens the search and puts the cursor in it", %{session: session} do
     session
     |> resize_window(1440, 900)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#entries article", count: 25))
     |> send_keys(["f"])
     |> assert_has(css("#search-input"))
@@ -67,7 +67,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the list scrolls on its own beneath its head", %{session: session} do
     session
     |> resize_window(1440, 700)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#entries article", count: 25))
     |> assert_has(css("#item-detail h2"))
     |> execute_script("document.getElementById('list-pane').scrollTop = 1200")
@@ -93,7 +93,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the detail scrolls on its own and starts at the top", %{session: session} do
     session
     |> resize_window(1440, 400)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#item-detail h2", text: "Episode 40"))
     |> execute_script("document.getElementById('item-detail').scrollTop = 150")
     |> execute_script(
@@ -116,7 +116,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the keyboard scrolls a column it has focused", %{session: session} do
     session
     |> resize_window(1440, 400)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#item-detail h2", text: "Episode 40"))
     |> execute_script(
       "return ['list-pane', 'item-detail'].map(id => document.getElementById(id).tabIndex)",
@@ -141,7 +141,7 @@ defmodule SikioWeb.LibraryTest do
   feature "an item opened by its address has its row in view", %{session: session} do
     session
     |> resize_window(1440, 500)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#entries article", count: 25))
     |> execute_script(
       "return document.querySelector('#entries article:nth-child(20) a').getAttribute('href')",
@@ -169,7 +169,7 @@ defmodule SikioWeb.LibraryTest do
   feature "nothing bounces at the end of a scroll", %{session: session} do
     session
     |> resize_window(1440, 700)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#item-detail h2"))
     |> execute_script(
       """
@@ -185,7 +185,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the keyboard keeps the chosen row in view", %{session: session} do
     session
     |> resize_window(1440, 500)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#item-detail h2", text: "Episode 40"))
     |> send_keys(List.duplicate("j", 6))
     |> assert_has(css("#item-detail h2", text: "Episode 34"))
@@ -207,7 +207,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the notes read at a measure of about eighty characters", %{session: session} do
     session
     |> resize_window(1600, 900)
-    |> open("/")
+    |> open("/all")
     |> click(css("#entries article:first-child a"))
     |> assert_has(css("#item-notes"))
     |> execute_script(
@@ -236,10 +236,10 @@ defmodule SikioWeb.LibraryTest do
   feature "a wide screen shows the first item, a phone the list", %{session: session} do
     session
     |> resize_window(1440, 900)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#item-detail h2", text: "Episode 40"))
     |> resize_window(500, 900)
-    |> open("/")
+    |> open("/all")
     # Absent before the page connects proves nothing; the hook only asks once it has.
     |> assert_has(css("[data-phx-main].phx-connected"))
     |> assert_has(css("#entries article", count: 25))
@@ -249,7 +249,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the list loads the next batch when its end comes into view", %{session: session} do
     session
     |> resize_window(1440, 900)
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#entries article", count: 25))
     |> execute_script("document.querySelector('#entries article:last-child').scrollIntoView()")
     |> assert_has(css("#entries article", count: 40))

@@ -33,7 +33,7 @@ defmodule SikioWeb.MobileTest do
 
     session
     |> resize_window(500, 900)
-    |> open("/")
+    |> open("/all")
     |> execute_script(gap_below("#main-navigation"), fn gap -> assert gap == 0 end)
     |> click(css("#chip-sources summary"))
     |> click(css("#chip-source-#{entries.podcast.feed_id}"))
@@ -65,7 +65,7 @@ defmodule SikioWeb.MobileTest do
 
     session
     |> resize_window(500, 900)
-    |> open("/library/#{entries.podcast.id}")
+    |> open(item_path(entries.podcast))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> click(css("#user-menu summary"))
@@ -84,7 +84,7 @@ defmodule SikioWeb.MobileTest do
 
     session
     |> resize_window(500, 900)
-    |> open("/library/#{entries.podcast.id}")
+    |> open(item_path(entries.podcast))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> execute_script(

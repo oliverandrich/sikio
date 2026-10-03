@@ -31,6 +31,17 @@ defmodule Sikio.LibraryTest do
     assert Library.entries(ctx.bob) == []
   end
 
+  # The mini player's title shows what plays in the list on screen when that list holds it.
+  test "says whether a list holds an entry, for the account alone", ctx do
+    {:ok, _} = Library.subscribe(ctx.alice, ctx.preview)
+    [entry] = Library.entries(ctx.alice)
+
+    assert Library.listed?(ctx.alice, %{"status" => "new"}, entry.id)
+    refute Library.listed?(ctx.alice, %{"status" => "completed"}, entry.id)
+    refute Library.listed?(ctx.bob, %{}, entry.id)
+    refute Library.listed?(ctx.alice, %{}, "nonsense")
+  end
+
   test "pause and removal only affect the owning account", ctx do
     {:ok, ours} = Library.subscribe(ctx.alice, ctx.preview)
     {:ok, theirs} = Library.subscribe(ctx.bob, ctx.preview)

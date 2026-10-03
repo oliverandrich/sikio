@@ -30,7 +30,7 @@ defmodule SikioWeb.CardActionsTest do
 
     session
     |> resize_window(1024, 800)
-    |> open("/library/#{video.id}")
+    |> open(item_path(video))
     |> assert_has(css("#item-actions #open-original"))
     |> execute_script(measure(), fn [card_right, actions_right, label] ->
       assert actions_right <= card_right, "the actions stay inside the card"
@@ -43,7 +43,7 @@ defmodule SikioWeb.CardActionsTest do
 
     session
     |> resize_window(1920, 900)
-    |> open("/library/#{video.id}")
+    |> open(item_path(video))
     |> assert_has(css("#item-actions #open-original", text: "Open on YouTube"))
     |> execute_script(measure(), fn [card_right, actions_right, label] ->
       assert actions_right <= card_right

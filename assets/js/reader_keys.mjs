@@ -12,6 +12,14 @@ export function readerKey(event) {
   return event.key === "j" || event.key === "k" ? event.key : null
 }
 
+// The mini player's title links to what plays in its source, which works on any page. In the
+// library a plain click asks the page instead, which keeps the list on screen when it holds the
+// item. A click meant for a new tab or window stays the browser's.
+export function shownEntry(event) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null
+  return event.target?.closest?.("[data-show-entry]")?.dataset.showEntry ?? null
+}
+
 // Beside the list there is room for the detail, so a wide screen always shows something there.
 // On a phone the detail would cover the list, so nothing is chosen for the reader.
 export function wantsFirst({wide, selected, rows}) {
@@ -58,6 +66,15 @@ export const ReaderKeys = {
       else if (key) this.pushEvent("move", {key})
     }
     window.addEventListener("keydown", this.onKey)
+    // Caught before LiveView's own navigation, which would go to the item's source.
+    this.onClick = event => {
+      const id = shownEntry(event)
+      if (id === null) return
+      event.preventDefault()
+      event.stopPropagation()
+      this.pushEvent("show", {id})
+    }
+    document.addEventListener("click", this.onClick, {capture: true})
     this.chooseFirst = () => {
       const {selected, rows} = this.el.dataset
       if (wantsFirst({wide: WIDE.matches, selected, rows: Number(rows)})) this.pushEvent("select_first", {})
@@ -81,6 +98,7 @@ export const ReaderKeys = {
   },
   destroyed() {
     window.removeEventListener("keydown", this.onKey)
+    document.removeEventListener("click", this.onClick, {capture: true})
     WIDE.removeEventListener("change", this.fitWidth)
   }
 }
