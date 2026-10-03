@@ -253,6 +253,15 @@ defmodule SikioWeb.LibraryLive do
   defp tab(_path, %{"status" => "in_progress", "source" => "", "tag" => ""}), do: :in_progress
   defp tab(_path, _filters), do: :library
 
+  # Where a phone's bar leads back: an item to its list, a place within the Library to the Library.
+  defp back(selected, _tab, heading, list) when selected != nil,
+    do: %{patch: list, label: heading}
+
+  defp back(nil, :library, _heading, _list), do: %{to: ~p"/library", label: gettext("Library")}
+  defp back(nil, _tab, _heading, _list), do: nil
+
+  defp list_path(filters, titles), do: SikioWeb.Sidebar.library_path(filters, nil, titles)
+
   # The library's address for `filters` and `item`, naming sources by their titles.
   defp address(socket, filters, item \\ nil),
     do: SikioWeb.Sidebar.library_path(filters, item, socket.assigns.sidebar.titles)
@@ -762,8 +771,8 @@ defmodule SikioWeb.LibraryLive do
       bleed
       section={:library}
       tab={@tab}
-      title={@heading}
-      back={if(@tab == :library, do: %{to: ~p"/library", label: gettext("Library")})}
+      title={if(@selected, do: @selected.title, else: @heading)}
+      back={back(@selected, @tab, @heading, list_path(@filters, @sidebar.titles))}
     >
       <div
         id="library"
@@ -793,7 +802,11 @@ defmodule SikioWeb.LibraryLive do
             <%!-- The heading has the head's whole width, so a long source's name wraps late. The
                  count and the actions share the line beneath it. --%>
             <div class="flex flex-col gap-0.5 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
-              <h1 id="library-heading" data-large-title class="text-title font-semibold">
+              <h1
+                id="library-heading"
+                data-large-title={!@selected}
+                class="text-title font-semibold"
+              >
                 {@heading}
               </h1>
               <div class="flex min-h-9 items-center justify-between gap-3">
@@ -1111,7 +1124,6 @@ defmodule SikioWeb.LibraryLive do
             entry={@selected}
             notes={@notes}
             chapters={@chapters}
-            back={SikioWeb.Sidebar.library_path(@filters, nil, @sidebar.titles)}
           />
         </section>
       </div>
@@ -1392,7 +1404,6 @@ defmodule SikioWeb.LibraryLive do
   attr :entry, :map, required: true
   attr :notes, :any, required: true, doc: "the filtered notes, or nil"
   attr :chapters, :list, required: true, doc: "the chapters the notes listed"
-  attr :back, :string, required: true
 
   defp detail(assigns) do
     entry = assigns.entry
@@ -1405,9 +1416,6 @@ defmodule SikioWeb.LibraryLive do
       )
 
     ~H"""
-    <.link patch={@back} class="mb-4 inline-block text-label font-semibold text-accent lg:hidden">
-      {gettext("← Your library")}
-    </.link>
     <%!-- A card from lg. A phone shows the item on the page itself. A video spans either. --%>
     <article class="@container flex flex-col gap-4 lg:rounded-2xl lg:bg-surface lg:p-6 lg:shadow-sm lg:ring-1 lg:ring-line">
       <div class="flex items-start gap-3">
@@ -1522,7 +1530,7 @@ defmodule SikioWeb.LibraryLive do
       <%!-- The medium first, then the text about it. The title and the notes share one column at a
       reading measure in the card's middle; the card keeps the column's width. --%>
       <section class="mx-auto flex w-full max-w-[80ch] flex-col gap-3 pt-2">
-        <h2 class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
+        <h2 data-large-title class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
         <.chapters :if={@chapters != []} chapters={@chapters} entry={@entry} />
         <div class="flex flex-col gap-3 border-t border-line pt-4">
           <div :if={@notes} id="item-notes" class="notes text-body text-ink">

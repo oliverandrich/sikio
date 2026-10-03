@@ -165,7 +165,8 @@ defmodule SikioWeb.Layouts do
 
   attr :back, :map,
     default: nil,
-    doc: "`%{to: path, label: text}`, where a phone's bar leads back to"
+    doc:
+      "`%{to: path, label: text}`, where a phone's bar leads back to; `patch:` stays in the view"
 
   attr :bleed, :boolean,
     default: false,
@@ -201,7 +202,8 @@ defmodule SikioWeb.Layouts do
           <.link
             :if={@back}
             id="nav-back"
-            navigate={@back.to}
+            navigate={@back[:to]}
+            patch={@back[:patch]}
             class="flex min-h-11 items-center gap-0.5 text-body font-medium text-accent lg:hidden"
           >
             <Lucideicons.chevron_left aria-hidden="true" class="-ml-1.5 size-6" />

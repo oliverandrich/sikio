@@ -46,6 +46,27 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css("#places-views"))
   end
 
+  # An item names itself in the bar once its title has scrolled away, and the bar leads back to
+  # the list it was opened from.
+  feature "an item leads back to its list from the bar", context do
+    %{session: session, entries: entries} = context
+
+    session
+    |> resize_window(390, 844)
+    |> open("/new")
+    |> click(css("#entries a", text: entries.podcast.title))
+    |> assert_has(css("#nav-back", text: "New"))
+    |> refute_has(css("#app-header[data-shrunk]"))
+    |> execute_script("""
+    document.getElementById('item-detail').style.paddingBottom = '2000px'
+    window.scrollTo(0, 600)
+    """)
+    |> assert_has(css("#app-header[data-shrunk]"))
+    |> click(css("#nav-back"))
+    |> assert_has(css("#entries article", text: entries.youtube.title))
+    |> refute_has(css("#nav-back"))
+  end
+
   # On a phone the filters fold away behind a button. Once open they stay open while the reader
   # moves between them, however the page was reached.
   feature "the filters stay open while the reader changes them", context do

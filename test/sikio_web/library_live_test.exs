@@ -670,6 +670,17 @@ defmodule SikioWeb.LibraryLiveTest do
       refute has_element?(view, "#nav-back")
     end
 
+    # An item leads back to the list it was opened from and names itself once its title has
+    # scrolled away. The bar's way back is its only one.
+    test "a phone's item leads back to its list", c do
+      {:ok, view, _} = live(c.conn, "/new/#{c.audio.id}-one-two")
+      assert has_element?(view, ~s|#nav-back[href="/new"]|, "New")
+      assert has_element?(view, "#nav-title", c.audio.title)
+      assert has_element?(view, "#item-detail h2[data-large-title]")
+      refute has_element?(view, "#library-heading[data-large-title]")
+      refute has_element?(view, "#item-detail a", "Your library")
+    end
+
     # A phone moves between four tabs, and the one it is in is marked. What is in progress has a
     # tab of its own, because going on with it is what a reader most often comes for.
     test "a phone's tabs lead to new, the library and search, and mark where it is", c do
