@@ -20,6 +20,7 @@ defmodule SikioWeb.LibraryLive do
   alias Sikio.Feeds
   alias Sikio.Library
   alias Sikio.Playback
+  alias SikioWeb.DateGroups
   alias SikioWeb.Notes
   alias SikioWeb.Pictures
 
@@ -39,9 +40,18 @@ defmodule SikioWeb.LibraryLive do
        more?: false,
        search_open?: false,
        marking: nil,
-       chosen_for_width: nil
+       chosen_for_width: nil,
+       time_zone_offset: time_zone_offset(get_connect_params(socket))
      )}
   end
+
+  # The reader's offset from UTC in minutes, sent by the browser. The static render, before it
+  # connects, counts days in UTC.
+  defp time_zone_offset(%{"time_zone_offset" => offset})
+       when is_integer(offset) and abs(offset) <= 14 * 60,
+       do: offset
+
+  defp time_zone_offset(_params), do: 0
 
   # The list is read again only when the filters change. The rows are keyed, so choosing another
   # item sends only the two rows whose selection changed and the list stands.
@@ -83,6 +93,57 @@ defmodule SikioWeb.LibraryLive do
       else: push_patch(socket, to: canonical, replace: true)
   end
 
+  # The list's rows with a heading wherever the date group changes, by the date the list runs by.
+  defp grouped(entries, filters, offset) do
+    by = Library.sorted_by(filters)
+    now = DateTime.utc_now()
+
+    entries
+    |> Enum.chunk_by(&(Library.sort_date(&1, by) |> DateGroups.group(now, offset) |> elem(0)))
+    |> Enum.flat_map(fn [first | _] = chunk ->
+      {key, label} = DateGroups.group(Library.sort_date(first, by), now, offset)
+      [{:heading, key, label} | Enum.map(chunk, &{:entry, &1})]
+    end)
+  end
+
+  defp row_id({:heading, {year, month}, _label}), do: "group-#{year}-#{month}"
+  defp row_id({:heading, key, _label}), do: "group-#{key}"
+  defp row_id({:entry, entry}), do: "entries-#{entry.id}"
+
+  # A heading between date groups, or an entry. Headings stay in view under the list's own head
+  # while their group scrolls past; see assets/js/list_head.mjs for the head's height.
+  attr :row, :any, required: true
+  attr :filters, :map, required: true
+  attr :titles, :map, required: true, doc: "the sources' titles, which addresses name"
+  attr :selected, :any, required: true, doc: "the id of the entry shown beside the list"
+
+  defp list_row(%{row: {:heading, _key, label}} = assigns) do
+    assigns = assign(assigns, :label, label)
+
+    ~H"""
+    <h2
+      id={row_id(@row)}
+      data-group
+      class="border-b border-line bg-surface px-6 pt-4 pb-1.5 text-meta font-semibold tracking-wider text-muted uppercase sm:px-12 lg:sticky lg:top-(--list-head) lg:z-[5] lg:px-4"
+    >
+      {@label}
+    </h2>
+    """
+  end
+
+  defp list_row(%{row: {:entry, entry}} = assigns) do
+    assigns = assign(assigns, :entry, entry)
+
+    ~H"""
+    <.entry_row
+      id={row_id(@row)}
+      entry={@entry}
+      to={SikioWeb.Sidebar.library_path(@filters, @entry, @titles)}
+      selected={@selected == @entry.id}
+    />
+    """
+  end
+
   # The library's address for `filters` and `item`, naming sources by their titles.
   defp address(socket, filters, item \\ nil),
     do: SikioWeb.Sidebar.library_path(filters, item, socket.assigns.sidebar.titles)
@@ -92,21 +153,12 @@ defmodule SikioWeb.LibraryLive do
   defp reach(%{assigns: %{selected: nil}} = socket), do: socket
 
   defp reach(%{assigns: %{selected: selected, entries: entries, more?: more?}} = socket) do
-    if position(socket) || !more? || (entries != [] and !before?(List.last(entries), selected)),
-      do: socket,
-      else: socket |> load_more() |> reach()
-  end
+    by = Library.sorted_by(socket.assigns.filters)
 
-  # Whether `a` comes before `b` in the list: newer first, undated last, the higher id first.
-  defp before?(%{published_at: nil}, %{published_at: %DateTime{}}), do: false
-  defp before?(%{published_at: %DateTime{}}, %{published_at: nil}), do: true
-
-  defp before?(a, b) do
-    case a.published_at && DateTime.compare(a.published_at, b.published_at) do
-      :gt -> true
-      :lt -> false
-      _ -> a.id > b.id
-    end
+    if position(socket) || !more? ||
+         (entries != [] and !Library.before?(List.last(entries), selected, by)),
+       do: socket,
+       else: socket |> load_more() |> reach()
   end
 
   @impl true
@@ -446,6 +498,7 @@ defmodule SikioWeb.LibraryLive do
         <div
           id="list-pane"
           tabindex="0"
+          phx-mounted={JS.ignore_attributes("style")}
           class={[
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
             "min-w-0 lg:h-svh lg:overflow-y-auto lg:overscroll-none lg:border-r lg:border-line lg:bg-surface",
@@ -453,7 +506,7 @@ defmodule SikioWeb.LibraryLive do
           ]}
         >
           <%!-- Heading, search and filters stay in view while the list scrolls beneath them. --%>
-          <div id="list-head" class="lg:sticky lg:top-0 lg:z-10 lg:bg-surface">
+          <div id="list-head" phx-hook="ListHead" class="lg:sticky lg:top-0 lg:z-10 lg:bg-surface">
             <div class="flex items-start justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
               <div class="flex min-w-0 flex-col gap-0.5">
                 <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
@@ -673,13 +726,13 @@ defmodule SikioWeb.LibraryLive do
             phx-viewport-bottom={@more? && "load_more"}
             class="border-t border-line bg-surface empty:hidden lg:border-t-0"
           >
-            <.entry_row
-              :for={entry <- @entries}
-              :key={entry.id}
-              id={"entries-#{entry.id}"}
-              entry={entry}
-              to={SikioWeb.Sidebar.library_path(@filters, entry, @sidebar.titles)}
-              selected={@selected && @selected.id == entry.id}
+            <.list_row
+              :for={row <- grouped(@entries, @filters, @time_zone_offset)}
+              :key={row_id(row)}
+              row={row}
+              filters={@filters}
+              titles={@sidebar.titles}
+              selected={@selected && @selected.id}
             />
           </div>
         </div>

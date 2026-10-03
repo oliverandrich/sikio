@@ -94,6 +94,31 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#view-completed-count", text: "40"))
   end
 
+  # A date heading sticks beneath the list's head while its group scrolls past.
+  feature "date headings stick beneath the list's head", %{session: session} do
+    now = DateTime.utc_now()
+
+    for {entry, n} <- Enum.with_index(Sikio.Repo.all(Sikio.Feeds.Entry)) do
+      entry
+      |> Ecto.Changeset.change(published_at: DateTime.add(now, -n * 6, :day))
+      |> Sikio.Repo.update!()
+    end
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/all")
+    |> assert_has(css("#group-today"))
+    |> execute_script("document.getElementById('list-pane').scrollTop = 900")
+    |> execute_script(
+      """
+      const head = document.getElementById('list-head').getBoundingClientRect().bottom
+      return [...document.querySelectorAll('#entries [data-group]')]
+        .some(h => Math.abs(h.getBoundingClientRect().top - head) < 1)
+      """,
+      fn stuck -> assert stuck, "no heading stands beneath the list's head" end
+    )
+  end
+
   # The search folds away behind the magnifier. Opened, the field takes the keyboard, so typing
   # j or k searches rather than moves; Escape clears it and folds it away again.
   feature "the magnifier opens a search that narrows the list", %{session: session} do
@@ -172,7 +197,7 @@ defmodule SikioWeb.LibraryTest do
         assert head == 0
       end
     )
-    |> click(css("#entries article:nth-child(2) a"))
+    |> click(css("#entries article:nth-of-type(2) a"))
     |> assert_has(css("#item-detail h2", text: "Episode 39"))
     |> execute_script("return document.getElementById('item-detail').scrollTop", fn top ->
       assert top == 0
@@ -212,7 +237,7 @@ defmodule SikioWeb.LibraryTest do
     |> open("/all")
     |> assert_has(css("#entries article", count: 25))
     |> execute_script(
-      "return document.querySelector('#entries article:nth-child(20) a').getAttribute('href')",
+      "return document.querySelector('#entries article:nth-of-type(20) a').getAttribute('href')",
       fn href -> Process.put(:href, href) end
     )
     |> then(&open(&1, Process.delete(:href)))
@@ -221,7 +246,7 @@ defmodule SikioWeb.LibraryTest do
       """
       const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
       return frame().then(frame).then(() => {
-        const row = document.querySelector('#entries article:nth-child(20)').getBoundingClientRect()
+        const row = document.querySelector('#entries article:nth-of-type(20)').getBoundingClientRect()
         const head = document.getElementById('list-head').getBoundingClientRect()
         return [Math.round(row.top - head.bottom), Math.round(window.innerHeight - row.bottom)]
       })
@@ -259,7 +284,7 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#item-detail h2", text: "Episode 34"))
     |> execute_script(
       """
-      const row = document.querySelector('#entries article:nth-child(7)').getBoundingClientRect()
+      const row = document.querySelector('#entries article:nth-of-type(7)').getBoundingClientRect()
       const head = document.getElementById('list-head').getBoundingClientRect()
       return [Math.round(row.top - head.bottom), Math.round(window.innerHeight - row.bottom)]
       """,
@@ -276,7 +301,7 @@ defmodule SikioWeb.LibraryTest do
     session
     |> resize_window(1600, 900)
     |> open("/all")
-    |> click(css("#entries article:first-child a"))
+    |> click(css("#entries article:first-of-type a"))
     |> assert_has(css("#item-notes"))
     |> execute_script(
       """

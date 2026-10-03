@@ -34,12 +34,18 @@ import {ReaderKeys} from "./reader_keys.mjs"
 import {DockPlace} from "./dock_place.mjs"
 import {AudioCue} from "./audio_cue.mjs"
 import {Shortcuts} from "./shortcuts.mjs"
+import {ListHead} from "./list_head.mjs"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: view => ({_csrf_token: csrfToken, ...rejoinParams(view)}),
-  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue, Shortcuts},
+  // The reader's offset from UTC in minutes, which decides where the library's "today" begins.
+  params: view => ({
+    _csrf_token: csrfToken,
+    time_zone_offset: -new Date().getTimezoneOffset(),
+    ...rejoinParams(view),
+  }),
+  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue, Shortcuts, ListHead},
 })
 
 // Show progress bar on live navigation and form submits

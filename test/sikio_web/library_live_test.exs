@@ -688,6 +688,62 @@ defmodule SikioWeb.LibraryLiveTest do
 
   # The list loads enough for a screen and the next batch as its end comes into view. There are
   # no pages to turn.
+  # Headings name when the items below them happened, in the order the list runs: when they
+  # were published, or for what is in progress when it was last played.
+  describe "date groups" do
+    defp headings(view) do
+      view
+      |> element("#entries")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find("[data-group]")
+      |> Enum.map(&String.trim(Floki.text(&1)))
+    end
+
+    test "a list is grouped by when its items were published", c do
+      now = DateTime.utc_now()
+
+      Repo.insert_all(Sikio.Feeds.Entry, [
+        %{
+          feed_id: c.sub.feed_id,
+          external_id: "fresh",
+          title: "Fresh",
+          published_at: now,
+          inserted_at: now,
+          updated_at: now
+        },
+        %{
+          feed_id: c.sub.feed_id,
+          external_id: "old",
+          title: "Old",
+          published_at: ~U[2025-12-24 12:00:00.000000Z],
+          inserted_at: now,
+          updated_at: now
+        }
+      ])
+
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours/all")
+      assert ["Today" | _] = headings(view)
+      assert List.last(headings(view)) == "December 2025"
+      assert headings(view) == Enum.uniq(headings(view))
+      refute has_element?(view, "#entries article[data-group]")
+    end
+
+    test "what is in progress is grouped by when it was last played", c do
+      {:ok, state} = Playback.start(c.user, c.audio.id)
+
+      Playback.save(c.user, c.audio.id, state.session_id, %{
+        "sequence" => 1,
+        "position" => 30,
+        "duration" => 100,
+        "ended" => false
+      })
+
+      {:ok, view, _} = live(c.conn, ~p"/in-progress")
+      assert headings(view) == ["Today"]
+    end
+  end
+
   describe "the list grows" do
     setup c do
       insert_entries(c, for(n <- 1..40, do: "Bulk #{n}"))

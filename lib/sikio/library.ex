@@ -109,28 +109,68 @@ defmodule Sikio.Library do
   when an episode arrives in between.
   """
   def entries(%User{id: user_id}, filters \\ %{}, opts \\ []) do
-    query = user_id |> filtered_entries(filters) |> behind(opts[:after])
+    by = sorted_by(filters)
+    query = user_id |> filtered_entries(filters) |> behind(by, opts[:after])
 
     Repo.all(
       from e in query,
-        order_by: [desc_nulls_last: e.published_at, desc: e.id],
+        order_by: ^[desc_nulls_last: key(by), desc: dynamic([e], e.id)],
         limit: ^Keyword.get(opts, :limit, 100)
     )
   end
 
-  defp behind(query, nil), do: query
+  @doc """
+  The date a list with `filters` runs by: what is in progress by when it was last played, what is
+  finished by when it was finished, everything else by when it was published.
+  """
+  def sorted_by(filters) do
+    case normalize_filters(filters)["status"] do
+      "in_progress" -> :played
+      "completed" -> :finished
+      _ -> :published
+    end
+  end
 
-  defp behind(query, %{published_at: nil, id: id}),
-    do: where(query, [e], is_nil(e.published_at) and e.id < ^id)
+  @doc "The date `entry` has in a list that runs `by` it, or nil when it has none."
+  def sort_date(entry, :published), do: entry.published_at
+  def sort_date(%{playback: %{updated_at: at}}, :played), do: at
+  def sort_date(%{playback: %{completed_at: at}}, :finished), do: at
+  def sort_date(_entry, _by), do: nil
 
-  defp behind(query, %{published_at: published_at, id: id}),
-    do:
-      where(
-        query,
-        [e],
-        e.published_at < ^published_at or (e.published_at == ^published_at and e.id < ^id) or
-          is_nil(e.published_at)
-      )
+  @doc "Whether `a` comes before `b` in a list that runs `by` a date: later first, undated last."
+  def before?(a, b, by) do
+    case {sort_date(a, by), sort_date(b, by)} do
+      {nil, %DateTime{}} ->
+        false
+
+      {%DateTime{}, nil} ->
+        true
+
+      {x, y} ->
+        if x && DateTime.compare(x, y) != :eq, do: DateTime.after?(x, y), else: a.id > b.id
+    end
+  end
+
+  defp key(:published), do: dynamic([e], e.published_at)
+  defp key(:played), do: dynamic([e, s, p], p.updated_at)
+  defp key(:finished), do: dynamic([e, s, p], p.completed_at)
+
+  # The entries after `entry` in the list's order, for loading the next batch.
+  defp behind(query, _by, nil), do: query
+
+  defp behind(query, by, %{id: id} = entry) do
+    key = key(by)
+
+    case sort_date(entry, by) do
+      nil ->
+        where(query, ^dynamic([e], is_nil(^key) and e.id < ^id))
+
+      # Typed, because a key that is itself interpolated tells Ecto nothing about the value.
+      at ->
+        at = dynamic(type(^at, :utc_datetime_usec))
+        where(query, ^dynamic([e], ^key < ^at or (^key == ^at and e.id < ^id) or is_nil(^key)))
+    end
+  end
 
   @doc """
   This account's entries grouped by source, medium and status, from one query.
