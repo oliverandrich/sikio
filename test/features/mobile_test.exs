@@ -46,6 +46,23 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css("#places-views"))
   end
 
+  # The Filter button looks pressed while the filters are open.
+  feature "the filter button shows whether the filters are open", context do
+    %{session: session, entries: entries} = context
+    look = "return getComputedStyle(document.getElementById('toggle-filters')).backgroundColor"
+
+    session
+    |> resize_window(500, 900)
+    |> open("/feeds/#{entries.podcast.feed_id}/completed")
+    |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
+    |> execute_script(look, fn open -> Process.put(:open, open) end)
+    |> click(css("#toggle-filters"))
+    |> assert_has(css(~s|#toggle-filters[aria-expanded="false"]|))
+    |> execute_script(look, fn closed ->
+      refute closed == Process.delete(:open), "open and closed look alike"
+    end)
+  end
+
   # An item names itself in the bar once its title has scrolled away, and the bar leads back to
   # the list it was opened from.
   feature "an item leads back to its list from the bar", context do

@@ -1093,7 +1093,7 @@ defmodule SikioWeb.LibraryLive do
                 aria-controls="list-filters"
                 aria-expanded="false"
                 phx-click={toggle_filters()}
-                class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink lg:hidden"
+                class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink aria-expanded:border-transparent aria-expanded:bg-selection aria-expanded:text-accent lg:hidden"
               >
                 <Lucideicons.sliders_horizontal aria-hidden="true" class="size-3.5" />
                 {gettext("Filter")}
