@@ -17,8 +17,8 @@ See [Using Sikio](docs/usage.md) for subscription, playback and feed limits.
 
 ## Running it locally
 
-You need [mise](https://mise.jdx.dev), a running PostgreSQL 18, and Chrome with a matching
-chromedriver for the browser tests.
+You need [mise](https://mise.jdx.dev) and Chrome with a matching chromedriver for the browser
+tests. The full check also needs a running PostgreSQL 18, because it tests both databases.
 
 ```sh
 mise trust
@@ -34,9 +34,12 @@ menu you can then create links. Invitations last seven days, are bound to the us
 used once, and each member may make twenty a day. After `mise run reset` the database is
 unclaimed again, so issue another code.
 
-Development and tests default to `postgres:postgres` on `localhost:5432`, with separate
-`sikio_dev` and `sikio_test` databases. `PGUSER`, `PGPASSWORD`, `PGHOST` and `PGPORT` override
-the connection. Use passkeys over **localhost** locally and over HTTPS once published.
+Development runs on SQLite by default, in `tmp/sikio_dev.db`. Set `SIKIO_DATABASE=postgres` to
+develop against PostgreSQL instead; [Contributing](CONTRIBUTING.md) has the details. Use passkeys
+over **localhost** locally and over HTTPS once published.
+
+A release serves SQLite or PostgreSQL, chosen when it is built. [Operations](docs/operations.md)
+describes both.
 
 ## Documentation
 

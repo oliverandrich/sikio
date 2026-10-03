@@ -120,6 +120,11 @@ system beside it. Every member may invite; there is no administrator role.
 Migrations and schemas use `:utc_datetime_usec`. Never reset a database that holds
 development data.
 
+A build serves SQLite, the default, or PostgreSQL, chosen with `SIKIO_DATABASE` at compile time.
+Every query and migration runs on both, and `mise run check` tests both. Write portable Ecto
+queries; where the databases differ, branch on the build's database in one named place, as
+`Sikio.Repo.for_update/1` does.
+
 `SikioWeb.PlayerDockLive` is the one exception to the layout rule. It is an
 independently authenticated LiveView rendered in the root layout, outside the view that
 navigation swaps, so a YouTube iframe is never moved and never reloads. Everything else

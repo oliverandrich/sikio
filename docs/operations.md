@@ -5,31 +5,45 @@ Build for a compatible OS version, architecture and system libraries; a build on
 one platform is not a portability guarantee for another. No Elixir, Mix or build
 toolchain is needed on the target. Platform support must be verified separately.
 
+## Choose a database
+
+A release serves one database, chosen when it is built. SQLite is the default and needs no
+database server: the data lives in one file on the host. PostgreSQL suits an instance whose
+database runs elsewhere or is managed with other databases. Switching later means a new release
+and moving the data, which Sikio does not do for you.
+
 ## Build and unpack
 
 On the build machine, with the pinned tools installed:
 
 ```sh
-mise run release
+mise run release                          # SQLite
+SIKIO_DATABASE=postgres mise run release  # PostgreSQL
 ```
 
-Copy the complete `_build/prod/rel/sikio` directory, or archive and unpack it on
-the target. Keep configuration and persistent data outside that directory.
+The release lands in `_build/sqlite/prod/rel/sikio` or `_build/postgres/prod/rel/sikio`. Copy
+the complete directory, or archive and unpack it on the target. Keep configuration and
+persistent data outside that directory.
 
 ## Configure and start
 
-Provide PostgreSQL 18 and an existing database with a dedicated owner. Export
-these variables in the environment used for both migration and startup:
+For a SQLite release, choose an absolute path for the database file outside the release, in a
+directory the service can write to. `bin/migrate` creates the file. SQLite keeps a write-ahead
+log beside it, `-wal` and `-shm`, which belong to the database. For a PostgreSQL release,
+provide PostgreSQL 18 and an existing database with a dedicated owner.
+
+Export these variables in the environment used for both migration and startup:
 
 | Variable | Meaning |
 | --- | --- |
-| `DATABASE_URL` | `ecto://USER:URL_ENCODED_PASSWORD@HOST/DATABASE` |
+| `DATABASE_PATH` | SQLite release: absolute path of the database file; a missing or relative path stops the boot |
+| `DATABASE_URL` | PostgreSQL release: `ecto://USER:URL_ENCODED_PASSWORD@HOST/DATABASE` |
 | `SECRET_KEY_BASE` | Generate with `mix phx.gen.secret` on the build machine; keep permanently |
 | `PHX_HOST` | Stable public hostname without scheme or port; a missing value stops the boot |
 | `PORT` | Internal HTTP port, 4000 by default |
 | `PHX_BIND_IP` | Address the HTTP listener binds to, all interfaces by default; `127.0.0.1` behind a proxy on the same host |
-| `POOL_SIZE` | Database connections, 10 by default |
-| `ECTO_IPV6` | `true` to reach the database over IPv6 |
+| `POOL_SIZE` | Database connections, 5 by default for SQLite and 10 for PostgreSQL |
+| `ECTO_IPV6` | PostgreSQL release: `true` to reach the database over IPv6 |
 | `DNS_CLUSTER_QUERY` | DNS name that lists other nodes to cluster with; unset for a single node |
 | `PICTURE_CACHE_DIR` | Absolute path for pictures fetched from publishers; outside the release, writable by the service |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
@@ -52,7 +66,11 @@ link that goes nowhere.
 The HTTP listener binds to `::` (all interfaces) unless `PHX_BIND_IP` names an address.
 A value that is not an address stops the boot. `PORT` is configurable.
 The release does not automatically load a `.env` file. Use a protected network
-path for a remote database; the current configuration does not enable database TLS.
+path for a remote PostgreSQL database; the current configuration does not enable database TLS.
+
+SQLite runs as dj-lite sets it up for Django: a write-ahead log, `synchronous=NORMAL`, temporary
+tables in memory, a 128 MiB memory map, transactions that take the write lock when they begin,
+and a writer that waits up to five seconds for another. These are compiled into the release.
 From the unpacked release directory:
 
 ```sh
@@ -132,8 +150,10 @@ the passkey dialogue.
 
 ## Updates and data protection
 
-The operator manages PostgreSQL dumps and OS-level backups, including runtime
-configuration and secrets. Sikio has no backup or restore commands, retention
+The operator manages database backups and OS-level backups, including runtime
+configuration and secrets. For SQLite, copy a running database with `sqlite3 DATABASE_PATH
+".backup BACKUP_PATH"` rather than copying the file, which may miss what the write-ahead log
+still holds. For PostgreSQL, use `pg_dump`. Sikio has no backup or restore commands, retention
 scheduler, remote backup service or self-updater.
 
 For an update, prepare a compatible new release and a database backup, stop the

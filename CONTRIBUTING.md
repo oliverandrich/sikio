@@ -2,7 +2,8 @@
 
 ## Get started
 
-Install **mise** and **PostgreSQL 18**, then prepare and start the application:
+Install **mise**, then prepare and start the application. **PostgreSQL 18** is needed for
+`mise run check`, `mise run test` and `mise run smoke`, which cover both databases:
 
 ```sh
 mise trust
@@ -20,7 +21,20 @@ code, development included, so `mise run reset` is followed by another
 
 ## Configure the database
 
-Local defaults are `localhost:5432`, user `postgres`, password `postgres`.
+Sikio builds for SQLite or PostgreSQL, chosen with `SIKIO_DATABASE` when it is compiled. SQLite
+is the default. Each database builds into its own directory, `_build/sqlite` or
+`_build/postgres`, so switching never recompiles the other. The development and test databases
+under SQLite are `tmp/sikio_dev.db` and `tmp/sikio_test.db`.
+
+To develop against PostgreSQL, set the variable in the ignored `mise.local.toml` as a default,
+so a value given on the command line still wins:
+
+```toml
+[env]
+SIKIO_DATABASE = "{{ get_env(name='SIKIO_DATABASE', default='postgres') }}"
+```
+
+PostgreSQL defaults are `localhost:5432`, user `postgres`, password `postgres`.
 Override them through the environment when needed:
 
 ```sh
@@ -31,15 +45,17 @@ export PGPASSWORD=postgres
 ```
 
 Tests use a separate `sikio_test` database, optionally suffixed with
-`MIX_TEST_PARTITION`. Never point tests at development or production data.
-Production uses `DATABASE_URL` and `SECRET_KEY_BASE`; see [Operations](docs/operations.md).
+`MIX_TEST_PARTITION`. Never point tests at development or production data. Under SQLite the
+tests take turns, because the database has one writer and each test holds a transaction.
+Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`; see
+[Operations](docs/operations.md).
 
 ## Command reference
 
 | Command | Purpose |
 | --- | --- |
-| `mise run check` | Workflow audit, compilation, format check, Credo, xref, Sobelow, assets, tests |
-| `mise run test` | Tests with their test-database setup |
+| `mise run check` | Workflow audit, compilation, format check, Credo, xref, Sobelow, assets, tests; the database-dependent ones for both databases |
+| `mise run test` | Tests against SQLite and PostgreSQL, with their test-database setup |
 | `mise run format` | Explicit formatting |
 | `mise run credo` | Compile then strict Credo |
 | `mise run audit` | Dependency advisories and retired Hex packages |
@@ -48,13 +64,14 @@ Production uses `DATABASE_URL` and `SECRET_KEY_BASE`; see [Operations](docs/oper
 | `mise run dev` | Start the development server in the foreground |
 | `mise run reset` | Drop and recreate the development database, migrate and seed |
 | `mise run debugserver` | IEx Phoenix server |
-| `mise run release` | A production release for this OS and architecture |
-| `mise run smoke` | Build the release and run it against a disposable database |
+| `mise run release` | A production release for this OS and architecture, for `SIKIO_DATABASE` |
+| `mise run smoke` | Build a release for each database and run it against a disposable one |
 
 `mise run check` and `mise run test` also run the player's JavaScript tests through node's
 own runner over `assets/js/*.test.mjs`. No npm package is installed for them.
 
-Keep migration history unchanged. Credo scans source, tests and all migrations;
+Keep migration history unchanged. A migration may branch for the database it runs on, and a
+branch added later must leave every existing database's schema as it was. Credo scans source, tests and all migrations;
 Jump inspects inline HEEx and files reached through embed_templates. ExSlop and
 Jump rules are explicitly selected. Audit findings are separate from PR gates.
 Tidewave runs only in development on loopback at /tidewave/mcp.
@@ -91,14 +108,15 @@ mise run check
 mise run smoke
 ```
 
-`mise run smoke` builds the release first. CI runs it after `mise run check`.
+`mise run smoke` builds a release for SQLite and one for PostgreSQL, and checks each. CI runs
+it after `mise run check`.
 
 The smoke test checks that the package contains no backup operations, applies
 migrations twice to its own randomly named disposable database, checks the schema,
 and starts the release over HTTP on a free loopback port. It asks for a host outside
 the `force_ssl` exclude list: plain HTTP must redirect, and `x-forwarded-proto: https`
-must be served with HSTS. It removes only that database and a temporary picture
-directory afterward. It needs the build machine's Elixir and PostgreSQL client tools;
+must be served with HSTS. It removes only that database and a temporary directory afterward.
+It needs the build machine's Elixir, the `sqlite3` client and the PostgreSQL client tools;
 these test tools are not runtime dependencies of the application.
 
 ## Local Beans tracking

@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Run with `mise run smoke`, which builds the release first.
-# Uses PG* credentials with CREATEDB; only creates/drops its own random database.
+# Run with `mise run smoke`, which builds and checks a release for each database.
+# SIKIO_DATABASE names the release to check. A SQLite release gets a file in a temporary
+# directory. A Postgres one uses PG* credentials with CREATEDB and creates and drops its own
+# random database.
 Code.require_file("support/smoke.exs", __DIR__)
 
 defmodule Sikio.ReleaseSmoke do
@@ -17,12 +19,14 @@ defmodule Sikio.ReleaseSmoke do
     source = "sikio_smoke_" <> Support.token(6)
 
     # The release refuses to start without a place for pictures outside itself.
-    Support.temporary(fn pictures ->
-      env = source |> Smoke.database_env() |> Map.put("PICTURE_CACHE_DIR", pictures)
+    Support.temporary(fn directory ->
+      pictures = Path.join(directory, "pictures")
+      File.mkdir!(pictures)
+      env = source |> Smoke.database_env(directory) |> Map.put("PICTURE_CACHE_DIR", pictures)
       Smoke.with_database(source, env, fn -> check(release, env) end)
     end)
 
-    IO.puts("Release migration, repeat migration and HTTP startup passed.")
+    IO.puts("#{Smoke.database()}: release migration, repeat migration and HTTP startup passed.")
   end
 
   defp check(release, env) do
@@ -31,7 +35,7 @@ defmodule Sikio.ReleaseSmoke do
     # The newest table the library asks for, which is what makes this a check on the schema
     # rather than on one migration that happened to run. A release whose migrations lag the
     # library starts and then fails at the first thing that reads what is missing.
-    assert Smoke.query("SELECT to_regclass('public.ithibati_setup_codes') IS NOT NULL", env) == "t"
+    assert Smoke.table?("ithibati_setup_codes", env)
 
     Smoke.run([Path.join(release, "migrate")], env)
 

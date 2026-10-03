@@ -7,12 +7,48 @@ defmodule Sikio.ReleaseSmoke.Smoke do
   alias Sikio.ReleaseSmoke.Support
   @root Path.expand("../..", __DIR__)
 
-  def release,
-    do: Path.join(@root, "_build/#{System.get_env("SIKIO_DATABASE", "sqlite")}/prod/rel/sikio/bin")
-  def run(args, env), do: args |> Support.run(env) |> String.trim()
-  def query(sql, env), do: run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-Atc", sql], env)
+  # The database the release was built for, as `mise run release` read it.
+  def database, do: System.get_env("SIKIO_DATABASE", "sqlite")
 
-  def database_env(database) do
+  def release, do: Path.join(@root, "_build/#{database()}/prod/rel/sikio/bin")
+  def run(args, env), do: args |> Support.run(env) |> String.trim()
+
+  @doc "Whether the migrated schema holds `table`."
+  def table?(table, env) do
+    case database() do
+      "sqlite" ->
+        sql = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = '#{table}'"
+        run(["sqlite3", env["DATABASE_PATH"], sql], env) == "1"
+
+      "postgres" ->
+        sql = "SELECT to_regclass('public.#{table}') IS NOT NULL"
+        run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-Atc", sql], env) == "t"
+    end
+  end
+
+  @doc """
+  The environment a release needs to boot, with a database of its own named `database`. A SQLite
+  release keeps its file in `directory`, which the caller removes.
+  """
+  def database_env(database, directory) do
+    case database() do
+      "sqlite" ->
+        Map.put(boot_env(), "DATABASE_PATH", Path.join(directory, database <> ".db"))
+
+      "postgres" ->
+        postgres_env(database)
+    end
+  end
+
+  defp boot_env do
+    Map.merge(System.get_env(), %{
+      "SECRET_KEY_BASE" => Support.token(64),
+      "PHX_HOST" => "localhost",
+      "PHX_BIND_IP" => "127.0.0.1"
+    })
+  end
+
+  defp postgres_env(database) do
     env = System.get_env()
     user = URI.encode(env["PGUSER"] || "postgres", &URI.char_unreserved?/1)
     password = URI.encode(env["PGPASSWORD"] || "", &URI.char_unreserved?/1)
@@ -21,17 +57,19 @@ defmodule Sikio.ReleaseSmoke.Smoke do
     url =
       "ecto://#{credentials}@#{env["PGHOST"] || "localhost"}:#{env["PGPORT"] || "5432"}/#{database}"
 
-    Map.merge(env, %{
+    Map.merge(boot_env(), %{
       "PGDATABASE" => database,
       "PGCONNECT_TIMEOUT" => "5",
-      "DATABASE_URL" => url,
-      "SECRET_KEY_BASE" => Support.token(64),
-      "PHX_HOST" => "localhost",
-      "PHX_BIND_IP" => "127.0.0.1"
+      "DATABASE_URL" => url
     })
   end
 
+  @doc "Runs `fun` with the database in place. A SQLite release creates its file itself."
   def with_database(name, env, fun) do
+    if database() == "sqlite", do: fun.(), else: with_postgres(name, env, fun)
+  end
+
+  defp with_postgres(name, env, fun) do
     run(["createdb", name], env)
 
     try do
