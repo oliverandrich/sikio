@@ -159,12 +159,15 @@ defmodule SikioWeb.OPMLLive do
       current_account={@current_account}
       sidebar={@sidebar}
       section={:subscriptions}
+      title={gettext("Import OPML")}
+      back={%{to: ~p"/subscriptions", label: gettext("Add a source")}}
     >
+      <%!-- A phone's bar leads back instead. --%>
       <.link
         navigate={~p"/subscriptions"}
-        class="text-label font-semibold text-accent"
+        class="hidden text-label font-semibold text-accent lg:inline"
       >{gettext("← Your subscriptions")}</.link>
-      <div class="mt-8">
+      <div class="lg:mt-8">
         <.header>
           {gettext("Bring your favourites.")}
           <:subtitle>

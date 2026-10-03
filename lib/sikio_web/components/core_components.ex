@@ -340,7 +340,8 @@ defmodule SikioWeb.CoreComponents do
     ~H"""
     <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
       <div>
-        <h1 class="text-title font-semibold">
+        <%!-- A phone's bar takes the page's title once this has scrolled away. --%>
+        <h1 data-large-title class="text-title font-semibold">
           {render_slot(@inner_block)}
         </h1>
         <p

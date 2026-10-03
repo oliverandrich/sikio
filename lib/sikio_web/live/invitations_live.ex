@@ -159,9 +159,11 @@ defmodule SikioWeb.InvitationsLive do
       current_account={@current_account}
       sidebar={@sidebar}
       section={:invitations}
+      title={gettext("Invitations")}
+      back={%{to: ~p"/library", label: gettext("Library")}}
     >
       <.header>
-        {gettext("Welcome home")}
+        {gettext("Invitations")}
         <:subtitle>
           {gettext("Signed in as %{username}.", username: @current_account.username)}
         </:subtitle>

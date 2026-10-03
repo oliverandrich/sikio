@@ -193,6 +193,8 @@ defmodule SikioWeb.SubscriptionsLive do
       current_account={@current_account}
       sidebar={@sidebar}
       section={:subscriptions}
+      title={gettext("Add a source")}
+      back={%{to: ~p"/library", label: gettext("Library")}}
     >
       <p class="mb-4 text-meta font-semibold text-accent">
         {gettext("Curated by you")}
