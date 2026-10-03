@@ -3,14 +3,15 @@
 // Where the player panel goes. It never moves in the DOM, because a moved YouTube iframe reloads,
 // so this only names its place for the stylesheet and leaves room for it.
 //
-// - floating: below lg, above the bottom bar, as the stylesheet places it.
-// - pinned: in the detail's player slot under the title, when the detail shows what plays.
+// - pinned: in the detail's player slot under the title, when the detail shows what plays. On a
+//   phone a video stays under the top bar as the notes scroll.
+// - floating: below lg anywhere else, above the bottom bar, as the stylesheet places it.
 // - compact: a window at the bottom left, over the foot of the sidebar and the list, when the
 //   detail shows something else or the page has none. Playback is global and selection is not,
 //   so the notes get the room. The sidebar and the list keep room to scroll out from under it.
 export function placement({wide, shown, playing}) {
-  if (!wide) return "floating"
-  return shown && shown === playing ? "pinned" : "compact"
+  if (shown && shown === playing) return "pinned"
+  return wide ? "compact" : "floating"
 }
 
 const GAP = 16
@@ -36,6 +37,7 @@ function place() {
   if (list) list.style.paddingBottom = reserve
 
   const slot = detail?.querySelector("#player-slot")
+  stick(where === "pinned" && !WIDE.matches ? slot : null, panel)
   if (slot) {
     const pinned = panel && where === "pinned"
     slot.style.height = pinned ? `${room}px` : ""
@@ -43,6 +45,27 @@ function place() {
     // Floating on a phone the panel covers nothing, so the card marks that its episode plays.
     slot.toggleAttribute("data-playing", Boolean(panel) && shown !== null && shown === playing)
   }
+}
+
+// On a phone a pinned video stays under the top bar once its slot has scrolled beneath it; the
+// stylesheet reads data-stuck. The panel follows its slot by itself, so only crossing the bar's
+// edge needs telling.
+let stuck = {slot: null, observer: null}
+
+function stick(slot, panel) {
+  if (slot !== stuck.slot) {
+    stuck.observer?.disconnect()
+    stuck = {slot, observer: null}
+    if (slot) {
+      const bar = document.querySelector("#masthead")?.offsetHeight ?? 0
+      stuck.observer = new IntersectionObserver(([entry]) => {
+        const panel = document.querySelector("#player-panel")
+        panel?.toggleAttribute("data-stuck", entry.boundingClientRect.top < entry.rootBounds.top)
+      }, {rootMargin: `-${bar}px 0px 0px 0px`, threshold: [0, 1]})
+      stuck.observer.observe(slot)
+    }
+  }
+  if (!slot) panel?.toggleAttribute("data-stuck", false)
 }
 
 export const DockPlace = {
@@ -78,6 +101,7 @@ export const DockPlace = {
     this.schedule()
   },
   destroyed() {
+    stick(null, null)
     cancelAnimationFrame(this.frame)
     this.observer.disconnect()
     this.sizes.disconnect()

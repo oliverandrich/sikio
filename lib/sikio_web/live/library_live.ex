@@ -1408,7 +1408,8 @@ defmodule SikioWeb.LibraryLive do
     <.link patch={@back} class="mb-4 inline-block text-label font-semibold text-accent lg:hidden">
       {gettext("← Your library")}
     </.link>
-    <article class="@container flex flex-col gap-4 rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-line">
+    <%!-- A card from lg. A phone shows the item on the page itself. A video spans either. --%>
+    <article class="@container flex flex-col gap-4 lg:rounded-2xl lg:bg-surface lg:p-6 lg:shadow-sm lg:ring-1 lg:ring-line">
       <div class="flex items-start gap-3">
         <%!-- The source's picture through this host, as the sidebar shows it, or its initial. --%>
         <span
@@ -1480,15 +1481,16 @@ defmodule SikioWeb.LibraryLive do
       <div
         id="player-slot"
         phx-mounted={JS.ignore_attributes(["style", "data-pinned", "data-playing"])}
+        class={video?(@entry) && "-mx-6 sm:-mx-12 lg:-mx-6"}
       >
         <button
           :if={video?(@entry)}
           id="start-playback"
           type="button"
           phx-click={JS.dispatch("sikio:play", detail: %{id: @entry.id})}
-          class="group block w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          class="group block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <span class="relative block aspect-video w-full overflow-hidden rounded-xl bg-line">
+          <span class="relative block aspect-video w-full overflow-hidden bg-line">
             <img
               src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
               alt=""

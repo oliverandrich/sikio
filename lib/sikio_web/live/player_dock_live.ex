@@ -249,7 +249,7 @@ defmodule SikioWeb.PlayerDockLive do
       <aside
         :if={@entry || @notice}
         id="player-panel"
-        phx-mounted={JS.ignore_attributes(["style", "data-place"])}
+        phx-mounted={JS.ignore_attributes(["style", "data-place", "data-stuck"])}
         aria-label={gettext("Now playing")}
         tabindex="-1"
         class={[
@@ -371,7 +371,7 @@ defmodule SikioWeb.PlayerDockLive do
             id={"peertube-#{@player.session_id}"}
             src={peertube_url(@entry, @player)}
             title={@entry.title}
-            class="aspect-video min-h-[200px] w-full rounded-control"
+            class="aspect-video min-h-[200px] w-full"
             referrerpolicy="strict-origin-when-cross-origin"
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowfullscreen
@@ -381,7 +381,7 @@ defmodule SikioWeb.PlayerDockLive do
             id={"youtube-#{@player.session_id}"}
             src={youtube_url(@entry, @player)}
             title={@entry.title}
-            class="aspect-video min-h-[200px] w-full rounded-control"
+            class="aspect-video min-h-[200px] w-full"
             referrerpolicy="strict-origin-when-cross-origin"
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowfullscreen

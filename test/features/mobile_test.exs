@@ -5,7 +5,7 @@ defmodule SikioWeb.MobileTest do
   The reader at phone width, where only a browser can say what lies where.
 
   Below `lg` the main navigation is a tab bar along the bottom, and the Library tab leads to
-  every place. The player panel floats above that bar rather than over it.
+  every place. The player sits in the item that plays and floats above that bar elsewhere.
   """
   use SikioWeb.FeatureCase
 
@@ -25,7 +25,7 @@ defmodule SikioWeb.MobileTest do
       {:ok, _} = Library.subscribe(account, preview)
     end
 
-    %{entries: Map.new(Library.entries(account), &{&1.feed.kind, &1})}
+    %{account: account, entries: Map.new(Library.entries(account), &{&1.feed.kind, &1})}
   end
 
   # A phone moves through tabs at the bottom, from the Library into a source and back.
@@ -61,6 +61,60 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
   end
 
+  # As on YouTube: the video spans the screen at the top of its item and stays under the bar while
+  # the notes scroll beneath it. Its frame here is a page of Sikio's own and it has no picture, so
+  # nothing is asked of an instance.
+  feature "a video plays across the top of its item and stays there", context do
+    %{session: session, account: account} = context
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
+
+    Sikio.Repo.update!(
+      Ecto.Changeset.change(video,
+        embed_url: "/robots.txt",
+        image_url: nil,
+        description: notes,
+        description_format: :html
+      )
+    )
+
+    session
+    |> resize_window(390, 844)
+    |> open(item_path(video))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
+    |> execute_script(edges(), fn [left, width, top] ->
+      assert left == 0
+      assert width == 0, "the video spans the screen"
+      assert top == "slot", "the video lies on its slot"
+    end)
+    |> execute_script("window.scrollTo(0, 600); return window.scrollY", fn y -> assert y > 0 end)
+    |> then(fn session ->
+      script = """
+      const panel = document.getElementById('player-panel').getBoundingClientRect()
+      return Math.round(panel.top) === Math.round(document.getElementById('masthead').getBoundingClientRect().bottom) &&
+             getComputedStyle(document.getElementById('player-panel')).visibility === 'visible'
+      """
+
+      assert {:ok, _} = retry(fn -> holds(session, script) end), "the video stays under the bar"
+      session
+    end)
+  end
+
+  # Audio needs no watching. It sits in its card and scrolls away with it.
+  feature "audio plays in its card and scrolls with it", context do
+    %{session: session, entries: entries} = context
+
+    session
+    |> resize_window(390, 844)
+    |> open(item_path(entries.podcast))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
+    |> execute_script(edges(), fn [_left, _width, top] -> assert top == "slot" end)
+  end
+
   feature "the player panel floats above the bar, not over it", context do
     %{session: session, entries: entries} = context
 
@@ -69,6 +123,9 @@ defmodule SikioWeb.MobileTest do
     |> open(item_path(entries.podcast))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel [data-audio-face]"))
+    # Away from its item the panel floats.
+    |> click(css("#tab-new"))
+    |> assert_has(css(~s|#player-panel[data-place="floating"]|))
     |> execute_script(
       """
       return document.querySelector('#player-panel').getBoundingClientRect().bottom <=
@@ -76,6 +133,22 @@ defmodule SikioWeb.MobileTest do
       """,
       fn above -> assert above, "the panel covers the navigation" end
     )
+  end
+
+  # The panel's left edge, how much narrower than the screen it is, and whether its top is the
+  # slot's.
+  defp edges do
+    """
+    const panel = document.getElementById('player-panel').getBoundingClientRect()
+    const slot = document.getElementById('player-slot').getBoundingClientRect()
+    return [Math.round(panel.left), Math.round(document.documentElement.clientWidth - panel.width),
+            Math.abs(panel.top - slot.top) <= 1 ? 'slot' : panel.top - slot.top]
+    """
+  end
+
+  defp holds(session, script) do
+    execute_script(session, script, fn value -> Process.put(:holds, value) end)
+    if Process.delete(:holds) == true, do: {:ok, session}, else: {:error, :not_yet}
   end
 
   defp gap_below(selector),

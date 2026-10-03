@@ -159,7 +159,7 @@
    left; assets/js/dock_place.mjs decides and sets data-place. In the bar audio keeps its play
    button and seek bar, and a video stays visible with its own controls. */
 #player-panel[data-place="pinned"] {
-  box-shadow: none; max-height: 60vh; border: 0; background: transparent; padding: 0;
+  box-shadow: none; max-height: 60vh; border: 0; border-radius: 0; background: transparent; padding: 0;
 }
 /* Pinned, the panel lies on the detail's player slot and the browser keeps it there as the column
    scrolls. It hides while the slot is out of view. */
@@ -311,7 +311,8 @@
    the page's room beneath its content and the panel's lift all read the bar's height here. The
    page also needs room to scroll past the panel; from lg the panel sits in a column or the
    sidebar and covers nothing. */
-:root { --nav-bar: 3.5rem; }
+/* The top bar's height, beneath which a playing video stays. */
+:root { --nav-bar: 3.5rem; --top-bar: 3.5rem; }
 
 /* From lg the page does not spring back at its ends, and so Safari offers no pull to reload. */
 @media (width >= 64rem) {
@@ -320,9 +321,13 @@
 
 @media (width < 64rem) {
   #player-panel { bottom: calc(var(--nav-bar) + 1rem + env(safe-area-inset-bottom)); max-height: 75dvh; }
+  /* A video in its item spans the screen and stays under the top bar as the notes scroll, as on
+     YouTube. Audio scrolls away with its card. */
+  #player-panel[data-place="pinned"]:not(:has(audio)) { position-visibility: always; }
+  #player-panel[data-place="pinned"][data-stuck]:not(:has(audio)) { top: var(--top-bar); }
   /* The account menu opens upwards into the panel's room and holds the offer of the source. */
   #main-navigation:has(#user-menu[open]) { z-index: 50; }
-  body:has(#player-panel) #page-content { padding-bottom: 28rem; }
+  body:has(#player-panel:not([data-place="pinned"])) #page-content { padding-bottom: 28rem; }
   body:has(.compact-audio) #page-content { padding-bottom: 14rem; }
 }
 

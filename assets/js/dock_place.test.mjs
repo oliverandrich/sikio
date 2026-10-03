@@ -4,8 +4,11 @@ import {test} from "node:test"
 import assert from "node:assert/strict"
 import {placement} from "./dock_place.mjs"
 
-test("on a narrow screen the panel floats above the bottom bar", () => {
-  assert.equal(placement({wide: false, shown: "7", playing: "7"}), "floating")
+// A phone shows what plays in its detail, as a wide screen does. Elsewhere the panel floats.
+test("on a narrow screen the panel sits in the detail that shows what plays", () => {
+  assert.equal(placement({wide: false, shown: "7", playing: "7"}), "pinned")
+  assert.equal(placement({wide: false, shown: "8", playing: "7"}), "floating")
+  assert.equal(placement({wide: false, shown: null, playing: "7"}), "floating")
 })
 
 test("the player sits at the top of the detail when that shows what plays", () => {

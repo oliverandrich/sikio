@@ -52,7 +52,8 @@ defmodule SikioWeb.PlayerTest do
     assert Library.entry(account, entry.id).playback.session_id
   end
 
-  # The floating panel's button. Pinned in the detail the panel has no heading to carry it.
+  # The floating panel's button. Pinned in the detail the panel has no heading to carry it, so
+  # the reader leaves the item first.
   feature "the compact button folds the panel without unmounting the audio", context do
     %{session: session, entry: entry} = context
 
@@ -62,6 +63,8 @@ defmodule SikioWeb.PlayerTest do
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> mark_player()
+    |> click(css("#tab-new"))
+    |> assert_has(css(~s|#player-panel[data-place="floating"]|))
     |> press("compact-player")
     |> assert_has(css("#compact-player[aria-pressed='true']"))
     |> assert_has(css("#player-panel [data-audio-face]"))
@@ -70,13 +73,13 @@ defmodule SikioWeb.PlayerTest do
       fn display -> assert display == "none" end
     )
     |> assert_same_player()
-    # Pinned in a wide detail there is no button to unfold it, so nothing stays folded there.
-    |> resize_window(1280, 900)
+    # Pinned in its detail there is no button to unfold it, so nothing stays folded there.
+    |> click(css("#play-#{entry.id}"))
     |> assert_has(css(~s|#player-panel[data-place="pinned"] .audio-speed|))
   end
 
-  # On a phone the panel floats beside the card instead of covering it. Two players for the one
-  # episode would disagree, so the card's gives way while its episode plays.
+  # On a phone the playing player lies on the card's own. Two players for the one episode would
+  # disagree, so the card's gives way while its episode plays.
   feature "on a phone the card's player gives way to the playing one", context do
     %{session: session, entry: entry} = context
 
@@ -114,6 +117,8 @@ defmodule SikioWeb.PlayerTest do
     |> open(item_path(entry))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel"))
+    |> click(css("#tab-new"))
+    |> assert_has(css(~s|#player-panel[data-place="floating"]|))
     |> execute_script(padding(), fn padding -> refute padding == "0px" end)
     |> press("close-player")
 
@@ -130,6 +135,20 @@ defmodule SikioWeb.PlayerTest do
       {:ok, _} = Library.subscribe(account, preview)
       [video] = Enum.filter(Library.entries(account), &(&1.feed.kind == :youtube))
       %{video: video}
+    end
+
+    # A video spans its card from edge to edge, as it spans a phone's screen. Its place is
+    # measured before it plays, so nothing is asked of YouTube.
+    feature "a video's place spans its card", context do
+      %{session: session, video: video} = context
+
+      session
+      |> resize_window(1280, 900)
+      |> open(item_path(video))
+      |> assert_has(css("#player-slot #start-playback"))
+      |> execute_script(flush("#player-slot", "#item-detail article"), fn flush ->
+        assert flush
+      end)
     end
 
     # The player sits where the detail shows it: at the card's head, above the title and notes.
