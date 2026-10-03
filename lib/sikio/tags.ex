@@ -99,6 +99,10 @@ defmodule Sikio.Tags do
     end)
   end
 
+  @doc "Adds the tags `names` names to the account's subscription `id`, beside those it carries."
+  def add(account, id, []), do: {:ok, of(account, id)}
+  def add(account, id, names), do: set(account, id, Enum.map(of(account, id), & &1.name) ++ names)
+
   @doc """
   Gives the account's tag `id` a new name. Answers the tag, or `{:error, :blank}`, `{:error,
   :taken}` for a name another of its tags holds, or `{:error, :not_found}`.

@@ -23,6 +23,23 @@ defmodule Sikio.Library.OPMLTest do
     assert {:ok, [%{title: "A & B", url: "https://example.org/feed?a=1&b=2"}]} = OPML.parse(xml)
   end
 
+  # A folder names a tag. The innermost folder counts, and a feed listed in two folders is one
+  # source with both tags.
+  test "reads the folder a source stands in as its tag" do
+    xml =
+      document(
+        ~s(<outline text="Tech"><outline text="A" xmlUrl="https://example.org/a"/>) <>
+          ~s(<outline text="Inner"><outline text="B" xmlUrl="https://example.org/b"/></outline></outline>) <>
+          ~s(<outline title="Must view"><outline text="A again" xmlUrl="https://example.org/a"/></outline>) <>
+          ~s(<outline text="C" xmlUrl="https://example.org/c"/>)
+      )
+
+    assert {:ok, [a, b, c]} = OPML.parse(xml)
+    assert {a.url, a.tags} == {"https://example.org/a", ["Tech", "Must view"]}
+    assert b.tags == ["Inner"]
+    assert c.tags == []
+  end
+
   test "rejects malformed XML, DTDs, oversized files, excessive nesting and too many feeds" do
     assert {:error, :invalid_opml} = OPML.parse("<rss/>")
 
@@ -52,6 +69,42 @@ defmodule Sikio.Library.OPMLTest do
 
     refute xml =~ "private"
     refute xml =~ "alice"
+  end
+
+  # Tags leave as folders, a subscription under each of its tags, and come back as tags.
+  test "export writes a subscription under each of its tags" do
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), "https://example.org/tagged")
+    {:ok, sub} = Library.subscribe(user, preview)
+    {:ok, other} = Parser.parse(podcast("Plain"), "https://example.org/plain")
+    {:ok, _} = Library.subscribe(user, other)
+    {:ok, _} = Sikio.Tags.set(user, sub.id, ["Tech", "Must view"])
+
+    assert {:ok, sources} = user |> OPML.export() |> OPML.parse()
+
+    assert Enum.map(sources, &{&1.url, Enum.sort(&1.tags)}) |> Enum.sort() == [
+             {"https://example.org/plain", []},
+             {"https://example.org/tagged", ["Must view", "Tech"]}
+           ]
+  end
+
+  # An imported source takes the tags its folders name; one already subscribed gains them.
+  test "imports give their sources the tags the file names" do
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, preview} = Parser.parse(podcast(), "https://example.org/existing")
+    {:ok, sub} = Library.subscribe(user, preview)
+    {:ok, _} = Sikio.Tags.set(user, sub.id, ["Mine"])
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast("New podcast")) end)
+
+    OPML.import_sources(user, [
+      %{title: "existing", url: "https://example.org/existing", tags: ["Tech"]},
+      %{title: "new", url: "https://example.org/new", tags: ["Tech", "Later"]}
+    ])
+
+    tags = fn s -> user |> Sikio.Tags.of(s.id) |> Enum.map(& &1.name) end
+    subscriptions = Map.new(Library.subscriptions(user), &{&1.feed.url, &1})
+    assert tags.(subscriptions["https://example.org/existing"]) == ["Mine", "Tech"]
+    assert tags.(subscriptions["https://example.org/new"]) == ["Later", "Tech"]
   end
 
   test "partial imports preserve existing paused subscriptions and progress and report failures" do

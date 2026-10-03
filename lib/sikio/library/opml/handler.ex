@@ -6,7 +6,8 @@ defmodule Sikio.Library.OPML.Handler do
 
   The file comes from somebody else's application, so the bounds are checked as the document is
   consumed rather than afterwards: node count, nesting depth, address length and the number of
-  distinct sources. Folders carry no meaning here and are flattened.
+  distinct sources. A folder names a tag for the sources inside it, the innermost one counting,
+  and a source listed in two folders is one source with both tags.
   """
   @behaviour Saxy.Handler
 
@@ -21,15 +22,20 @@ defmodule Sikio.Library.OPML.Handler do
     end
   end
 
-  def handle_event(:end_element, _name, %{path: [_ | rest]} = state),
-    do: {:ok, %{state | path: rest}}
+  def handle_event(:end_element, _name, %{path: [_ | rest], folders: [_ | folders]} = state),
+    do: {:ok, %{state | path: rest, folders: folders}}
 
   def handle_event(_event, _data, state), do: {:ok, state}
 
   defp start_element(name, attrs, state) do
+    # Every open element carries the folder name it opens, or nil, so ending it lets go of it.
+    folder =
+      if name == "outline" and !is_binary(attrs["xmlUrl"]), do: attrs["text"] || attrs["title"]
+
     next = %{
       state
       | path: [name | state.path],
+        folders: [folder | state.folders],
         nodes: state.nodes + 1,
         body?: state.body? or (name == "body" and state.path == ["opml"])
     }
@@ -59,7 +65,7 @@ defmodule Sikio.Library.OPML.Handler do
         {:stop, {:error, :invalid_opml}}
 
       MapSet.member?(state.seen, url) ->
-        {:ok, state}
+        {:ok, %{state | sources: Enum.map(state.sources, &tagged(&1, url, folder(state)))}}
 
       MapSet.size(state.seen) >= 50 ->
         {:stop, {:error, :too_many_sources}}
@@ -67,12 +73,16 @@ defmodule Sikio.Library.OPML.Handler do
       true ->
         title = source_title(attrs, url)
 
-        {:ok,
-         %{
-           state
-           | sources: [%{title: title, url: url} | state.sources],
-             seen: MapSet.put(state.seen, url)
-         }}
+        source = tagged(%{title: title, url: url, tags: []}, url, folder(state))
+        {:ok, %{state | sources: [source | state.sources], seen: MapSet.put(state.seen, url)}}
     end
   end
+
+  # The innermost folder around the outline being read, which the outline itself is not.
+  defp folder(%{folders: [_own | around]}), do: Enum.find(around, &is_binary/1)
+
+  defp tagged(%{url: url, tags: tags} = source, url, folder) when is_binary(folder),
+    do: %{source | tags: Enum.uniq(tags ++ [String.slice(folder, 0, 40)])}
+
+  defp tagged(source, _url, _folder), do: source
 end

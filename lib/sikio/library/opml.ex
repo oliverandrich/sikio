@@ -11,6 +11,7 @@ defmodule Sikio.Library.OPML do
   alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Library.OPML.Handler
+  alias Sikio.Tags
 
   def parse(xml) when is_binary(xml) and byte_size(xml) > 1_000_000,
     do: {:error, :too_large}
@@ -19,6 +20,7 @@ defmodule Sikio.Library.OPML do
     if Parser.entity_free?(xml) do
       case Saxy.parse_string(xml, Handler, %{
              path: [],
+             folders: [],
              sources: [],
              seen: MapSet.new(),
              nodes: 0,
@@ -37,13 +39,25 @@ defmodule Sikio.Library.OPML do
   def parse(_), do: {:error, :invalid_opml}
 
   # Built as a document rather than as a string, so a title holding an ampersand or a quote comes
-  # back out of the file as the same title.
+  # back out of the file as the same title. A tag is a folder, and a subscription stands in each
+  # of its folders; one without tags stands at the top.
   def export(account) do
+    feeds = account |> Library.subscriptions() |> Map.new(&{&1.feed_id, &1.feed})
+    tag_feeds = Tags.feeds(account)
+    tagged = tag_feeds |> Map.values() |> List.flatten() |> MapSet.new()
+
+    folders =
+      for tag <- Tags.list(account), tag_feeds[tag.id] != [] do
+        {"outline", [{"text", tag.name}, {"title", tag.name}],
+         Enum.map(tag_feeds[tag.id], &outline(feeds[&1]))}
+      end
+
     outlines =
-      Enum.map(Library.subscriptions(account), fn %{feed: feed} ->
-        {"outline",
-         [{"type", "rss"}, {"text", feed.title}, {"title", feed.title}, {"xmlUrl", feed.url}], []}
-      end)
+      (feeds
+       |> Map.values()
+       |> Enum.reject(&MapSet.member?(tagged, &1.id))
+       |> Enum.map(&outline/1)) ++
+        folders
 
     Saxy.encode!(
       {"opml", [{"version", "2.0"}],
@@ -56,8 +70,14 @@ defmodule Sikio.Library.OPML do
     )
   end
 
+  defp outline(feed),
+    do:
+      {"outline",
+       [{"type", "rss"}, {"text", feed.title}, {"title", feed.title}, {"xmlUrl", feed.url}], []}
+
   @doc """
-  Subscribes to each source in turn, reporting one status per source.
+  Subscribes to each source in turn, reporting one status per source. A source's tags are added
+  to its subscription, new or not, beside the tags it has.
 
   A source already subscribed is left exactly as it is, including its paused polling and the
   progress on its episodes. One unreachable feed does not stop the rest.
@@ -69,11 +89,13 @@ defmodule Sikio.Library.OPML do
       sources
       |> fetched(known)
       |> Enum.map_reduce(known, fn {:ok, {source, fetched}}, known ->
-        if Map.has_key?(known, source.url) do
-          {Map.put(source, :status, :existing), known}
-        else
-          import_source(account, source, fetched, known)
-        end
+        {result, known} =
+          if Map.has_key?(known, source.url),
+            do: {Map.put(source, :status, :existing), known},
+            else: import_source(account, source, fetched, known)
+
+        if id = known[source.url], do: Tags.add(account, id, Map.get(source, :tags, []))
+        {result, known}
       end)
 
     results
