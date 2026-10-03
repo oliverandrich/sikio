@@ -1438,17 +1438,14 @@ defmodule SikioWeb.LibraryLive do
           <p
             id="playback-status"
             aria-live="polite"
-            class="flex flex-wrap items-center gap-x-1.5 text-meta text-muted"
+            class="meta-dots flex flex-wrap items-center text-meta text-muted"
           >
             <span>{medium_label(@entry)}</span>
-            <span :if={@entry.published_at} aria-hidden="true">·</span>
             <span :if={@entry.published_at} class="font-mono tracking-tighter">
               {date(@entry.published_at)}
             </span>
-            <span :if={@runtime} aria-hidden="true">·</span>
             <span :if={@runtime} class="font-mono tracking-tighter">{@runtime}</span>
-            <span aria-hidden="true">·</span>
-            <.status_mark entry={@entry} status={@status} />
+            <span><.status_mark entry={@entry} status={@status} /></span>
           </p>
         </div>
         <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center gap-1">

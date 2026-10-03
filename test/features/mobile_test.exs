@@ -177,6 +177,61 @@ defmodule SikioWeb.MobileTest do
     end)
   end
 
+  # An item's details wrap on a narrow screen. Each line starts with a detail, flush with the
+  # source's name, and never with the dot between two.
+  @sessions [
+    [
+      capabilities:
+        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
+          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
+        })
+    ]
+  ]
+  feature "an item's details wrap without a dot leading a line", context do
+    %{session: session, account: account} = context
+    {:ok, preview} = Parser.parse(podcast("A source with a long name"), feed_url("long"))
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [entry] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+
+    session
+    |> open(item_path(entry))
+    |> execute_script(
+      """
+      const line = document.getElementById('playback-status')
+      const name = line.previousElementSibling
+      const textLeft = node => {
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        return range.getClientRects()[0]
+      }
+      // Where a detail's own content begins: its first mark, or else its text.
+      const begins = child => child.firstElementChild?.getBoundingClientRect() ?? textLeft(child)
+      const edge = Math.round(textLeft(name).left)
+      const wrong = []
+      let wrapped = false
+      // Every width a phone might give it, so each place the line can break is tried.
+      for (let width = 120; width <= 320; width += 5) {
+        line.style.width = width + 'px'
+        const tops = new Set()
+        for (const child of line.children) {
+          const top = Math.round(child.getBoundingClientRect().top)
+          if (tops.has(top)) continue
+          tops.add(top)
+          const text = child.textContent.trim()
+          if (text === '·' || Math.round(begins(child).left) !== edge) wrong.push(width + ': ' + text)
+        }
+        if (tops.size > 1) wrapped = true
+      }
+      line.style.width = ''
+      return [wrapped, wrong]
+      """,
+      fn [wrapped, wrong] ->
+        assert wrapped, "the details wrap"
+        assert wrong == [], "lines start off the source's edge: #{Enum.join(wrong, ", ")}"
+      end
+    )
+  end
+
   # Audio needs no watching. It sits in its card and scrolls away with it.
   feature "audio plays in its card and scrolls with it", context do
     %{session: session, entries: entries} = context

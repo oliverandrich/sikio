@@ -178,6 +178,15 @@
 #player-slot[data-playing] > #audio-cue { display: none; }
 /* The detail around it names source and title, and choosing another item puts it away. */
 #player-panel[data-place="pinned"] .player-heading { display: none; }
+/* Details set apart by dots. Each carries the dot before it. The line is pulled left by one dot's
+   width and cut there, so a line never starts with a dot, wherever it wraps. A detail lays out as
+   flex, which drops the template's white space beside the dot. */
+.meta-dots { margin-left: -1rem; clip-path: inset(0 0 0 1rem); }
+.meta-dots > * { display: flex; align-items: center; }
+.meta-dots > *::before {
+  content: "·" / ""; display: inline-block; width: 1rem; text-align: center; font-family: var(--font-sans);
+}
+
 /* A saved place says nothing; the line holds warnings and errors. */
 [data-player-message]:empty { display: none; }
 #player-panel[data-place="compact"] { padding: .625rem .75rem; max-height: none; }
