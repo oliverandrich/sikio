@@ -13,6 +13,7 @@ defmodule Sikio.RuntimeConfigTest do
   # The environment a production boot cannot do without; each test changes what it is about.
   @prod %{
     "DATABASE_URL" => "ecto://sikio:secret@localhost/sikio",
+    "DATABASE_PATH" => "/var/lib/sikio/sikio.db",
     "SECRET_KEY_BASE" => String.duplicate("k", 64),
     "PHX_HOST" => "sikio.example",
     "PICTURE_CACHE_DIR" => "/var/lib/sikio/pictures",
@@ -154,6 +155,29 @@ defmodule Sikio.RuntimeConfigTest do
     test "a relative PICTURE_CACHE_DIR stops the boot" do
       assert_raise RuntimeError, ~r/PICTURE_CACHE_DIR/, fn ->
         prod(%{"PICTURE_CACHE_DIR" => "pictures"})
+      end
+    end
+  end
+
+  # The database the release was built for decides which variable names it.
+  describe "the database" do
+    if Application.compile_env!(:sikio, :database) == :sqlite do
+      test "DATABASE_PATH names the SQLite file, outside the release" do
+        assert get_in(prod(), [:sikio, Sikio.Repo, :database]) == "/var/lib/sikio/sikio.db"
+      end
+
+      test "a missing or relative DATABASE_PATH stops the boot" do
+        for path <- [nil, "sikio.db"] do
+          assert_raise RuntimeError, ~r/DATABASE_PATH/, fn -> prod(%{"DATABASE_PATH" => path}) end
+        end
+      end
+    else
+      test "DATABASE_URL names the Postgres database" do
+        assert get_in(prod(), [:sikio, Sikio.Repo, :url]) == "ecto://sikio:secret@localhost/sikio"
+      end
+
+      test "a missing DATABASE_URL stops the boot" do
+        assert_raise RuntimeError, ~r/DATABASE_URL/, fn -> prod(%{"DATABASE_URL" => nil}) end
       end
     end
   end

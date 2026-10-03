@@ -20,10 +20,38 @@ config :phoenix, filter_parameters: ["password", "secret", "token", "code", "cre
 # So an uploaded subscription list can be accepted by its own extension rather than only as XML.
 config :mime, :types, %{"text/x-opml" => ["opml"]}
 
+# A build serves one database, chosen in mix.exs from SIKIO_DATABASE when it is compiled. The
+# repository's adapter and the job queue's engine follow it.
+database =
+  case System.fetch_env!("SIKIO_DATABASE") do
+    "sqlite" -> :sqlite
+    "postgres" -> :postgres
+    other -> raise "SIKIO_DATABASE must be sqlite or postgres, not #{inspect(other)}"
+  end
+
+config :sikio, :database, database
+
+# SQLite as dj-lite sets it up for Django: a write-ahead log so readers never wait for the writer,
+# a writer that waits up to five seconds rather than failing, and transactions that take the write
+# lock when they begin, so two never deadlock upgrading a read. Every environment uses them.
+if database == :sqlite do
+  config :sikio, Sikio.Repo,
+    journal_mode: :wal,
+    synchronous: :normal,
+    temp_store: :memory,
+    journal_size_limit: 27_103_364,
+    cache_size: 2000,
+    busy_timeout: 5000,
+    foreign_keys: :on,
+    default_transaction_mode: :immediate,
+    custom_pragmas: [mmap_size: 134_217_728]
+end
+
 # Background work runs on the application's own database. The maintenance queue is separate from
 # the feed queue so a slow refresh cannot delay expiring a session.
 config :sikio, Oban,
   repo: Sikio.Repo,
+  engine: if(database == :sqlite, do: Oban.Engines.Lite, else: Oban.Engines.Basic),
   queues: [feeds: 3, maintenance: 1],
   cron: [
     crontab: [

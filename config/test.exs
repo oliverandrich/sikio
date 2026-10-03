@@ -26,14 +26,21 @@ config :sikio,
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
-config :sikio, Sikio.Repo,
-  username: System.get_env("PGUSER", "postgres"),
-  password: System.get_env("PGPASSWORD", "postgres"),
-  hostname: System.get_env("PGHOST", "localhost"),
-  port: String.to_integer(System.get_env("PGPORT", "5432")),
-  database: "sikio_test#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+if System.fetch_env!("SIKIO_DATABASE") == "sqlite" do
+  config :sikio, Sikio.Repo,
+    database: Path.expand("../tmp/sikio_test#{System.get_env("MIX_TEST_PARTITION")}.db", __DIR__),
+    pool: Ecto.Adapters.SQL.Sandbox,
+    pool_size: System.schedulers_online() * 2
+else
+  config :sikio, Sikio.Repo,
+    username: System.get_env("PGUSER", "postgres"),
+    password: System.get_env("PGPASSWORD", "postgres"),
+    hostname: System.get_env("PGHOST", "localhost"),
+    port: String.to_integer(System.get_env("PGPORT", "5432")),
+    database: "sikio_test#{System.get_env("MIX_TEST_PARTITION")}",
+    pool: Ecto.Adapters.SQL.Sandbox,
+    pool_size: System.schedulers_online() * 2
+end
 
 # Serve the assets `mix assets.build` wrote, never a compressed copy a release left behind.
 config :sikio, gzip_static: false

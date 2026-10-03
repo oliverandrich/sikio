@@ -10,11 +10,23 @@ defmodule Sikio.Repo.Migrations.CreateFeedsAndSubscriptions do
   # excellent_migrations:safety-assured-for-this-file index_not_concurrently column_reference_added
   # excellent_migrations:safety-assured-for-this-file check_constraint_added
 
+  # SQLite sets a check only where the table is created, and it never runs a database written
+  # under the narrower rule. So it gets the rule the PeerTube migration later widened this one to.
   def change do
+    sqlite? = repo().__adapter__() == Ecto.Adapters.SQLite3
+
     create table(:feeds) do
       add :url, :text, null: false
       add :title, :text, null: false
-      add :kind, :string, null: false
+
+      if sqlite? do
+        add :kind, :string,
+          null: false,
+          check: %{name: "valid_feed_kind", expr: "kind IN ('youtube', 'podcast', 'peertube')"}
+      else
+        add :kind, :string, null: false
+      end
+
       add :etag, :text
       add :last_modified, :text
       add :last_checked_at, :utc_datetime_usec
@@ -23,7 +35,10 @@ defmodule Sikio.Repo.Migrations.CreateFeedsAndSubscriptions do
     end
 
     create unique_index(:feeds, [:url])
-    create constraint(:feeds, :valid_feed_kind, check: "kind IN ('youtube', 'podcast')")
+
+    unless sqlite? do
+      create constraint(:feeds, :valid_feed_kind, check: "kind IN ('youtube', 'podcast')")
+    end
 
     create table(:entries) do
       add :feed_id, references(:feeds, on_delete: :delete_all), null: false

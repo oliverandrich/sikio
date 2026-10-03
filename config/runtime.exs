@@ -172,22 +172,42 @@ if config_env() == :prod do
 
   config :sikio, picture_cache_dir: picture_cache_dir
 
-  database_url =
-    System.get_env("DATABASE_URL") ||
-      raise """
-      environment variable DATABASE_URL is missing.
-      For example: ecto://USER:PASS@HOST/DATABASE
-      """
+  # The release was built for one database, which decides the variable that names it. A SQLite
+  # file is application data and lives outside the release, like the picture cache.
+  if Sikio.Repo.__adapter__() == Ecto.Adapters.SQLite3 do
+    database_path =
+      case System.get_env("DATABASE_PATH", "") |> String.trim() do
+        "/" <> _ = path ->
+          path
 
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+        _ ->
+          raise """
+          environment variable DATABASE_PATH is missing or not an absolute path.
+          For example: /var/lib/sikio/sikio.db
+          """
+      end
 
-  config :sikio, Sikio.Repo,
-    # ssl: true,
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    # For machines with several cores, consider starting multiple pools of `pool_size`
-    # pool_count: 4,
-    socket_options: maybe_ipv6
+    config :sikio, Sikio.Repo,
+      database: database_path,
+      pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+  else
+    database_url =
+      System.get_env("DATABASE_URL") ||
+        raise """
+        environment variable DATABASE_URL is missing.
+        For example: ecto://USER:PASS@HOST/DATABASE
+        """
+
+    maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+
+    config :sikio, Sikio.Repo,
+      # ssl: true,
+      url: database_url,
+      pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+      # For machines with several cores, consider starting multiple pools of `pool_size`
+      # pool_count: 4,
+      socket_options: maybe_ipv6
+  end
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

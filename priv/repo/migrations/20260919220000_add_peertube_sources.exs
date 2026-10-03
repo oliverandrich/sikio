@@ -26,10 +26,13 @@ defmodule Sikio.Repo.Migrations.AddPeertubeSources do
 
   @kinds "kind IN ('youtube', 'podcast', 'peertube')"
 
+  # SQLite cannot change a check, and its feeds table was created with this rule already.
   def up do
-    drop constraint(:feeds, :valid_feed_kind)
-    create constraint(:feeds, :valid_feed_kind, check: @kinds, validate: false)
-    execute "ALTER TABLE feeds VALIDATE CONSTRAINT valid_feed_kind"
+    unless sqlite?() do
+      drop constraint(:feeds, :valid_feed_kind)
+      create constraint(:feeds, :valid_feed_kind, check: @kinds, validate: false)
+      execute "ALTER TABLE feeds VALIDATE CONSTRAINT valid_feed_kind"
+    end
 
     alter table(:entries) do
       add :embed_url, :string, size: 2048
@@ -41,13 +44,17 @@ defmodule Sikio.Repo.Migrations.AddPeertubeSources do
       remove :embed_url
     end
 
-    drop constraint(:feeds, :valid_feed_kind)
+    unless sqlite?() do
+      drop constraint(:feeds, :valid_feed_kind)
 
-    create constraint(:feeds, :valid_feed_kind,
-             check: "kind IN ('youtube', 'podcast')",
-             validate: false
-           )
+      create constraint(:feeds, :valid_feed_kind,
+               check: "kind IN ('youtube', 'podcast')",
+               validate: false
+             )
 
-    execute "ALTER TABLE feeds VALIDATE CONSTRAINT valid_feed_kind"
+      execute "ALTER TABLE feeds VALIDATE CONSTRAINT valid_feed_kind"
+    end
   end
+
+  defp sqlite?, do: repo().__adapter__() == Ecto.Adapters.SQLite3
 end
