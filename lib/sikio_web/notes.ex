@@ -23,6 +23,7 @@ defmodule SikioWeb.Notes do
   them, and a reader has no use for somebody's stylesheet.
 
   Text is escaped and its lines become paragraphs, because a chapter list is a list of lines.
+  Addresses in it become links.
 
   After sanitizing, a picture with an `https` address is served through Sikio's own host and any
   other picture is dropped, because the content security policy refuses the publisher's. A link
@@ -41,8 +42,11 @@ defmodule SikioWeb.Notes do
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
     |> case do
-      [] -> nil
-      lines -> lines |> Enum.map_join(&"<p>#{Plug.HTML.html_escape(&1)}</p>") |> marked()
+      [] ->
+        nil
+
+      lines ->
+        lines |> Enum.map_join(&"<p>#{&1 |> Plug.HTML.html_escape() |> linked()}</p>") |> marked()
     end
   end
 
@@ -51,6 +55,43 @@ defmodule SikioWeb.Notes do
     |> without_code()
     |> HtmlSanitizeEx.basic_html()
     |> outward()
+  end
+
+  # An address in escaped text, up to whitespace or an escaped quote or bracket. Only the web's:
+  # a `javascript:` target never becomes a link.
+  @address ~r{https?://(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s<>"])+}u
+
+  # Text from YouTube writes addresses without markup. They become links that open in a tab of
+  # their own, as links in markup do. The text is escaped already, so an `&` reads `&amp;` in
+  # the address and the attribute alike.
+  defp linked(escaped) do
+    Regex.replace(@address, escaped, fn found ->
+      {address, after_it} = trailing(found, "")
+
+      ~s(<a href="#{address}" target="_blank" rel="noopener noreferrer">#{address}</a>) <>
+        after_it
+    end)
+  end
+
+  # A full stop, a comma or a closing bracket after an address is the sentence's. A bracket the
+  # address opened itself, as Wikipedia's do, stays.
+  defp trailing(address, after_it) do
+    last = String.last(address)
+
+    cond do
+      # The text was escaped, so `;` may close an entity such as `&amp;`, which stays whole.
+      Regex.match?(~r/&[a-z0-9#]+;$/i, address) ->
+        {address, after_it}
+
+      last in [".", ",", ";", ":", "!", "?", "]"] ->
+        trailing(String.slice(address, 0..-2//1), last <> after_it)
+
+      last == ")" and not String.contains?(address, "(") ->
+        trailing(String.slice(address, 0..-2//1), last <> after_it)
+
+      true ->
+        {address, after_it}
+    end
   end
 
   # Marking markup safe is this module's whole purpose, and the scanner cannot see that both

@@ -56,6 +56,37 @@ defmodule SikioWeb.NotesTest do
       assert html =~ "<p>00:00 One</p>"
     end
 
+    # YouTube writes addresses as plain text. They become links, opening in a tab of their own;
+    # a full stop or a closing bracket after one is the sentence's, not the address's.
+    test "an address in text becomes a link" do
+      html =
+        rendered(
+          "Unterschrift: https://www.tbsnews.net/world/accord-1558996.\n" <>
+            "(siehe https://example.org/a?b=1&c=2) und https://de.wikipedia.org/wiki/Foo_(Bar).",
+          :text
+        )
+
+      assert html =~
+               ~s|<a href="https://www.tbsnews.net/world/accord-1558996" target="_blank" rel="noopener noreferrer">https://www.tbsnews.net/world/accord-1558996</a>.|
+
+      assert html =~ ~s|<a href="https://example.org/a?b=1&amp;c=2"|
+      assert html =~ ~s|>https://example.org/a?b=1&amp;c=2</a>)|
+      assert html =~ ~s|href="https://de.wikipedia.org/wiki/Foo_(Bar)"|
+    end
+
+    # The text is escaped before it is linked, so an address may end in an entity. Trimming
+    # punctuation never cuts into one.
+    test "an address ending in an ampersand keeps it whole" do
+      html = rendered("https://x.com/q?x=1& done", :text)
+      assert html =~ ~s|href="https://x.com/q?x=1&amp;"|
+      refute html =~ "&amp;amp"
+    end
+
+    test "only the web's addresses become links" do
+      html = rendered("javascript:alert(1) und ftp://example.org und mailto:a@b.c", :text)
+      refute html =~ "<a "
+    end
+
     test "text that would be markup is shown, not run" do
       html = rendered("<script>alert(1)</script>", :text)
 
