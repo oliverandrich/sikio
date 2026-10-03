@@ -629,7 +629,11 @@ defmodule SikioWeb.LibraryLive do
             <div class="flex items-start justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
               <div class="flex min-w-0 flex-col gap-0.5">
                 <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
-                <span :if={!@empty?} id="library-count" class="font-mono text-meta text-muted">
+                <span
+                  :if={!@empty?}
+                  id="library-count"
+                  class="font-mono text-meta tracking-tighter text-muted"
+                >
                   {count_label(@total)}
                 </span>
               </div>
@@ -971,7 +975,9 @@ defmodule SikioWeb.LibraryLive do
             <span aria-hidden="true">·</span>
             <span>{medium_label(@entry)}</span>
             <span :if={@entry.published_at} aria-hidden="true">·</span>
-            <span :if={@entry.published_at} class="font-mono">{short_date(@entry.published_at)}</span>
+            <span :if={@entry.published_at} class="font-mono tracking-tighter">
+              {short_date(@entry.published_at)}
+            </span>
           </span>
         </span>
       </.link>
@@ -1245,9 +1251,11 @@ defmodule SikioWeb.LibraryLive do
           >
             <span>{medium_label(@entry)}</span>
             <span :if={@entry.published_at} aria-hidden="true">·</span>
-            <span :if={@entry.published_at} class="font-mono">{date(@entry.published_at)}</span>
+            <span :if={@entry.published_at} class="font-mono tracking-tighter">
+              {date(@entry.published_at)}
+            </span>
             <span :if={@runtime} aria-hidden="true">·</span>
-            <span :if={@runtime} class="font-mono">{@runtime}</span>
+            <span :if={@runtime} class="font-mono tracking-tighter">{@runtime}</span>
             <span aria-hidden="true">·</span>
             <.status_mark entry={@entry} status={@status} />
           </p>
