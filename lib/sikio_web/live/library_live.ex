@@ -253,6 +253,42 @@ defmodule SikioWeb.LibraryLive do
   defp tab(_path, %{"status" => "in_progress", "source" => "", "tag" => ""}), do: :in_progress
   defp tab(_path, _filters), do: :library
 
+  attr :filters, :map, required: true
+
+  # An empty list says what it would hold, and gives no advice.
+  defp list_empty(assigns) do
+    {title, why} = nothing(assigns.filters)
+    assigns = assign(assigns, title: title, why: why)
+
+    ~H"""
+    <section
+      id="list-empty"
+      role="status"
+      class="border-t border-line px-6 py-12 text-center sm:px-12 lg:border-t-0 lg:px-4"
+    >
+      <p class="font-semibold text-ink">{@title}</p>
+      <p :if={@why} class="mt-1 text-label text-muted">{@why}</p>
+    </section>
+    """
+  end
+
+  # What an empty list says: what it would hold, and a line on why when there is one.
+  defp nothing(%{"q" => q}) when q not in [nil, ""],
+    do: {gettext("Nothing matches “%{query}”.", query: q), nil}
+
+  defp nothing(%{"status" => "new"}),
+    do: {gettext("Nothing new."), gettext("You’re all caught up.")}
+
+  defp nothing(%{"status" => "in_progress"}),
+    do:
+      {gettext("Nothing in progress."),
+       gettext("What you start playing waits here, so you can go on with it.")}
+
+  defp nothing(%{"status" => "completed"}), do: {gettext("Nothing finished yet."), nil}
+
+  defp nothing(_filters),
+    do: {gettext("No items yet."), gettext("New items arrive as your sources publish them.")}
+
   # Where a phone's bar leads back: an item to its list, a place within the Library to the Library.
   defp back(selected, _tab, heading, list) when selected != nil,
     do: %{patch: list, label: heading}
@@ -1107,6 +1143,7 @@ defmodule SikioWeb.LibraryLive do
               selected={@selected && @selected.id}
             />
           </div>
+          <.list_empty :if={!@empty? and @entries == []} filters={@filters} />
         </div>
         <section
           id="item-detail"

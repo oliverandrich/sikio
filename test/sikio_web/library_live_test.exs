@@ -151,11 +151,26 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#entries article", "One & two")
   end
 
-  # An empty place is simply empty; no sentence explains it.
-  test "an empty place shows no hint", c do
-    {:ok, view, _} = live(c.conn, ~p"/completed")
-    refute has_element?(view, "#entries article")
-    refute render(view) =~ "Try another filter"
+  # An empty list says what it would hold, in a word fitting the place, and gives no advice.
+  test "an empty list says so in its own words", c do
+    for {path, words} <- [
+          {"/in-progress", "Nothing in progress."},
+          {"/completed", "Nothing finished yet."},
+          {"/feeds/#{c.sub.feed_id}-small-hours/in-progress", "Nothing in progress."},
+          {"/all?q=nowhere", "Nothing matches “nowhere”."}
+        ] do
+      {:ok, view, _} = live(c.conn, path)
+      refute has_element?(view, "#entries article"), path
+      assert has_element?(view, "#list-empty", words), path
+    end
+
+    {:ok, view, _} = live(c.conn, ~p"/new")
+    assert has_element?(view, "#entries article")
+    refute has_element?(view, "#list-empty")
+
+    for entry <- Library.entries(c.user), do: Sikio.Playback.mark(c.user, entry.id, :completed)
+    {:ok, view, _} = live(c.conn, ~p"/new")
+    assert has_element?(view, "#list-empty", "You’re all caught up.")
   end
 
   # Within a source the statuses are a filter; elsewhere they are the place itself.
