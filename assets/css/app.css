@@ -155,12 +155,22 @@
    unmounting the audio element would stop playback, which is the opposite of what it is for. */
 #player-panel { bottom: max(1rem, env(safe-area-inset-bottom)); max-height: 85dvh; }
 
-/* From lg the panel is either pinned to the detail column or a now playing bar at the foot of the
-   sidebar; assets/js/dock_place.mjs decides and sets data-place. In the bar audio keeps its play
+/* From lg the panel is either pinned to the detail column or a now playing window at the bottom
+   left; assets/js/dock_place.mjs decides and sets data-place. In the bar audio keeps its play
    button and seek bar, and a video stays visible with its own controls. */
 #player-panel[data-place="pinned"] {
   box-shadow: none; max-height: 60vh; border: 0; background: transparent; padding: 0;
 }
+/* Pinned, the panel lies on the detail's player slot and the browser keeps it there as the column
+   scrolls. It hides while the slot is out of view. */
+#player-slot { anchor-name: --player-slot; }
+#player-panel[data-place="pinned"] {
+  position-anchor: --player-slot; position-visibility: anchors-visible;
+  top: anchor(top); left: anchor(left); right: auto; bottom: auto; width: anchor-size(width);
+}
+/* The now playing window floats at the bottom left, twice what fitted inside the sidebar, so a
+   video can still be watched. */
+#player-panel[data-place="compact"] { top: auto; left: .75rem; right: auto; bottom: 1rem; width: 480px; }
 /* The player pinned in the detail covers its slot, where the cue to start it waited. */
 #player-slot[data-pinned] > * { display: none; }
 /* On a phone the panel floats beside the card. The card's audio player gives way to it while its

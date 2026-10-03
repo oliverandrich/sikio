@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Where the player panel goes. It never moves in the DOM, because a moved YouTube iframe reloads,
-// so this only changes its position and leaves room for it.
+// so this only names its place for the stylesheet and leaves room for it.
 //
 // - floating: below lg, above the bottom bar, as the stylesheet places it.
 // - pinned: in the detail's player slot under the title, when the detail shows what plays.
@@ -14,14 +14,11 @@ export function placement({wide, shown, playing}) {
 }
 
 const GAP = 16
-// Twice what fitted inside the sidebar, so a video can still be watched.
-const COMPACT_WIDTH = 480
-const AWAY = {top: "", left: "", width: "", right: "", bottom: ""}
 const WIDE = typeof window === "object" ? window.matchMedia("(width >= 64rem)") : null
 
-// Positions are worked out before anything is written. Clearing first and measuring after would
-// shorten the page for one layout on every scroll frame, and the browser would clamp the scroll.
-// The slot's height is the one exception: a panel given a new width is measured again.
+// Where the panel lies is the stylesheet's, by data-place: anchored to the detail's player slot,
+// or fixed at the bottom left. This decides which, and keeps the room it needs: the slot as tall as
+// the pinned panel, and the sidebar and the list free at their foot beneath the window.
 function place() {
   const panel = document.querySelector("#player-panel")
   const detail = document.querySelector("#item-detail")
@@ -31,30 +28,17 @@ function place() {
 
   const playing = document.querySelector("#player-control")?.dataset.entryId ?? null
   const where = panel ? placement({wide: WIDE.matches, shown, playing}) : "floating"
+  if (panel) panel.dataset.place = where
 
-  const room = panel ? panel.offsetHeight + GAP : 0
-  // Pinned, the panel lies on the detail's player slot, which keeps its height free for it.
-  const slot = detail?.querySelector("#player-slot")
-  const box = where === "pinned" && slot ? slot.getBoundingClientRect()
-    : where === "compact" && sidebar ? sidebar.getBoundingClientRect() : null
-
-  const width = panel?.offsetWidth
-
-  const reserve = where === "compact" ? `${room + GAP}px` : ""
+  const room = panel ? panel.offsetHeight : 0
+  const reserve = where === "compact" ? `${room + 2 * GAP}px` : ""
   if (sidebar) sidebar.style.paddingBottom = reserve
   if (list) list.style.paddingBottom = reserve
-  if (panel) {
-    panel.dataset.place = where
-    Object.assign(panel.style,
-      where === "pinned" && box ? {top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, right: "auto", bottom: "auto"}
-      : where === "compact" && box ? {top: "auto", left: `${box.left + 12}px`, width: `${COMPACT_WIDTH}px`, right: "auto", bottom: `${GAP}px`}
-      : AWAY)
-  }
 
+  const slot = detail?.querySelector("#player-slot")
   if (slot) {
     const pinned = panel && where === "pinned"
-    const height = pinned && panel.offsetWidth !== width ? panel.offsetHeight : room - GAP
-    slot.style.height = pinned ? `${height}px` : ""
+    slot.style.height = pinned ? `${room}px` : ""
     slot.toggleAttribute("data-pinned", pinned)
     // Floating on a phone the panel covers nothing, so the card marks that its episode plays.
     slot.toggleAttribute("data-playing", Boolean(panel) && shown !== null && shown === playing)
@@ -90,9 +74,6 @@ export const DockPlace = {
     this.observer.observe(document.body, {childList: true, subtree: true,
       attributes: true, attributeFilter: ["class", "data-entry-id"]})
     window.addEventListener("resize", this.schedule)
-    // From lg the list and the detail scroll on their own, and their scrolling does not bubble.
-    // Capturing hears it, and the window's own as well.
-    window.addEventListener("scroll", this.schedule, {capture: true, passive: true})
     this.watch()
     this.schedule()
   },
@@ -101,6 +82,5 @@ export const DockPlace = {
     this.observer.disconnect()
     this.sizes.disconnect()
     window.removeEventListener("resize", this.schedule)
-    window.removeEventListener("scroll", this.schedule, {capture: true})
   }
 }
