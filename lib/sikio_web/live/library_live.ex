@@ -773,6 +773,13 @@ defmodule SikioWeb.LibraryLive do
     )
   end
 
+  # The Search tab searches every item and is called what it does. A search within one place keeps
+  # that place's name.
+  defp name(:search, %{"status" => "", "source" => "", "tag" => ""}, _heading),
+    do: gettext("Search")
+
+  defp name(_tab, _filters, heading), do: heading
+
   # The view's name: the source or the tag when one is chosen, otherwise the status.
   defp heading(%{"source" => source}, sidebar) when source != "",
     do: source_title(sidebar.sources, source)
@@ -807,8 +814,10 @@ defmodule SikioWeb.LibraryLive do
       bleed
       section={:library}
       tab={@tab}
-      title={if(@selected, do: @selected.title, else: @heading)}
-      back={back(@selected, @tab, @heading, list_path(@filters, @sidebar.titles))}
+      title={if(@selected, do: @selected.title, else: name(@tab, @filters, @heading))}
+      back={
+        back(@selected, @tab, name(@tab, @filters, @heading), list_path(@filters, @sidebar.titles))
+      }
     >
       <div
         id="library"
@@ -843,7 +852,7 @@ defmodule SikioWeb.LibraryLive do
                 data-large-title={!@selected}
                 class="text-title font-semibold"
               >
-                {@heading}
+                {name(@tab, @filters, @heading)}
               </h1>
               <div class="flex min-h-9 items-center justify-between gap-3">
                 <span

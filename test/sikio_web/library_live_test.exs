@@ -666,7 +666,9 @@ defmodule SikioWeb.LibraryLiveTest do
     test "a phone's header names where it is and leads back to the Library", c do
       for {path, title, back?} <- [
             {"/new", "New", false},
-            {"/search", "All items", false},
+            {"/search", "Search", false},
+            {"/all?q=video", "Search", false},
+            {"/all", "All items", true},
             {"/in-progress", "In progress", false},
             {"/completed", "Completed", true},
             {"/feeds/#{c.sub.feed_id}-small-hours", "Small Hours", true}
@@ -683,6 +685,16 @@ defmodule SikioWeb.LibraryLiveTest do
       {:ok, view, _} = live(c.conn, ~p"/library")
       assert has_element?(view, "#nav-title", "Library")
       refute has_element?(view, "#nav-back")
+    end
+
+    # The Search tab is named for what it does. A search within one place keeps that place's name.
+    test "the search tab is called Search", c do
+      {:ok, view, _} = live(c.conn, ~p"/search")
+      assert has_element?(view, "#library-heading", "Search")
+      assert has_element?(view, "#search-input[placeholder='Search in All items']")
+
+      {:ok, view, _} = live(c.conn, ~p"/new?q=good")
+      assert has_element?(view, "#library-heading", "New")
     end
 
     # An item leads back to the list it was opened from and names itself once its title has
