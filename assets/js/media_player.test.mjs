@@ -307,6 +307,15 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     position = 30
     poll()
     assert.equal(samples.at(-1)?.position, 30)
+    // Playing is saved every few seconds, a jump at once: the page shows the chapter it reached.
+    state = 1
+    position = 31
+    poll()
+    assert.equal(samples.at(-1).position, 30)
+    position = 90
+    poll()
+    assert.equal(samples.at(-1).position, 90)
+    state = 2
     events.onError({data: 101})
     assert.match(message.textContent, /cannot be embedded/)
     events.onStateChange({data: 0})
@@ -405,6 +414,13 @@ test("PeerTube reports its own position and does not save before it has one", as
     assert.equal(samples.at(-1)?.position, 42.5)
     assert.equal(samples.at(-1)?.duration, 100)
 
+    // Playing is saved every few seconds, a jump at once: the page shows the chapter it reached.
+    const playing = position => fromEmbed({method: "peertube::playbackStatusUpdate",
+      params: {position, duration: 100, playbackState: "playing"}})
+    playing(43)
+    playing(80)
+    assert.deepEqual(samples.map(sample => sample.position), [42.5, 80])
+
     fromEmbed({method: "peertube::playbackStatusChange", params: "ended"})
     await Promise.resolve()
     assert.equal(samples.at(-1).ended, true)
@@ -417,7 +433,7 @@ test("PeerTube reports its own position and does not save before it has one", as
     command({name: "toggle"})
     assert.ok(posted.some(m => m.method === "peertube::play"), "toggle plays what is not playing")
     command({name: "skip", by: -15})
-    assert.ok(posted.some(m => m.method === "peertube::seek" && m.params === 27.5), "a skip from the reported place")
+    assert.ok(posted.some(m => m.method === "peertube::seek" && m.params === 65), "a skip from the reported place")
     command({name: "mute"})
     assert.ok(posted.some(m => m.method === "peertube::setVolume" && m.params === 0), "sound off")
 

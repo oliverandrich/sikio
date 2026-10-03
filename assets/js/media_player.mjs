@@ -81,6 +81,12 @@ export function createReporter({session, read, send, stop, message, strings, now
   }
 }
 
+// A video reports its place every second or faster, so a larger step between two reports is a
+// seek: by key, by chapter or in the embed's own controls. Audio has an event for that.
+export function jumped(previous, position) {
+  return Math.abs(position - previous) > 3
+}
+
 // Where a chapter key goes from `position`: ahead, the next chapter's start; back, the start of
 // the chapter that plays, or the one before it just after a start, as players do.
 export function chapterTarget(starts, position, direction) {
@@ -183,11 +189,12 @@ export const MediaPlayer = {
         // forced save, and so is a seek while paused; the same place again is not.
         const changed = state !== this.lastState
         const moved = typeof status === "object" && status.position !== this.lastPosition
+        const jump = moved && jumped(this.lastPosition, status.position)
         this.lastState = state
         if (typeof status === "object") this.lastPosition = status.position
         if (state === "ended" && changed) this.reporter.save(true, true)
         else if (state === "paused" && (changed || moved)) this.reporter.save(false, true)
-        else if (state === "playing") this.reporter.save()
+        else if (state === "playing") this.reporter.save(false, jump)
       }
     })
   },
@@ -232,7 +239,7 @@ export const MediaPlayer = {
           this.poll = setInterval(() => {
             const state = this.youtube.getPlayerState()
             const position = this.youtube.getCurrentTime()
-            if (state === YT.PlayerState.PLAYING) this.reporter.save()
+            if (state === YT.PlayerState.PLAYING) this.reporter.save(false, jumped(previousPosition, position))
             else if (state === YT.PlayerState.PAUSED && position !== previousPosition) this.reporter.save(false, true)
             previousPosition = position
           }, 1000)
