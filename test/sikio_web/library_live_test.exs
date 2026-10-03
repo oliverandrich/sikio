@@ -350,6 +350,32 @@ defmodule SikioWeb.LibraryLiveTest do
     end
   end
 
+  # A source can be left where it is read, after a question that names it.
+  describe "unsubscribing from a source" do
+    test "is offered only within a source, and a cancel keeps it", c do
+      {:ok, view, _} = live(c.conn, ~p"/new")
+      refute has_element?(view, "#unsubscribe")
+
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+      view |> element("#unsubscribe") |> render_click()
+      assert has_element?(view, "dialog#unsubscribe-confirm", "Unsubscribe from Small Hours?")
+
+      view |> element("#cancel-unsubscribe") |> render_click()
+      refute has_element?(view, "#unsubscribe-confirm")
+      assert [_, _] = Library.subscriptions(c.user)
+    end
+
+    test "ends the subscription and returns to what is new", c do
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+      view |> element("#unsubscribe") |> render_click()
+      view |> element("#confirm-unsubscribe") |> render_click()
+
+      assert_patch(view, "/new")
+      refute has_element?(view, "#source-#{c.sub.feed_id}")
+      assert [%{feed: %{kind: :youtube}}] = Library.subscriptions(c.user)
+    end
+  end
+
   describe "progress from a player" do
     setup c do
       {:ok, %{session_id: session}} = Playback.start(c.user, c.audio.id)

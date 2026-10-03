@@ -40,6 +40,7 @@ defmodule SikioWeb.LibraryLive do
        more?: false,
        search_open?: false,
        marking: nil,
+       unsubscribing: nil,
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket))
      )}
@@ -72,7 +73,10 @@ defmodule SikioWeb.LibraryLive do
     socket =
       if filters == socket.assigns.filters,
         do: socket,
-        else: socket |> assign(filters: filters, entries: [], marking: nil) |> reload()
+        else:
+          socket
+          |> assign(filters: filters, entries: [], marking: nil, unsubscribing: nil)
+          |> reload()
 
     case select(socket, item) do
       {:ok, socket} -> {:noreply, socket |> reach() |> named(path, query)}
@@ -104,6 +108,47 @@ defmodule SikioWeb.LibraryLive do
       {key, label} = DateGroups.group(Library.sort_date(first, by), now, offset)
       [{:heading, key, label} | Enum.map(chunk, &{:entry, &1})]
     end)
+  end
+
+  # A question before something that changes much at once. Rendered only while it asks and
+  # opened as it appears, see assets/js/app.js; it takes the focus itself, so no button shows a
+  # ring before anybody tabs. Its buttons and Escape send `cancel_<name>` and `confirm_<name>`.
+  attr :name, :string, required: true
+  attr :title, :string, required: true
+  attr :confirm_label, :string, required: true
+  slot :inner_block, required: true
+
+  defp confirm_dialog(assigns) do
+    assigns = assign(assigns, :event, String.replace(assigns.name, "-", "_"))
+
+    ~H"""
+    <dialog
+      id={"#{@name}-confirm"}
+      tabindex="-1"
+      autofocus
+      aria-labelledby={"#{@name}-heading"}
+      phx-mounted={JS.dispatch("sikio:show")}
+      phx-window-keydown={"cancel_#{@event}"}
+      phx-key="Escape"
+      class="m-auto w-[min(26rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl outline-none backdrop:bg-black/40"
+    >
+      <h2 id={"#{@name}-heading"} class="text-title font-semibold">{@title}</h2>
+      <p class="mt-2 text-body text-muted">{render_slot(@inner_block)}</p>
+      <div class="mt-6 flex justify-end gap-2">
+        <.button id={"cancel-#{@name}"} type="button" phx-click={"cancel_#{@event}"}>
+          {gettext("Cancel")}
+        </.button>
+        <.button
+          id={"confirm-#{@name}"}
+          type="button"
+          variant="primary"
+          phx-click={"confirm_#{@event}"}
+        >
+          {@confirm_label}
+        </.button>
+      </div>
+    </dialog>
+    """
   end
 
   defp row_id({:heading, {year, month}, _label}), do: "group-#{year}-#{month}"
@@ -282,6 +327,38 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("confirm_mark_all", _params, socket) do
     {:ok, _count} = Playback.mark_all(socket.assigns.current_account, socket.assigns.filters)
     {:noreply, assign(socket, :marking, nil)}
+  end
+
+  # A source is left after a question that names it, from the subscription the sidebar holds.
+  def handle_event("unsubscribe", _params, socket) do
+    source = socket.assigns.filters["source"]
+
+    case Enum.find(socket.assigns.sidebar.sources, &(to_string(&1.feed_id) == source)) do
+      nil -> {:noreply, socket}
+      subscription -> {:noreply, assign(socket, :unsubscribing, subscription)}
+    end
+  end
+
+  def handle_event("cancel_unsubscribe", _params, socket),
+    do:
+      {:noreply,
+       socket |> assign(:unsubscribing, nil) |> push_event("focus", %{id: "unsubscribe"})}
+
+  # The source's list has nothing left to show, so the page goes to what is new.
+  def handle_event("confirm_unsubscribe", _params, socket) do
+    case Library.unsubscribe(socket.assigns.current_account, socket.assigns.unsubscribing.id) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:unsubscribing, nil)
+         |> push_patch(to: SikioWeb.Sidebar.place_path("status", "new"))}
+
+      _ ->
+        {:noreply,
+         socket
+         |> assign(:unsubscribing, nil)
+         |> put_flash(:error, gettext("Subscription not found."))}
+    end
   end
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
@@ -528,6 +605,17 @@ defmodule SikioWeb.LibraryLive do
                   <Lucideicons.check_check aria-hidden="true" class="size-4.5" />
                 </button>
                 <button
+                  :if={@filters["source"] != ""}
+                  id="unsubscribe"
+                  type="button"
+                  aria-label={gettext("Unsubscribe")}
+                  title={gettext("Unsubscribe")}
+                  phx-click="unsubscribe"
+                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                >
+                  <Lucideicons.unplug aria-hidden="true" class="size-4.5" />
+                </button>
+                <button
                   :if={!@empty?}
                   id="toggle-search"
                   type="button"
@@ -549,44 +637,29 @@ defmodule SikioWeb.LibraryLive do
                 </.button>
               </div>
             </div>
-            <%!-- Rendered only while it asks, and opened as it appears; see assets/js/app.js.
-                 It takes the focus itself, so no button shows a ring before anybody tabs. --%>
-            <dialog
+            <.confirm_dialog
               :if={@marking}
-              id="mark-all-confirm"
-              tabindex="-1"
-              autofocus
-              aria-labelledby="mark-all-heading"
-              phx-mounted={JS.dispatch("sikio:show")}
-              phx-window-keydown="cancel_mark_all"
-              phx-key="Escape"
-              class="m-auto w-[min(26rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl outline-none backdrop:bg-black/40"
+              name="mark-all"
+              title={gettext("Mark all as finished?")}
+              confirm_label={gettext("Mark finished")}
             >
-              <h2 id="mark-all-heading" class="text-title font-semibold">
-                {gettext("Mark all as finished?")}
-              </h2>
-              <p class="mt-2 text-body text-muted">
-                {ngettext(
-                  "%{count} item in this list will be marked as finished.",
-                  "%{count} items in this list will be marked as finished.",
-                  @marking
-                )}
-                {gettext("Whatever is playing stays as it is.")}
-              </p>
-              <div class="mt-6 flex justify-end gap-2">
-                <.button id="cancel-mark-all" type="button" phx-click="cancel_mark_all">
-                  {gettext("Cancel")}
-                </.button>
-                <.button
-                  id="confirm-mark-all"
-                  type="button"
-                  variant="primary"
-                  phx-click="confirm_mark_all"
-                >
-                  {gettext("Mark finished")}
-                </.button>
-              </div>
-            </dialog>
+              {ngettext(
+                "%{count} item in this list will be marked as finished.",
+                "%{count} items in this list will be marked as finished.",
+                @marking
+              )}
+              {gettext("Whatever is playing stays as it is.")}
+            </.confirm_dialog>
+            <.confirm_dialog
+              :if={@unsubscribing}
+              name="unsubscribe"
+              title={gettext("Unsubscribe from %{title}?", title: @unsubscribing.feed.title)}
+              confirm_label={gettext("Unsubscribe")}
+            >
+              {gettext(
+                "Its items leave your library. Your progress stays, should you subscribe again."
+              )}
+            </.confirm_dialog>
             <nav
               id="library-chips"
               aria-label={gettext("Views")}

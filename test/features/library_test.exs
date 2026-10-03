@@ -94,6 +94,22 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#view-completed-count", text: "40"))
   end
 
+  # A source is left from its own list, after a dialog that names it.
+  feature "a source is left from its own list", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/new")
+    |> click(css("#sidebar a", text: "Small Hours"))
+    |> click(css("#unsubscribe"))
+    |> assert_has(css("dialog#unsubscribe-confirm[open]", text: "Unsubscribe from Small Hours?"))
+    |> send_keys([:escape])
+    |> refute_has(css("#unsubscribe-confirm"))
+    |> click(css("#unsubscribe"))
+    |> click(css("#confirm-unsubscribe"))
+    |> refute_has(css("#sidebar a", text: "Small Hours"))
+    |> assert_has(css("#library-heading", text: "New"))
+  end
+
   # A date heading sticks beneath the list's head while its group scrolls past.
   feature "date headings stick beneath the list's head", %{session: session} do
     now = DateTime.utc_now()
