@@ -155,9 +155,17 @@ defmodule SikioWeb.Layouts do
 
   attr :tab, :atom,
     default: nil,
-    values: [nil, :new, :library, :search],
+    values: [nil, :new, :in_progress, :library, :search],
     doc:
       "the phone's tab the page belongs to; the library's own pages and the subscriptions are the library's"
+
+  attr :title, :string,
+    default: nil,
+    doc: "the page's title, which a phone's bar shows once the large heading has scrolled away"
+
+  attr :back, :map,
+    default: nil,
+    doc: "`%{to: path, label: text}`, where a phone's bar leads back to"
 
   attr :bleed, :boolean,
     default: false,
@@ -177,86 +185,125 @@ defmodule SikioWeb.Layouts do
     ~H"""
     <div class="min-h-svh pb-[calc(var(--nav-bar)+env(safe-area-inset-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
       <%!-- assets/js/dock_place.mjs makes room at its foot for the now playing bar. --%>
+      <%!-- On a phone a slim bar that stays at the top; see assets/js/shrink_title.mjs. --%>
       <header
-        phx-mounted={JS.ignore_attributes("style")}
-        class="flex flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-12 sm:py-7 lg:sticky lg:top-0 lg:h-svh lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-start lg:gap-5 lg:overflow-y-auto lg:border-r lg:border-line lg:px-3 lg:py-4"
+        id="app-header"
+        phx-hook="ShrinkTitle"
+        phx-mounted={JS.ignore_attributes(["style", "data-shrunk"])}
+        class="group sticky top-0 z-30 flex flex-wrap items-center justify-between gap-4 lg:sticky lg:top-0 lg:h-svh lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-start lg:gap-5 lg:overflow-y-auto lg:border-r lg:border-line lg:px-3 lg:py-4"
       >
-        <div id="masthead" class="flex w-full items-center justify-between gap-3 lg:pl-2.5">
+        <%!-- The bar's translucent ground sits here, not on the header: a backdrop filter there would
+             hold the fixed tab bar inside the header rather than at the screen's foot. --%>
+        <div
+          id="masthead"
+          class="relative flex w-full items-center justify-between gap-3 bg-ground/85 px-4 py-1.5 backdrop-blur-md sm:px-10 lg:bg-transparent lg:py-0 lg:pr-0 lg:pl-2.5 lg:backdrop-blur-none"
+        >
+          <.link
+            :if={@back}
+            id="nav-back"
+            navigate={@back.to}
+            class="flex min-h-11 items-center gap-0.5 text-body font-medium text-accent lg:hidden"
+          >
+            <Lucideicons.chevron_left aria-hidden="true" class="-ml-1.5 size-6" />
+            {@back.label}
+          </.link>
           <.link
             navigate={~p"/"}
-            class="flex items-center gap-3"
+            class={["items-center gap-3", if(@back, do: "hidden lg:flex", else: "flex")]}
             aria-label={gettext("Sikio home")}
           >
-            <span class="text-[30px] leading-none font-bold tracking-tight"><.wordmark /></span>
+            <span class="text-2xl leading-none font-bold tracking-tight lg:text-[30px]">
+              <.wordmark />
+            </span>
           </.link>
-          <details
-            id="user-menu"
-            data-active={@section in [:account, :invitations]}
-            class="relative shrink-0"
-            phx-click-away={JS.remove_attribute("open", to: "#user-menu")}
-            phx-window-keydown={JS.remove_attribute("open", to: "#user-menu")}
-            phx-key="Escape"
+          <%!-- The page's title, shown once its large heading has scrolled out of view. --%>
+          <p
+            :if={@title}
+            id="nav-title"
+            aria-hidden="true"
+            class="pointer-events-none absolute inset-x-28 truncate text-center text-label font-semibold opacity-0 transition-opacity group-data-[shrunk]:opacity-100 lg:hidden"
           >
-            <summary
-              aria-label={@current_account.username}
-              title={@current_account.username}
-              class={[
-                "flex size-11 cursor-pointer list-none items-center justify-center rounded-control lg:size-7 text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-accent",
-                @section in [:account, :invitations] && "bg-selection text-accent"
-              ]}
+            {@title}
+          </p>
+          <div class="flex items-center gap-1">
+            <.link
+              id="add-source"
+              navigate={~p"/subscriptions"}
+              aria-label={gettext("Add a source")}
+              title={gettext("Add a source")}
+              class="flex size-11 items-center justify-center rounded-control text-muted hover:text-ink lg:hidden"
             >
-              <Lucideicons.settings aria-hidden="true" class="size-5 lg:size-4.5" />
-            </summary>
-            <nav
-              aria-label={gettext("Your account")}
-              class="absolute top-full right-0 z-40 mt-2 w-56 rounded-control border border-line bg-surface p-1 font-normal shadow-lg"
+              <Lucideicons.plus aria-hidden="true" class="size-5" />
+            </.link>
+            <details
+              id="user-menu"
+              data-active={@section in [:account, :invitations]}
+              class="relative shrink-0"
+              phx-click-away={JS.remove_attribute("open", to: "#user-menu")}
+              phx-window-keydown={JS.remove_attribute("open", to: "#user-menu")}
+              phx-key="Escape"
             >
-              <p class="truncate border-b border-line px-3 pt-2 pb-2.5 mb-1 text-label font-semibold">
-                {@current_account.username}
-              </p>
-              <.link
-                id="invitations-link"
-                navigate={~p"/invitations"}
-                aria-current={@section == :invitations && "page"}
-                class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
-              >{gettext("Invitations")}</.link>
-              <.link
-                navigate={~p"/account/passkeys"}
-                class="block rounded-control px-3 py-2 hover:bg-ground"
-              >{gettext("Manage passkeys")}</.link>
-              <.link
-                navigate={~p"/account/recovery-codes"}
-                class="block rounded-control px-3 py-2 hover:bg-ground"
-              >{gettext("Recovery codes")}</.link>
-              <button
-                id="show-shortcuts"
-                type="button"
-                phx-click={
-                  JS.remove_attribute("open", to: "#user-menu")
-                  |> JS.dispatch("sikio:show", to: "#shortcuts")
-                }
-                class="block w-full rounded-control px-3 py-2 text-left hover:bg-ground"
+              <summary
+                aria-label={@current_account.username}
+                title={@current_account.username}
+                class={[
+                  "flex size-11 cursor-pointer list-none items-center justify-center rounded-control lg:size-7 text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-accent",
+                  @section in [:account, :invitations] && "bg-selection text-accent"
+                ]}
               >
-                {gettext("Keyboard shortcuts")}
-              </button>
-              <button
-                id="show-about"
-                type="button"
-                phx-click={
-                  JS.remove_attribute("open", to: "#user-menu")
-                  |> JS.dispatch("sikio:show", to: "#about")
-                }
-                class="block w-full rounded-control px-3 py-2 text-left hover:bg-ground"
+                <Lucideicons.settings aria-hidden="true" class="size-5 lg:size-4.5" />
+              </summary>
+              <nav
+                aria-label={gettext("Your account")}
+                class="absolute top-full right-0 z-40 mt-2 w-56 rounded-control border border-line bg-surface p-1 font-normal shadow-lg"
               >
-                {gettext("About Sikio")}
-              </button>
-              <.link
-                href={~p"/session"}
-                method="delete"
-                class="mt-1 block rounded-control border-t border-line px-3 py-2 text-danger hover:bg-danger-surface"
-              >{gettext("Sign out")}</.link>
-            </nav>
-          </details>
+                <p class="truncate border-b border-line px-3 pt-2 pb-2.5 mb-1 text-label font-semibold">
+                  {@current_account.username}
+                </p>
+                <.link
+                  id="invitations-link"
+                  navigate={~p"/invitations"}
+                  aria-current={@section == :invitations && "page"}
+                  class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
+                >{gettext("Invitations")}</.link>
+                <.link
+                  navigate={~p"/account/passkeys"}
+                  class="block rounded-control px-3 py-2 hover:bg-ground"
+                >{gettext("Manage passkeys")}</.link>
+                <.link
+                  navigate={~p"/account/recovery-codes"}
+                  class="block rounded-control px-3 py-2 hover:bg-ground"
+                >{gettext("Recovery codes")}</.link>
+                <button
+                  id="show-shortcuts"
+                  type="button"
+                  phx-click={
+                    JS.remove_attribute("open", to: "#user-menu")
+                    |> JS.dispatch("sikio:show", to: "#shortcuts")
+                  }
+                  class="block w-full rounded-control px-3 py-2 text-left hover:bg-ground"
+                >
+                  {gettext("Keyboard shortcuts")}
+                </button>
+                <button
+                  id="show-about"
+                  type="button"
+                  phx-click={
+                    JS.remove_attribute("open", to: "#user-menu")
+                    |> JS.dispatch("sikio:show", to: "#about")
+                  }
+                  class="block w-full rounded-control px-3 py-2 text-left hover:bg-ground"
+                >
+                  {gettext("About Sikio")}
+                </button>
+                <.link
+                  href={~p"/session"}
+                  method="delete"
+                  class="mt-1 block rounded-control border-t border-line px-3 py-2 text-danger hover:bg-danger-surface"
+                >{gettext("Sign out")}</.link>
+              </nav>
+            </details>
+          </div>
         </div>
         <div
           :if={@sidebar}
@@ -362,7 +409,8 @@ defmodule SikioWeb.Layouts do
           </p>
         </div>
         <%!-- A phone's tab bar, in the manner of iOS: an icon and a label for each tab, on a
-             translucent bar above the home indicator. --%>
+             translucent bar above the home indicator. What is in progress has a tab of its own,
+             because going on with it is what a reader most often comes for. --%>
         <nav
           id="main-navigation"
           class="fixed inset-x-0 bottom-0 z-30 flex min-h-[var(--nav-bar)] items-stretch justify-around border-t border-line bg-ground/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
@@ -370,6 +418,14 @@ defmodule SikioWeb.Layouts do
         >
           <.tab id="tab-new" to={~p"/new"} current={@tab == :new} label={gettext("New")}>
             <Lucideicons.sparkles aria-hidden="true" class="size-6" />
+          </.tab>
+          <.tab
+            id="tab-in-progress"
+            to={~p"/in-progress"}
+            current={@tab == :in_progress}
+            label={gettext("In progress")}
+          >
+            <Lucideicons.circle_play aria-hidden="true" class="size-6" />
           </.tab>
           <.tab
             id="tab-library"

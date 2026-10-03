@@ -33,12 +33,13 @@ defmodule SikioWeb.PlacesLive do
       sidebar={@sidebar}
       counts={@counts}
       section={:places}
+      title={gettext("Library")}
     >
-      <h1 class="mb-6 text-title font-semibold">{gettext("Library")}</h1>
+      <h1 data-large-title class="mb-6 text-title font-semibold">{gettext("Library")}</h1>
       <.places id="places-views">
         <.place
           :for={{status, key, label} <- views()}
-          :if={key != :new}
+          :if={key not in [:new, :in_progress]}
           to={Sidebar.place_path("status", status)}
           count={@counts[key]}
         >

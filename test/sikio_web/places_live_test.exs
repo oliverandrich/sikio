@@ -27,7 +27,8 @@ defmodule SikioWeb.PlacesLiveTest do
     {:ok, [tag]} = Sikio.Tags.set(c.user, c.sub.id, ["Must view"])
     {:ok, view, _} = live(c.conn, ~p"/library")
 
-    assert has_element?(view, ~s|#places-views a[href="/in-progress"]|, "In progress")
+    # What is new and what is in progress have tabs of their own.
+    refute has_element?(view, ~s|#places-views a[href="/in-progress"]|)
     assert has_element?(view, ~s|#places-views a[href="/completed"]|, "Completed")
     assert has_element?(view, ~s|#places-views a[href="/all"]|, "All items")
     assert has_element?(view, ~s|#places-tags a[href="/tags/#{tag.id}-must-view"]|, "Must view")

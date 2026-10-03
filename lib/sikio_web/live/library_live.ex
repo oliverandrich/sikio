@@ -245,10 +245,12 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # A phone's tab: searching is Search, what is new is New, every other place is the Library's.
+  # A phone's tab: searching is Search, what is new and what is in progress are their own tabs,
+  # every other place is the Library's.
   defp tab("/search", _filters), do: :search
   defp tab(_path, %{"q" => q}) when q != "", do: :search
   defp tab(_path, %{"status" => "new", "source" => "", "tag" => ""}), do: :new
+  defp tab(_path, %{"status" => "in_progress", "source" => "", "tag" => ""}), do: :in_progress
   defp tab(_path, _filters), do: :library
 
   # The library's address for `filters` and `item`, naming sources by their titles.
@@ -760,6 +762,8 @@ defmodule SikioWeb.LibraryLive do
       bleed
       section={:library}
       tab={@tab}
+      title={@heading}
+      back={if(@tab == :library, do: %{to: ~p"/library", label: gettext("Library")})}
     >
       <div
         id="library"
@@ -789,7 +793,9 @@ defmodule SikioWeb.LibraryLive do
             <%!-- The heading has the head's whole width, so a long source's name wraps late. The
                  count and the actions share the line beneath it. --%>
             <div class="flex flex-col gap-0.5 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
-              <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
+              <h1 id="library-heading" data-large-title class="text-title font-semibold">
+                {@heading}
+              </h1>
               <div class="flex min-h-9 items-center justify-between gap-3">
                 <span
                   :if={!@empty?}
@@ -867,14 +873,6 @@ defmodule SikioWeb.LibraryLive do
                   >
                     <Lucideicons.search aria-hidden="true" class="size-4.5" />
                   </button>
-                  <.button
-                    id="add-subscription"
-                    class="shrink-0 lg:hidden"
-                    navigate={~p"/subscriptions"}
-                  >
-                    <Lucideicons.plus aria-hidden="true" class="size-4" />
-                    {gettext("Add a source")}
-                  </.button>
                 </div>
               </div>
             </div>
@@ -1005,45 +1003,6 @@ defmodule SikioWeb.LibraryLive do
                 )}
               </p>
             </.confirm_dialog>
-            <nav
-              id="library-chips"
-              aria-label={gettext("Views")}
-              class="mb-3 flex gap-2 overflow-x-auto px-6 pb-1 sm:px-12 lg:hidden"
-            >
-              <.chip
-                :for={{status, key, label} <- views()}
-                id={"chip-view-#{key}"}
-                to={SikioWeb.Sidebar.place_path("status", status)}
-                active={SikioWeb.Sidebar.place?(@filters, "status", status)}
-                count={@counts[key]}
-              >
-                {label}
-              </.chip>
-            </nav>
-            <details
-              :if={@sidebar.sources != [] or @filters["source"] != ""}
-              id="chip-sources"
-              open={@filters["source"] != ""}
-              class="mb-4 px-6 sm:px-12 lg:hidden"
-            >
-              <summary class="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink">
-                {if @filters["source"] != "", do: @heading, else: gettext("Sources")}
-                <Lucideicons.chevron_down aria-hidden="true" class="size-3.5" />
-              </summary>
-              <div class="mt-2 flex flex-wrap gap-2">
-                <.chip
-                  :for={source <- @sidebar.sources}
-                  id={"chip-source-#{source.feed_id}"}
-                  to={
-                    SikioWeb.Sidebar.place_path("source", to_string(source.feed_id), @sidebar.titles)
-                  }
-                  active={SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))}
-                  count={Map.get(@counts.sources, source.feed_id, 0)}
-                >
-                  {source.feed.title}
-                </.chip>
-              </div>
-            </details>
             <form
               :if={!@empty?}
               id="search-form"
@@ -1325,30 +1284,6 @@ defmodule SikioWeb.LibraryLive do
       {render_slot(@icon)}
       <span class="@max-2xl:sr-only">{@label}</span>
     </button>
-    """
-  end
-
-  # One choice in the phone's chip row: the same addresses and counts as the sidebar.
-  attr :id, :string, required: true
-  attr :to, :string, required: true
-  attr :active, :boolean, default: false
-  attr :count, :integer, default: 0
-  slot :inner_block, required: true
-
-  defp chip(assigns) do
-    ~H"""
-    <.link
-      id={@id}
-      patch={@to}
-      aria-current={@active && "page"}
-      class={[
-        "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold whitespace-nowrap text-ink",
-        "aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-surface"
-      ]}
-    >
-      {render_slot(@inner_block)}
-      <span :if={@count > 0} class="font-mono text-meta font-normal opacity-70">{@count}</span>
-    </.link>
     """
   end
 

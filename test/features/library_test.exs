@@ -157,6 +157,31 @@ defmodule SikioWeb.LibraryTest do
     )
   end
 
+  # On a phone the large heading gives way to a title in the bar once it scrolls under it.
+  feature "a phone's bar takes the title once the heading has scrolled away", %{session: session} do
+    session
+    |> resize_window(390, 844)
+    |> open("/new")
+    |> assert_has(css("#entries article", count: 25))
+    |> refute_has(css("#app-header[data-shrunk]"))
+    |> execute_script("window.scrollTo(0, 600)")
+    |> assert_has(css("#app-header[data-shrunk]"))
+    # The title fades in, so the script waits up to a second for it to show in full.
+    |> execute_script(
+      """
+      const title = document.getElementById('nav-title'), until = performance.now() + 1000
+      return new Promise(function wait(resolve) {
+        const opacity = getComputedStyle(title).opacity
+        if (opacity === '1' || performance.now() > until) resolve(opacity)
+        else requestAnimationFrame(() => wait(resolve))
+      })
+      """,
+      fn opacity -> assert opacity == "1" end
+    )
+    |> execute_script("window.scrollTo(0, 0)")
+    |> assert_has(css("#app-header:not([data-shrunk])"))
+  end
+
   # A source is left from its own list, after a dialog that names it.
   feature "a source is left from its own list", %{session: session} do
     session

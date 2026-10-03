@@ -43,29 +43,6 @@ defmodule SikioWeb.LibraryLiveTest do
     }
   end
 
-  # The chips are what a phone moves through the library with. Each one is a place of its own:
-  # choosing it lets go of whatever was chosen before, and the place survives a reload.
-  test "a chip chooses one place and lets go of the others", c do
-    Playback.mark(c.user, c.audio.id, :completed)
-    {:ok, view, _} = live(c.conn, ~p"/completed")
-    refute has_element?(view, "#chip-kind-audio")
-
-    # A source opens on what is new in it, so its finished episode waits under all.
-    view |> element("#chip-source-#{c.sub.feed_id}") |> render_click()
-    assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours")
-    refute has_element?(view, "#entries article", "One & two")
-    refute has_element?(view, "#entries article", "A good video")
-
-    view |> element("#chip-view-new") |> render_click()
-    assert_patch(view, "/new")
-
-    {:ok, reloaded, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours/all")
-    assert has_element?(reloaded, "#entries article", "One & two")
-    reloaded |> element("#chip-view-all") |> render_click()
-    assert_patch(reloaded, "/all")
-    assert has_element?(reloaded, "#entries article", "A good video")
-  end
-
   # The mini player's title shows what plays in the list on screen, or else in its source.
   test "showing what plays keeps the list when it holds the item", c do
     {:ok, view, _} = live(c.conn, ~p"/new")
@@ -112,7 +89,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
     assert {:ok, _} = Feeds.refresh(c.sub.feed_id)
     assert has_element?(view, "#entries article", "Brand new episode")
-    assert has_element?(view, "#chip-source-#{c.sub.feed_id}", "Updated source")
+    assert has_element?(view, "#source-#{c.sub.feed_id}", "Updated source")
     refute has_element?(view, "#entries article", "A good video")
   end
 
@@ -273,7 +250,7 @@ defmodule SikioWeb.LibraryLiveTest do
     Library.unsubscribe(c.user, c.sub.id)
     refute has_element?(view, "#entries article")
     assert has_element?(view, "#library-heading", "Unavailable source")
-    view |> element("#chip-view-all") |> render_click()
+    view |> element("#view-all") |> render_click()
     assert has_element?(view, "#entries article", "A good video")
   end
 
@@ -307,16 +284,6 @@ defmodule SikioWeb.LibraryLiveTest do
     # The account also follows a podcast, so both words have to be there, each on its own source.
     assert html =~ "PeerTube ·"
     assert html =~ "Podcast ·"
-  end
-
-  # On a phone the sources fold away. A chosen source keeps them open and names itself, so the
-  # filter in force is never hidden; one that left the library is named as unavailable.
-  test "a chosen source keeps the phone's source chips open and named", c do
-    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
-    assert has_element?(view, "#chip-sources[open] summary", "Small Hours")
-
-    {:ok, _} = Library.unsubscribe(c.user, c.sub.id)
-    assert has_element?(view, "#chip-sources[open] summary", "Unavailable source")
   end
 
   # A playing item saves its place every few seconds. Rereading the library each time would cost
@@ -678,17 +645,45 @@ defmodule SikioWeb.LibraryLiveTest do
       refute has_element?(view, ~s|#tab-new[aria-current="page"]|)
     end
 
-    # A phone moves between three tabs, and the one it is in is marked.
+    # A phone's header is a slim bar: the name or the way back to the Library, the title once the
+    # large one has scrolled away, and adding a source and the account at its right. The places
+    # are the Library's, so the list's own head has no chips.
+    test "a phone's header names where it is and leads back to the Library", c do
+      for {path, title, back?} <- [
+            {"/new", "New", false},
+            {"/search", "All items", false},
+            {"/in-progress", "In progress", false},
+            {"/completed", "Completed", true},
+            {"/feeds/#{c.sub.feed_id}-small-hours", "Small Hours", true}
+          ] do
+        {:ok, view, _} = live(c.conn, path)
+        assert has_element?(view, ~s|#add-source[href="/subscriptions"]|), path
+        assert has_element?(view, "#nav-title", title), path
+        assert has_element?(view, ~s|#nav-back[href="/library"]|) == back?, path
+        refute has_element?(view, "#library-chips"), path
+        refute has_element?(view, "#chip-sources"), path
+        refute has_element?(view, "#add-subscription"), path
+      end
+
+      {:ok, view, _} = live(c.conn, ~p"/library")
+      assert has_element?(view, "#nav-title", "Library")
+      refute has_element?(view, "#nav-back")
+    end
+
+    # A phone moves between four tabs, and the one it is in is marked. What is in progress has a
+    # tab of its own, because going on with it is what a reader most often comes for.
     test "a phone's tabs lead to new, the library and search, and mark where it is", c do
       for {path, tab} <- [
             {"/new", "new"},
             {"/library", "library"},
-            {"/in-progress", "library"},
+            {"/in-progress", "in-progress"},
+            {"/completed", "library"},
             {"/feeds/#{c.sub.feed_id}-small-hours", "library"},
             {"/search", "search"}
           ] do
         {:ok, view, _} = live(c.conn, path)
         assert has_element?(view, ~s|#tab-new[href="/new"]|)
+        assert has_element?(view, ~s|#tab-in-progress[href="/in-progress"]|)
         assert has_element?(view, ~s|#tab-library[href="/library"]|)
         assert has_element?(view, ~s|#tab-search[href="/search"]|)
         assert has_element?(view, ~s|#tab-#{tab}[aria-current="page"]|), path

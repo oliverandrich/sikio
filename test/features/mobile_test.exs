@@ -4,8 +4,8 @@ defmodule SikioWeb.MobileTest do
   @moduledoc """
   The reader at phone width, where only a browser can say what lies where.
 
-  Below `lg` the main navigation is a bar along the bottom and the library narrows through a row
-  of chips. The player panel floats above that bar rather than over it.
+  Below `lg` the main navigation is a tab bar along the bottom, and the Library tab leads to
+  every place. The player panel floats above that bar rather than over it.
   """
   use SikioWeb.FeatureCase
 
@@ -28,19 +28,22 @@ defmodule SikioWeb.MobileTest do
     %{entries: Map.new(Library.entries(account), &{&1.feed.kind, &1})}
   end
 
-  feature "the navigation is a bar along the bottom and chips narrow the list", context do
+  # A phone moves through tabs at the bottom, from the Library into a source and back.
+  feature "the tabs lead through the library and back", context do
     %{session: session, entries: entries} = context
 
     session
-    |> resize_window(500, 900)
-    |> open("/all")
+    |> resize_window(390, 844)
+    |> open("/new")
     |> execute_script(gap_below("#main-navigation"), fn gap -> assert gap == 0 end)
-    |> click(css("#chip-sources summary"))
-    |> click(css("#chip-source-#{entries.podcast.feed_id}"))
-    # `refute_has/2` asks once, so the patch is waited for by the chip it marks.
-    |> assert_has(css(~s|#chip-source-#{entries.podcast.feed_id}[aria-current="page"]|))
+    |> click(css("#tab-library"))
+    |> assert_has(css(~s|#tab-library[aria-current="page"]|))
+    |> click(css("#places-sources a", text: "Small Hours"))
+    |> assert_has(css("#library-heading", text: "Small Hours"))
     |> assert_has(css("#entries article", text: entries.podcast.title))
     |> refute_has(css("#entries article", text: entries.youtube.title))
+    |> click(css("#nav-back"))
+    |> assert_has(css("#places-views"))
   end
 
   # On a phone the filters fold away behind a button. Once open they stay open while the reader
