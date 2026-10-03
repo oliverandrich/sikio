@@ -62,7 +62,7 @@ defmodule SikioWeb.PlayerTest do
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> mark_player()
-    |> click(css("#compact-player"))
+    |> press("compact-player")
     |> assert_has(css("#compact-player[aria-pressed='true']"))
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> execute_script(
@@ -115,7 +115,7 @@ defmodule SikioWeb.PlayerTest do
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel"))
     |> execute_script(padding(), fn padding -> refute padding == "0px" end)
-    |> click(css("#close-player"))
+    |> press("close-player")
 
     # `refute_has/2` asks once and fails on what is still on screen, so it cannot wait for the
     # round trip that closing takes. Waiting for the value this test is named after is the wait,
@@ -483,6 +483,12 @@ defmodule SikioWeb.PlayerTest do
       |> assert_has(css("#player-panel [data-audio-play] .audio-icon-pause"))
     end
   end
+
+  # A button in the floating panel, pressed where it is rather than at a point on the screen. The
+  # panel stands on the bar at the foot and grows upwards when its message line fills, here with
+  # the audio that is never served; a click aimed a moment before can land on the seek bar then.
+  # What these tests ask is what the button does, not where it was.
+  defp press(session, id), do: execute_script(session, "document.getElementById('#{id}').click()")
 
   defp saved_at(session, account, entry, position) do
     %{session_id: player} = Library.entry(account, entry.id).playback
