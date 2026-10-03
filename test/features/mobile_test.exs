@@ -124,6 +124,59 @@ defmodule SikioWeb.MobileTest do
     end)
   end
 
+  # Held sideways the video fits between the bars and passes under them as the page scrolls. Cut
+  # off at the foot from the start, it still stays under the top bar once scrolled up to it.
+  feature "a video fits a phone held sideways", context do
+    %{session: session, account: account} = context
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
+
+    Sikio.Repo.update!(
+      Ecto.Changeset.change(video,
+        embed_url: "/robots.txt",
+        image_url: nil,
+        description: notes,
+        description_format: :html
+      )
+    )
+
+    session
+    |> resize_window(844, 390)
+    |> open(item_path(video))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
+    |> execute_script(
+      """
+      const box = id => document.getElementById(id).getBoundingClientRect()
+      const room = innerHeight - box('masthead').height - box('main-navigation').height
+      const tabs = box('main-navigation')
+      const hit = document.elementFromPoint(tabs.left + tabs.width / 2, tabs.top + tabs.height / 2)
+      return [Math.round(box('player-panel').height) <= Math.round(room),
+              document.getElementById('main-navigation').contains(hit)]
+      """,
+      fn [fits, tabs] ->
+        assert fits, "the video fits between the bars"
+        assert tabs, "the tab bar stays above the video"
+      end
+    )
+    # Just past the bar, while most of the slot is still in view.
+    |> execute_script("""
+    const slot = document.getElementById('player-slot').getBoundingClientRect().top
+    window.scrollTo(0, scrollY + slot - document.getElementById('masthead').getBoundingClientRect().bottom + 40)
+    """)
+    |> then(fn session ->
+      script = """
+      return Math.round(document.getElementById('player-panel').getBoundingClientRect().top) ===
+             Math.round(document.getElementById('masthead').getBoundingClientRect().bottom)
+      """
+
+      assert {:ok, _} = retry(fn -> holds(session, script) end), "the video stays under the bar"
+      session
+    end)
+  end
+
   # Audio needs no watching. It sits in its card and scrolls away with it.
   feature "audio plays in its card and scrolls with it", context do
     %{session: session, entries: entries} = context

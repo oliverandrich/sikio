@@ -318,6 +318,12 @@
   /* A video in its item spans the screen and stays under the top bar as the notes scroll, as on
      YouTube. Audio scrolls away with its card. */
   #player-panel[data-place="pinned"]:not(:has(audio)) { position-visibility: always; }
+  /* Pinned, the panel is part of the page: it passes under the bars, and held sideways a video is
+     no taller than the room between them. Its player fits the picture inside. */
+  #player-panel[data-place="pinned"] { z-index: 20; max-height: none; }
+  #player-panel[data-place="pinned"] iframe {
+    min-height: 0; max-height: calc(100dvh - var(--top-bar) - var(--nav-bar) - env(safe-area-inset-bottom));
+  }
   #player-panel[data-place="pinned"][data-stuck]:not(:has(audio)) { top: var(--top-bar); }
   /* The account menu opens upwards into the panel's room and holds the offer of the source. */
   #main-navigation:has(#user-menu[open]) { z-index: 50; }

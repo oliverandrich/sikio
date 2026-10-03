@@ -48,20 +48,22 @@ function place() {
 }
 
 // On a phone a pinned video stays under the top bar once its slot has scrolled beneath it; the
-// stylesheet reads data-stuck. The panel follows its slot by itself, so only crossing the bar's
-// edge needs telling.
-let stuck = {slot: null, observer: null}
+// stylesheet reads data-stuck. The panel follows its slot by itself, so only the slot's top edge
+// crossing the bar's needs telling. The observer's root reaches from far above the screen down to
+// the bar's edge: the slot meets it exactly when its top has passed that edge, however much of it
+// is in view and however far a scroll jumps. The edge is measured, so a new height builds it again.
+let stuck = {slot: null, height: 0, observer: null}
 
 function stick(slot, panel) {
-  if (slot !== stuck.slot) {
+  if (slot !== stuck.slot || (slot && innerHeight !== stuck.height)) {
     stuck.observer?.disconnect()
-    stuck = {slot, observer: null}
+    stuck = {slot, height: innerHeight, observer: null}
     if (slot) {
       const bar = document.querySelector("#masthead")?.offsetHeight ?? 0
       stuck.observer = new IntersectionObserver(([entry]) => {
         const panel = document.querySelector("#player-panel")
-        panel?.toggleAttribute("data-stuck", entry.boundingClientRect.top < entry.rootBounds.top)
-      }, {rootMargin: `-${bar}px 0px 0px 0px`, threshold: [0, 1]})
+        panel?.toggleAttribute("data-stuck", entry.isIntersecting)
+      }, {rootMargin: `100000px 0px ${bar - innerHeight}px 0px`})
       stuck.observer.observe(slot)
     }
   }
