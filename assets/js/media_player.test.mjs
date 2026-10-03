@@ -136,7 +136,7 @@ test("audio follows the player's keys", () => {
     pause() { calls.push("pause"); this.paused = true }, load() {}, removeAttribute() {}})
   const previousDocument = globalThis.document
   globalThis.document = Object.assign(new EventTarget(), {hidden: false})
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, 
     dataset: {kind: "podcast", session: "abc", position: "0", chapters: "[0,118,291]", ...STRINGS},
     querySelector: selector => ({audio, "[data-player-message]": {textContent: ""}}[selector])}),
     pushEvent: (_event, _sample, reply) => reply({saved: true})}
@@ -188,7 +188,7 @@ test("a skip before the audio is ready starts from the saved place", () => {
     pause() { this.paused = true }, load() {}, removeAttribute() {}})
   const previousDocument = globalThis.document
   globalThis.document = Object.assign(new EventTarget(), {hidden: false})
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, 
     dataset: {kind: "podcast", session: "abc", position: "1200", ...STRINGS},
     querySelector: selector => ({audio, "[data-player-message]": {textContent: ""}}[selector])}),
     pushEvent: (_event, _sample, reply) => reply({saved: true})}
@@ -214,7 +214,7 @@ test("audio restores after metadata, saves end and cleans up", () => {
   const previousDocument = globalThis.document
   globalThis.document = doc
   const samples = []
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "podcast", session: "abc", position: "42", ...STRINGS},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "podcast", session: "abc", position: "42", ...STRINGS},
     querySelector: selector => ({audio, "[data-player-message]": message}[selector])}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
   try {
@@ -273,7 +273,7 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     destroy() {destroyed = true}
   }}}
   globalThis.setInterval = callback => {poll = callback; return 0}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "youtube", session: "video", position: "0", ...STRINGS},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "youtube", session: "video", position: "0", ...STRINGS},
     querySelector: selector => selector === "[data-player-message]" ? message : selector === "iframe" ? {} : null}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
   try {
@@ -338,7 +338,7 @@ test("audio the browser refuses to start asks for the play button", async () => 
   const message = {textContent: ""}
   const previousDocument = globalThis.document
   globalThis.document = Object.assign(new EventTarget(), {hidden: false})
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "podcast", session: "abc", position: "0", ...STRINGS},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "podcast", session: "abc", position: "0", ...STRINGS},
     querySelector: selector => ({audio, "[data-player-message]": message}[selector])}),
     pushEvent: () => {}}
   try {
@@ -390,7 +390,7 @@ test("PeerTube reports its own position and does not save before it has one", as
 
   const iframe = {src: "https://video.example.org/videos/embed/abc?api=1&start=42",
     contentWindow: {postMessage: data => posted.push(JSON.parse(data))}}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "peertube", session: "v", position: "42", ...STRINGS},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "peertube", session: "v", position: "42", ...STRINGS},
     querySelector: selector => selector === "[data-player-message]" ? message : selector === "iframe" ? iframe : null}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
 
@@ -458,7 +458,7 @@ test("a PeerTube player whose frame is gone cleans up quietly and hears nothing 
   globalThis.window = new EventTarget()
 
   const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
     querySelector: selector => selector === "[data-player-message]" ? {textContent: ""} : selector === "iframe" ? iframe : null}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
 
@@ -492,7 +492,7 @@ test("a paused PeerTube video saves its place once, not with every report", asyn
   globalThis.window = new EventTarget()
 
   const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
     querySelector: selector => selector === "[data-player-message]" ? {textContent: ""} : selector === "iframe" ? iframe : null}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
 
@@ -536,7 +536,7 @@ test("PeerTube pauses a millisecond before it ends, and the end is what counts",
   globalThis.window = new EventTarget()
 
   const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
     querySelector: selector => selector === "[data-player-message]" ? message : selector === "iframe" ? iframe : null}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
 
@@ -561,6 +561,64 @@ test("PeerTube pauses a millisecond before it ends, and the end is what counts",
     assert.equal(samples.at(-1).ended, true, "the end is the last word, not the pause before it")
   } finally {
     hook.destroyed()
+    globalThis.document = previous.document
+    globalThis.window = previous.window
+  }
+})
+
+// The capsule shows play or pause and a line for how far it has come. The player says both on its
+// element, whichever kind it is.
+test("the player says whether it plays and how far it has come", async () => {
+  const previous = {document: globalThis.document, window: globalThis.window}
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false})
+  globalThis.window = new EventTarget()
+  const element = (dataset, querySelector) => {
+    const props = {}
+    return Object.assign(new EventTarget(), {dataset: {...dataset, ...STRINGS}, querySelector, props,
+      style: {setProperty: (name, value) => { props[name] = value }}})
+  }
+
+  const audio = new EventTarget()
+  Object.assign(audio, {dataset: {}, currentTime: 0, duration: 100, readyState: 0, playbackRate: 1,
+    paused: true, play() { return Promise.resolve() }, pause() {}, load() {}, removeAttribute() {}})
+  const message = {textContent: ""}
+  const sound = {...MediaPlayer,
+    el: element({kind: "podcast", session: "a", position: "0"},
+      selector => ({audio, "[data-player-message]": message}[selector])),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})}
+
+  const iframe = {src: "https://video.example.org/videos/embed/abc", contentWindow: {postMessage() {}}}
+  const video = {...MediaPlayer,
+    el: element({kind: "peertube", session: "v", position: "0"},
+      selector => selector === "iframe" ? iframe : selector === "[data-player-message]" ? message : null),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})}
+
+  try {
+    sound.mounted()
+    audio.dispatchEvent(new Event("play"))
+    assert.equal(sound.el.dataset.playing, "true")
+    audio.currentTime = 25
+    audio.dispatchEvent(new Event("timeupdate"))
+    assert.equal(sound.el.props["--played"], "0.25")
+    audio.dispatchEvent(new Event("pause"))
+    assert.equal(sound.el.dataset.playing, "false")
+
+    video.mounted()
+    const status = (position, playbackState) => {
+      const event = new Event("message")
+      event.data = JSON.stringify({method: "peertube::playbackStatusUpdate",
+        params: {position, duration: 100, playbackState}})
+      event.origin = "https://video.example.org"
+      window.dispatchEvent(event)
+    }
+    status(50, "playing")
+    assert.equal(video.el.dataset.playing, "true")
+    assert.equal(video.el.props["--played"], "0.5")
+    status(50, "paused")
+    assert.equal(video.el.dataset.playing, "false")
+  } finally {
+    sound.destroyed()
+    video.destroyed()
     globalThis.document = previous.document
     globalThis.window = previous.window
   }

@@ -182,23 +182,17 @@
 [data-player-message]:empty { display: none; }
 #player-panel[data-place="compact"] { padding: .625rem .75rem; max-height: none; }
 #player-panel[data-place="compact"] .player-heading { margin-bottom: .5rem; align-items: center; }
-:is(.compact-audio, #player-panel[data-place="compact"]) .player-title {
+#player-panel[data-place="compact"] .player-title {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* The user's own compact toggle folds a floating audio panel. Pinned, there is no button to unfold
-   it, so it shows in full. */
-.compact-audio:not([data-place="pinned"]) .player-source { display: none; }
-.compact-audio:not([data-place="pinned"]) .player-heading { margin-bottom: .5rem; align-items: center; }
-#player-panel[data-place="compact"] .player-source { display: block; }
-#player-panel[data-place="compact"] #compact-player { display: none; }
 #player-panel[data-place="compact"] iframe { min-height: 0; margin-top: .5rem; }
 #player-panel[data-place="compact"]:has(audio) [data-player-message] { display: none; }
 /* Audio shows its place in its own controls. */
 #player-panel:has([data-audio-face]) .player-status { display: none; }
 
 /* Sikio's own audio controls over an audio element without any; see assets/js/audio_face.mjs.
-   One markup in three places. Floating on a phone it is a bar to drag with the buttons beneath,
-   pinned in the detail one row, and folded or in the sidebar a play button beside the bar. */
+   One markup in two places. In a narrow detail it is a bar to drag with the buttons beneath, in a
+   wide one a single row, and in the window at the bottom left a play button beside the bar. */
 .audio-face {
   display: grid; align-items: center; gap: 1rem .875rem;
   grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
@@ -295,17 +289,17 @@
 /* Before anything plays there is no speed to set, though the button keeps its place. */
 .audio-speed:disabled { cursor: default; }
 
-/* Folded, or in the sidebar: a small play button beside the bar, and nothing more. */
-:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-face {
+/* In the window at the bottom left: a small play button beside the bar, and nothing more. */
+#player-panel[data-place="compact"] .audio-face {
   grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "play track"; gap: .625rem;
 }
-:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-play {
+#player-panel[data-place="compact"] .audio-play {
   width: 2.25rem; height: 2.25rem; box-shadow: none;
 }
-:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-play svg { width: .875rem; height: .875rem; }
-:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) :is(.audio-skip, .audio-speed) { display: none; }
-:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-track { gap: .25rem; }
-:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-times { font-size: 10px; }
+#player-panel[data-place="compact"] .audio-play svg { width: .875rem; height: .875rem; }
+#player-panel[data-place="compact"] :is(.audio-skip, .audio-speed) { display: none; }
+#player-panel[data-place="compact"] .audio-track { gap: .25rem; }
+#player-panel[data-place="compact"] .audio-times { font-size: 10px; }
 
 /* Below lg the main navigation is a bar along the bottom, so the panel floats above it. The bar,
    the page's room beneath its content and the panel's lift all read the bar's height here. The
@@ -327,8 +321,38 @@
   #player-panel[data-place="pinned"][data-stuck]:not(:has(audio)) { top: var(--top-bar); }
   /* The account menu opens upwards into the panel's room and holds the offer of the source. */
   #main-navigation:has(#user-menu[open]) { z-index: 50; }
-  body:has(#player-panel:not([data-place="pinned"])) #page-content { padding-bottom: 28rem; }
-  body:has(.compact-audio) #page-content { padding-bottom: 14rem; }
+  body:has(#player-panel:not([data-place="pinned"])) #page-content { padding-bottom: 6rem; }
+
+  /* Away from its item the player is a capsule above the tab bar, in one row: the picture or the
+     video, what plays, play or pause, and close. A line along its foot shows how far it has come.
+     The heading and the player give their children to the row, so nothing moves in the DOM. */
+  #player-panel[data-place="floating"] {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem;
+    left: .5rem; right: .5rem; width: auto; bottom: calc(var(--nav-bar) + .5rem + env(safe-area-inset-bottom));
+    max-height: none; overflow: hidden; padding: .5rem .25rem .5rem .5rem; border-radius: .875rem;
+  }
+  #player-panel[data-place="floating"] :is(.player-heading, [phx-hook="MediaPlayer"]) { display: contents; }
+  #player-panel[data-place="floating"] :is(#capsule-art, iframe) { order: -1; flex: none; }
+  #player-panel[data-place="floating"] #capsule-art {
+    display: block; width: 3rem; height: 3rem; border-radius: .5rem; object-fit: cover;
+  }
+  #player-panel[data-place="floating"] iframe { width: 96px; height: 54px; min-height: 0; border-radius: .375rem; }
+  #player-panel[data-place="floating"] .player-text { display: flex; flex: 1; flex-direction: column; }
+  #player-panel[data-place="floating"] :is(.player-title, .player-source) {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #player-panel[data-place="floating"] .player-title { order: -1; margin-top: 0; }
+  #player-panel[data-place="floating"] .player-source { font-weight: 400; color: var(--color-muted); }
+  #player-panel[data-place="floating"] :is(.player-status, .audio-face, [data-player-message]) { display: none; }
+  #player-panel[data-place="floating"] #dock-notice { order: 1; flex-basis: 100%; margin: 0; }
+  #player-panel[data-place="floating"] #capsule-play { display: flex; }
+  #capsule-play .capsule-icon-pause,
+  #player-panel:has([data-playing="true"]) #capsule-play .capsule-icon-play { display: none; }
+  #player-panel:has([data-playing="true"]) #capsule-play .capsule-icon-pause { display: block; }
+  #player-panel[data-place="floating"] [data-progress] {
+    display: block; position: absolute; inset: auto 0 0; height: 2px; background: var(--color-accent);
+    transform-origin: left; transform: scaleX(var(--played, 0));
+  }
 }
 
 @media (width < 40rem) {

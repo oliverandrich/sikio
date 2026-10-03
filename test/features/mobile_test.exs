@@ -136,23 +136,65 @@ defmodule SikioWeb.MobileTest do
     |> execute_script(edges(), fn [_left, _width, top] -> assert top == "slot" end)
   end
 
-  feature "the player panel floats above the bar, not over it", context do
+  # Away from its item the player is a capsule above the tab bar: what plays, play or pause, and
+  # a way to close it. Its title leads back to the item, where the player is whole again.
+  feature "away from its item the player is a capsule above the tabs", context do
     %{session: session, entries: entries} = context
 
     session
-    |> resize_window(500, 900)
+    |> resize_window(390, 844)
     |> open(item_path(entries.podcast))
     |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel [data-audio-face]"))
-    # Away from its item the panel floats.
+    |> assert_has(css(~s|#player-panel[data-place="pinned"]|))
     |> click(css("#tab-new"))
-    |> assert_has(css(~s|#player-panel[data-place="floating"]|))
+    |> assert_has(css(~s|#player-panel[data-place="floating"] #capsule-play|))
+    |> assert_has(css("#capsule-art"))
+    |> assert_has(css("#close-player"))
+    |> assert_has(css("#player-panel .player-title", text: entries.podcast.title))
+    |> assert_has(css("#player-panel [data-audio-face]", visible: false))
     |> execute_script(
       """
-      return document.querySelector('#player-panel').getBoundingClientRect().bottom <=
-             document.querySelector('#main-navigation').getBoundingClientRect().top
+      const panel = document.getElementById('player-panel').getBoundingClientRect()
+      const bar = document.getElementById('main-navigation').getBoundingClientRect()
+      return [Math.round(panel.left), Math.round(document.documentElement.clientWidth - panel.right),
+              Math.round(bar.top - panel.bottom), Math.round(panel.height)]
       """,
-      fn above -> assert above, "the panel covers the navigation" end
+      fn [left, right, above, height] ->
+        assert {left, right, above} == {8, 8, 8}
+        assert height <= 72, "a capsule, not a card"
+      end
+    )
+    # Its button drives the player as the keyboard does.
+    |> execute_script("""
+    window.sikioCommands = []
+    document.querySelector('#player-panel [phx-hook=MediaPlayer]')
+      .addEventListener('sikio:command', event => window.sikioCommands.push(event.detail.name))
+    """)
+    |> click(css("#capsule-play"))
+    |> execute_script("return window.sikioCommands", fn names -> assert names == ["toggle"] end)
+    |> click(css("#player-panel .player-title"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
+  end
+
+  # A video keeps playing in the capsule, small.
+  feature "a video plays on in the capsule", context do
+    %{session: session, account: account} = context
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+    Sikio.Repo.update!(Ecto.Changeset.change(video, embed_url: "/robots.txt", image_url: nil))
+
+    session
+    |> resize_window(390, 844)
+    |> open(item_path(video))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
+    |> click(css("#tab-new"))
+    |> assert_has(css(~s|#player-panel[data-place="floating"] iframe|))
+    |> refute_has(css("#capsule-art"))
+    |> execute_script(
+      "const b = document.querySelector('#player-panel iframe').getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]",
+      fn size -> assert size == [96, 54] end
     )
   end
 

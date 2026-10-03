@@ -22,6 +22,7 @@ defmodule SikioWeb.PlayerDockLive do
   alias Sikio.Library
   alias Sikio.Library.Events
   alias Sikio.Playback
+  alias SikioWeb.Pictures
 
   # Both hooks by hand, because rendering from the root layout means belonging to no live_session
   # and inheriting nothing from one. Without the second, this dock answers a German session in
@@ -34,7 +35,7 @@ defmodule SikioWeb.PlayerDockLive do
     if connected?(socket), do: Events.subscribe(socket.assigns.current_account)
 
     socket =
-      assign(socket, entry: nil, player: nil, notice: nil, compact: false, chapters: {nil, "[]"})
+      assign(socket, entry: nil, player: nil, notice: nil, chapters: {nil, "[]"})
 
     {:ok, rejoin(socket, get_connect_params(socket)), layout: false}
   end
@@ -67,10 +68,6 @@ defmodule SikioWeb.PlayerDockLive do
     else
       start_entry(socket, id, params["position"])
     end
-  end
-
-  def handle_event("compact", _params, socket) do
-    {:noreply, assign(socket, :compact, not socket.assigns.compact)}
   end
 
   def handle_event("close", _params, socket) do
@@ -252,13 +249,19 @@ defmodule SikioWeb.PlayerDockLive do
         phx-mounted={JS.ignore_attributes(["style", "data-place", "data-stuck"])}
         aria-label={gettext("Now playing")}
         tabindex="-1"
-        class={[
-          "fixed right-4 bottom-4 left-4 z-40 max-h-[85vh] overflow-y-auto rounded-control border border-line bg-surface p-5 shadow-xl sm:left-auto sm:w-[400px]",
-          @compact && @entry && @entry.feed.kind == :podcast && "compact-audio"
-        ]}
+        class="fixed right-4 bottom-4 left-4 z-40 max-h-[85vh] overflow-y-auto rounded-control border border-line bg-surface p-5 shadow-xl sm:left-auto sm:w-[400px]"
       >
+        <%!-- On a phone, away from its item, the panel is a capsule above the tab bar: the
+             picture or the video, what plays, play or pause and close. See app.css. --%>
         <div class="player-heading mb-4 flex items-start justify-between gap-3">
-          <div :if={@entry} class="mr-auto min-w-0">
+          <img
+            :if={@entry && @entry.feed.kind == :podcast}
+            id="capsule-art"
+            src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
+            alt=""
+            class="hidden"
+          />
+          <div :if={@entry} class="player-text mr-auto min-w-0">
             <p class="player-source text-meta font-semibold text-accent">
               {@entry.feed.title}
             </p>
@@ -278,16 +281,22 @@ defmodule SikioWeb.PlayerDockLive do
               <span class="font-mono">{timestamp(@entry.playback.position)}</span>
             </p>
           </div>
+          <%!-- Drives the player as the keyboard does; the player says whether it plays. --%>
           <button
-            :if={@entry && @entry.feed.kind == :podcast}
-            id="compact-player"
-            phx-click="compact"
-            aria-pressed={to_string(@compact)}
-            aria-label={if @compact, do: gettext("Expand player"), else: gettext("Compact player")}
-            class="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground"
+            :if={@player}
+            id="capsule-play"
+            type="button"
+            phx-click={
+              JS.dispatch("sikio:command",
+                to: "#player-#{@player.session_id}",
+                detail: %{name: "toggle"}
+              )
+            }
+            aria-label={gettext("Play or pause")}
+            class="hidden size-11 shrink-0 items-center justify-center rounded-full text-ink hover:bg-ground"
           >
-            <Lucideicons.chevron_up :if={@compact} aria-hidden="true" class="size-5" />
-            <Lucideicons.chevron_down :if={!@compact} aria-hidden="true" class="size-5" />
+            <Lucideicons.play aria-hidden="true" class="capsule-icon-play size-5 fill-current" />
+            <Lucideicons.pause aria-hidden="true" class="capsule-icon-pause size-5 fill-current" />
           </button>
           <button
             id="close-player"
@@ -388,6 +397,8 @@ defmodule SikioWeb.PlayerDockLive do
           ></iframe>
           <%!-- Empty while the player works; warnings and errors go here. --%>
           <p data-player-message role="status" class="mt-4 text-label text-muted"></p>
+          <%!-- How far it has come, a line along the capsule's foot; the player sets --played. --%>
+          <span data-progress aria-hidden="true" class="hidden"></span>
         </div>
       </aside>
     </div>

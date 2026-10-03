@@ -52,32 +52,6 @@ defmodule SikioWeb.PlayerTest do
     assert Library.entry(account, entry.id).playback.session_id
   end
 
-  # The floating panel's button. Pinned in the detail the panel has no heading to carry it, so
-  # the reader leaves the item first.
-  feature "the compact button folds the panel without unmounting the audio", context do
-    %{session: session, entry: entry} = context
-
-    session
-    |> resize_window(500, 900)
-    |> open(item_path(entry))
-    |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel [data-audio-face]"))
-    |> mark_player()
-    |> click(css("#tab-new"))
-    |> assert_has(css(~s|#player-panel[data-place="floating"]|))
-    |> press("compact-player")
-    |> assert_has(css("#compact-player[aria-pressed='true']"))
-    |> assert_has(css("#player-panel [data-audio-face]"))
-    |> execute_script(
-      "return getComputedStyle(document.querySelector('#player-panel .audio-speed')).display",
-      fn display -> assert display == "none" end
-    )
-    |> assert_same_player()
-    # Pinned in its detail there is no button to unfold it, so nothing stays folded there.
-    |> click(css("#play-#{entry.id}"))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] .audio-speed|))
-  end
-
   # On a phone the playing player lies on the card's own. Two players for the one episode would
   # disagree, so the card's gives way while its episode plays.
   feature "on a phone the card's player gives way to the playing one", context do

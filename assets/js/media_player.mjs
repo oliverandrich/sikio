@@ -185,6 +185,7 @@ export const MediaPlayer = {
         }
 
         if (!this.ready) return
+        this.show({playing: state === "playing", ...this.reported})
         // The embed repeats its state and place with every report. Becoming paused is worth a
         // forced save, and so is a seek while paused; the same place again is not.
         const changed = state !== this.lastState
@@ -211,7 +212,12 @@ export const MediaPlayer = {
       audio.play().catch(() => this.message(this.strings.readyAudioManual))
     }
     this.listen(audio, "loadedmetadata", restore)
-    this.listen(audio, "timeupdate", () => this.reporter.save())
+    this.listen(audio, "timeupdate", () => {
+      this.show({position: audio.currentTime, duration: audio.duration})
+      this.reporter.save()
+    })
+    this.listen(audio, "play", () => this.show({playing: true}))
+    for (const event of ["pause", "ended"]) this.listen(audio, event, () => this.show({playing: false}))
     for (const event of ["pause", "seeked"]) {
       this.listen(audio, event, () => this.reporter.save(false, true))
     }
@@ -239,6 +245,8 @@ export const MediaPlayer = {
           this.poll = setInterval(() => {
             const state = this.youtube.getPlayerState()
             const position = this.youtube.getCurrentTime()
+            this.show({playing: [YT.PlayerState.PLAYING, YT.PlayerState.BUFFERING].includes(state),
+              position, duration: this.youtube.getDuration()})
             if (state === YT.PlayerState.PLAYING) this.reporter.save(false, jumped(previousPosition, position))
             else if (state === YT.PlayerState.PAUSED && position !== previousPosition) this.reporter.save(false, true)
             previousPosition = position
@@ -246,6 +254,7 @@ export const MediaPlayer = {
         },
         onStateChange: event => {
           if (!this.ready || this.closed) return
+          this.show({playing: event.data === YT.PlayerState.PLAYING})
           if (event.data === YT.PlayerState.ENDED) this.reporter.save(true, true)
           else if (event.data === YT.PlayerState.PAUSED) this.reporter.save(false, true)
         },
@@ -292,6 +301,15 @@ export const MediaPlayer = {
       if (at !== null) this.seek(at)
     } else if (name === "mute") this.mute()
     else if (name === "fullscreen") this.fullscreen()
+  },
+
+  // Whether it plays and how far it has come, on the element for the stylesheet: the phone's
+  // capsule shows play or pause and a line along its foot from these.
+  show({playing, position, duration}) {
+    if (playing !== undefined) this.el.dataset.playing = String(playing)
+    if (Number.isFinite(position) && duration > 0) {
+      this.el.style.setProperty("--played", String(Math.min(position / duration, 1)))
+    }
   },
 
   // Until a player knows itself, it is where it is about to start.

@@ -43,7 +43,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
     {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
 
-    assert has_element?(dock, "#compact-player[aria-label='Player verkleinern']")
+    assert has_element?(dock, "#capsule-play[aria-label='Abspielen oder anhalten']")
     assert has_element?(dock, "[data-audio-speed][aria-label='Wiedergabegeschwindigkeit']")
   end
 
