@@ -285,6 +285,13 @@
 :is(#player-panel[data-place="pinned"], #player-slot) .audio-speed {
   background: var(--color-surface); box-shadow: 0 0 0 1px var(--color-line);
 }
+/* As narrow as a phone: the buttons close up and the speed slims, so it keeps clear of skipping
+   back while play stays in the middle. */
+@container (20rem <= width < 24rem) {
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face { column-gap: .25rem; }
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-skip { width: 2.75rem; height: 2.75rem; }
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-speed { min-width: 3.25rem; padding: 0 .5rem; }
+}
 /* Very narrow, as the detail beside the list at 1024 pixels: the row beneath the bar closes up. */
 @container (width < 20rem) {
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face {

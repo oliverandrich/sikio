@@ -232,6 +232,35 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
+  # On a phone the audio's buttons keep their distance: play in the middle, the speed clear of
+  # skipping back.
+  @sessions [
+    [
+      capabilities:
+        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
+          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
+        })
+    ]
+  ]
+  feature "an episode's buttons keep their distance on a phone", context do
+    %{session: session, entries: entries} = context
+
+    session
+    |> open(item_path(entries.podcast))
+    |> execute_script(
+      """
+      const box = s => document.querySelector('#audio-cue ' + s).getBoundingClientRect()
+      const face = document.getElementById('audio-cue').getBoundingClientRect()
+      return [Math.round(Math.abs(box('.audio-play').left + box('.audio-play').width / 2 - (face.left + face.width / 2))),
+              Math.round(box('.audio-back').left - box('.audio-speed').right)]
+      """,
+      fn [off_centre, clear] ->
+        assert off_centre <= 1, "play is in the middle"
+        assert clear >= 12, "the speed is #{clear}px from skipping back"
+      end
+    )
+  end
+
   # Audio needs no watching. It sits in its card and scrolls away with it.
   feature "audio plays in its card and scrolls with it", context do
     %{session: session, entries: entries} = context
