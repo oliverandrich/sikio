@@ -367,7 +367,16 @@ defmodule Sikio.LibraryTest do
 
     test "an account without sources counts nothing", ctx do
       assert ctx.bob |> Library.counts() |> Library.tally(%{}) ==
-               %{all: 0, new: 0, in_progress: 0, completed: 0, video: 0, audio: 0, sources: %{}}
+               %{
+                 all: 0,
+                 new: 0,
+                 in_progress: 0,
+                 completed: 0,
+                 video: 0,
+                 audio: 0,
+                 sources: %{},
+                 tags: %{}
+               }
     end
   end
 

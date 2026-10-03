@@ -20,6 +20,7 @@ defmodule SikioWeb.LibraryLive do
   alias Sikio.Feeds
   alias Sikio.Library
   alias Sikio.Playback
+  alias Sikio.Tags
   alias SikioWeb.DateGroups
   alias SikioWeb.Notes
   alias SikioWeb.Pictures
@@ -42,6 +43,7 @@ defmodule SikioWeb.LibraryLive do
        marking: nil,
        mark_options: nil,
        unsubscribing: nil,
+       tagging: nil,
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket))
      )}
@@ -76,7 +78,7 @@ defmodule SikioWeb.LibraryLive do
         do: socket,
         else:
           socket
-          |> assign(filters: filters, entries: [], marking: nil, unsubscribing: nil)
+          |> assign(filters: filters, entries: [], marking: nil, unsubscribing: nil, tagging: nil)
           |> reload()
 
     case select(socket, item) do
@@ -96,6 +98,12 @@ defmodule SikioWeb.LibraryLive do
     if canonical == current,
       do: socket,
       else: push_patch(socket, to: canonical, replace: true)
+  end
+
+  # The subscription to the source the list shows, as the sidebar holds it.
+  defp chosen_subscription(socket) do
+    source = socket.assigns.filters["source"]
+    Enum.find(socket.assigns.sidebar.sources, &(to_string(&1.feed_id) == source))
   end
 
   # The dialog's ticks as what `Playback.mark_all/3` leaves out.
@@ -371,11 +379,52 @@ defmodule SikioWeb.LibraryLive do
     {:noreply, assign(socket, :marking, nil)}
   end
 
+  # A source's tags are chosen in a dialog: the account's tags to tick, and a field for a new one.
+  # What is ticked and typed is followed as it changes, and saved when confirmed.
+  def handle_event("edit_tags", _params, socket) do
+    case chosen_subscription(socket) do
+      nil ->
+        {:noreply, socket}
+
+      subscription ->
+        tags = Tags.of(socket.assigns.current_account, subscription.id)
+
+        {:noreply,
+         assign(socket,
+           tagging: %{subscription: subscription, chosen: Enum.map(tags, & &1.name), new: ""}
+         )}
+    end
+  end
+
+  def handle_event("tag_options", params, socket) do
+    tagging = %{socket.assigns.tagging | chosen: params["tags"] || [], new: params["new"] || ""}
+    {:noreply, assign(socket, :tagging, tagging)}
+  end
+
+  # Enter in the field saves what the form holds, as the button does.
+  def handle_event("submit_edit_tags", params, socket) do
+    {:noreply, socket} = handle_event("tag_options", params, socket)
+    handle_event("confirm_edit_tags", %{}, socket)
+  end
+
+  def handle_event("cancel_edit_tags", _params, socket),
+    do: {:noreply, socket |> assign(:tagging, nil) |> push_event("focus", %{id: "edit-tags"})}
+
+  # A second press arrives after the first has closed the dialog.
+  def handle_event("confirm_edit_tags", _params, %{assigns: %{tagging: nil}} = socket),
+    do: {:noreply, socket}
+
+  # Several new tags may be typed at once, set apart by commas.
+  def handle_event("confirm_edit_tags", _params, socket) do
+    %{subscription: subscription, chosen: chosen, new: new} = socket.assigns.tagging
+    names = chosen ++ String.split(new, ",")
+    Tags.set(socket.assigns.current_account, subscription.id, names)
+    {:noreply, assign(socket, :tagging, nil)}
+  end
+
   # A source is left after a question that names it, from the subscription the sidebar holds.
   def handle_event("unsubscribe", _params, socket) do
-    source = socket.assigns.filters["source"]
-
-    case Enum.find(socket.assigns.sidebar.sources, &(to_string(&1.feed_id) == source)) do
+    case chosen_subscription(socket) do
       nil -> {:noreply, socket}
       subscription -> {:noreply, assign(socket, :unsubscribing, subscription)}
     end
@@ -536,7 +585,10 @@ defmodule SikioWeb.LibraryLive do
 
   # The tally counts every place without a query. A search is counted by the database.
   defp total(socket, %{"q" => ""} = filters),
-    do: socket.assigns.sidebar.counts |> Library.tally(filters) |> Library.total(filters)
+    do:
+      socket.assigns.sidebar.counts
+      |> Library.tally(filters, socket.assigns.sidebar.tag_feeds)
+      |> Library.total(filters)
 
   defp total(socket, filters), do: Library.count(socket.assigns.current_account, filters)
 
@@ -563,7 +615,7 @@ defmodule SikioWeb.LibraryLive do
     limit = max(length(socket.assigns.entries), @batch)
     entries = Library.entries(account, filters, limit: limit)
     # The sidebar and the chips count each place on its own; the heading counts what is shown.
-    counts = Library.tally(socket.assigns.sidebar.counts, %{})
+    counts = Library.tally(socket.assigns.sidebar.counts, %{}, socket.assigns.sidebar.tag_feeds)
 
     socket
     |> assign(
@@ -572,16 +624,22 @@ defmodule SikioWeb.LibraryLive do
       more?: length(entries) == limit,
       counts: counts,
       total: total(socket, filters),
-      heading: heading(filters, subscriptions),
+      heading: heading(filters, socket.assigns.sidebar),
       filtered?: place_of(filters) != filters
     )
   end
 
-  # The view's name: the source when one is chosen, otherwise the status.
-  defp heading(%{"source" => source}, subscriptions) when source != "",
-    do: source_title(subscriptions, source)
+  # The view's name: the source or the tag when one is chosen, otherwise the status.
+  defp heading(%{"source" => source}, sidebar) when source != "",
+    do: source_title(sidebar.sources, source)
 
-  defp heading(%{"status" => status}, _subscriptions),
+  defp heading(%{"tag" => tag}, sidebar) when tag != "",
+    do:
+      Enum.find_value(sidebar.tags, gettext("Unavailable tag"), fn t ->
+        to_string(t.id) == tag && t.name
+      end)
+
+  defp heading(%{"status" => status}, _sidebar),
     do: Enum.find_value(views(), fn {value, _key, label} -> value == status && label end)
 
   defp source_title(subscriptions, source) do
@@ -649,6 +707,17 @@ defmodule SikioWeb.LibraryLive do
                   class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
                 >
                   <Lucideicons.check_check aria-hidden="true" class="size-4.5" />
+                </button>
+                <button
+                  :if={@filters["source"] != ""}
+                  id="edit-tags"
+                  type="button"
+                  aria-label={gettext("Tags")}
+                  title={gettext("Tags")}
+                  phx-click="edit_tags"
+                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                >
+                  <Lucideicons.tag aria-hidden="true" class="size-4.5" />
                 </button>
                 <button
                   :if={@filters["source"] != ""}
@@ -728,6 +797,43 @@ defmodule SikioWeb.LibraryLive do
                     {gettext("Include the item in the player")}
                   </label>
                 </div>
+              </form>
+            </.confirm_dialog>
+            <.confirm_dialog
+              :if={@tagging}
+              name="edit-tags"
+              title={gettext("Tags for %{title}", title: @tagging.subscription.feed.title)}
+              confirm_label={gettext("Save tags")}
+            >
+              <form
+                id="tags-form"
+                phx-change="tag_options"
+                phx-submit="submit_edit_tags"
+                class="flex flex-col gap-2"
+              >
+                <input type="hidden" name="tags[]" value="" />
+                <label
+                  :for={tag <- @sidebar.tags}
+                  class="flex items-center gap-2.5 text-label text-ink"
+                >
+                  <input
+                    type="checkbox"
+                    name="tags[]"
+                    value={tag.name}
+                    checked={tag.name in @tagging.chosen}
+                    class="size-4 accent-accent"
+                  />
+                  {tag.name}
+                </label>
+                <input
+                  type="text"
+                  name="new"
+                  value={@tagging.new}
+                  maxlength="80"
+                  placeholder={gettext("New tag, or several set apart by commas")}
+                  aria-label={gettext("New tag")}
+                  class="mt-1 min-h-10 rounded-control border border-line bg-surface px-3 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
+                />
               </form>
             </.confirm_dialog>
             <.confirm_dialog
@@ -841,7 +947,10 @@ defmodule SikioWeb.LibraryLive do
                     {label}
                   </.segment>
                 </.segments>
-                <.segments :if={@filters["source"] != ""} label={gettext("Status")}>
+                <.segments
+                  :if={@filters["source"] != "" or @filters["tag"] != ""}
+                  label={gettext("Status")}
+                >
                   <.segment
                     :for={{value, key, label} <- views()}
                     id={"filter-status-#{key}"}
@@ -1016,8 +1125,11 @@ defmodule SikioWeb.LibraryLive do
     |> JS.set_attribute({"aria-expanded", "true"}, to: "#toggle-filters")
   end
 
-  # The place the filters narrow: a source, or else a view by its status.
+  # The place the filters narrow: a source or a tag, or else a view by its status.
   defp place_of(%{"source" => source} = filters) when source != "",
+    do: %{filters | "status" => "", "kind" => ""}
+
+  defp place_of(%{"tag" => tag} = filters) when tag != "",
     do: %{filters | "status" => "", "kind" => ""}
 
   defp place_of(filters), do: %{filters | "kind" => ""}

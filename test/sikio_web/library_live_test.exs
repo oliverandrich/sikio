@@ -378,6 +378,71 @@ defmodule SikioWeb.LibraryLiveTest do
     end
   end
 
+  # Tags are a section of their own above the subscriptions. A tag is a place like a source.
+  describe "tags" do
+    test "stand above the subscriptions and open as places", c do
+      {:ok, [tech]} = Sikio.Tags.set(c.user, c.sub.id, ["Tech"])
+
+      {:ok, view, html} = live(c.conn, ~p"/new")
+      assert html =~ ~r/id="tags-heading".*id="sources-heading"/s
+      assert has_element?(view, "#tag-#{tech.id}", "Tech")
+      assert has_element?(view, "#tag-#{tech.id}-count", "1")
+
+      view |> element("#tag-#{tech.id}") |> render_click()
+      assert_patch(view, "/tags/#{tech.id}-tech")
+      assert has_element?(view, "#library-heading", "Tech")
+      assert has_element?(view, "#entries article", "One & two")
+      refute has_element?(view, "#entries article", "A good video")
+      assert has_element?(view, ~s|#tag-#{tech.id}[aria-current="page"]|)
+      assert has_element?(view, ~s|#filter-status-new[aria-current="true"]|)
+    end
+
+    # A source's header gives it tags: the account's tags to tick, and a field for a new one.
+    test "are given in a source's header", c do
+      [video] = Library.subscriptions(c.user) |> Enum.filter(&(&1.feed.kind == :youtube))
+      {:ok, _} = Sikio.Tags.set(c.user, video.id, ["Tech"])
+
+      {:ok, view, _} = live(c.conn, ~p"/new")
+      refute has_element?(view, "#edit-tags")
+
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+      view |> element("#edit-tags") |> render_click()
+      assert has_element?(view, "dialog#edit-tags-confirm", "Tags for Small Hours")
+      assert has_element?(view, ~s|#tags-form input[type="checkbox"][value="Tech"]|)
+      refute has_element?(view, ~s|#tags-form input[type="checkbox"][value="Tech"][checked]|)
+
+      view |> form("#tags-form", %{"tags" => ["Tech"], "new" => "Must view"}) |> render_change()
+      view |> element("#confirm-edit-tags") |> render_click()
+
+      refute has_element?(view, "#edit-tags-confirm")
+      assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Must view", "Tech"]
+      assert has_element?(view, "#tags-heading")
+      assert has_element?(view, "[id^=tag-]", "Must view")
+
+      # Unticked, a tag comes off again.
+      view |> element("#edit-tags") |> render_click()
+      assert has_element?(view, ~s|#tags-form input[type="checkbox"][value="Tech"][checked]|)
+      view |> form("#tags-form", %{"tags" => ["Must view"], "new" => ""}) |> render_change()
+      view |> element("#confirm-edit-tags") |> render_click()
+      assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Must view"]
+
+      # A second press after the dialog has closed changes nothing.
+      render_hook(view, "confirm_edit_tags", %{})
+      assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Must view"]
+
+      # Enter in the field saves, as the button does.
+      view |> element("#edit-tags") |> render_click()
+      view |> form("#tags-form", %{"tags" => ["Must view"], "new" => "Later"}) |> render_submit()
+      refute has_element?(view, "#edit-tags-confirm")
+      assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Later", "Must view"]
+    end
+
+    test "a section without tags is not shown", c do
+      {:ok, view, _} = live(c.conn, ~p"/new")
+      refute has_element?(view, "#tags-heading")
+    end
+  end
+
   # A source can be left where it is read, after a question that names it.
   describe "unsubscribing from a source" do
     test "is offered only within a source, and a cancel keeps it", c do

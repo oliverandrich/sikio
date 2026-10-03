@@ -109,6 +109,9 @@ defmodule SikioWeb.PlayerDockLive do
   # A whole list marked finished leaves out what a player holds, so the dock has nothing to do.
   def handle_info({:playback_marked, _count}, socket), do: {:noreply, socket}
 
+  # Tags change what the library lists, never what plays.
+  def handle_info({:tags_changed, _subscription_id}, socket), do: {:noreply, socket}
+
   def handle_info({:subscription_removed, feed_id}, socket) do
     if socket.assigns.entry && socket.assigns.entry.feed_id == feed_id do
       stop_current(socket)

@@ -21,6 +21,7 @@ defmodule SikioWeb.Sidebar do
 
   alias Sikio.Library
   alias Sikio.Library.Events
+  alias Sikio.Tags
 
   @window_ms 1000
 
@@ -46,9 +47,20 @@ defmodule SikioWeb.Sidebar do
       |> Library.subscriptions()
       |> Enum.sort_by(&String.downcase(&1.feed.title || ""))
 
-    # Addresses name a source by its title as well as its number.
-    titles = Map.new(sources, &{&1.feed_id, &1.feed.title})
-    assign(socket, :sidebar, %{counts: Library.counts(account), sources: sources, titles: titles})
+    tags = Tags.list(account)
+
+    # Addresses name a source or a tag by its title as well as its number.
+    titles =
+      Map.new(sources, &{&1.feed_id, &1.feed.title})
+      |> Map.merge(Map.new(tags, &{{:tag, &1.id}, &1.name}))
+
+    assign(socket, :sidebar, %{
+      counts: Library.counts(account),
+      sources: sources,
+      tags: tags,
+      tag_feeds: Tags.feeds(account),
+      titles: titles
+    })
   end
 
   # A status as the address spells it. What is new is the place without a status, at the
@@ -82,18 +94,22 @@ defmodule SikioWeb.Sidebar do
     end
   end
 
-  defp place(filters, feed_titles) do
+  # A source and a tag are places of their own, beneath which a status narrows the list.
+  defp place(filters, titles) do
     status = Map.get(@statuses, filters["status"])
+    within = if status == "new", do: [], else: [status || "all"]
 
-    case filters["source"] do
-      source when source in [nil, ""] ->
+    cond do
+      (filters["source"] || "") != "" ->
+        source = filters["source"]
+        ["feeds", named(source, Map.get(titles, String.to_integer(source))) | within]
+
+      (filters["tag"] || "") != "" ->
+        tag = filters["tag"]
+        ["tags", named(tag, Map.get(titles, {:tag, String.to_integer(tag)})) | within]
+
+      true ->
         [status || "all"]
-
-      source ->
-        title = Map.get(feed_titles, String.to_integer(source))
-
-        segment = if status == "new", do: [], else: [status || "all"]
-        ["feeds", named(source, title) | segment]
     end
   end
 
@@ -134,25 +150,37 @@ defmodule SikioWeb.Sidebar do
   def read_path(path, query) do
     {place, item} =
       case String.split(path, "/", trim: true) do
-        [] -> {%{"status" => "new"}, nil}
-        ["feeds", feed] -> {feed_status(feed, "new"), nil}
-        ["feeds", feed, segment] -> feed_place(feed, segment)
-        ["feeds", feed, status, item] -> {feed_status(feed, status), item_id(item)}
-        [status] -> {%{"status" => status(status)}, nil}
-        [status, item] -> {%{"status" => status(status)}, item_id(item)}
+        [] ->
+          {%{"status" => "new"}, nil}
+
+        [place, named] when place in ["feeds", "tags"] ->
+          {within(place, named, "new"), nil}
+
+        [place, named, segment] when place in ["feeds", "tags"] ->
+          below(place, named, segment)
+
+        [place, named, status, item] when place in ["feeds", "tags"] ->
+          {within(place, named, status), item_id(item)}
+
+        [status] ->
+          {%{"status" => status(status)}, nil}
+
+        [status, item] ->
+          {%{"status" => status(status)}, item_id(item)}
       end
 
     {Library.normalize_filters(Map.merge(Map.take(query, ["kind", "q"]), place)), item}
   end
 
-  # Below a source the next segment is a status, or else an item of what is new.
-  defp feed_place(feed, segment) do
+  # Below a source or a tag the next segment is a status, or else an item of what is new.
+  defp below(place, named, segment) do
     if Map.has_key?(@status_segments, segment) or segment == "all",
-      do: {feed_status(feed, segment), nil},
-      else: {feed_status(feed, "new"), item_id(segment)}
+      do: {within(place, named, segment), nil},
+      else: {within(place, named, "new"), item_id(segment)}
   end
 
-  defp feed_status(feed, status), do: %{"source" => number(feed), "status" => status(status)}
+  defp within("feeds", feed, status), do: %{"source" => number(feed), "status" => status(status)}
+  defp within("tags", tag, status), do: %{"tag" => number(tag), "status" => status(status)}
 
   defp status(segment), do: Map.get(@status_segments, segment, "")
 
@@ -171,27 +199,30 @@ defmodule SikioWeb.Sidebar do
   end
 
   @doc """
-  The library's address for one place: a view by its status, or a source.
+  The library's address for one place: a view by its status, a source or a tag.
 
   The sidebar and the phone's chips are where the reader is, not filters to combine, so nothing
-  chosen before comes along. A source opens on what is new in it, as the library does.
+  chosen before comes along. A source or a tag opens on what is new in it, as the library does.
   """
   def place_path(key, value, feed_titles \\ %{})
 
-  def place_path("source", value, feed_titles),
-    do: library_path(%{"source" => value, "status" => "new"}, nil, feed_titles)
+  def place_path(key, value, feed_titles) when key in ["source", "tag"],
+    do: library_path(%{key => value, "status" => "new"}, nil, feed_titles)
 
   def place_path(key, value, feed_titles), do: library_path(%{key => value}, nil, feed_titles)
 
   @doc """
   Whether `filters` show that place, which is what marks it as current.
 
-  The list may narrow a place further: by medium anywhere, and by status within a source.
+  The list may narrow a place further: by medium anywhere, and by status within a source or a tag.
   """
   def place?(filters, "source", id), do: filters["source"] == id
+  def place?(filters, "tag", id), do: filters["tag"] == id
 
   def place?(filters, "status", value),
-    do: (filters["source"] || "") == "" and (filters["status"] || "") == value
+    do:
+      (filters["source"] || "") == "" and (filters["tag"] || "") == "" and
+        (filters["status"] || "") == value
 
   # The window is private, because an assign would render the page for nothing.
   defp follow(:library_changed, %{private: %{library_window: :closed}} = socket),
@@ -226,6 +257,7 @@ defmodule SikioWeb.Sidebar do
   defp library_event?({:playback_changed, _state}), do: true
   defp library_event?({:subscription_removed, _feed_id}), do: true
   defp library_event?({:playback_marked, _count}), do: true
+  defp library_event?({:tags_changed, _subscription_id}), do: true
   defp library_event?(_message), do: false
 
   defp passed_on(socket, message) do

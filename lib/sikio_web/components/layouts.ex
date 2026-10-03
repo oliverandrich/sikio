@@ -162,7 +162,8 @@ defmodule SikioWeb.Layouts do
   def member(assigns) do
     counts =
       assigns.counts ||
-        (assigns.sidebar && Sikio.Library.tally(assigns.sidebar.counts, %{}))
+        (assigns.sidebar &&
+           Sikio.Library.tally(assigns.sidebar.counts, %{}, assigns.sidebar.tag_feeds))
 
     assigns = assign(assigns, :counts, counts)
 
@@ -265,6 +266,32 @@ defmodule SikioWeb.Layouts do
               count={@counts[key]}
             >
               {label}
+            </.sidebar_link>
+          </nav>
+          <%!-- An account's own tags, such as "Must view", above the subscriptions they gather. --%>
+          <nav
+            :if={@sidebar.tags != []}
+            aria-labelledby="tags-heading"
+            class="flex flex-col gap-0.5"
+          >
+            <h2
+              id="tags-heading"
+              class="flex min-h-7 items-center px-2.5 pb-1 text-meta font-semibold tracking-wider text-muted uppercase"
+            >
+              {gettext("Tags")}
+            </h2>
+            <.sidebar_link
+              :for={tag <- @sidebar.tags}
+              id={"tag-#{tag.id}"}
+              to={SikioWeb.Sidebar.place_path("tag", to_string(tag.id), @sidebar.titles)}
+              patch={@patch}
+              active={@patch and SikioWeb.Sidebar.place?(@filters, "tag", to_string(tag.id))}
+              count={Map.get(@counts.tags, tag.id, 0)}
+            >
+              <:mark>
+                <Lucideicons.tag aria-hidden="true" class="size-4 shrink-0 text-muted" />
+              </:mark>
+              {tag.name}
             </.sidebar_link>
           </nav>
           <nav aria-labelledby="sources-heading" class="flex flex-col gap-0.5">

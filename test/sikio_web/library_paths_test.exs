@@ -11,7 +11,7 @@ defmodule SikioWeb.LibraryPathsTest do
 
   alias SikioWeb.Sidebar
 
-  @none %{"status" => "", "source" => "", "kind" => "", "q" => ""}
+  @none %{"status" => "", "source" => "", "tag" => "", "kind" => "", "q" => ""}
   @feeds %{106 => "MeTacheles Tonspur"}
   @item %{id: 4056, title: "KI-Verfassung - Die irre Selbstkontrolle der Tech-Bros"}
 
@@ -43,6 +43,33 @@ defmodule SikioWeb.LibraryPathsTest do
            "a source without a known title keeps its number alone"
 
     assert Sidebar.place_path("source", "106", @feeds) == "/feeds/106-metacheles-tonspur"
+  end
+
+  # A tag is a place like a source, named by its number and its name, and opens on what is new.
+  test "a tag is named by its number and its name, and opens on what is new" do
+    tags = %{{:tag, 3} => "Must view"}
+
+    assert Sidebar.library_path(filters(%{"tag" => "3", "status" => "new"}), nil, tags) ==
+             "/tags/3-must-view"
+
+    assert Sidebar.library_path(filters(%{"tag" => "3"}), nil, tags) == "/tags/3-must-view/all"
+
+    assert Sidebar.library_path(filters(%{"tag" => "3", "status" => "new"}), @item, tags) ==
+             "/tags/3-must-view/4056-ki-verfassung-die-irre-selbstkontrolle-der-tech-bros"
+
+    assert Sidebar.place_path("tag", "3", tags) == "/tags/3-must-view"
+
+    assert Sidebar.read_path("/tags/3-must-view", %{}) ==
+             {filters(%{"tag" => "3", "status" => "new"}), nil}
+
+    assert Sidebar.read_path("/tags/3-x/completed/4056-y", %{}) ==
+             {filters(%{"tag" => "3", "status" => "completed"}), "4056"}
+
+    assert Sidebar.read_path("/tags/3-x/4056-y", %{}) ==
+             {filters(%{"tag" => "3", "status" => "new"}), "4056"}
+
+    assert Sidebar.place?(filters(%{"tag" => "3", "status" => "new"}), "tag", "3")
+    refute Sidebar.place?(filters(%{"tag" => "3", "status" => "new"}), "status", "new")
   end
 
   test "an item follows the list it is shown in" do

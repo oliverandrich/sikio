@@ -115,6 +115,26 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#entries article", count: 1))
   end
 
+  # A source is given a tag in a dialog that stays open while it is typed in, and the tag then
+  # stands in the sidebar as a place of its own.
+  feature "a source is given a tag from its own list", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/new")
+    |> refute_has(css("#tags-heading"))
+    |> click(css("#sidebar a", text: "Small Hours"))
+    |> click(css("#edit-tags"))
+    |> assert_has(css("dialog#edit-tags-confirm[open]", text: "Tags for Small Hours"))
+    |> fill_in(css("#tags-form input[name=new]"), with: "Must view")
+    |> assert_has(css("dialog#edit-tags-confirm[open]"))
+    |> click(css("#confirm-edit-tags"))
+    # refute_has fails at once while the dialog is still there; a count of none waits for it.
+    |> assert_has(css("#edit-tags-confirm", count: 0))
+    |> click(css("#sidebar a", text: "Must view"))
+    |> assert_has(css("#library-heading", text: "Must view"))
+    |> assert_has(css("#entries article", count: 25))
+  end
+
   # A source is left from its own list, after a dialog that names it.
   feature "a source is left from its own list", %{session: session} do
     session

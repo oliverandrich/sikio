@@ -18,6 +18,7 @@ defmodule Sikio.Library do
   alias Sikio.Library.Subscription
   alias Sikio.Playback.State
   alias Sikio.Repo
+  alias Sikio.Tags
 
   @doc "The one entry with this id that the account is allowed to see, or `nil`."
   def entry(%User{id: user_id}, id),
@@ -193,21 +194,36 @@ defmodule Sikio.Library do
   How many items each link in the sidebar shows, under the filters in force.
 
   Each count honours the filters its link keeps and replaces only its own. A source counts what
-  is new unless a status is chosen.
+  is new unless a status is chosen, and so does a tag, over the feeds `tag_feeds` gives it.
   """
-  def tally(rows, filters) do
+  def tally(rows, filters, tag_feeds \\ %{}) do
     filters = normalize_filters(filters)
-    beside = fn own -> Enum.filter(rows, &matches_except?(&1, filters, own)) end
+
+    tagged =
+      if filters["tag"] == "",
+        do: [],
+        else: Map.get(tag_feeds, String.to_integer(filters["tag"]), [])
+
+    beside = fn own -> Enum.filter(rows, &matches_except?(&1, filters, own, tagged)) end
     sources = Map.new(rows, &{&1.feed_id, 0})
 
+    # A source and a tag are places of their own, so each counts beside whichever is chosen.
     new_or_chosen =
-      beside.(:source) |> Enum.filter(&(filters["status"] != "" or &1.status == :new))
+      beside.([:source, :tag]) |> Enum.filter(&(filters["status"] != "" or &1.status == :new))
+
+    by_feed = sum_by(new_or_chosen, :feed_id)
 
     %{all: 0, new: 0, in_progress: 0, completed: 0, video: 0, audio: 0}
-    |> Map.merge(sum_by(beside.(:status), :status))
-    |> Map.merge(sum_by(beside.(:kind), :medium))
-    |> Map.update!(:all, fn _ -> beside.(:status) |> Enum.map(& &1.count) |> Enum.sum() end)
-    |> Map.put(:sources, Map.merge(sources, sum_by(new_or_chosen, :feed_id)))
+    |> Map.merge(sum_by(beside.([:status]), :status))
+    |> Map.merge(sum_by(beside.([:kind]), :medium))
+    |> Map.update!(:all, fn _ -> beside.([:status]) |> Enum.map(& &1.count) |> Enum.sum() end)
+    |> Map.put(:sources, Map.merge(sources, by_feed))
+    |> Map.put(
+      :tags,
+      Map.new(tag_feeds, fn {tag, feeds} ->
+        {tag, feeds |> Enum.uniq() |> Enum.map(&Map.get(by_feed, &1, 0)) |> Enum.sum()}
+      end)
+    )
   end
 
   @doc "Whether the list under `filters` holds the entry, for this account alone."
@@ -244,7 +260,7 @@ defmodule Sikio.Library do
     |> Repo.one()
   end
 
-  @doc "How many items match `filters` altogether, read from their `tally/2`."
+  @doc "How many items match `filters` altogether, read from their `tally/3`."
   def total(tally, filters) do
     status = normalize_filters(filters)["status"]
     Map.fetch!(tally, if(status == "", do: :all, else: String.to_existing_atom(status)))
@@ -256,9 +272,10 @@ defmodule Sikio.Library do
     end)
   end
 
-  defp matches_except?(row, filters, own) do
-    Enum.all?([:source, :kind, :status] -- [own], fn
+  defp matches_except?(row, filters, own, tagged) do
+    Enum.all?([:source, :tag, :kind, :status] -- own, fn
       :source -> filters["source"] in ["", to_string(row.feed_id)]
+      :tag -> filters["tag"] == "" or row.feed_id in tagged
       :kind -> filters["kind"] in ["", Atom.to_string(row.medium)]
       :status -> filters["status"] in ["", Atom.to_string(row.status)]
     end)
@@ -275,6 +292,7 @@ defmodule Sikio.Library do
       "kind" => kind(params["kind"]),
       "status" => choice(params["status"], ~w(new in_progress completed)),
       "source" => source_id(params["source"]),
+      "tag" => source_id(params["tag"]),
       "q" => search_text(params["q"])
     }
   end
@@ -299,14 +317,18 @@ defmodule Sikio.Library do
 
   defp source_id(_), do: ""
 
+  # A source is one feed. A tag gathers the feeds of the account's subscriptions that carry it.
+  defp in_place(query, _user_id, %{"source" => source}) when source != "",
+    do: where(query, [e], e.feed_id == ^String.to_integer(source))
+
+  defp in_place(query, user_id, %{"tag" => tag}) when tag != "",
+    do: where(query, [e], e.feed_id in subquery(Tags.feed_ids(%User{id: user_id}, tag)))
+
+  defp in_place(query, _user_id, _filters), do: query
+
   defp filtered_entries(user_id, params) do
     filters = normalize_filters(params)
-    query = entry_query(user_id)
-
-    query =
-      if filters["source"] == "",
-        do: query,
-        else: where(query, [e], e.feed_id == ^String.to_integer(filters["source"]))
+    query = user_id |> entry_query() |> in_place(user_id, filters)
 
     query =
       case filters["kind"] do

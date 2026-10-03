@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+defmodule Sikio.TagsTest do
+  @moduledoc """
+  An account's own tags on its own subscriptions. The feeds beneath stay shared and know nothing
+  of them.
+  """
+  use Sikio.DataCase, async: true
+
+  import Sikio.FeedFixtures
+
+  alias Sikio.Accounts.User
+  alias Sikio.Feeds.Parser
+  alias Sikio.Library
+  alias Sikio.Tags
+
+  setup do
+    alice = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    bob = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, podcast} = Parser.parse(podcast(), feed_url())
+    {:ok, video} = Parser.parse(youtube(), youtube_feed_url())
+    {:ok, podcast_sub} = Library.subscribe(alice, podcast)
+    {:ok, video_sub} = Library.subscribe(alice, video)
+    {:ok, bobs} = Library.subscribe(bob, podcast)
+    %{alice: alice, bob: bob, podcast: podcast_sub, video: video_sub, bobs: bobs}
+  end
+
+  defp names(tags), do: Enum.map(tags, & &1.name)
+
+  test "a subscription carries the tags its account gives it, several or none", c do
+    assert {:ok, tags} = Tags.set(c.alice, c.podcast.id, ["Tech", " Must view ", ""])
+    assert names(tags) == ["Must view", "Tech"]
+
+    # The same name in other letters is the same tag.
+    assert {:ok, [%{name: "Must view"}]} = Tags.set(c.alice, c.video.id, ["must VIEW"])
+    assert names(Tags.list(c.alice)) == ["Must view", "Tech"]
+    assert names(Tags.of(c.alice, c.podcast.id)) == ["Must view", "Tech"]
+
+    # Taking a tag off leaves the tag, which may be given again.
+    assert {:ok, [%{name: "Tech"}]} = Tags.set(c.alice, c.podcast.id, ["Tech"])
+    assert {:ok, []} = Tags.set(c.alice, c.video.id, [])
+    assert names(Tags.list(c.alice)) == ["Must view", "Tech"]
+  end
+
+  test "tags belong to the account that named them", c do
+    {:ok, _} = Tags.set(c.alice, c.podcast.id, ["Tech"])
+
+    assert {:error, :not_found} = Tags.set(c.bob, c.podcast.id, ["Mine now"])
+    assert Tags.of(c.bob, c.podcast.id) == []
+    assert Tags.list(c.bob) == []
+
+    assert {:ok, [bobs]} = Tags.set(c.bob, c.bobs.id, ["Tech"])
+    [alices] = Tags.list(c.alice)
+    assert bobs.id != alices.id
+  end
+
+  # A tag is a place like a source: its list holds the entries of the subscriptions that carry
+  # it, and its count is what is new among them.
+  test "a tag lists and counts the entries of its subscriptions", c do
+    {:ok, [tech]} = Tags.set(c.alice, c.video.id, ["Tech"])
+    tag = to_string(tech.id)
+
+    assert [%{feed: %{kind: :youtube}}] = Library.entries(c.alice, %{"tag" => tag})
+    assert Library.count(c.alice, %{"tag" => tag}) == 1
+    assert Library.entries(c.bob, %{"tag" => tag}) == []
+
+    counts = Library.tally(Library.counts(c.alice), %{}, Tags.feeds(c.alice))
+    assert counts.tags == %{tech.id => 1}
+
+    {:ok, _} = Tags.set(c.alice, c.podcast.id, ["Tech"])
+    counts = Library.tally(Library.counts(c.alice), %{}, Tags.feeds(c.alice))
+    assert counts.tags == %{tech.id => 2}
+  end
+
+  # A subscription that ends takes its tags off with it; the tag stays for the account.
+  test "unsubscribing takes the tags off, and the tag stays", c do
+    {:ok, _} = Tags.set(c.alice, c.podcast.id, ["Tech"])
+    {:ok, _} = Library.unsubscribe(c.alice, c.podcast.id)
+
+    assert names(Tags.list(c.alice)) == ["Tech"]
+    assert Repo.aggregate(Tags.SubscriptionTag, :count) == 0
+  end
+end

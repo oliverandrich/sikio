@@ -103,6 +103,9 @@ defmodule SikioWeb.Router do
       live "/feeds/:feed", LibraryLive, :index
       live "/feeds/:feed/:place", LibraryLive, :index
       live "/feeds/:feed/:status/:item", LibraryLive, :index
+      live "/tags/:tag", LibraryLive, :index
+      live "/tags/:tag/:place", LibraryLive, :index
+      live "/tags/:tag/:status/:item", LibraryLive, :index
       live "/invitations", InvitationsLive
       live "/subscriptions", SubscriptionsLive
       live "/subscriptions/import", OPMLLive
