@@ -135,6 +135,28 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#entries article", count: 25))
   end
 
+  # A long name has the head's whole width: the actions stand in the line beneath it.
+  feature "the list's actions stand beneath its heading", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/new")
+    |> click(css("#sidebar a", text: "Small Hours"))
+    |> assert_has(css("#unsubscribe"))
+    |> execute_script(
+      """
+      const box = id => document.getElementById(id).getBoundingClientRect()
+      const head = document.querySelector('#list-head > div').getBoundingClientRect()
+      const padding = parseFloat(getComputedStyle(document.querySelector('#list-head > div')).paddingRight)
+      return [box('toggle-search').top >= box('library-heading').bottom,
+              Math.round(head.right - padding - box('library-heading').right)]
+      """,
+      fn [beneath, gap] ->
+        assert beneath, "the actions stand beside the heading"
+        assert gap == 0, "the heading does not have the head's whole width"
+      end
+    )
+  end
+
   # A source is left from its own list, after a dialog that names it.
   feature "a source is left from its own list", %{session: session} do
     session

@@ -143,6 +143,16 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(reloaded, "#entries-#{c.audio.id}", "New")
   end
 
+  # Within its own source a row does not repeat the source's name; everywhere else it names it.
+  test "a row names its source except within that source", c do
+    {:ok, view, _} = live(c.conn, ~p"/new")
+    assert has_element?(view, "#entries-#{c.audio.id} [data-source]", "Small Hours")
+
+    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    assert has_element?(view, "#entries-#{c.audio.id}")
+    refute has_element?(view, "#entries-#{c.audio.id} [data-source]")
+  end
+
   # No list is narrowed by medium. An old address that names one is set right and narrows nothing.
   test "no list offers a medium filter", c do
     {:ok, view, _} = c.conn |> live("/new?kind=video") |> follow_redirect(c.conn, "/new")

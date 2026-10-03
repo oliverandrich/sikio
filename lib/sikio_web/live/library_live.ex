@@ -225,6 +225,7 @@ defmodule SikioWeb.LibraryLive do
       entry={@entry}
       to={SikioWeb.Sidebar.library_path(@filters, @entry, @titles)}
       selected={@selected == @entry.id}
+      source_shown={@filters["source"] == ""}
     />
     """
   end
@@ -763,9 +764,11 @@ defmodule SikioWeb.LibraryLive do
             phx-hook="ListHead"
             class="lg:sticky lg:top-0 lg:z-10 lg:border-b lg:border-line lg:bg-surface"
           >
-            <div class="flex items-start justify-between gap-3 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
-              <div class="flex min-w-0 flex-col gap-0.5">
-                <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
+            <%!-- The heading has the head's whole width, so a long source's name wraps late. The
+                 count and the actions share the line beneath it. --%>
+            <div class="flex flex-col gap-0.5 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
+              <h1 id="library-heading" class="text-title font-semibold">{@heading}</h1>
+              <div class="flex min-h-9 items-center justify-between gap-3">
                 <span
                   :if={!@empty?}
                   id="library-count"
@@ -773,84 +776,84 @@ defmodule SikioWeb.LibraryLive do
                 >
                   {count_label(@total)}
                 </span>
-              </div>
-              <div class="flex shrink-0 items-center gap-2">
-                <%!-- An empty list or one of finished items has nothing to offer the double check. --%>
-                <button
-                  :if={@total > 0 and @filters["status"] != "completed"}
-                  id="mark-all"
-                  type="button"
-                  aria-label={gettext("Mark all as finished")}
-                  title={gettext("Mark all as finished")}
-                  phx-click="mark_all"
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
-                >
-                  <Lucideicons.check_check aria-hidden="true" class="size-4.5" />
-                </button>
-                <button
-                  :if={@filters["tag"] != ""}
-                  id="rename-tag"
-                  type="button"
-                  aria-label={gettext("Rename tag")}
-                  title={gettext("Rename tag")}
-                  phx-click="rename_tag"
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
-                >
-                  <Lucideicons.pencil aria-hidden="true" class="size-4.5" />
-                </button>
-                <button
-                  :if={@filters["tag"] != ""}
-                  id="delete-tag"
-                  type="button"
-                  aria-label={gettext("Delete tag")}
-                  title={gettext("Delete tag")}
-                  phx-click="delete_tag"
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
-                >
-                  <Lucideicons.trash_2 aria-hidden="true" class="size-4.5" />
-                </button>
-                <button
-                  :if={@filters["source"] != ""}
-                  id="edit-tags"
-                  type="button"
-                  aria-label={gettext("Tags")}
-                  title={gettext("Tags")}
-                  phx-click="edit_tags"
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
-                >
-                  <Lucideicons.tag aria-hidden="true" class="size-4.5" />
-                </button>
-                <button
-                  :if={@filters["source"] != ""}
-                  id="unsubscribe"
-                  type="button"
-                  aria-label={gettext("Unsubscribe")}
-                  title={gettext("Unsubscribe")}
-                  phx-click="unsubscribe"
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
-                >
-                  <Lucideicons.unplug aria-hidden="true" class="size-4.5" />
-                </button>
-                <button
-                  :if={!@empty?}
-                  id="toggle-search"
-                  type="button"
-                  aria-controls="search-form"
-                  aria-expanded={to_string(@search_open?)}
-                  aria-label={gettext("Search")}
-                  phx-click="toggle_search"
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-expanded:text-accent"
-                >
-                  <Lucideicons.search aria-hidden="true" class="size-4.5" />
-                </button>
-                <.button
-                  id="add-subscription"
-                  class="shrink-0 lg:hidden"
-                  navigate={~p"/subscriptions"}
-                >
-                  <Lucideicons.plus aria-hidden="true" class="size-4" />
-                  {gettext("Add a source")}
-                </.button>
+                <div class="ml-auto flex shrink-0 items-center gap-2">
+                  <%!-- An empty list or one of finished items has nothing to offer the double check. --%>
+                  <button
+                    :if={@total > 0 and @filters["status"] != "completed"}
+                    id="mark-all"
+                    type="button"
+                    aria-label={gettext("Mark all as finished")}
+                    title={gettext("Mark all as finished")}
+                    phx-click="mark_all"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                  >
+                    <Lucideicons.check_check aria-hidden="true" class="size-4.5" />
+                  </button>
+                  <button
+                    :if={@filters["tag"] != ""}
+                    id="rename-tag"
+                    type="button"
+                    aria-label={gettext("Rename tag")}
+                    title={gettext("Rename tag")}
+                    phx-click="rename_tag"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                  >
+                    <Lucideicons.pencil aria-hidden="true" class="size-4.5" />
+                  </button>
+                  <button
+                    :if={@filters["tag"] != ""}
+                    id="delete-tag"
+                    type="button"
+                    aria-label={gettext("Delete tag")}
+                    title={gettext("Delete tag")}
+                    phx-click="delete_tag"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                  >
+                    <Lucideicons.trash_2 aria-hidden="true" class="size-4.5" />
+                  </button>
+                  <button
+                    :if={@filters["source"] != ""}
+                    id="edit-tags"
+                    type="button"
+                    aria-label={gettext("Tags")}
+                    title={gettext("Tags")}
+                    phx-click="edit_tags"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                  >
+                    <Lucideicons.tag aria-hidden="true" class="size-4.5" />
+                  </button>
+                  <button
+                    :if={@filters["source"] != ""}
+                    id="unsubscribe"
+                    type="button"
+                    aria-label={gettext("Unsubscribe")}
+                    title={gettext("Unsubscribe")}
+                    phx-click="unsubscribe"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                  >
+                    <Lucideicons.unplug aria-hidden="true" class="size-4.5" />
+                  </button>
+                  <button
+                    :if={!@empty?}
+                    id="toggle-search"
+                    type="button"
+                    aria-controls="search-form"
+                    aria-expanded={to_string(@search_open?)}
+                    aria-label={gettext("Search")}
+                    phx-click="toggle_search"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-expanded:text-accent"
+                  >
+                    <Lucideicons.search aria-hidden="true" class="size-4.5" />
+                  </button>
+                  <.button
+                    id="add-subscription"
+                    class="shrink-0 lg:hidden"
+                    navigate={~p"/subscriptions"}
+                  >
+                    <Lucideicons.plus aria-hidden="true" class="size-4" />
+                    {gettext("Add a source")}
+                  </.button>
+                </div>
               </div>
             </div>
             <.confirm_dialog
@@ -1142,6 +1145,7 @@ defmodule SikioWeb.LibraryLive do
   attr :entry, :map, required: true
   attr :to, :string, required: true
   attr :selected, :boolean, required: true
+  attr :source_shown, :boolean, default: true, doc: "false within the source's own list"
 
   defp entry_row(assigns) do
     assigns =
@@ -1182,7 +1186,9 @@ defmodule SikioWeb.LibraryLive do
           <.progress :if={@status == :in_progress} entry={@entry} />
         </span>
         <span class="flex min-w-0 grow flex-col gap-1">
-          <span class="truncate text-meta font-semibold text-accent">{@entry.feed.title}</span>
+          <span :if={@source_shown} data-source class="truncate text-meta font-semibold text-accent">
+            {@entry.feed.title}
+          </span>
           <span class={[
             "mb-auto line-clamp-2 text-body",
             @status == :completed && "text-muted",
