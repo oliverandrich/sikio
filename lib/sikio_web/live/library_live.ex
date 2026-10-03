@@ -38,6 +38,7 @@ defmodule SikioWeb.LibraryLive do
        entries: [],
        more?: false,
        search_open?: false,
+       marking: nil,
        chosen_for_width: nil
      )}
   end
@@ -61,7 +62,7 @@ defmodule SikioWeb.LibraryLive do
     socket =
       if filters == socket.assigns.filters,
         do: socket,
-        else: socket |> assign(filters: filters, entries: []) |> reload()
+        else: socket |> assign(filters: filters, entries: [], marking: nil) |> reload()
 
     case select(socket, item) do
       {:ok, socket} -> {:noreply, socket |> reach() |> named(path, query)}
@@ -210,6 +211,26 @@ defmodule SikioWeb.LibraryLive do
         params,
         socket
       )
+
+  # The double check asks first and names how many it would mark, by the rule that marks them.
+  def handle_event("mark_all", _params, socket) do
+    case Playback.markable(socket.assigns.current_account, socket.assigns.filters) do
+      0 ->
+        {:noreply, put_flash(socket, :info, gettext("Everything here is finished already."))}
+
+      count ->
+        {:noreply, assign(socket, :marking, count)}
+    end
+  end
+
+  def handle_event("cancel_mark_all", _params, socket),
+    do: {:noreply, socket |> assign(:marking, nil) |> push_event("focus", %{id: "mark-all"})}
+
+  # The change is broadcast, and the broadcast reloads the list along with the sidebar.
+  def handle_event("confirm_mark_all", _params, socket) do
+    {:ok, _count} = Playback.mark_all(socket.assigns.current_account, socket.assigns.filters)
+    {:noreply, assign(socket, :marking, nil)}
+  end
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
     do: {:noreply, socket}
@@ -441,6 +462,18 @@ defmodule SikioWeb.LibraryLive do
                 </span>
               </div>
               <div class="flex shrink-0 items-center gap-2">
+                <%!-- An empty list or one of finished items has nothing to offer the double check. --%>
+                <button
+                  :if={@total > 0 and @filters["status"] != "completed"}
+                  id="mark-all"
+                  type="button"
+                  aria-label={gettext("Mark all as finished")}
+                  title={gettext("Mark all as finished")}
+                  phx-click="mark_all"
+                  class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                >
+                  <Lucideicons.check_check aria-hidden="true" class="size-4.5" />
+                </button>
                 <button
                   :if={!@empty?}
                   id="toggle-search"
@@ -463,6 +496,44 @@ defmodule SikioWeb.LibraryLive do
                 </.button>
               </div>
             </div>
+            <%!-- Rendered only while it asks, and opened as it appears; see assets/js/app.js.
+                 It takes the focus itself, so no button shows a ring before anybody tabs. --%>
+            <dialog
+              :if={@marking}
+              id="mark-all-confirm"
+              tabindex="-1"
+              autofocus
+              aria-labelledby="mark-all-heading"
+              phx-mounted={JS.dispatch("sikio:show")}
+              phx-window-keydown="cancel_mark_all"
+              phx-key="Escape"
+              class="m-auto w-[min(26rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl outline-none backdrop:bg-black/40"
+            >
+              <h2 id="mark-all-heading" class="text-title font-semibold">
+                {gettext("Mark all as finished?")}
+              </h2>
+              <p class="mt-2 text-body text-muted">
+                {ngettext(
+                  "%{count} item in this list will be marked as finished.",
+                  "%{count} items in this list will be marked as finished.",
+                  @marking
+                )}
+                {gettext("Whatever is playing stays as it is.")}
+              </p>
+              <div class="mt-6 flex justify-end gap-2">
+                <.button id="cancel-mark-all" type="button" phx-click="cancel_mark_all">
+                  {gettext("Cancel")}
+                </.button>
+                <.button
+                  id="confirm-mark-all"
+                  type="button"
+                  variant="primary"
+                  phx-click="confirm_mark_all"
+                >
+                  {gettext("Mark finished")}
+                </.button>
+              </div>
+            </dialog>
             <nav
               id="library-chips"
               aria-label={gettext("Views")}

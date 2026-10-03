@@ -225,6 +225,7 @@ defmodule SikioWeb.Sidebar do
   defp library_event?({:playback_progressed, _state}), do: true
   defp library_event?({:playback_changed, _state}), do: true
   defp library_event?({:subscription_removed, _feed_id}), do: true
+  defp library_event?({:playback_marked, _count}), do: true
   defp library_event?(_message), do: false
 
   defp passed_on(socket, message) do

@@ -182,6 +182,18 @@ defmodule Sikio.Library do
     end) || false
   end
 
+  @doc """
+  The ids of every entry a list with `filters` shows, however many it has loaded, as a query to
+  use inside another, so that marking a whole list never carries its ids.
+  """
+  def listed_ids(%User{id: user_id}, filters) do
+    user_id
+    |> filtered_entries(filters)
+    |> exclude(:preload)
+    |> exclude(:select)
+    |> select([e], e.id)
+  end
+
   @doc "How many entries match `filters`, however many a list has loaded. Searches count this way."
   def count(%User{id: user_id}, filters) do
     user_id

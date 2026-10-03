@@ -122,6 +122,57 @@ defmodule Sikio.Playback do
     )
   end
 
+  @doc "How many entries `mark_all/2` would mark with the same `filters`."
+  def markable(%User{id: user_id} = account, filters) do
+    Repo.one(
+      from e in subquery(Library.listed_ids(account, filters)),
+        left_join: p in State,
+        on: p.entry_id == e.id and p.user_id == ^user_id,
+        where: is_nil(p.id) or (p.status != :completed and is_nil(p.session_id)),
+        select: count()
+    )
+  end
+
+  @doc """
+  Marks everything a list with `filters` shows as finished, and answers how many changed.
+
+  What is finished already stays as it was, and so does what a player holds: the player marks
+  it at its end, and taking its session away would stop it mid-sentence. An entry nobody opened
+  gets its row first. The views hear of it once, as `{:playback_marked, count}`.
+  """
+  def mark_all(%User{id: user_id} = account, filters) do
+    now = DateTime.utc_now()
+    listed = Library.listed_ids(account, filters)
+
+    {:ok, count} =
+      Repo.transaction(fn ->
+        # SQLite reads `ON CONFLICT` after a `SELECT` without `WHERE` as a join's `ON`, and Ecto
+        # drops a `WHERE true`, so the condition is one that always holds but stays.
+        Repo.insert_all(
+          State,
+          from(e in subquery(listed),
+            where: not is_nil(e.id),
+            select: %{user_id: ^user_id, entry_id: e.id, inserted_at: ^now, updated_at: ^now}
+          ),
+          on_conflict: :nothing
+        )
+
+        {count, _} =
+          Repo.update_all(
+            from(p in State,
+              where: p.user_id == ^user_id and p.entry_id in subquery(listed),
+              where: p.status != :completed and is_nil(p.session_id)
+            ),
+            set: [status: :completed, completed_at: now, sequence: 0, updated_at: now]
+          )
+
+        count
+      end)
+
+    if count > 0, do: Events.broadcast(account, {:playback_marked, count})
+    {:ok, count}
+  end
+
   defp change(%User{id: user_id} = account, id, changes) do
     result =
       Repo.transaction(fn ->

@@ -318,6 +318,38 @@ defmodule SikioWeb.LibraryLiveTest do
   # every open tab a reload, so a sample that changes no status updates the one row; a status
   # change may move the item between views and reloads. An entry added behind the page's back
   # shows which of the two happened.
+  # The double check marks a whole list finished, after a question that names how many. A list
+  # of finished items has nothing to offer it.
+  describe "marking a list finished" do
+    test "asks first, and a cancel changes nothing", c do
+      {:ok, view, _} = live(c.conn, ~p"/completed")
+      refute has_element?(view, "#mark-all")
+
+      {:ok, view, _} = live(c.conn, ~p"/new")
+      refute has_element?(view, "#mark-all-confirm")
+      view |> element("#mark-all") |> render_click()
+      assert has_element?(view, "dialog#mark-all-confirm", "2 items in this list")
+
+      view |> element("#cancel-mark-all") |> render_click()
+      refute has_element?(view, "#mark-all-confirm")
+      assert Library.count(c.user, %{"status" => "completed"}) == 0
+    end
+
+    test "marks what the list shows and reads it again", c do
+      {:ok, view, _} = live(c.conn, ~p"/new?kind=audio")
+      view |> element("#mark-all") |> render_click()
+      assert has_element?(view, "dialog#mark-all-confirm", "1 item in this list")
+
+      view |> element("#confirm-mark-all") |> render_click()
+      refute has_element?(view, "#mark-all-confirm")
+      refute has_element?(view, "#entries article", "One & two")
+      assert has_element?(view, "#view-completed-count", "1")
+      assert Library.count(c.user, %{"status" => "new"}) == 1
+      # An empty list has nothing left to mark.
+      refute has_element?(view, "#mark-all")
+    end
+  end
+
   describe "progress from a player" do
     setup c do
       {:ok, %{session_id: session}} = Playback.start(c.user, c.audio.id)

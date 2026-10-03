@@ -74,6 +74,26 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#about[open]", count: 0))
   end
 
+  # The double check asks in a dialog that opens as it appears. Escape lets go of it, and the
+  # second answer marks the list.
+  feature "the double check marks a list after asking", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/new")
+    |> click(css("#mark-all"))
+    |> assert_has(css("dialog#mark-all-confirm[open]", text: "40 items in this list"))
+    # The dialog takes the focus itself, so no button shows a ring before anybody tabs to it.
+    |> execute_script("return document.activeElement.id", fn id ->
+      assert id == "mark-all-confirm"
+    end)
+    |> send_keys([:escape])
+    |> refute_has(css("#mark-all-confirm"))
+    |> click(css("#mark-all"))
+    |> click(css("#confirm-mark-all"))
+    |> refute_has(css("#entries article"))
+    |> assert_has(css("#view-completed-count", text: "40"))
+  end
+
   # The search folds away behind the magnifier. Opened, the field takes the keyboard, so typing
   # j or k searches rather than moves; Escape clears it and folds it away again.
   feature "the magnifier opens a search that narrows the list", %{session: session} do

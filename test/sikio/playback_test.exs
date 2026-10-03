@@ -8,8 +8,10 @@ defmodule Sikio.PlaybackTest do
 
   alias Sikio.Accounts.User
   alias Sikio.Feeds
+  alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Parser
   alias Sikio.Library
+  alias Sikio.Library.Events
   alias Sikio.Playback
 
   setup do
@@ -155,6 +157,42 @@ defmodule Sikio.PlaybackTest do
 
     if Application.fetch_env!(:sikio, :database) == :postgres,
       do: assert(lock =~ ~r/FOR UPDATE$/)
+  end
+
+  # A whole list marked finished: exactly what it shows, however many pages that is, for this
+  # account alone. What a player holds is left to the player, which marks it at its end.
+  test "mark_all finishes what a list shows, except what a player holds", c do
+    entries =
+      for n <- 1..120,
+          do: %{hd(c.preview.entries) | external_id: "e#{n}", title: "Episode #{n}"}
+
+    {:ok, _} = Library.subscribe(c.alice, %{c.preview | entries: entries})
+    {:ok, _} = Library.subscribe(c.bob, %{c.preview | entries: entries})
+
+    id = fn title ->
+      Repo.one!(from e in Entry, where: e.title == ^title, select: e.id)
+    end
+
+    {:ok, %{session_id: session}} = Playback.start(c.alice, id.("Episode 5"))
+    {:ok, _} = Playback.mark(c.alice, id.("Episode 7"), :completed)
+    Events.subscribe(c.alice)
+
+    # "episode 11" is Episode 11 and Episode 110 to 119.
+    assert {:ok, 11} = Playback.mark_all(c.alice, %{"q" => "episode 11"})
+    assert_received {:playback_marked, 11}
+    assert Library.count(c.alice, %{"status" => "completed"}) == 12
+
+    assert {:ok, marked} = Playback.mark_all(c.alice, %{"status" => ""})
+    assert marked > 100
+
+    assert [held] =
+             Library.entries(c.alice, %{"status" => "new"}) ++
+               Library.entries(c.alice, %{"status" => "in_progress"})
+
+    assert held.title == "Episode 5"
+    assert held.playback.session_id == session
+    assert {:ok, 0} = Playback.mark_all(c.alice, %{"status" => "completed"})
+    assert Library.count(c.bob, %{"status" => "completed"}) == 0
   end
 
   defp sample(sequence, position),

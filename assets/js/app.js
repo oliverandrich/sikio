@@ -45,8 +45,13 @@ const liveSocket = new LiveSocket("/live", Socket, {
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 // An overview dialog opens over the page when a sikio:show event reaches it; see Layouts.overview.
+// A browser gives the focus to the first button, which then shows its ring. A dialog marked
+// autofocus takes the focus itself, which browsers do not do for it; Tab still reaches the buttons.
 window.addEventListener("sikio:show", event => {
-  if (event.target instanceof HTMLDialogElement && !event.target.open) event.target.showModal()
+  const dialog = event.target
+  if (!(dialog instanceof HTMLDialogElement) || dialog.open) return
+  dialog.showModal()
+  if (dialog.hasAttribute("autofocus")) dialog.focus()
 })
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
