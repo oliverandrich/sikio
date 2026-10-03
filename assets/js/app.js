@@ -35,6 +35,7 @@ import {DockPlace} from "./dock_place.mjs"
 import {AudioCue} from "./audio_cue.mjs"
 import {Shortcuts} from "./shortcuts.mjs"
 import {ListHead} from "./list_head.mjs"
+import {PlayingEntry} from "./playing_entry.mjs"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
@@ -45,7 +46,7 @@ const liveSocket = new LiveSocket("/live", Socket, {
     time_zone_offset: -new Date().getTimezoneOffset(),
     ...rejoinParams(view),
   }),
-  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue, Shortcuts, ListHead},
+  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue, Shortcuts, ListHead, PlayingEntry},
 })
 
 // Show progress bar on live navigation and form submits

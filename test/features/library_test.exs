@@ -94,6 +94,27 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#view-completed-count", text: "40"))
   end
 
+  # The dialog offers to leave the player's item only while the player holds one. Unticked, it
+  # counts one fewer and that item stays as it was.
+  feature "the double check may leave the item in the player", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/new")
+    |> click(css("#mark-all"))
+    |> assert_has(css("dialog#mark-all-confirm[open]", text: "40 items in this list"))
+    |> refute_has(css("#mark-all-playing"))
+    |> send_keys([:escape])
+    |> click(css("#start-playback"))
+    |> assert_has(css("#player-control[data-entry-id]"))
+    |> click(css("#mark-all"))
+    |> assert_has(css("#mark-all-playing input[name=playing][type=checkbox]:checked"))
+    |> click(css("#mark-all-playing input[name=playing][type=checkbox]"))
+    |> assert_has(css("dialog#mark-all-confirm[open]", text: "39 items in this list"))
+    |> click(css("#confirm-mark-all"))
+    |> assert_has(css("#view-completed-count", text: "39"))
+    |> assert_has(css("#entries article", count: 1))
+  end
+
   # A source is left from its own list, after a dialog that names it.
   feature "a source is left from its own list", %{session: session} do
     session

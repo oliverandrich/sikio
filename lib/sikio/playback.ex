@@ -122,13 +122,16 @@ defmodule Sikio.Playback do
     )
   end
 
-  @doc "How many entries `mark_all/2` would mark with the same `filters`."
-  def markable(%User{id: user_id} = account, filters) do
+  @doc "How many entries `mark_all/3` would mark with the same `filters` and `options`."
+  def markable(%User{id: user_id} = account, filters, options \\ []) do
     Repo.one(
       from e in subquery(Library.listed_ids(account, filters)),
+        as: :entry,
         left_join: p in State,
+        as: :state,
         on: p.entry_id == e.id and p.user_id == ^user_id,
-        where: is_nil(p.id) or (p.status != :completed and is_nil(p.session_id)),
+        where: is_nil(p.id) or p.status != :completed,
+        where: ^leaving_out(options),
         select: count()
     )
   end
@@ -136,11 +139,12 @@ defmodule Sikio.Playback do
   @doc """
   Marks everything a list with `filters` shows as finished, and answers how many changed.
 
-  What is finished already stays as it was, and so does what a player holds: the player marks
-  it at its end, and taking its session away would stop it mid-sentence. An entry nobody opened
+  What is finished already stays as it was. `in_progress: false` leaves what is in progress, and
+  `keep:` names an entry to leave, the one the reader's player holds. A player that held a marked
+  entry hears its progress changed elsewhere, as after marking one by hand. An entry nobody opened
   gets its row first. The views hear of it once, as `{:playback_marked, count}`.
   """
-  def mark_all(%User{id: user_id} = account, filters) do
+  def mark_all(%User{id: user_id} = account, filters, options \\ []) do
     now = DateTime.utc_now()
     listed = Library.listed_ids(account, filters)
 
@@ -160,10 +164,20 @@ defmodule Sikio.Playback do
         {count, _} =
           Repo.update_all(
             from(p in State,
-              where: p.user_id == ^user_id and p.entry_id in subquery(listed),
-              where: p.status != :completed and is_nil(p.session_id)
+              as: :state,
+              join: e in subquery(listed),
+              as: :entry,
+              on: e.id == p.entry_id,
+              where: p.user_id == ^user_id and p.status != :completed,
+              where: ^leaving_out(options)
             ),
-            set: [status: :completed, completed_at: now, sequence: 0, updated_at: now]
+            set: [
+              status: :completed,
+              completed_at: now,
+              session_id: nil,
+              sequence: 0,
+              updated_at: now
+            ]
           )
 
         count
@@ -171,6 +185,20 @@ defmodule Sikio.Playback do
 
     if count > 0, do: Events.broadcast(account, {:playback_marked, count})
     {:ok, count}
+  end
+
+  # What marking a list leaves out on request. `state` is the entry's progress, which an entry
+  # nobody opened has none of, so the kept entry is named by the entry's own id.
+  defp leaving_out(options) do
+    in_progress =
+      if Keyword.get(options, :in_progress, true),
+        do: true,
+        else: dynamic([state: p], is_nil(p.id) or p.status != :in_progress)
+
+    case options[:keep] do
+      nil -> in_progress
+      id -> dynamic([entry: e], ^in_progress and e.id != ^id)
+    end
   end
 
   defp change(%User{id: user_id} = account, id, changes) do

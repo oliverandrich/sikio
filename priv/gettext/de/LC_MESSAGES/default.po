@@ -439,7 +439,7 @@ msgstr[1] "Du hast %{count} unbenutzte Wiederherstellungscodes."
 msgid "Your account"
 msgstr "Dein Konto"
 
-#: lib/sikio_web/live/library_live.ex:139
+#: lib/sikio_web/live/library_live.ex:152
 #: lib/sikio_web/live/verify_identity_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -808,7 +808,7 @@ msgstr "Abonnieren"
 msgid "Subscribed to %{title}."
 msgstr "%{title} abonniert."
 
-#: lib/sikio_web/live/library_live.ex:360
+#: lib/sikio_web/live/library_live.ex:402
 #: lib/sikio_web/live/subscriptions_live.ex:77
 #: lib/sikio_web/live/subscriptions_live.ex:84
 #, elixir-autogen, elixir-format
@@ -837,9 +837,9 @@ msgstr "Das ist keine gültige OPML-Aboliste."
 msgid "This page or feed is too large to import. Try a direct feed URL."
 msgstr "Diese Seite oder dieser Feed ist zu groß für den Import. Versuche eine direkte Feed-URL."
 
-#: lib/sikio_web/live/library_live.ex:611
-#: lib/sikio_web/live/library_live.ex:612
-#: lib/sikio_web/live/library_live.ex:657
+#: lib/sikio_web/live/library_live.ex:653
+#: lib/sikio_web/live/library_live.ex:654
+#: lib/sikio_web/live/library_live.ex:733
 #: lib/sikio_web/live/subscriptions_live.ex:370
 #, elixir-autogen, elixir-format
 msgid "Unsubscribe"
@@ -891,7 +891,7 @@ msgid "← Your subscriptions"
 msgstr "← Deine Abos"
 
 #: lib/sikio_web/components/layouts.ex:284
-#: lib/sikio_web/live/library_live.ex:636
+#: lib/sikio_web/live/library_live.ex:678
 #, elixir-autogen, elixir-format
 msgid "Add a source"
 msgstr "Quelle hinzufügen"
@@ -916,7 +916,7 @@ msgstr "Abgeschlossen"
 msgid "Expand player"
 msgstr "Player vergrößern"
 
-#: lib/sikio_web/live/library_live.ex:793
+#: lib/sikio_web/live/library_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Find your first source →"
 msgstr "Finde deine erste Quelle →"
@@ -929,7 +929,7 @@ msgstr "Angefangen"
 
 #: lib/sikio_web/components/layouts.ex:341
 #: lib/sikio_web/components/layouts.ex:387
-#: lib/sikio_web/live/library_live.ex:433
+#: lib/sikio_web/live/library_live.ex:475
 #, elixir-autogen, elixir-format
 msgid "Library"
 msgstr "Mediathek"
@@ -970,7 +970,7 @@ msgstr "Neu"
 msgid "Now playing"
 msgstr "Läuft gerade"
 
-#: lib/sikio_web/live/library_live.ex:788
+#: lib/sikio_web/live/library_live.ex:866
 #, elixir-autogen, elixir-format
 msgid "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
 msgstr "Füge einen YouTube-Kanal, ein Video oder eine Podcast-Webseite ein. Oder finde deinen nächsten Hörtipp in Apple Podcasts."
@@ -987,14 +987,14 @@ msgstr "Abspielen"
 msgid "Play again"
 msgstr "Erneut abspielen"
 
-#: lib/sikio_web/live/library_live.ex:786
+#: lib/sikio_web/live/library_live.ex:864
 #, elixir-autogen, elixir-format
 msgid "Space for something good."
 msgstr "Platz für etwas Gutes."
 
-#: lib/sikio_web/live/library_live.ex:246
-#: lib/sikio_web/live/library_live.ex:372
-#: lib/sikio_web/live/library_live.ex:390
+#: lib/sikio_web/live/library_live.ex:259
+#: lib/sikio_web/live/library_live.ex:414
+#: lib/sikio_web/live/library_live.ex:432
 #: lib/sikio_web/live/player_dock_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "This item is no longer in your library."
@@ -1005,7 +1005,7 @@ msgstr "Dieser Eintrag ist nicht mehr in deiner Mediathek."
 msgid "This source is no longer in your library."
 msgstr "Diese Quelle ist nicht mehr in deiner Mediathek."
 
-#: lib/sikio_web/live/library_live.ex:546
+#: lib/sikio_web/live/library_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "Unavailable source"
 msgstr "Nicht verfügbare Quelle"
@@ -1020,7 +1020,7 @@ msgstr "Gesehen"
 msgid "Your progress changed in another player or was marked manually. Open the episode to continue here."
 msgstr "Dein Fortschritt hat sich in einem anderen Player geändert oder wurde von Hand gesetzt. Öffne die Folge, um hier weiterzuhören."
 
-#: lib/sikio_web/live/library_live.ex:1143
+#: lib/sikio_web/live/library_live.ex:1221
 #, elixir-autogen, elixir-format
 msgid "← Your library"
 msgstr "← Deine Mediathek"
@@ -1274,25 +1274,25 @@ msgstr "Diese Einladung wartet nicht mehr. Jemand hat sie angenommen oder vorher
 msgid "All items"
 msgstr "Alle Einträge"
 
-#: lib/sikio_web/live/library_live.ex:685
+#: lib/sikio_web/live/library_live.ex:763
 #, elixir-autogen, elixir-format
 msgid "Sources"
 msgstr "Quellen"
 
 #: lib/sikio_web/components/layouts.ex:258
-#: lib/sikio_web/live/library_live.ex:665
+#: lib/sikio_web/live/library_live.ex:743
 #, elixir-autogen, elixir-format
 msgid "Views"
 msgstr "Ansichten"
 
-#: lib/sikio_web/live/library_live.ex:551
+#: lib/sikio_web/live/library_live.ex:593
 #, elixir-autogen, elixir-format
 msgid "%{count} item"
 msgid_plural "%{count} items"
 msgstr[0] "%{count} Eintrag"
 msgstr[1] "%{count} Einträge"
 
-#: lib/sikio_web/live/library_live.ex:1055
+#: lib/sikio_web/live/library_live.ex:1133
 #, elixir-autogen, elixir-format
 msgid "Progress"
 msgstr "Fortschritt"
@@ -1302,12 +1302,12 @@ msgstr "Fortschritt"
 msgid "Open on YouTube"
 msgstr "Auf YouTube öffnen"
 
-#: lib/sikio_web/live/library_live.ex:815
+#: lib/sikio_web/live/library_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "Selected item"
 msgstr "Ausgewählter Eintrag"
 
-#: lib/sikio_web/live/library_live.ex:1254
+#: lib/sikio_web/live/library_live.ex:1332
 #, elixir-autogen, elixir-format
 msgid "The publisher sent no notes for this item."
 msgstr "Zu diesem Eintrag hat der Herausgeber keine Notizen geschickt."
@@ -1383,7 +1383,7 @@ msgstr "Sept."
 msgid "%{day} %{month}"
 msgstr "%{day}. %{month}"
 
-#: lib/sikio_web/live/library_live.ex:1082
+#: lib/sikio_web/live/library_live.ex:1160
 #, elixir-autogen, elixir-format
 msgid "%{minutes} min left"
 msgstr "noch %{minutes} min"
@@ -1423,44 +1423,44 @@ msgstr "Bereits geladene Einträge bleiben erhalten."
 msgid "The address no longer exists on its server."
 msgstr "Die Adresse gibt es auf ihrem Server nicht mehr."
 
-#: lib/sikio_web/live/library_live.ex:744
+#: lib/sikio_web/live/library_live.ex:822
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "Alle"
 
-#: lib/sikio_web/live/library_live.ex:746
+#: lib/sikio_web/live/library_live.ex:824
 #, elixir-autogen, elixir-format
 msgid "Audio"
 msgstr "Audio"
 
-#: lib/sikio_web/live/library_live.ex:733
+#: lib/sikio_web/live/library_live.ex:811
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/sikio_web/live/library_live.ex:740
+#: lib/sikio_web/live/library_live.ex:818
 #, elixir-autogen, elixir-format
 msgid "Medium"
 msgstr "Medium"
 
-#: lib/sikio_web/live/library_live.ex:762
+#: lib/sikio_web/live/library_live.ex:840
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "Status"
 
-#: lib/sikio_web/live/library_live.ex:745
+#: lib/sikio_web/live/library_live.ex:823
 #, elixir-autogen, elixir-format
 msgid "Video"
 msgstr "Video"
 
 #: lib/sikio_web/components/layouts.ex:391
-#: lib/sikio_web/live/library_live.ex:624
+#: lib/sikio_web/live/library_live.ex:666
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr "Suchen"
 
-#: lib/sikio_web/live/library_live.ex:717
-#: lib/sikio_web/live/library_live.ex:718
+#: lib/sikio_web/live/library_live.ex:795
+#: lib/sikio_web/live/library_live.ex:796
 #, elixir-autogen, elixir-format
 msgid "Search in %{place}"
 msgstr "In %{place} suchen"
@@ -1475,7 +1475,7 @@ msgstr "Seite der Folge öffnen"
 msgid "Open on PeerTube"
 msgstr "Auf PeerTube öffnen"
 
-#: lib/sikio_web/live/library_live.ex:1240
+#: lib/sikio_web/live/library_live.ex:1318
 #: lib/sikio_web/live/player_dock_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "%{position} of %{duration}"
@@ -1511,7 +1511,7 @@ msgstr "Position"
 msgid "The browser did not start it. Press play."
 msgstr "Der Browser hat nicht gestartet. Drücke Abspielen."
 
-#: lib/sikio_web/live/library_live.ex:1099
+#: lib/sikio_web/live/library_live.ex:1177
 #, elixir-autogen, elixir-format
 msgid "Chapters"
 msgstr "Kapitel"
@@ -1599,38 +1599,33 @@ msgstr "Sikio ist freie Open-Source-Software unter der AGPL-3.0."
 msgid "Your personal media library"
 msgstr "Deine persönliche Medienbibliothek"
 
-#: lib/sikio_web/live/library_live.ex:316
+#: lib/sikio_web/live/library_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Everything here is finished already."
 msgstr "Hier ist schon alles fertig."
 
-#: lib/sikio_web/live/library_live.ex:600
-#: lib/sikio_web/live/library_live.ex:601
+#: lib/sikio_web/live/library_live.ex:642
+#: lib/sikio_web/live/library_live.ex:643
 #, elixir-autogen, elixir-format
 msgid "Mark all as finished"
 msgstr "Alle als fertig markieren"
 
-#: lib/sikio_web/live/library_live.ex:644
+#: lib/sikio_web/live/library_live.ex:686
 #, elixir-autogen, elixir-format
 msgid "Mark finished"
 msgstr "Als fertig markieren"
 
-#: lib/sikio_web/live/library_live.ex:646
+#: lib/sikio_web/live/library_live.ex:689
 #, elixir-autogen, elixir-format
 msgid "%{count} item in this list will be marked as finished."
 msgid_plural "%{count} items in this list will be marked as finished."
 msgstr[0] "%{count} Eintrag in dieser Liste wird als fertig markiert."
 msgstr[1] "%{count} Einträge in dieser Liste werden als fertig markiert."
 
-#: lib/sikio_web/live/library_live.ex:643
+#: lib/sikio_web/live/library_live.ex:685
 #, elixir-autogen, elixir-format
 msgid "Mark all as finished?"
 msgstr "Alle als fertig markieren?"
-
-#: lib/sikio_web/live/library_live.ex:651
-#, elixir-autogen, elixir-format
-msgid "Whatever is playing stays as it is."
-msgstr "Was gerade läuft, bleibt, wie es ist."
 
 #: lib/sikio_web/date_groups.ex:56
 #, elixir-autogen, elixir-format
@@ -1717,12 +1712,22 @@ msgstr "Heute"
 msgid "Yesterday"
 msgstr "Gestern"
 
-#: lib/sikio_web/live/library_live.ex:659
+#: lib/sikio_web/live/library_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Its items leave your library. Your progress stays, should you subscribe again."
 msgstr "Die Einträge verschwinden aus deiner Bibliothek. Dein Fortschritt bleibt, falls du es wieder abonnierst."
 
-#: lib/sikio_web/live/library_live.ex:656
+#: lib/sikio_web/live/library_live.ex:732
 #, elixir-autogen, elixir-format
 msgid "Unsubscribe from %{title}?"
 msgstr "„%{title}“ nicht mehr abonnieren?"
+
+#: lib/sikio_web/live/library_live.ex:705
+#, elixir-autogen, elixir-format
+msgid "Include items in progress"
+msgstr "Angefangene Folgen einschließen"
+
+#: lib/sikio_web/live/library_live.ex:724
+#, elixir-autogen, elixir-format
+msgid "Include the item in the player"
+msgstr "Aktuelle Folge im Player einschließen"

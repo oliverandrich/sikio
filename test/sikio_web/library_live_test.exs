@@ -348,6 +348,34 @@ defmodule SikioWeb.LibraryLiveTest do
       # An empty list has nothing left to mark.
       refute has_element?(view, "#mark-all")
     end
+
+    # Unticked, what is in progress stays, and the question counts again.
+    test "may leave out what is in progress", c do
+      {:ok, state} = Playback.start(c.user, c.audio.id)
+
+      Playback.save(c.user, c.audio.id, state.session_id, %{
+        "sequence" => 1,
+        "position" => 30,
+        "duration" => 100,
+        "ended" => false
+      })
+
+      {:ok, view, _} = live(c.conn, ~p"/all")
+      view |> element("#mark-all") |> render_click()
+      assert has_element?(view, "dialog#mark-all-confirm", "2 items in this list")
+
+      assert has_element?(
+               view,
+               ~s|#mark-all-options input[name="in_progress"][type="checkbox"][checked]|
+             )
+
+      view |> form("#mark-all-options", %{"in_progress" => "false"}) |> render_change()
+      assert has_element?(view, "dialog#mark-all-confirm", "1 item in this list")
+
+      view |> element("#confirm-mark-all") |> render_click()
+      assert Library.count(c.user, %{"status" => "in_progress"}) == 1
+      assert Library.count(c.user, %{"status" => "new"}) == 0
+    end
   end
 
   # A source can be left where it is read, after a question that names it.

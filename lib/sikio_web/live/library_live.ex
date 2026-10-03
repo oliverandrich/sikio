@@ -40,6 +40,7 @@ defmodule SikioWeb.LibraryLive do
        more?: false,
        search_open?: false,
        marking: nil,
+       mark_options: nil,
        unsubscribing: nil,
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket))
@@ -97,6 +98,17 @@ defmodule SikioWeb.LibraryLive do
       else: push_patch(socket, to: canonical, replace: true)
   end
 
+  # The dialog's ticks as what `Playback.mark_all/3` leaves out.
+  defp marking(%{in_progress: in_progress, playing: playing, playing_id: playing_id}),
+    do: [in_progress: in_progress, keep: if(playing, do: nil, else: playing_id)]
+
+  defp entry_id(value) do
+    case Integer.parse(value || "") do
+      {id, ""} -> id
+      _ -> nil
+    end
+  end
+
   # The list's rows with a heading wherever the date group changes, by the date the list runs by.
   defp grouped(entries, filters, offset) do
     by = Library.sorted_by(filters)
@@ -112,7 +124,8 @@ defmodule SikioWeb.LibraryLive do
 
   # A question before something that changes much at once. Rendered only while it asks and
   # opened as it appears, see assets/js/app.js; it takes the focus itself, so no button shows a
-  # ring before anybody tabs. Its buttons and Escape send `cancel_<name>` and `confirm_<name>`.
+  # ring before anybody tabs. A patch keeps it open, since the server never renders `open`. Its
+  # buttons and Escape send `cancel_<name>` and `confirm_<name>`.
   attr :name, :string, required: true
   attr :title, :string, required: true
   attr :confirm_label, :string, required: true
@@ -127,13 +140,13 @@ defmodule SikioWeb.LibraryLive do
       tabindex="-1"
       autofocus
       aria-labelledby={"#{@name}-heading"}
-      phx-mounted={JS.dispatch("sikio:show")}
+      phx-mounted={JS.ignore_attributes(["open"]) |> JS.dispatch("sikio:show")}
       phx-window-keydown={"cancel_#{@event}"}
       phx-key="Escape"
       class="m-auto w-[min(26rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl outline-none backdrop:bg-black/40"
     >
       <h2 id={"#{@name}-heading"} class="text-title font-semibold">{@title}</h2>
-      <p class="mt-2 text-body text-muted">{render_slot(@inner_block)}</p>
+      <div class="mt-2 text-body text-muted">{render_slot(@inner_block)}</div>
       <div class="mt-6 flex justify-end gap-2">
         <.button id={"cancel-#{@name}"} type="button" phx-click={"cancel_#{@event}"}>
           {gettext("Cancel")}
@@ -316,8 +329,31 @@ defmodule SikioWeb.LibraryLive do
         {:noreply, put_flash(socket, :info, gettext("Everything here is finished already."))}
 
       count ->
-        {:noreply, assign(socket, :marking, count)}
+        {:noreply,
+         assign(socket,
+           marking: count,
+           mark_options: %{in_progress: true, playing: true, playing_id: nil}
+         )}
     end
+  end
+
+  # A tick changes what is marked, so the question counts again. Which item plays only the page
+  # knows, and it sends it along; see assets/js/playing_entry.mjs.
+  def handle_event("mark_options", params, socket) do
+    options = %{
+      in_progress: params["in_progress"] != "false",
+      playing: params["playing"] != "false",
+      playing_id: entry_id(params["playing_id"])
+    }
+
+    count =
+      Playback.markable(
+        socket.assigns.current_account,
+        socket.assigns.filters,
+        marking(options)
+      )
+
+    {:noreply, assign(socket, marking: count, mark_options: options)}
   end
 
   def handle_event("cancel_mark_all", _params, socket),
@@ -325,7 +361,13 @@ defmodule SikioWeb.LibraryLive do
 
   # The change is broadcast, and the broadcast reloads the list along with the sidebar.
   def handle_event("confirm_mark_all", _params, socket) do
-    {:ok, _count} = Playback.mark_all(socket.assigns.current_account, socket.assigns.filters)
+    {:ok, _count} =
+      Playback.mark_all(
+        socket.assigns.current_account,
+        socket.assigns.filters,
+        marking(socket.assigns.mark_options)
+      )
+
     {:noreply, assign(socket, :marking, nil)}
   end
 
@@ -643,12 +685,46 @@ defmodule SikioWeb.LibraryLive do
               title={gettext("Mark all as finished?")}
               confirm_label={gettext("Mark finished")}
             >
-              {ngettext(
-                "%{count} item in this list will be marked as finished.",
-                "%{count} items in this list will be marked as finished.",
-                @marking
-              )}
-              {gettext("Whatever is playing stays as it is.")}
+              <p>
+                {ngettext(
+                  "%{count} item in this list will be marked as finished.",
+                  "%{count} items in this list will be marked as finished.",
+                  @marking
+                )}
+              </p>
+              <form id="mark-all-options" phx-change="mark_options" class="mt-4 flex flex-col gap-2">
+                <label class="flex items-center gap-2.5 text-label text-ink">
+                  <input type="hidden" name="in_progress" value="false" />
+                  <input
+                    type="checkbox"
+                    name="in_progress"
+                    value="true"
+                    checked={@mark_options.in_progress}
+                    class="size-4 accent-accent"
+                  />
+                  {gettext("Include items in progress")}
+                </label>
+                <%!-- Shown by the hook only while the player holds an item. --%>
+                <div
+                  id="mark-all-playing"
+                  phx-hook="PlayingEntry"
+                  phx-mounted={JS.ignore_attributes(["hidden"])}
+                  hidden
+                >
+                  <input type="hidden" name="playing_id" value={@mark_options.playing_id} />
+                  <label class="flex items-center gap-2.5 text-label text-ink">
+                    <input type="hidden" name="playing" value="false" />
+                    <input
+                      type="checkbox"
+                      name="playing"
+                      value="true"
+                      checked={@mark_options.playing}
+                      class="size-4 accent-accent"
+                    />
+                    {gettext("Include the item in the player")}
+                  </label>
+                </div>
+              </form>
             </.confirm_dialog>
             <.confirm_dialog
               :if={@unsubscribing}
@@ -656,9 +732,11 @@ defmodule SikioWeb.LibraryLive do
               title={gettext("Unsubscribe from %{title}?", title: @unsubscribing.feed.title)}
               confirm_label={gettext("Unsubscribe")}
             >
-              {gettext(
-                "Its items leave your library. Your progress stays, should you subscribe again."
-              )}
+              <p>
+                {gettext(
+                  "Its items leave your library. Your progress stays, should you subscribe again."
+                )}
+              </p>
             </.confirm_dialog>
             <nav
               id="library-chips"

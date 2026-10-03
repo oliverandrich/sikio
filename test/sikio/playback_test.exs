@@ -160,8 +160,9 @@ defmodule Sikio.PlaybackTest do
   end
 
   # A whole list marked finished: exactly what it shows, however many pages that is, for this
-  # account alone. What a player holds is left to the player, which marks it at its end.
-  test "mark_all finishes what a list shows, except what a player holds", c do
+  # account alone. Two things may be left out on request: what is in progress, and the one item
+  # the reader's player holds. A session a closed tab left behind holds nothing back.
+  test "mark_all finishes what a list shows, leaving out only what it is asked to", c do
     entries =
       for n <- 1..120,
           do: %{hd(c.preview.entries) | external_id: "e#{n}", title: "Episode #{n}"}
@@ -173,25 +174,32 @@ defmodule Sikio.PlaybackTest do
       Repo.one!(from e in Entry, where: e.title == ^title, select: e.id)
     end
 
-    {:ok, %{session_id: session}} = Playback.start(c.alice, id.("Episode 5"))
+    {:ok, _} = Playback.start(c.alice, id.("Episode 5"))
+    {:ok, %{session_id: session}} = Playback.start(c.alice, id.("Episode 6"))
+    {:ok, _} = Playback.save(c.alice, id.("Episode 6"), session, sample(1, 30))
     {:ok, _} = Playback.mark(c.alice, id.("Episode 7"), :completed)
     Events.subscribe(c.alice)
 
     # "episode 11" is Episode 11 and Episode 110 to 119.
     assert {:ok, 11} = Playback.mark_all(c.alice, %{"q" => "episode 11"})
     assert_received {:playback_marked, 11}
-    assert Library.count(c.alice, %{"status" => "completed"}) == 12
 
-    assert {:ok, marked} = Playback.mark_all(c.alice, %{"status" => ""})
-    assert marked > 100
+    options = [in_progress: false, keep: id.("Episode 5")]
+    unfinished = Library.count(c.alice, %{"status" => ""}) - 12
+    assert Playback.markable(c.alice, %{"status" => ""}, options) == unfinished - 2
+    assert {:ok, marked} = Playback.mark_all(c.alice, %{"status" => ""}, options)
+    assert marked == unfinished - 2
 
-    assert [held] =
-             Library.entries(c.alice, %{"status" => "new"}) ++
-               Library.entries(c.alice, %{"status" => "in_progress"})
+    left =
+      Library.entries(c.alice, %{"status" => "new"}) ++
+        Library.entries(c.alice, %{"status" => "in_progress"})
 
-    assert held.title == "Episode 5"
-    assert held.playback.session_id == session
-    assert {:ok, 0} = Playback.mark_all(c.alice, %{"status" => "completed"})
+    assert Enum.map(left, & &1.title) |> Enum.sort() == ["Episode 5", "Episode 6"]
+
+    # Asked for everything, the session Episode 5 still carries holds nothing back.
+    assert Playback.markable(c.alice, %{"status" => ""}) == 2
+    assert {:ok, 2} = Playback.mark_all(c.alice, %{"status" => ""})
+    assert Library.count(c.alice, %{"status" => "completed"}) == Library.count(c.alice, %{})
     assert Library.count(c.bob, %{"status" => "completed"}) == 0
   end
 
