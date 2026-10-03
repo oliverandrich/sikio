@@ -84,6 +84,32 @@ defmodule Sikio.ChaptersTest do
     end
   end
 
+  # Podcasting 2.0's file: a start in seconds and a title; a chapter marked toc false is hidden.
+  test "reads a podcast's chapters file" do
+    json =
+      ~s|{"version":"1.2.0","chapters":[{"startTime":0,"title":"Pferde","img":"x"},| <>
+        ~s|{"startTime":118.5,"title":"Akkus"},{"startTime":200,"title":"versteckt","toc":false},| <>
+        ~s|{"startTime":291,"title":"Solar"}]}|
+
+    assert Chapters.from_json(json) == [
+             %{"at" => 0, "title" => "Pferde"},
+             %{"at" => 118, "title" => "Akkus"},
+             %{"at" => 291, "title" => "Solar"}
+           ]
+  end
+
+  test "a chapters file that is not one reads as no chapters" do
+    for body <- [
+          "",
+          "[]",
+          ~s|{"chapters":"x"}|,
+          ~s|{"chapters":[{"title":"no start"}]}|,
+          "<html>"
+        ] do
+      assert Chapters.from_json(body) == []
+    end
+  end
+
   # Notes are UTF-8. A line break is never found inside a character, whose bytes may look like
   # one: the check mark ✅ ends in the byte of a next-line control.
   test "characters whose bytes resemble a line break are left whole" do

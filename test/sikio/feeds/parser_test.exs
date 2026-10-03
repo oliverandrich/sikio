@@ -281,6 +281,83 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.page_url == nil
   end
 
+  # Podlove Simple Chapters stand in the item itself, a start in normal play time and a title.
+  test "reads the chapters a podcast lists in its item" do
+    chapters = """
+    <psc:chapters version="1.2" xmlns:psc="http://podlove.org/simple-chapters">
+      <psc:chapter start="00:00:00.000" title="Intro" />
+      <psc:chapter start="00:01:58.500" title="Akkus &amp; Laderegler" href="https://example.org/a" />
+      <psc:chapter start="4:51" title="Solar" />
+    </psc:chapters>
+    """
+
+    body = String.replace(podcast(), "<itunes:duration>", chapters <> "<itunes:duration>")
+    {:ok, %{entries: [entry]}} = Parser.parse(body, "https://example.org/rss")
+
+    assert entry.chapters == [
+             %{"at" => 0, "title" => "Intro"},
+             %{"at" => 118, "title" => "Akkus & Laderegler"},
+             %{"at" => 291, "title" => "Solar"}
+           ]
+
+    assert entry.chapters_url == nil
+  end
+
+  # The start is a stranger's number. One no episode could reach is skipped, not computed.
+  test "a chapter start no episode could reach is skipped without breaking the feed" do
+    chapters = """
+    <psc:chapters><psc:chapter start="1e308:00" title="Kaputt" />
+    <psc:chapter start="0" title="A" /><psc:chapter start="200:00:00" title="Zu weit" />
+    <psc:chapter start="60" title="B" /></psc:chapters>
+    """
+
+    body = String.replace(podcast(), "<itunes:duration>", chapters <> "<itunes:duration>")
+    assert {:ok, %{entries: [entry]}} = Parser.parse(body, "https://example.org/rss")
+    assert Enum.map(entry.chapters, & &1["title"]) == ["A", "B"]
+  end
+
+  # A list is read in time order, whatever order the feed wrote it in.
+  test "listed chapters are put in time order" do
+    chapters =
+      ~s|<psc:chapters><psc:chapter start="00:10:00" title="Später" /><psc:chapter start="0" title="Anfang" /></psc:chapters>|
+
+    body = String.replace(podcast(), "<itunes:duration>", chapters <> "<itunes:duration>")
+    {:ok, %{entries: [entry]}} = Parser.parse(body, "https://example.org/rss")
+    assert Enum.map(entry.chapters, & &1["title"]) == ["Anfang", "Später"]
+  end
+
+  # Fewer than two usable chapters are no list, and must not stand in the way of a linked file.
+  test "an unusable chapter list leaves room for a linked file" do
+    extra =
+      ~s|<psc:chapters><psc:chapter start="0" title="Einzig" /><psc:chapter start="x" title="Kaputt" /></psc:chapters>| <>
+        ~s|<podcast:chapters url="/c.json" type="application/json+chapters"/>|
+
+    body = String.replace(podcast(), "<itunes:duration>", extra <> "<itunes:duration>")
+    {:ok, %{entries: [entry]}} = Parser.parse(body, "https://example.org/rss")
+    assert entry.chapters == nil
+    assert entry.chapters_url == "https://example.org/c.json"
+  end
+
+  # Podcasting 2.0 links a JSON file. Only its address is read here; Podigee spells it href.
+  test "keeps the address of a podcast's chapters file, spelled url or href" do
+    for attribute <- ["url", "href"] do
+      link =
+        ~s|<podcast:chapters #{attribute}="/43/chapters.json" type="application/json+chapters"/>|
+
+      body = String.replace(podcast(), "<itunes:duration>", link <> "<itunes:duration>")
+      {:ok, %{entries: [entry]}} = Parser.parse(body, "https://example.org/rss")
+      assert entry.chapters_url == "https://example.org/43/chapters.json"
+      assert entry.chapters == nil
+    end
+  end
+
+  test "an item naming no chapters has none" do
+    {:ok, %{entries: [entry]}} = Parser.parse(podcast(), "https://example.org/rss")
+    {:ok, %{entries: [video]}} = Parser.parse(youtube(), youtube_feed_url())
+    assert {entry.chapters, entry.chapters_url} == {nil, nil}
+    assert {video.chapters, video.chapters_url} == {nil, nil}
+  end
+
   test "a show that publishes one video is still a podcast" do
     item = """
     <item><guid>bonus</guid><title>A bonus clip</title>

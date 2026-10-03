@@ -129,6 +129,8 @@ defmodule Sikio.Feeds.Parser do
         video_id: nil,
         embed_url: nil,
         page_url: rss_page(item, feed_url),
+        chapters: listed_chapters(item),
+        chapters_url: chapters_url(item, feed_url),
         published_at: date(value(item, "pubDate")),
         image_url: image_url(item, feed_url),
         duration: duration(value(item, "itunes:duration")),
@@ -158,6 +160,8 @@ defmodule Sikio.Feeds.Parser do
         video_id: nil,
         embed_url: embed,
         page_url: rss_page(item, feed_url),
+        chapters: nil,
+        chapters_url: chapters_url(item, feed_url),
         published_at: date(value(item, "pubDate")),
         image_url: image_url(item, feed_url),
         duration: duration(playable_duration(group)),
@@ -191,6 +195,8 @@ defmodule Sikio.Feeds.Parser do
         video_id: id,
         embed_url: nil,
         page_url: youtube_page(item, feed_url),
+        chapters: nil,
+        chapters_url: nil,
         published_at: date(value(item, "published")),
         image_url: image_url(group, feed_url),
         duration: nil,
@@ -215,6 +221,58 @@ defmodule Sikio.Feeds.Parser do
     |> HTTP.resolve(feed_url)
   end
 
+  # Neither a runtime nor a chapter's start reaches beyond a week; see duration/1.
+  @longest_runtime 7 * 24 * 60 * 60
+
+  # Podlove Simple Chapters: a start in normal play time and a title, in the item itself. Kept as
+  # the database keeps them, string keys, so a chapter reads the same before storing and after.
+  # Fewer than two usable chapters are no list, and leave room for a linked file instead.
+  defp listed_chapters(item) do
+    chapters =
+      item
+      |> child("psc:chapters")
+      |> children("psc:chapter")
+      |> Enum.map(fn chapter ->
+        %{
+          "at" => play_time(attr(chapter, "start")),
+          "title" => String.trim(attr(chapter, "title"))
+        }
+      end)
+      |> Enum.reject(&(is_nil(&1["at"]) or &1["title"] == ""))
+      |> Enum.sort_by(& &1["at"])
+      |> Enum.take(500)
+
+    if length(chapters) >= 2, do: chapters
+  end
+
+  # Normal play time: seconds, or minutes and seconds, or hours too, perhaps with a fraction. The
+  # number is a stranger's, so each part is bounded before it is multiplied, and a start beyond
+  # a week is none, as a runtime is.
+  defp play_time(value) do
+    parts = String.split(value, ":")
+
+    seconds =
+      Enum.reduce_while(parts, 0, fn part, total ->
+        case Float.parse(part) do
+          {number, ""} when number >= 0 and number < 1_000_000 -> {:cont, total * 60 + number}
+          _ -> {:halt, nil}
+        end
+      end)
+
+    cond do
+      length(parts) > 3 or is_nil(seconds) -> nil
+      seconds > @longest_runtime -> nil
+      true -> trunc(seconds)
+    end
+  end
+
+  # Podcasting 2.0 links a JSON file of chapters, fetched once somebody opens the item. The
+  # namespace says `url`; Podigee writes `href`.
+  defp chapters_url(item, feed_url) do
+    link = child(item, "podcast:chapters")
+    HTTP.resolve(nonempty(attr(link, "url"), attr(link, "href")), feed_url)
+  end
+
   # Artwork is named three different ways depending on who is publishing. The URL still comes from
   # a stranger, so it goes through the same check as a media URL rather than straight into a page.
   defp image_url(node, feed_url) do
@@ -233,7 +291,6 @@ defmodule Sikio.Feeds.Parser do
   # `itunes:duration` is seconds, or minutes and seconds, or hours and minutes and seconds.
   # The number is a stranger's and the column holds four bytes, so anything outside a week is
   # treated as the nonsense it is rather than raised out of the importer.
-  @longest_runtime 7 * 24 * 60 * 60
 
   defp duration(value) do
     parts = String.split(value, ":")

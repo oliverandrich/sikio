@@ -110,4 +110,29 @@ defmodule Sikio.Chapters do
 
   defp drop_breaks([{piece, nil} | rest]), do: [piece | drop_breaks(rest)]
   defp drop_breaks([]), do: []
+
+  @doc """
+  The chapters in a Podcasting 2.0 chapters file: a start in seconds and a title each, in the
+  stored shape. A chapter marked `"toc": false` is a hidden marker and left out. A file that is
+  not one reads as no chapters.
+  """
+  def from_json(body) do
+    case Jason.decode(body) do
+      {:ok, %{"chapters" => chapters}} when is_list(chapters) ->
+        chapters
+        |> Enum.filter(&listed?/1)
+        |> Enum.map(&%{"at" => trunc(&1["startTime"]), "title" => String.trim(&1["title"])})
+        |> Enum.sort_by(& &1["at"])
+        |> Enum.take(500)
+
+      _ ->
+        []
+    end
+  end
+
+  defp listed?(%{"startTime" => at, "title" => title} = chapter)
+       when is_number(at) and at >= 0 and is_binary(title),
+       do: chapter["toc"] != false and String.trim(title) != ""
+
+  defp listed?(_chapter), do: false
 end

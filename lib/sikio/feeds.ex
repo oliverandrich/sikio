@@ -10,9 +10,11 @@ defmodule Sikio.Feeds do
   """
   import Ecto.Query
 
+  alias Sikio.Chapters
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
+  alias Sikio.Feeds.HTTP
   alias Sikio.Library.Events
   alias Sikio.Repo
 
@@ -47,6 +49,32 @@ defmodule Sikio.Feeds do
           Repo.rollback(error)
       end
     end)
+  end
+
+  @doc """
+  An item's chapters as its feed names them: listed in the item, or in the file it links.
+
+  The file is fetched once, the first time somebody opens the item, through the guarded client
+  and with a small limit; what it holds is stored on the shared entry, so nobody fetches it again.
+  A file that cannot be reached is tried again next time. One that holds no chapters is stored
+  as such. Answers nil when the feed names no chapters at all.
+  """
+  def chapters(%Entry{chapters: chapters}) when is_list(chapters), do: {:ok, chapters}
+  def chapters(%Entry{chapters_url: nil}), do: {:ok, nil}
+
+  def chapters(%Entry{id: id, chapters_url: url}) do
+    case HTTP.get(url, max_bytes: 256_000) do
+      {:ok, %{status: 200, body: body}} ->
+        chapters = Chapters.from_json(body)
+        Repo.update_all(from(e in Entry, where: e.id == ^id), set: [chapters: chapters])
+        {:ok, chapters}
+
+      {:ok, %{status: status}} ->
+        {:error, {:status, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def refresh(id) do
@@ -116,7 +144,9 @@ defmodule Sikio.Feeds do
     :description,
     :description_format,
     :excerpt,
-    :page_url
+    :page_url,
+    :chapters,
+    :chapters_url
   ]
 
   defp import_entries(feed_id, entries) do
@@ -139,7 +169,7 @@ defmodule Sikio.Feeds do
   end
 
   # What identifies and locates an episode is replaced outright, because a feed that moves its
-  # audio has moved it. Artwork, runtime, notes and the page are not: a poll that leaves them out is a poll
+  # audio has moved it. Artwork, runtime, notes, the page and chapters are not: a poll that leaves them out is a poll
   # that said nothing about them, and a show that trims one document should not strip every
   # episode it ever published. The same rule the feed's own picture follows.
   #
@@ -153,11 +183,12 @@ defmodule Sikio.Feeds do
       where:
         fragment(
           """
-          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IS DISTINCT FROM
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IS DISTINCT FROM
           (EXCLUDED.title, EXCLUDED.media_url, EXCLUDED.video_id, EXCLUDED.embed_url,
            EXCLUDED.published_at, COALESCE(EXCLUDED.image_url, ?), COALESCE(EXCLUDED.duration, ?),
            COALESCE(EXCLUDED.description, ?), COALESCE(EXCLUDED.description_format, ?),
-           COALESCE(EXCLUDED.excerpt, ?), COALESCE(EXCLUDED.page_url, ?))
+           COALESCE(EXCLUDED.excerpt, ?), COALESCE(EXCLUDED.page_url, ?),
+           COALESCE(EXCLUDED.chapters, ?), COALESCE(EXCLUDED.chapters_url, ?))
           """,
           e.title,
           e.media_url,
@@ -170,12 +201,16 @@ defmodule Sikio.Feeds do
           e.description_format,
           e.excerpt,
           e.page_url,
+          e.chapters,
+          e.chapters_url,
           e.image_url,
           e.duration,
           e.description,
           e.description_format,
           e.excerpt,
-          e.page_url
+          e.page_url,
+          e.chapters,
+          e.chapters_url
         ),
       update: [
         set: [
@@ -191,6 +226,15 @@ defmodule Sikio.Feeds do
             fragment("COALESCE(EXCLUDED.description_format, ?)", e.description_format),
           excerpt: fragment("COALESCE(EXCLUDED.excerpt, ?)", e.excerpt),
           page_url: fragment("COALESCE(EXCLUDED.page_url, ?)", e.page_url),
+          # Chapters fetched from a file belong to it: a feed linking another file has them
+          # fetched again.
+          chapters:
+            fragment(
+              "CASE WHEN EXCLUDED.chapters IS NULL AND EXCLUDED.chapters_url IS DISTINCT FROM ? THEN NULL ELSE COALESCE(EXCLUDED.chapters, ?) END",
+              e.chapters_url,
+              e.chapters
+            ),
+          chapters_url: fragment("COALESCE(EXCLUDED.chapters_url, ?)", e.chapters_url),
           updated_at: fragment("EXCLUDED.updated_at")
         ]
       ]

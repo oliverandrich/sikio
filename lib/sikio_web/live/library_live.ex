@@ -17,6 +17,7 @@ defmodule SikioWeb.LibraryLive do
   import SikioWeb.MediaComponents
 
   alias Sikio.Chapters
+  alias Sikio.Feeds
   alias Sikio.Library
   alias Sikio.Playback
   alias SikioWeb.Notes
@@ -289,6 +290,7 @@ defmodule SikioWeb.LibraryLive do
       entry ->
         {:ok,
          socket
+         |> fetch_chapters(entry)
          |> assign(reading(socket, entry))
          |> assign(selected: entry, page_title: entry.title)}
     end
@@ -297,18 +299,57 @@ defmodule SikioWeb.LibraryLive do
   # Reading the notes is the costly part of the detail, and an event rereads the same item several
   # times a minute while it plays. Chapters and notes are read again only when the notes changed.
   # The chapters a publisher listed come out of the notes, so they show once, in their own box.
-  # The chapters depend on the length as well, which a player may measure only later.
+  # The chapters depend on the length as well, which a player may measure only later, and on
+  # what the feed names, which may arrive after the item was opened.
   defp reading(socket, entry) do
-    read = {entry.id, entry.description, length_of(entry)}
+    read = {entry.id, entry.description, length_of(entry), entry.chapters}
 
-    if socket.assigns.read == read do
-      Map.take(socket.assigns, [:notes, :chapters, :read])
-    else
-      format = entry.description_format || :html
-      {chapters, rest} = Chapters.split(entry.description, format, length_of(entry))
-      %{chapters: chapters, notes: Notes.notes(rest, format), read: read}
+    if socket.assigns.read == read,
+      do: Map.take(socket.assigns, [:notes, :chapters, :read]),
+      else: Map.put(read_notes(entry), :read, read)
+  end
+
+  # Chapters the feed names are meant as chapters, so two make a list, and the notes stay as they
+  # are. Otherwise the notes may list them, and then they show once, in the box.
+  defp read_notes(%{chapters: [_, _ | _] = chapters} = entry) do
+    %{
+      chapters: Enum.map(chapters, &%{at: &1["at"], title: &1["title"]}),
+      notes: Notes.notes(entry.description, entry.description_format || :html)
+    }
+  end
+
+  defp read_notes(entry) do
+    format = entry.description_format || :html
+    {chapters, rest} = Chapters.split(entry.description, format, length_of(entry))
+    %{chapters: chapters, notes: Notes.notes(rest, format)}
+  end
+
+  # A podcast's chapters file is fetched once somebody opens the item, and only when another item
+  # is opened, not with every notification about the one that is.
+  defp fetch_chapters(%{assigns: %{selected: %{id: id}}} = socket, %{id: id}), do: socket
+
+  defp fetch_chapters(socket, %{chapters: nil, chapters_url: url} = entry) when is_binary(url) do
+    if connected?(socket),
+      do: start_async(socket, :chapters, fn -> {entry.id, Feeds.chapters(entry)} end),
+      else: socket
+  end
+
+  defp fetch_chapters(socket, _entry), do: socket
+
+  @impl true
+  def handle_async(:chapters, {:ok, {id, {:ok, chapters}}}, socket) do
+    case socket.assigns.selected do
+      %{id: ^id} = selected ->
+        selected = %{selected | chapters: chapters}
+        {:noreply, socket |> assign(reading(socket, selected)) |> assign(:selected, selected)}
+
+      _ ->
+        {:noreply, socket}
     end
   end
+
+  # Not reached or not a file: tried again the next time the item is opened.
+  def handle_async(:chapters, _result, socket), do: {:noreply, socket}
 
   # The tally counts every place without a query. A search is counted by the database.
   defp total(socket, %{"q" => ""} = filters),

@@ -17,6 +17,10 @@ defmodule Sikio.Feeds.Entry do
     field :embed_url, :string
     # The item's own page as the feed names it: the episode's, the video's on its platform.
     field :page_url, :string
+    # Chapters the feed names, `%{"at" => seconds, "title" => title}`: listed in the item, or read
+    # from the JSON file at `chapters_url` once somebody opens the item. Nil until then.
+    field :chapters, {:array, :map}
+    field :chapters_url, :string
     field :published_at, :utc_datetime_usec
     field :image_url, :string
     field :duration, :integer

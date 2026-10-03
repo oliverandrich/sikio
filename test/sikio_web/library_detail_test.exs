@@ -155,6 +155,61 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, ~s|#item-chapters li:nth-child(2) button[aria-current="true"]|)
   end
 
+  # Chapters the feed names win over chapters read from the notes, from two upward, and the
+  # notes are then left as they are. A file of chapters is fetched once the item is opened.
+  describe "chapters a podcast's feed names" do
+    defp feed_entry(c, extra) do
+      body = String.replace(podcast("Podigee"), "<itunes:duration>", extra <> "<itunes:duration>")
+      {:ok, preview} = Parser.parse(body, feed_url())
+      {:ok, _} = Library.subscribe(c.user, preview)
+      Enum.find(Library.entries(c.user), &(&1.feed.title == "Podigee"))
+    end
+
+    test "are listed in place of the notes' own, which stay as they are", c do
+      entry =
+        feed_entry(c, """
+        <psc:chapters xmlns:psc="http://podlove.org/simple-chapters">
+          <psc:chapter start="00:00:00" title="Begrüßung" />
+          <psc:chapter start="00:05:00" title="Thema" />
+        </psc:chapters>
+        """)
+
+      {:ok, view, _} = live(c.conn, item_path(entry))
+      assert has_element?(view, "#item-chapters li", "Begrüßung")
+      assert has_element?(view, "#item-chapters li", "Thema")
+    end
+
+    test "a single chapter is no list", c do
+      entry =
+        feed_entry(c, """
+        <psc:chapters xmlns:psc="http://podlove.org/simple-chapters">
+          <psc:chapter start="00:00:00" title="Pferde" />
+        </psc:chapters>
+        """)
+
+      {:ok, view, _} = live(c.conn, item_path(entry))
+      refute has_element?(view, "#item-chapters")
+    end
+
+    test "a linked file is fetched once the item is opened", c do
+      entry =
+        feed_entry(
+          c,
+          ~s|<podcast:chapters href="https://example.org/opened/chapters.json" type="application/json+chapters"/>|
+        )
+
+      Sikio.PictureFixtures.serving(%{
+        "/opened/chapters.json" =>
+          {"application/json",
+           ~s|{"version":"1.2.0","chapters":[{"startTime":0,"title":"Pferde"},{"startTime":90,"title":"Esel"}]}|}
+      })
+
+      {:ok, view, _} = live(c.conn, item_path(entry))
+      assert render_async(view) =~ "Esel"
+      assert has_element?(view, "#item-chapters li", "Pferde")
+    end
+  end
+
   # A player that measures the length, or corrects one the feed got wrong, may make a list
   # possible that the stated length ruled out. The detail reads the chapters again then.
   test "chapters a wrong length hid appear once the length is measured", c do

@@ -177,6 +177,8 @@ defmodule Sikio.FeedsTest do
         video_id: "abcdefghijk",
         embed_url: "https://video.example.org/videos/embed/moved",
         page_url: "https://example.org/episodes/moved",
+        chapters: [%{"at" => 0, "title" => "Intro"}, %{"at" => 60, "title" => "Mitte"}],
+        chapters_url: "https://example.org/chapters.json",
         published_at: ~U[2026-09-19 09:00:00.000000Z],
         image_url: "https://img.example.org/new.jpg",
         duration: 99,
@@ -289,6 +291,80 @@ defmodule Sikio.FeedsTest do
     assert entry.duration == 3723
     assert entry.excerpt == "Notes with a link."
     assert entry.page_url == podcast_page()
+  end
+
+  # A podcast's chapters file is fetched once, the first time somebody opens the item, through
+  # the same guarded client as feeds. What it holds is stored; a failure is tried again later.
+  describe "chapters/1" do
+    test "fetches a podcast's chapters file once and keeps what it holds" do
+      {:ok, feed} = Feeds.store(preview())
+      Repo.update_all(Entry, set: [chapters_url: "https://example.org/c.json"])
+      entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+
+      Sikio.PictureFixtures.serving(%{
+        "/c.json" =>
+          {"application/json",
+           ~s|{"version":"1.2.0","chapters":[{"startTime":0,"title":"A"},{"startTime":60,"title":"B"}]}|}
+      })
+
+      expected = [%{"at" => 0, "title" => "A"}, %{"at" => 60, "title" => "B"}]
+      assert Feeds.chapters(entry) == {:ok, expected}
+      assert_received {:fetched, "/c.json"}
+      assert Repo.get(Entry, entry.id).chapters == expected
+
+      assert Feeds.chapters(Repo.get(Entry, entry.id)) == {:ok, expected}
+      refute_received {:fetched, _}
+    end
+
+    test "a failing file is tried again, a useless one is not" do
+      {:ok, feed} = Feeds.store(preview())
+      Repo.update_all(Entry, set: [chapters_url: "https://example.org/c.json"])
+      entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+
+      Sikio.PictureFixtures.serving(%{})
+      assert {:error, _} = Feeds.chapters(entry)
+      assert Repo.get(Entry, entry.id).chapters == nil
+
+      Sikio.PictureFixtures.serving(%{"/c.json" => {"application/json", "not json"}})
+      assert Feeds.chapters(entry) == {:ok, []}
+      assert Repo.get(Entry, entry.id).chapters == []
+    end
+
+    test "an item without a chapters file has nothing to fetch" do
+      {:ok, feed} = Feeds.store(preview())
+      entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+      assert Feeds.chapters(entry) == {:ok, nil}
+    end
+  end
+
+  # Chapters fetched from a podcast's JSON file are stored on the entry. The feed itself names
+  # only the file, so its next poll must not wipe what was fetched.
+  # Chapters fetched from a file belong to that file. A feed that links another one has them
+  # fetched again rather than keeping the old file's.
+  test "a poll that links another chapters file lets the stored chapters go" do
+    {:ok, feed} = Feeds.store(preview())
+    stored = [%{"at" => 0, "title" => "Alt"}, %{"at" => 60, "title" => "Auch alt"}]
+    Repo.update_all(Entry, set: [chapters: stored, chapters_url: "https://example.org/old.json"])
+
+    link = ~s|<podcast:chapters url="https://example.org/new.json"/>|
+    body = String.replace(podcast(), "<itunes:duration>", link <> "<itunes:duration>")
+    assert {:ok, _feed} = Feeds.store(preview(body))
+
+    entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+    assert entry.chapters_url == "https://example.org/new.json"
+    assert entry.chapters == nil
+  end
+
+  test "a poll that names no chapters keeps the ones stored" do
+    {:ok, feed} = Feeds.store(preview())
+    stored = [%{"at" => 0, "title" => "Intro"}, %{"at" => 60, "title" => "Mitte"}]
+    Repo.update_all(Entry, set: [chapters: stored, chapters_url: "https://example.org/c.json"])
+
+    assert {:ok, _feed} = Feeds.store(preview())
+
+    entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+    assert entry.chapters == stored
+    assert entry.chapters_url == "https://example.org/c.json"
   end
 
   # A YouTube refresh fetches the Atom feed and nothing else, so it carries no picture. Replacing
