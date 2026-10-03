@@ -1222,11 +1222,19 @@ defmodule SikioWeb.LibraryLive do
     </.link>
     <article class="@container flex flex-col gap-4 rounded-2xl bg-surface p-6 shadow-sm ring-1 ring-line">
       <div class="flex items-start gap-3">
+        <%!-- The source's picture through this host, as the sidebar shows it, or its initial. --%>
         <span
+          id="item-source-mark"
           aria-hidden="true"
-          class="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-meta font-semibold text-accent"
+          class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent/15 text-meta font-semibold text-accent"
         >
-          {initial(@entry.feed.title)}
+          <img
+            :if={@entry.feed.icon_url}
+            src={Pictures.path([@entry.feed.icon_url], kind_mark(@entry.feed))}
+            alt=""
+            class="size-full object-cover"
+          />
+          <span :if={!@entry.feed.icon_url}>{initial(@entry.feed.title)}</span>
         </span>
         <div class="flex min-w-0 grow flex-col">
           <p class="truncate text-label font-semibold text-accent">{@entry.feed.title}</p>

@@ -626,6 +626,17 @@ defmodule SikioWeb.LibraryLiveTest do
       refute has_element?(view, "#source-#{video.feed_id} [data-problem]")
     end
 
+    # The detail names its source as the sidebar does: by its picture, or its initial without one.
+    test "the detail shows its source's picture, or its initial without one", c do
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours/#{c.audio.id}-one-two")
+      assert has_element?(view, ~s|#item-source-mark img[src^="/pictures/"]|)
+
+      [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
+      {:ok, view, _} = live(c.conn, "/all/#{video.id}-a-good-video")
+      refute has_element?(view, "#item-source-mark img")
+      assert has_element?(view, "#item-source-mark", "G")
+    end
+
     # A source is recognised by its picture, through this host like every other. A source that
     # names none shows its first letter.
     test "shows each source's picture, or its initial without one", c do
