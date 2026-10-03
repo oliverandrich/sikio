@@ -4,16 +4,15 @@ defmodule Sikio.MixProject do
   use Mix.Project
 
   # A build serves one database, sqlite or postgres, chosen with SIKIO_DATABASE when it is
-  # compiled. config/config.exs reads the choice made here. The other database builds into its
-  # own directory, so switching between the two never mixes their compiled code.
-  @default_database "postgres"
-  @database System.get_env("SIKIO_DATABASE", @default_database)
+  # compiled. config/config.exs reads the choice made here. Each database builds into its own
+  # directory, so switching between the two never mixes their compiled code.
+  @database System.get_env("SIKIO_DATABASE", "sqlite")
   System.put_env("SIKIO_DATABASE", @database)
 
   def project do
     [
       app: :sikio,
-      build_path: if(@database == @default_database, do: "_build", else: "_build_#{@database}"),
+      build_path: "_build/#{@database}",
       version: "0.1.0",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -38,7 +37,7 @@ defmodule Sikio.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [precommit: :test, "check.database": :test]
     ]
   end
 
@@ -140,6 +139,11 @@ defmodule Sikio.MixProject do
         # and carries the reason above it, so an accepted false positive is reviewable in the diff
         # rather than invisible in a configuration file.
         "sobelow --exit --skip",
+        "check.database"
+      ],
+      # What depends on the database the build serves; `mise run check` runs it for both.
+      "check.database": [
+        "compile --warnings-as-errors",
         "ecto.create --quiet",
         "ecto.migrate --quiet",
         "ithibati.doctor",

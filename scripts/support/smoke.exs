@@ -7,7 +7,8 @@ defmodule Sikio.ReleaseSmoke.Smoke do
   alias Sikio.ReleaseSmoke.Support
   @root Path.expand("../..", __DIR__)
 
-  def release, do: Path.join(@root, "_build/prod/rel/sikio/bin")
+  def release,
+    do: Path.join(@root, "_build/#{System.get_env("SIKIO_DATABASE", "sqlite")}/prod/rel/sikio/bin")
   def run(args, env), do: args |> Support.run(env) |> String.trim()
   def query(sql, env), do: run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-Atc", sql], env)
 

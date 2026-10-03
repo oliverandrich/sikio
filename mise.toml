@@ -25,11 +25,23 @@ env.MIX_ENV = "test"
 description = "Check workflows, compile, format, lint, security, assets and tests"
 # The player's browser half is plain modules with no framework, so node's own runner covers it.
 # No npm package is needed for it, and none is installed.
-run = ["zizmor .github/", "mise run license", "mix precommit", "node --test assets/js/*.test.mjs"]
+# SQLite is the default build and gets every check; Postgres repeats what depends on the database.
+run = [
+  "zizmor .github/",
+  "mise run license",
+  "SIKIO_DATABASE=sqlite mix precommit",
+  "SIKIO_DATABASE=postgres mix check.database",
+  "node --test assets/js/*.test.mjs",
+]
 
 [tasks.test]
+description = "Run the tests against SQLite and Postgres, and the browser modules"
 env.MIX_ENV = "test"
-run = ["mix test", "node --test assets/js/*.test.mjs"]
+run = [
+  "SIKIO_DATABASE=sqlite mix test",
+  "SIKIO_DATABASE=postgres mix test",
+  "node --test assets/js/*.test.mjs",
+]
 
 [tasks.format]
 run = "mix format"
@@ -62,8 +74,9 @@ run = ["mix deps.get --only prod", "mix assets.setup", "mix compile --warnings-a
 
 [tasks.smoke]
 description = "Build the release and run it against a disposable database"
-depends = ["release"]
-run = "elixir scripts/smoke_release.exs"
+# The smoke test drives a Postgres release until it learns SQLite.
+env.SIKIO_DATABASE = "postgres"
+run = ["mise run release", "elixir scripts/smoke_release.exs"]
 
 [tasks.reset]
 description = "Drop and recreate the development database, migrate and seed it"
