@@ -437,6 +437,41 @@ defmodule SikioWeb.LibraryLiveTest do
       assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Later", "Must view"]
     end
 
+    # A tag's own header renames it, refusing a name another tag holds, and deletes it.
+    test "are renamed and deleted in their own header", c do
+      {:ok, [tech]} = Sikio.Tags.set(c.user, c.sub.id, ["Tech"])
+      [video] = Library.subscriptions(c.user) |> Enum.filter(&(&1.feed.kind == :youtube))
+      {:ok, _} = Sikio.Tags.set(c.user, video.id, ["Later"])
+
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+      refute has_element?(view, "#rename-tag")
+
+      {:ok, view, _} = live(c.conn, "/tags/#{tech.id}-tech")
+      view |> element("#rename-tag") |> render_click()
+      assert has_element?(view, ~s|#rename-tag-form input[name="name"][value="Tech"]|)
+
+      view |> form("#rename-tag-form", %{"name" => "later"}) |> render_submit()
+
+      assert has_element?(
+               view,
+               "dialog#rename-tag-confirm",
+               "Another tag is called that already."
+             )
+
+      view |> form("#rename-tag-form", %{"name" => "Technik"}) |> render_change()
+      view |> element("#confirm-rename-tag") |> render_click()
+      assert_patch(view, "/tags/#{tech.id}-technik")
+      assert has_element?(view, "#library-heading", "Technik")
+      assert has_element?(view, "#tag-#{tech.id}", "Technik")
+
+      view |> element("#delete-tag") |> render_click()
+      assert has_element?(view, "dialog#delete-tag-confirm", "Delete Technik?")
+      view |> element("#confirm-delete-tag") |> render_click()
+      assert_patch(view, "/new")
+      refute has_element?(view, "#tag-#{tech.id}")
+      assert [_, _] = Library.subscriptions(c.user)
+    end
+
     test "a section without tags is not shown", c do
       {:ok, view, _} = live(c.conn, ~p"/new")
       refute has_element?(view, "#tags-heading")

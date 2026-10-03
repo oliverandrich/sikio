@@ -99,6 +99,49 @@ defmodule Sikio.Tags do
     end)
   end
 
+  @doc """
+  Gives the account's tag `id` a new name. Answers the tag, or `{:error, :blank}`, `{:error,
+  :taken}` for a name another of its tags holds, or `{:error, :not_found}`.
+  """
+  def rename(%User{id: user_id} = account, id, name) do
+    case {Repo.get_by(Tag, id: cast_id(id), user_id: user_id), cleaned([name])} do
+      {nil, _name} ->
+        {:error, :not_found}
+
+      {_tag, []} ->
+        {:error, :blank}
+
+      {tag, [name]} ->
+        if taken?(user_id, String.downcase(name), tag.id),
+          do: {:error, :taken},
+          else: named_anew(account, tag, name)
+    end
+  end
+
+  defp named_anew(account, tag, name) do
+    tag
+    |> Ecto.Changeset.change(name: name, key: String.downcase(name))
+    |> Repo.update()
+    |> tap(fn _ -> Events.broadcast(account, {:tags_changed, nil}) end)
+  end
+
+  @doc "Deletes the account's tag `id`. Its subscriptions stay; only the tag leaves them."
+  def delete(%User{id: user_id} = account, id) do
+    case Repo.get_by(Tag, id: cast_id(id), user_id: user_id) do
+      nil ->
+        {:error, :not_found}
+
+      tag ->
+        tag
+        |> Repo.delete()
+        |> tap(fn _ -> Events.broadcast(account, {:tags_changed, nil}) end)
+    end
+  end
+
+  defp taken?(user_id, key, id),
+    do:
+      Repo.exists?(from t in Tag, where: t.user_id == ^user_id and t.key == ^key and t.id != ^id)
+
   # Names as typed: trimmed, short enough, none empty, each once in whatever letters.
   defp cleaned(names) do
     names

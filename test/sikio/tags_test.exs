@@ -12,6 +12,7 @@ defmodule Sikio.TagsTest do
   alias Sikio.Accounts.User
   alias Sikio.Feeds.Parser
   alias Sikio.Library
+  alias Sikio.Library.Events
   alias Sikio.Tags
 
   setup do
@@ -70,6 +71,33 @@ defmodule Sikio.TagsTest do
     {:ok, _} = Tags.set(c.alice, c.podcast.id, ["Tech"])
     counts = Library.tally(Library.counts(c.alice), %{}, Tags.feeds(c.alice))
     assert counts.tags == %{tech.id => 2}
+  end
+
+  # A tag keeps its subscriptions under a new name. A name another tag holds is refused.
+  test "a tag is renamed, but not to a name the account already gives", c do
+    {:ok, [tech]} = Tags.set(c.alice, c.podcast.id, ["Tech"])
+    {:ok, _} = Tags.set(c.alice, c.video.id, ["Later"])
+    Events.subscribe(c.alice)
+
+    assert {:ok, %{id: id, name: "Technik"}} = Tags.rename(c.alice, tech.id, " Technik ")
+    assert id == tech.id
+    assert_received {:tags_changed, nil}
+    assert names(Tags.of(c.alice, c.podcast.id)) == ["Technik"]
+
+    assert {:ok, %{name: "TECHNIK"}} = Tags.rename(c.alice, tech.id, "TECHNIK")
+    assert {:error, :taken} = Tags.rename(c.alice, tech.id, "later")
+    assert {:error, :blank} = Tags.rename(c.alice, tech.id, "  ")
+    assert {:error, :not_found} = Tags.rename(c.bob, tech.id, "Mine")
+  end
+
+  # Deleting a tag takes it off every subscription; the subscriptions stay.
+  test "a deleted tag leaves its subscriptions", c do
+    {:ok, [tech]} = Tags.set(c.alice, c.podcast.id, ["Tech"])
+
+    assert {:error, :not_found} = Tags.delete(c.bob, tech.id)
+    assert {:ok, _} = Tags.delete(c.alice, tech.id)
+    assert Tags.list(c.alice) == []
+    assert [_, _] = Library.subscriptions(c.alice)
   end
 
   # A subscription that ends takes its tags off with it; the tag stays for the account.
