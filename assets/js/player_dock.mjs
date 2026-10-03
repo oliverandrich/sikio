@@ -18,7 +18,8 @@ export const PlayerDock = {
         this.el.querySelector("#player-panel")?.focus()
         return
       }
-      this.change("start", {id})
+      // The card's player may name the place it was dragged or skipped to; null resumes.
+      this.change("start", {id, position: event.detail.position ?? null})
     }
     this.close = () => this.change("close", {})
     window.addEventListener("sikio:play", this.play)
@@ -34,7 +35,7 @@ export const PlayerDock = {
         this.busy = false
         // The player that starts takes the keyboard. Its letters mean something else: m mutes,
         // f fills the screen, j and k seek. Clicking anywhere else gives them back.
-        if (reply?.started) this.el.querySelector("#player-panel :is(iframe, audio)")?.focus()
+        if (reply?.started) this.el.querySelector("#player-panel :is(iframe, [data-audio-play])")?.focus()
       })
     }
     const media = this.el.querySelector("[phx-hook='MediaPlayer']")

@@ -67,7 +67,7 @@ defmodule SikioWeb.MobileTest do
     |> resize_window(500, 900)
     |> open("/library/#{entries.podcast.id}")
     |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel audio"))
+    |> assert_has(css("#player-panel [data-audio-face]"))
     |> click(css("#user-menu summary"))
     |> execute_script(
       """
@@ -86,7 +86,7 @@ defmodule SikioWeb.MobileTest do
     |> resize_window(500, 900)
     |> open("/library/#{entries.podcast.id}")
     |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel audio"))
+    |> assert_has(css("#player-panel [data-audio-face]"))
     |> execute_script(
       """
       return document.querySelector('#player-panel').getBoundingClientRect().bottom <=

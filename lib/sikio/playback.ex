@@ -18,6 +18,10 @@ defmodule Sikio.Playback do
   alias Sikio.Playback.State
   alias Sikio.Repo
 
+  # A place and a length from a browser, bounded like the database's own constraints.
+  defguardp valid_position(value) when is_number(value) and value >= 0 and value <= 31_536_000
+  defguardp valid_duration(value) when is_nil(value) or (valid_position(value) and value > 0)
+
   @doc "Closes one player's session, keeping the position it last saved."
   def stop(account, id, session) do
     result =
@@ -36,18 +40,33 @@ defmodule Sikio.Playback do
   @doc """
   Takes over this entry for a new player.
 
-  Replaying something already finished starts at the beginning, because that is what asking to play
-  it again means. Its completed status stays, which `status/2` then refuses to lower.
+  Without a place it resumes where it was left. Replaying something already finished starts at the
+  beginning, because that is what asking to play it again means. Its completed status stays, which
+  `status/2` then refuses to lower.
+
+  A place comes from a browser: the card's player can be dragged before anything loads. It is
+  checked like a sample, and one that is not a place in an episode starts at the beginning.
   """
-  def start(account, id) do
+  def start(account, id, at \\ nil) do
     change(account, id, fn state ->
       [
         session_id: Ecto.UUID.generate(),
         sequence: 0,
-        position: if(state.status == :completed, do: 0.0, else: state.position)
+        position: starting_at(state, at)
       ]
     end)
   end
+
+  defp starting_at(_state, at) when valid_position(at), do: at / 1
+  defp starting_at(_state, at) when not is_nil(at), do: 0.0
+  defp starting_at(state, nil), do: resume_position(state)
+
+  @doc """
+  Where a player picks an entry up: where it was left, or the beginning of one heard to the end.
+  The card shows its player there before anything plays, so both ask here.
+  """
+  def resume_position(%{status: :completed}), do: 0.0
+  def resume_position(%{position: position}), do: position
 
   @doc """
   Sets the status by hand, and stops whatever player holds the entry.
@@ -155,9 +174,6 @@ defmodule Sikio.Playback do
   defp status(_state, %{ended: true}), do: :completed
   defp status(_state, %{position: position}) when position > 0, do: :in_progress
   defp status(state, _sample), do: state.status
-
-  defguardp valid_position(value) when is_number(value) and value >= 0 and value <= 31_536_000
-  defguardp valid_duration(value) when is_nil(value) or (valid_position(value) and value > 0)
 
   # The sample comes from a browser, so its shape is checked before any of it is believed. The
   # bounds match the database's own constraints.

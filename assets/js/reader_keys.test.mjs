@@ -18,6 +18,8 @@ test("j and k move, m marks and f searches, other keys do not", () => {
 test("keys pressed into a player belong to the player", () => {
   assert.equal(readerKey(press("m", {target: {tagName: "AUDIO"}})), null)
   assert.equal(readerKey(press("j", {target: {tagName: "IFRAME"}})), null)
+  const control = {tagName: "BUTTON", closest: selector => selector === "#player-panel" ? {} : null}
+  assert.equal(readerKey(press("m", {target: control})), null, "Sikio's own player counts too")
 })
 
 // Held down, m would mark and unmark in a stream. j and k may repeat; moving on is what they do.

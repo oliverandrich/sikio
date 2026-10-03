@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import {bindFace} from "./audio_face.mjs"
 import {connect} from "./peertube_embed.mjs"
 
 // One request at a time; keep the newest sample while a save is in flight.
@@ -133,9 +134,6 @@ export const MediaPlayer = {
       send: (sample, reply) => this.pushEvent("progress", sample, reply),
       stop: this.stop, message: this.message, strings: this.strings})
     this.listen(this.el, "sikio:flush", event => this.reporter.finish(event.detail.done))
-    // The sidebar's now playing bar has a single button for audio, so the player decides which
-    // way it goes.
-    this.listen(this.el, "sikio:toggle-play", () => this.toggle())
     this.listen(document, "visibilitychange", () => {
       if (document.hidden) this.reporter.save(false, true)
     })
@@ -191,15 +189,13 @@ export const MediaPlayer = {
       this.listen(audio, event, () => this.reporter.save(false, true))
     }
     this.listen(audio, "ended", () => this.reporter.save(true, true))
-    // The sidebar's bar shows pause while this plays. The mark goes on the audio element: a
-    // patch drops data attributes from the ignored container itself, never from its children.
-    this.listen(audio, "play", () => {audio.dataset.playing = ""})
-    for (const event of ["pause", "ended"]) {
-      this.listen(audio, event, () => {delete audio.dataset.playing})
-    }
     this.listen(audio, "error", () => this.message(this.strings.audioFailed))
-    const speed = this.el.querySelector("#playback-speed")
-    this.listen(speed, "change", () => {audio.playbackRate = Number(speed.value)})
+    // Sikio's own controls over the audio; see assets/js/audio_face.mjs.
+    const face = this.el.querySelector("[data-audio-face]")
+    if (face) {
+      this.cleanups.push(bindFace(audio, face, {play: this.strings.labelPlay,
+        pause: this.strings.labelPause, positionOf: this.strings.positionOf, locale: this.strings.locale}))
+    }
     if (audio.readyState >= 1) restore()
   },
 
@@ -238,13 +234,6 @@ export const MediaPlayer = {
     } catch (error) {
       this.message(error.message)
     }
-  },
-
-  // Only audio is folded out of sight; a video keeps its own visible controls.
-  toggle() {
-    if (!this.audio) return
-    if (this.audio.paused) this.audio.play().catch(() => this.message(this.strings.readyAudioManual))
-    else this.audio.pause()
   },
 
   disconnected() { this.reporter.disconnect() },

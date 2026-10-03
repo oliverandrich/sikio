@@ -15,7 +15,7 @@ function fixture() {
     pushEvent: (event, params, reply) => {calls.push({event, params}); reply(event === "start" ? {started: true} : {})}}
   hook.mounted()
   return {hook, calls, focused, finish: saved => {assert.equal(typeof finish, "function", "player must request a flush"); finish(saved)},
-    play: id => window.dispatchEvent(new CustomEvent("sikio:play", {detail: {id}})),
+    play: (id, position) => window.dispatchEvent(new CustomEvent("sikio:play", {detail: {id, position}})),
     close: () => window.dispatchEvent(new CustomEvent("sikio:close-player")),
     cleanup: () => {hook.destroyed(); globalThis.window = previousWindow}}
 }
@@ -26,7 +26,17 @@ test("changing episodes waits for the current player's save before replacing it"
     f.play(2)
     assert.equal(f.calls.length, 0)
     f.finish(true)
-    assert.deepEqual(f.calls, [{event: "start", params: {id: 2}}])
+    assert.deepEqual(f.calls, [{event: "start", params: {id: 2, position: null}}])
+  } finally {f.cleanup()}
+})
+
+// The card's player names the place it was dragged or skipped to.
+test("a start carries the place to begin at", () => {
+  const f = fixture()
+  try {
+    f.play(2, 600)
+    f.finish(true)
+    assert.deepEqual(f.calls, [{event: "start", params: {id: 2, position: 600}}])
   } finally {f.cleanup()}
 })
 

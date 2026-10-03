@@ -44,14 +44,14 @@ defmodule SikioWeb.PlayerDockLiveTest do
     render_hook(dock, "start", %{id: c.entry.id})
 
     assert has_element?(dock, "#compact-player[aria-label='Player verkleinern']")
-    assert has_element?(dock, "label", "Geschwindigkeit")
+    assert has_element?(dock, "[data-audio-speed][aria-label='Wiedergabegeschwindigkeit']")
   end
 
   test "one active player saves and closes without losing progress", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
     assert has_element?(dock, "#player-panel", c.entry.title)
-    assert has_element?(dock, "audio[controls]")
+    assert has_element?(dock, "[data-audio-face]")
     session = Library.entry(c.user, c.entry.id).playback.session_id
     render_hook(dock, "progress", sample(session, 1, 41))
     render_hook(dock, "start", %{id: c.entry.id})
@@ -161,19 +161,25 @@ defmodule SikioWeb.PlayerDockLiveTest do
       "ended" => false
     }
 
-  # Audio folds into the sidebar's bar out of sight, so the bar carries its button. A video keeps
-  # its own frame visible there, and that frame has its own controls.
-  test "the now playing button is offered for audio and not for video",
-       %{conn: conn, user: user} = c do
+  # The card's player starts where it was dragged to.
+  test "a start may name the place to begin at", c do
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => c.entry.id, "position" => 600})
+    assert has_element?(dock, "[phx-hook='MediaPlayer'][data-position='600.0']")
+    assert has_element?(dock, "input[data-audio-seek][value='600']")
+  end
+
+  # Audio plays under Sikio's own face. A video brings its own player inside its frame.
+  test "audio gets Sikio's face and a video does not", %{conn: conn, user: user} = c do
     {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
-    assert has_element?(dock, "#dock-toggle")
+    assert has_element?(dock, "[data-audio-face]")
 
     {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
     video = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
     render_hook(dock, "start", %{id: video.id})
-    refute has_element?(dock, "#dock-toggle")
+    refute has_element?(dock, "[data-audio-face]")
   end
 
   # The instance plays its own video, so the dock points at the embed the feed named and adds

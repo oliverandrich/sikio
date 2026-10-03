@@ -88,6 +88,8 @@
   /* slate-500 would miss 4.5:1 for small text on the ground. */
   --color-muted: var(--color-slate-600);
   --color-line: var(--color-slate-200);
+  /* The unplayed part of a seek bar. */
+  --color-track: var(--color-slate-300);
   --color-control: var(--color-slate-500);
   --color-accent: var(--color-blue-700);
   --color-on-accent: var(--color-white);
@@ -121,6 +123,7 @@
     --color-ink: var(--color-slate-100);
     --color-muted: var(--color-slate-400);
     --color-line: var(--color-slate-800);
+    --color-track: var(--color-slate-700);
     --color-control: var(--color-slate-500);
     --color-accent: var(--color-blue-400);
     --color-on-accent: var(--color-slate-950);
@@ -148,43 +151,151 @@
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
-/* Respect phone safe areas and keep native media controls mounted when compacting.
-   Compacting hides chrome with CSS rather than removing it from the DOM: unmounting the
-   audio element would stop playback, which is the opposite of what the button is for. */
+/* Respect phone safe areas. Compacting hides chrome with CSS rather than removing it from the DOM:
+   unmounting the audio element would stop playback, which is the opposite of what it is for. */
 #player-panel { bottom: max(1rem, env(safe-area-inset-bottom)); max-height: 85dvh; }
 
 /* From lg the panel is either pinned to the detail column or a now playing bar at the foot of the
-   sidebar; assets/js/dock_place.mjs decides and sets data-place. Audio keeps playing out of sight
-   in the bar, with a button to pause it. A video stays visible there with its own controls. */
+   sidebar; assets/js/dock_place.mjs decides and sets data-place. In the bar audio keeps its play
+   button and seek bar, and a video stays visible with its own controls. */
 #player-panel[data-place="pinned"] {
-  box-shadow: none; max-height: 60vh; border-color: transparent; background: transparent; padding: 0;
+  box-shadow: none; max-height: 60vh; border: 0; background: transparent; padding: 0;
 }
 /* The player pinned in the detail covers its slot, where the cue to start it waited. */
-#player-slot[data-pinned] > #start-playback { display: none; }
+#player-slot[data-pinned] > * { display: none; }
+/* On a phone the panel floats beside the card. The card's audio player gives way to it while its
+   episode plays, so two players never show the one episode at different places. */
+#player-slot[data-playing] > #audio-cue { display: none; }
 /* The detail around it names source and title, and choosing another item puts it away. */
 #player-panel[data-place="pinned"] .player-heading { display: none; }
 /* A saved place says nothing; the line holds warnings and errors. */
 [data-player-message]:empty { display: none; }
 #player-panel[data-place="compact"] { padding: .625rem .75rem; max-height: none; }
-#player-panel[data-place="compact"] .player-heading { margin-bottom: 0; align-items: center; }
+#player-panel[data-place="compact"] .player-heading { margin-bottom: .5rem; align-items: center; }
 :is(.compact-audio, #player-panel[data-place="compact"]) .player-title {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The user's own compact toggle folds a floating audio panel. Pinned, there is no button to unfold
-   it, so it shows in full. The sidebar's bar still says what plays and how far it got. */
-.compact-audio:not([data-place="pinned"]) :is(.player-source, .player-status, .player-speed) { display: none; }
+   it, so it shows in full. */
+.compact-audio:not([data-place="pinned"]) .player-source { display: none; }
 .compact-audio:not([data-place="pinned"]) .player-heading { margin-bottom: .5rem; align-items: center; }
-#player-panel[data-place="compact"] :is(.player-source, .player-status) { display: block; }
-#player-panel[data-place="compact"] :is(#compact-player, .player-speed) { display: none; }
-#player-panel[data-place="compact"] #dock-toggle { display: flex; }
-/* The audio element marks itself while it plays; see assets/js/media_player.mjs. */
-#player-panel:has(audio[data-playing]) #dock-toggle .dock-play { display: none; }
-#player-panel:has(audio[data-playing]) #dock-toggle .dock-pause { display: block; }
+#player-panel[data-place="compact"] .player-source { display: block; }
+#player-panel[data-place="compact"] #compact-player { display: none; }
 #player-panel[data-place="compact"] iframe { min-height: 0; margin-top: .5rem; }
 #player-panel[data-place="compact"]:has(audio) [data-player-message] { display: none; }
-#player-panel[data-place="compact"] audio {
-  position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;
+/* Audio shows its place in its own controls. */
+#player-panel:has([data-audio-face]) .player-status { display: none; }
+
+/* Sikio's own audio controls over an audio element without any; see assets/js/audio_face.mjs.
+   One markup in three places. Floating on a phone it is a bar to drag with the buttons beneath,
+   pinned in the detail one row, and folded or in the sidebar a play button beside the bar. */
+.audio-face {
+  display: grid; align-items: center; gap: 1rem .875rem;
+  grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+  grid-template-areas: "track track track track track" "speed back play forward .";
 }
+.audio-face button { cursor: pointer; }
+.audio-face :is(button, input):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.audio-play {
+  grid-area: play; display: flex; align-items: center; justify-content: center;
+  width: 4rem; height: 4rem; border-radius: 999px;
+  background: var(--color-accent); color: var(--color-on-accent);
+  box-shadow: 0 8px 22px color-mix(in oklab, var(--color-accent) 30%, transparent);
+  transition: transform .15s ease;
+}
+.audio-play:hover { transform: scale(1.04); }
+.audio-play svg { width: 1.5rem; height: 1.5rem; }
+.audio-icon-pause, .audio-face[data-playing] .audio-icon-play { display: none; }
+.audio-face[data-playing] .audio-icon-pause { display: block; }
+.audio-track { grid-area: track; display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
+.audio-times {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: var(--text-meta); font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+.audio-back { grid-area: back; }
+.audio-forward { grid-area: forward; }
+.audio-skip {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 3rem; height: 3rem; border-radius: 999px; color: var(--color-ink);
+}
+.audio-skip:hover { background: var(--color-ground); }
+.audio-skip span { margin-top: -2px; font-family: var(--font-mono); font-size: 10px; line-height: 1; }
+.audio-speed {
+  grid-area: speed; justify-self: start; min-width: 4rem; height: 2rem; padding: 0 .75rem;
+  border-radius: 999px; background: var(--color-ground); color: var(--color-ink);
+  font-family: var(--font-mono); font-size: var(--text-label); font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The seek bar, drawn alike by every engine: the played part in the signal colour up to the
+   thumb, which assets/js/audio_face.mjs keeps in --progress. */
+.audio-seek {
+  --progress: 0%;
+  --seek-track: linear-gradient(to right, var(--color-signal) var(--progress), var(--color-track) var(--progress));
+  --seek-ring: 0 0 0 4px var(--color-signal);
+  appearance: none; -webkit-appearance: none; display: block;
+  width: 100%; height: 1rem; margin: 0; background: transparent; cursor: pointer;
+}
+.audio-seek:focus-visible { outline: none; --seek-ring: 0 0 0 4px var(--color-signal), 0 0 0 7px var(--color-accent); }
+/* Pseudo-elements of two engines cannot share a rule, so they share the values above. */
+.audio-seek::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: var(--seek-track); }
+.audio-seek::-moz-range-track { height: 6px; border-radius: 999px; background: var(--seek-track); }
+.audio-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -5px;
+  border: 0; border-radius: 999px; background: var(--color-surface); box-shadow: var(--seek-ring);
+}
+.audio-seek::-moz-range-thumb {
+  width: 16px; height: 16px; border: 0; border-radius: 999px; background: var(--color-surface);
+  box-shadow: var(--seek-ring);
+}
+
+/* In the detail, as the card's cue and as the player pinned over it: one row on the ground. The
+   two look alike, so the one lies over the other without a jump. A narrow card, or a narrow
+   pinned panel, keeps the floating layout; the card and the panel are the containers asked. */
+#player-panel { container-type: inline-size; }
+@container (width >= 34rem) {
+  :is(#player-panel[data-place="pinned"], #player-slot) .audio-face {
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "play track back forward speed";
+    gap: .25rem 1.125rem;
+  }
+  :is(#player-panel[data-place="pinned"], #player-slot) .audio-play { width: 3.5rem; height: 3.5rem; }
+  :is(#player-panel[data-place="pinned"], #player-slot) .audio-play svg { width: 1.375rem; height: 1.375rem; }
+  :is(#player-panel[data-place="pinned"], #player-slot) .audio-skip { width: 2.75rem; height: 2.75rem; }
+  :is(#player-panel[data-place="pinned"], #player-slot) .audio-speed { margin-left: .25rem; }
+}
+:is(#player-panel[data-place="pinned"], #player-slot) .audio-face {
+  padding: .875rem 1rem; border-radius: .875rem; background: var(--color-ground);
+}
+:is(#player-panel[data-place="pinned"], #player-slot) .audio-skip:hover { background: var(--color-surface); }
+:is(#player-panel[data-place="pinned"], #player-slot) .audio-speed {
+  background: var(--color-surface); box-shadow: 0 0 0 1px var(--color-line);
+}
+/* Very narrow, as the detail beside the list at 1024 pixels: the row beneath the bar closes up. */
+@container (width < 20rem) {
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face {
+    grid-template-columns: auto auto auto auto; grid-template-areas: "track track track track" "speed back play forward";
+    justify-content: space-between; gap: .75rem .25rem;
+  }
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-play { width: 3.25rem; height: 3.25rem; }
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-skip { width: 2.5rem; height: 2.5rem; }
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-speed { min-width: 0; padding: 0 .5rem; }
+}
+/* Before anything plays there is no speed to set, though the button keeps its place. */
+.audio-speed:disabled { cursor: default; }
+
+/* Folded, or in the sidebar: a small play button beside the bar, and nothing more. */
+:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-face {
+  grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "play track"; gap: .625rem;
+}
+:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-play {
+  width: 2.25rem; height: 2.25rem; box-shadow: none;
+}
+:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-play svg { width: .875rem; height: .875rem; }
+:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) :is(.audio-skip, .audio-speed) { display: none; }
+:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-track { gap: .25rem; }
+:is(#player-panel[data-place="compact"], .compact-audio:not([data-place="pinned"])) .audio-times { font-size: 10px; }
 
 /* Below lg the main navigation is a bar along the bottom, so the panel floats above it. The bar,
    the page's room beneath its content and the panel's lift all read the bar's height here. The

@@ -32,12 +32,13 @@ import {MediaPlayer} from "./media_player.mjs"
 import {PlayerDock, rejoinParams} from "./player_dock.mjs"
 import {ReaderKeys} from "./reader_keys.mjs"
 import {DockPlace} from "./dock_place.mjs"
+import {AudioCue} from "./audio_cue.mjs"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: view => ({_csrf_token: csrfToken, ...rejoinParams(view)}),
-  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace},
+  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue},
 })
 
 // Show progress bar on live navigation and form submits

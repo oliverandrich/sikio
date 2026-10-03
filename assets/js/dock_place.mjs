@@ -25,11 +25,8 @@ function place() {
   const sidebar = document.querySelector("#main-navigation")?.closest("header")
   const shown = detail && detail.offsetParent !== null ? detail.dataset.entryId : null
 
-  const where = panel ? placement({
-    wide: WIDE.matches,
-    shown,
-    playing: document.querySelector("#player-control")?.dataset.entryId ?? null
-  }) : "floating"
+  const playing = document.querySelector("#player-control")?.dataset.entryId ?? null
+  const where = panel ? placement({wide: WIDE.matches, shown, playing}) : "floating"
 
   const room = panel ? panel.offsetHeight + GAP : 0
   // Pinned, the panel lies on the detail's player slot, which keeps its height free for it.
@@ -53,12 +50,9 @@ function place() {
     const height = pinned && panel.offsetWidth !== width ? panel.offsetHeight : room - GAP
     slot.style.height = pinned ? `${height}px` : ""
     slot.toggleAttribute("data-pinned", pinned)
+    // Floating on a phone the panel covers nothing, so the card marks that its episode plays.
+    slot.toggleAttribute("data-playing", Boolean(panel) && shown !== null && shown === playing)
   }
-  if (!panel) return
-
-  // Audio folded out of sight must not take keyboard focus either.
-  const audio = panel.querySelector("audio")
-  if (audio && audio.inert !== (where === "compact")) audio.inert = where === "compact"
 }
 
 export const DockPlace = {
@@ -81,7 +75,12 @@ export const DockPlace = {
       if (panel) this.sizes.observe(panel)
       this.watched = panel
     }
-    this.observer = new MutationObserver(() => { this.watch(); this.schedule() })
+    // The audio's own controls change their text as it plays, which moves nothing.
+    this.observer = new MutationObserver(records => {
+      if (records.every(record => record.target.closest?.("[data-audio-face]"))) return
+      this.watch()
+      this.schedule()
+    })
     this.observer.observe(document.body, {childList: true, subtree: true,
       attributes: true, attributeFilter: ["class", "data-entry-id"]})
     window.addEventListener("resize", this.schedule)

@@ -7,7 +7,7 @@ export function readerKey(event) {
   if (event.metaKey || event.ctrlKey || event.altKey) return null
   const target = event.target
   if (["INPUT", "SELECT", "TEXTAREA", "AUDIO", "VIDEO", "IFRAME"].includes(target?.tagName) ||
-      target?.isContentEditable) return null
+      target?.isContentEditable || target?.closest?.("#player-panel")) return null
   if (event.key === "m" || event.key === "f") return event.repeat ? null : event.key
   return event.key === "j" || event.key === "k" ? event.key : null
 }

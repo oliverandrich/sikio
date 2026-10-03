@@ -36,6 +36,14 @@ defmodule SikioWeb.LibraryDetailTest do
 
     assert has_element?(view, "#item-detail #player-slot #start-playback")
     refute has_element?(view, "#item-detail audio")
+    # An episode shows the player itself, which loads nothing until it is used.
+    assert has_element?(
+             view,
+             "#player-slot #audio-cue[data-audio-face] #start-playback[data-audio-play]"
+           )
+
+    assert has_element?(view, "#audio-cue input[type=range][data-audio-seek][max='3723']")
+    assert has_element?(view, "#audio-cue button[data-audio-speed][disabled]")
     assert has_element?(view, "#item-actions #mark-completed", "Mark as listened")
   end
 
@@ -108,17 +116,71 @@ defmodule SikioWeb.LibraryDetailTest do
     refute has_element?(view, "#mark-completed")
   end
 
+  # A feed may name no length. The bar then has no range of its own, so it keeps the saved place
+  # rather than falling back to the start, and cannot be dragged before the audio knows its length.
+  test "without a length the card's player keeps the saved place", c do
+    {:ok, preview} = Parser.parse(thin_podcast(), feed_url())
+    {:ok, _} = Library.subscribe(c.user, preview)
+    entry = Enum.find(Library.entries(c.user), &is_nil(&1.duration))
+    {:ok, state} = Playback.start(c.user, entry.id)
+
+    Playback.save(c.user, entry.id, state.session_id, %{
+      "sequence" => 1,
+      "position" => 600,
+      "duration" => nil,
+      "ended" => false
+    })
+
+    {:ok, view, _} = live(c.conn, ~p"/library/#{entry.id}")
+
+    assert has_element?(
+             view,
+             "#audio-cue input[data-audio-seek][value='600'][max='600'][disabled]"
+           )
+
+    refute has_element?(view, "#audio-cue input[data-audio-seek][data-length]")
+  end
+
   test "audio loads on request, resumes and saves only the active entry", c do
     {:ok, state} = Playback.start(c.user, c.entry.id)
     Playback.save(c.user, c.entry.id, state.session_id, sample(1, 42))
     {:ok, view, _} = live(c.conn, ~p"/library/#{c.entry.id}")
     refute has_element?(view, "audio")
-    assert has_element?(view, "#start-playback", "Resume")
-    assert view |> element("#start-playback") |> render() =~ "sikio:play"
+    assert has_element?(view, "#start-playback[aria-label='Resume']")
+    assert has_element?(view, "#audio-cue input[data-audio-seek][value='42']")
+    assert has_element?(view, "#audio-cue [data-audio-elapsed]", "0:42")
+    assert has_element?(view, "#audio-cue[phx-hook='AudioCue'][data-entry-id='#{c.entry.id}']")
     {:ok, dock, _} = live_isolated(c.conn, SikioWeb.PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
-    assert has_element?(dock, "[phx-hook='MediaPlayer'][data-position='42.0'] audio[controls]")
-    assert has_element?(dock, "#playback-speed")
+    # Sikio's own face over an audio element that keeps no controls of its own.
+    assert has_element?(
+             dock,
+             "[phx-hook='MediaPlayer'][data-position='42.0'] audio:not([controls])"
+           )
+
+    assert has_element?(dock, "[data-audio-face] button[data-audio-play][aria-label='Play']")
+
+    assert has_element?(
+             dock,
+             "[data-audio-face] input[type=range][data-audio-seek][aria-label='Position']"
+           )
+
+    assert has_element?(
+             dock,
+             "[data-audio-face] button[data-audio-skip='-15'][aria-label='15 seconds back']"
+           )
+
+    assert has_element?(
+             dock,
+             "[data-audio-face] button[data-audio-skip='30'][aria-label='30 seconds forward']"
+           )
+
+    assert has_element?(
+             dock,
+             "[data-audio-face] button[data-audio-speed][aria-label='Playback speed']",
+             "1×"
+           )
+
     session = Library.entry(c.user, c.entry.id).playback.session_id
 
     render_hook(

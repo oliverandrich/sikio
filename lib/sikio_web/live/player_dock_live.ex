@@ -14,6 +14,7 @@ defmodule SikioWeb.PlayerDockLive do
   """
   use SikioWeb, :live_view
 
+  import SikioWeb.AudioFace
   import SikioWeb.MediaComponents
 
   alias Sikio.Library
@@ -55,11 +56,12 @@ defmodule SikioWeb.PlayerDockLive do
   defp rejoin(socket, _params), do: socket
 
   @impl true
-  def handle_event("start", %{"id" => id}, socket) do
+  # The card's player may name a place: it can be dragged or skipped before anything loads.
+  def handle_event("start", %{"id" => id} = params, socket) do
     if socket.assigns.player && to_string(socket.assigns.entry.id) == to_string(id) do
       {:reply, %{started: true}, socket}
     else
-      start_entry(socket, id)
+      start_entry(socket, id, params["position"])
     end
   end
 
@@ -115,11 +117,11 @@ defmodule SikioWeb.PlayerDockLive do
     end
   end
 
-  defp start_entry(socket, id) do
+  defp start_entry(socket, id, at) do
     account = socket.assigns.current_account
 
     with %{} = entry <- Library.entry(account, id),
-         {:ok, player} <- Playback.start(account, id) do
+         {:ok, player} <- Playback.start(account, id, at) do
       stop_current(socket)
 
       {:reply, %{started: true},
@@ -236,16 +238,6 @@ defmodule SikioWeb.PlayerDockLive do
             <Lucideicons.chevron_down :if={!@compact} aria-hidden="true" class="size-5" />
           </button>
           <button
-            :if={@player && @entry.feed.kind == :podcast}
-            id="dock-toggle"
-            phx-click={JS.dispatch("sikio:toggle-play", to: "#player-#{@player.session_id}")}
-            aria-label={gettext("Play or pause")}
-            class="hidden size-11 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent"
-          >
-            <Lucideicons.play aria-hidden="true" class="dock-play size-4 fill-current" />
-            <Lucideicons.pause aria-hidden="true" class="dock-pause hidden size-4 fill-current" />
-          </button>
-          <button
             id="close-player"
             phx-click={JS.dispatch("sikio:close-player")}
             aria-label={gettext("Close player")}
@@ -279,7 +271,7 @@ defmodule SikioWeb.PlayerDockLive do
           data-reconnect-first={
             gettext("Reconnect before switching or closing, so your place can be saved.")
           }
-          data-ready-audio-manual={gettext("Ready. Press play in the audio controls.")}
+          data-ready-audio-manual={gettext("The browser did not start it. Press play.")}
           data-audio-failed={
             gettext(
               "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
@@ -298,36 +290,29 @@ defmodule SikioWeb.PlayerDockLive do
               "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
             )
           }
+          data-label-play={gettext("Play")}
+          data-label-pause={gettext("Pause")}
+          data-position-of={
+            gettext("%{position} of %{duration}", position: "{position}", duration: "{duration}")
+          }
+          data-locale={Gettext.get_locale(SikioWeb.Gettext)}
           data-youtube-unplayable={
             gettext("YouTube cannot play this video. Try opening it on YouTube.")
           }
         >
+          <%!-- The audio element keeps no controls of its own. Sikio's face drives it; see
+          assets/js/audio_face.mjs. Its layout for each place is in app.css. --%>
           <audio
             :if={@entry.feed.kind == :podcast}
-            controls
             preload="metadata"
             src={@entry.media_url}
-            class="w-full"
             aria-label={@entry.title}
           ></audio>
-          <div
+          <.audio_face
             :if={@entry.feed.kind == :podcast}
-            class="player-speed mt-5 flex items-center gap-3 text-label"
-          >
-            <label for="playback-speed">{gettext("Speed")}</label>
-            <select
-              id="playback-speed"
-              class="rounded-control border border-control bg-surface px-3 py-2 text-ink"
-            >
-              <option
-                :for={speed <- [0.75, 1, 1.25, 1.5, 1.75, 2]}
-                value={speed}
-                selected={speed == 1}
-              >
-                {speed}×
-              </option>
-            </select>
-          </div>
+            length={@entry.duration}
+            position={@player.position}
+          />
           <iframe
             :if={@entry.feed.kind == :peertube}
             id={"peertube-#{@player.session_id}"}

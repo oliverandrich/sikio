@@ -12,6 +12,7 @@ defmodule SikioWeb.LibraryLive do
   """
   use SikioWeb, :live_view
 
+  import SikioWeb.AudioFace
   import SikioWeb.MediaComponents
 
   alias Sikio.Library
@@ -749,6 +750,10 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
+  # Where the card's player stands before it plays: where the dock's would pick it up.
+  defp cue_position(%{playback: nil}), do: 0
+  defp cue_position(%{playback: playback}), do: Playback.resume_position(playback)
+
   # How far somebody got, as a bar along the foot of the picture when the length is known.
   attr :entry, :map, required: true
 
@@ -872,17 +877,18 @@ defmodule SikioWeb.LibraryLive do
       <h2 class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
       <%!-- The player's place. The dock lays the playing player over it; until then it shows what
       would play and loads nothing from anybody else. See assets/js/dock_place.mjs. --%>
-      <div id="player-slot" phx-mounted={JS.ignore_attributes(["style", "data-pinned"])}>
+      <div
+        id="player-slot"
+        phx-mounted={JS.ignore_attributes(["style", "data-pinned", "data-playing"])}
+      >
         <button
+          :if={video?(@entry)}
           id="start-playback"
           type="button"
           phx-click={JS.dispatch("sikio:play", detail: %{id: @entry.id})}
           class="group block w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <span
-            :if={video?(@entry)}
-            class="relative block aspect-video w-full overflow-hidden rounded-xl bg-line"
-          >
+          <span class="relative block aspect-video w-full overflow-hidden rounded-xl bg-line">
             <img
               src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
               alt=""
@@ -895,17 +901,21 @@ defmodule SikioWeb.LibraryLive do
             </span>
             <span class="sr-only">{play_label(@entry)}</span>
           </span>
-          <span
-            :if={!video?(@entry)}
-            class="flex min-h-14 items-center gap-3 rounded-xl bg-ground px-3 py-2"
-          >
-            <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent transition group-hover:scale-105">
-              <Lucideicons.play aria-hidden="true" class="size-4 fill-current" />
-            </span>
-            <span class="text-label font-semibold text-ink">{play_label(@entry)}</span>
-            <span :if={@runtime} class="ml-auto font-mono text-meta text-muted">{@runtime}</span>
-          </span>
         </button>
+        <%!-- An episode shows the player itself. Nothing loads until it is used; see
+        assets/js/audio_cue.mjs. --%>
+        <.audio_face
+          :if={!video?(@entry)}
+          id="audio-cue"
+          phx-hook="AudioCue"
+          cue={@entry}
+          length={length_of(@entry)}
+          position={cue_position(@entry)}
+          data-entry-id={@entry.id}
+          data-position-of={
+            gettext("%{position} of %{duration}", position: "{position}", duration: "{duration}")
+          }
+        />
       </div>
       <%!-- The card keeps the column's width; the notes stop at a reading measure in its middle. --%>
       <section class="border-t border-line pt-4">

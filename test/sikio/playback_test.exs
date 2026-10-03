@@ -36,6 +36,18 @@ defmodule Sikio.PlaybackTest do
     assert {:ok, %{position: +0.0, status: :new}} = Playback.start(c.bob, c.entry.id)
   end
 
+  # The card's player can be dragged or skipped before anything loads. Starting then begins at
+  # that place, also for an episode heard to the end, and a place from a browser is checked.
+  test "a start may name the place to begin at", c do
+    assert {:ok, %{position: 600.0}} = Playback.start(c.alice, c.entry.id, 600)
+
+    {:ok, _} = Playback.mark(c.alice, c.entry.id, :completed)
+    assert {:ok, %{position: 90.0, status: :completed}} = Playback.start(c.alice, c.entry.id, 90)
+
+    assert {:ok, %{position: +0.0}} = Playback.start(c.alice, c.entry.id, -5)
+    assert {:ok, %{position: +0.0}} = Playback.start(c.alice, c.entry.id, "soon")
+  end
+
   test "only subscribed accounts may read or write an entry", c do
     assert Library.entry(c.bob, c.entry.id) == nil
     assert {:error, :not_found} = Playback.start(c.bob, c.entry.id)
