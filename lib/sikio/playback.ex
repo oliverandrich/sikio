@@ -153,12 +153,12 @@ defmodule Sikio.Playback do
   defp locked(%User{id: user_id} = account, id) do
     case Ecto.Type.cast(:id, id) do
       {:ok, id} ->
-        Repo.one(
-          from p in State,
-            where: p.user_id == ^user_id and p.entry_id == ^id,
-            where: p.entry_id in subquery(Library.visible_entry_ids(account)),
-            lock: "FOR UPDATE"
+        from(p in State,
+          where: p.user_id == ^user_id and p.entry_id == ^id,
+          where: p.entry_id in subquery(Library.visible_entry_ids(account))
         )
+        |> Repo.for_update()
+        |> Repo.one()
 
       _ ->
         nil

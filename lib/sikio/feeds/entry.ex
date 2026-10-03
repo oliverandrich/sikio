@@ -30,6 +30,8 @@ defmodule Sikio.Feeds.Entry do
     field :description, :string
     field :description_format, Ecto.Enum, values: [html: "html", text: "text"]
     field :excerpt, :string
+    # What the library's search reads; see Sikio.Feeds.SearchText.
+    field :search_text, :string
     # Filled per account by the queries that join playback state, so a shared row never carries
     # somebody else's progress.
     field :playback, :map, virtual: true

@@ -15,6 +15,7 @@ defmodule Sikio.Feeds do
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
+  alias Sikio.Feeds.SearchText
   alias Sikio.Library.Events
   alias Sikio.Repo
 
@@ -160,6 +161,7 @@ defmodule Sikio.Feeds do
         |> Map.take([:external_id | @replaced_entry_fields ++ @kept_entry_fields])
         |> Map.merge(%{feed_id: feed_id, inserted_at: now, updated_at: now})
         |> Map.update(:published_at, nil, &microseconds/1)
+        |> Map.put(:search_text, SearchText.of(entry))
       end)
 
     Repo.insert_all(Entry, rows,
@@ -178,6 +180,9 @@ defmodule Sikio.Feeds do
   # validators. The whole row is compared at once, null-safe, against exactly what the update
   # would set. The guard and the update name their columns separately; the tests change each
   # column on its own and expect a write, so a column left out of the guard fails one of them.
+  #
+  # SQLite stores a list of no chapters as the JSON text `null` rather than as NULL. `NULLIF`
+  # against a nil dumped the same way turns it back into NULL there, and is a no-op on Postgres.
   defp keep_content do
     from(e in Entry,
       where:
@@ -188,7 +193,7 @@ defmodule Sikio.Feeds do
            EXCLUDED.published_at, COALESCE(EXCLUDED.image_url, ?), COALESCE(EXCLUDED.duration, ?),
            COALESCE(EXCLUDED.description, ?), COALESCE(EXCLUDED.description_format, ?),
            COALESCE(EXCLUDED.excerpt, ?), COALESCE(EXCLUDED.page_url, ?),
-           COALESCE(EXCLUDED.chapters, ?), COALESCE(EXCLUDED.chapters_url, ?))
+           COALESCE(NULLIF(EXCLUDED.chapters, ?), ?), COALESCE(EXCLUDED.chapters_url, ?))
           """,
           e.title,
           e.media_url,
@@ -209,6 +214,7 @@ defmodule Sikio.Feeds do
           e.description_format,
           e.excerpt,
           e.page_url,
+          type(^nil, {:array, :map}),
           e.chapters,
           e.chapters_url
         ),
@@ -230,11 +236,20 @@ defmodule Sikio.Feeds do
           # fetched again.
           chapters:
             fragment(
-              "CASE WHEN EXCLUDED.chapters IS NULL AND EXCLUDED.chapters_url IS DISTINCT FROM ? THEN NULL ELSE COALESCE(EXCLUDED.chapters, ?) END",
+              "CASE WHEN NULLIF(EXCLUDED.chapters, ?) IS NULL AND EXCLUDED.chapters_url IS DISTINCT FROM ? THEN NULL ELSE COALESCE(NULLIF(EXCLUDED.chapters, ?), ?) END",
+              type(^nil, {:array, :map}),
               e.chapters_url,
+              type(^nil, {:array, :map}),
               e.chapters
             ),
           chapters_url: fragment("COALESCE(EXCLUDED.chapters_url, ?)", e.chapters_url),
+          # Derived from the columns above, so the guard need not compare it. Notes a poll left
+          # out are kept, and so is the text searched in them.
+          search_text:
+            fragment(
+              "CASE WHEN EXCLUDED.description IS NULL THEN ? ELSE EXCLUDED.search_text END",
+              e.search_text
+            ),
           updated_at: fragment("EXCLUDED.updated_at")
         ]
       ]

@@ -17,9 +17,14 @@ defmodule Sikio.TestConfig do
   quietly takes away a budget that somebody else's setup put there — and the group then falls
   back to its shipped default rather than to what was wanted. That has cost this suite three
   separate failures, each in a different file and none of them where the mistake was made.
+  The group's counts are cleared as well.
   """
   def put_budget(group, budget) do
     configured = Application.get_env(:sikio, :auth_rate_limits, [])
+
+    # The counts start empty. They are kept per account id, and SQLite rolls its id sequence back
+    # with each test's transaction, so a later test's account may carry an earlier one's id.
+    :sys.replace_state(Sikio.AuthRateLimiter, &put_in(&1, [:groups, group], %{}))
 
     put_env(:sikio, :auth_rate_limits, Keyword.put(configured, group, budget))
   end

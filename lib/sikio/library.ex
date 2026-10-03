@@ -274,20 +274,14 @@ defmodule Sikio.Library do
     matching(query, filters["q"])
   end
 
-  # Words a reader remembers, in the title, the notes or the excerpt. What was typed is text, so
-  # the pattern characters in it are escaped. The notes are HTML; their tags are not searched.
+  # Words a reader remembers, in the title, the notes or the excerpt, as Sikio.Feeds.SearchText
+  # stored them: lowercase and without markup. What was typed is text, so the pattern characters
+  # in it are escaped, and lowercase too, so case never decides.
   defp matching(query, ""), do: query
 
   defp matching(query, text) do
-    pattern = "%" <> String.replace(text, ["\\", "%", "_"], &("\\" <> &1)) <> "%"
-
-    where(
-      query,
-      [e],
-      ilike(e.title, ^pattern) or
-        fragment("regexp_replace(?, '<[^>]*>', ' ', 'g') ILIKE ?", e.description, ^pattern) or
-        ilike(e.excerpt, ^pattern)
-    )
+    pattern = "%" <> String.replace(String.downcase(text), ["\\", "%", "_"], &("\\" <> &1)) <> "%"
+    where(query, [e], fragment("? LIKE ? ESCAPE '\\'", e.search_text, ^pattern))
   end
 
   # The join to subscriptions is what makes this account-scoped. Every query over entries starts

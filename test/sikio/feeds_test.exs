@@ -134,7 +134,7 @@ defmodule Sikio.FeedsTest do
 
   # A source without working cache validators answers in full on every poll. Rewriting rows it
   # did not change costs a new row version, write ahead log and a dead tuple per entry, and a
-  # notification that makes every open library reload. `xmin` changes with every write.
+  # notification that makes every open library reload. Every write sets `updated_at`.
   test "importing what is already stored writes no entry" do
     {:ok, stored} = Feeds.store(preview())
     before = versions(stored.id)
@@ -206,10 +206,7 @@ defmodule Sikio.FeedsTest do
   defp versions(feed_id),
     do:
       Repo.all(
-        from e in Entry,
-          where: e.feed_id == ^feed_id,
-          order_by: e.id,
-          select: fragment("xmin::text")
+        from e in Entry, where: e.feed_id == ^feed_id, order_by: e.id, select: e.updated_at
       )
 
   test "refreshing a source that is no longer stored says so" do

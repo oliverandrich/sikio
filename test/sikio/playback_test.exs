@@ -139,7 +139,8 @@ defmodule Sikio.PlaybackTest do
 
   # Ownership is checked on every write, a sample at least every five seconds per player, and
   # while the row is locked. The check asks whether the account subscribes, not for the item.
-  # A sample asks it in the statement that locks.
+  # A sample asks it in the statement that locks. SQLite locks the whole database instead, from
+  # the start of every transaction.
   test "a write checks ownership without loading the item", c do
     {{:ok, %{session_id: session}}, started} =
       queries(fn -> Playback.start(c.alice, c.entry.id) end)
@@ -151,7 +152,9 @@ defmodule Sikio.PlaybackTest do
     refute Enum.any?(started ++ saved, &(&1 =~ ~s("feeds")))
     assert [lock] = Enum.filter(saved, &String.starts_with?(&1, "SELECT"))
     assert lock =~ ~s("subscriptions")
-    assert lock =~ ~r/FOR UPDATE$/
+
+    if Application.fetch_env!(:sikio, :database) == :postgres,
+      do: assert(lock =~ ~r/FOR UPDATE$/)
   end
 
   defp sample(sequence, position),

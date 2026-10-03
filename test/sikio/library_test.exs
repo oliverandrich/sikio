@@ -121,11 +121,12 @@ defmodule Sikio.LibraryTest do
         entry
         | external_id: "b",
           title: "Bread",
-          description: "<p>About old BRIDGES</p>",
+          description: "<p>About <em>old</em> BRIDGES</p>",
           excerpt: nil
       },
       %{entry | external_id: "c", title: "Tea", description: nil, excerpt: "bridges at dawn"},
-      %{entry | external_id: "d", title: "50% off", description: nil, excerpt: nil}
+      %{entry | external_id: "d", title: "50% off", description: nil, excerpt: nil},
+      %{entry | external_id: "e", title: "Ärger im Hafen", description: nil, excerpt: nil}
     ]
 
     Library.subscribe(ctx.alice, %{ctx.preview | entries: entries})
@@ -138,11 +139,29 @@ defmodule Sikio.LibraryTest do
     assert titles.(%{"q" => "  sing "}) == ["Bridges that sing"]
     assert titles.(%{"q" => "%"}) == ["50% off"]
     assert titles.(%{"q" => "_"}) == []
+    # Words set apart by markup still read as one phrase.
+    assert titles.(%{"q" => "about old bridges"}) == ["Bread"]
+    # Case is ignored beyond ASCII as well.
+    assert titles.(%{"q" => "ÄRGER"}) == ["Ärger im Hafen"]
     # The notes are HTML. Their markup is not what anybody remembers.
     assert titles.(%{"q" => "<p>"}) == []
     assert titles.(%{"q" => "p>"}) == []
     assert Library.count(ctx.alice, %{"q" => "bridges"}) == 3
     assert Library.entries(ctx.bob, %{"q" => "bridges"}) == []
+  end
+
+  # A poll that leaves the notes out keeps the stored ones, and the search keeps finding them,
+  # even when the same poll changes something else about the item.
+  test "search finds notes a later poll left out", ctx do
+    entry = %{hd(ctx.preview.entries) | title: "Bread", description: "<p>About old bridges</p>"}
+    Library.subscribe(ctx.alice, %{ctx.preview | entries: [entry]})
+
+    Sikio.Feeds.store(%{
+      ctx.preview
+      | entries: [%{entry | title: "Bread rolls", description: nil, excerpt: nil}]
+    })
+
+    assert [%{title: "Bread rolls"}] = Library.entries(ctx.alice, %{"q" => "bridges"})
   end
 
   # A list grows as it is scrolled. Each batch continues after the last entry shown, by date and
