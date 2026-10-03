@@ -132,8 +132,8 @@ defmodule SikioWeb.PlayerTest do
       %{video: video}
     end
 
-    # The player sits where the detail shows it: under the title, above the notes.
-    feature "is in the detail that shows what plays, under its title", context do
+    # The player sits where the detail shows it: at the card's head, above the title and notes.
+    feature "is in the detail that shows what plays, above its title", context do
       %{session: session, account: account, entry: entry} = context
 
       session
@@ -148,13 +148,26 @@ defmodule SikioWeb.PlayerTest do
       |> assert_has(css("#close-player", visible: false))
       # It sits on the detail's card, not on the column around it.
       |> execute_script(flush("#player-panel", "#player-slot"), fn flush -> assert flush end)
-      |> execute_script(below("#player-panel", "#item-detail h2"), fn below ->
-        assert below, "the player lies below the title"
-      end)
+      # The medium first, then the text about it: the title opens the reading column, on the
+      # notes' own edge.
       |> then(fn session ->
-        assert {:ok, _} = retry(fn -> holds(session, below(@notes, "#player-panel")) end)
+        assert {:ok, _} =
+                 retry(fn -> holds(session, below("#item-detail h2", "#player-panel")) end)
+
         session
       end)
+      |> execute_script(
+        """
+        const box = s => document.querySelector(s).getBoundingClientRect()
+        return [Math.round(box('#item-detail h2').left), Math.round(box('#item-notes, #item-no-notes').left),
+                box(arguments[0]).top >= box('#item-detail h2').bottom]
+        """,
+        [@notes],
+        fn [title, notes, below] ->
+          assert title == notes, "the title stands on the notes' edge"
+          assert below, "the notes follow the title"
+        end
+      )
       # A saved place patches the detail and the dock. Neither patch may take the placement away,
       # not even for the frame until it is worked out again: that frame is a flicker.
       |> execute_script("""

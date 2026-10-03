@@ -75,7 +75,7 @@ defmodule SikioWeb.LibraryTest do
       """
       const top = id => Math.round(document.getElementById(id).getBoundingClientRect().top)
       return [document.getElementById('list-pane').scrollTop, window.scrollY, top('list-head'),
-              Math.round(document.querySelector('#item-detail h2').getBoundingClientRect().top),
+              Math.round(document.querySelector('#item-detail article').getBoundingClientRect().top),
               document.documentElement.scrollHeight - window.innerHeight]
       """,
       fn [list, window, head, title, page_room] ->

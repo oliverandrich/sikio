@@ -29,9 +29,9 @@ defmodule SikioWeb.LibraryDetailTest do
     assert %{playback: %{status: :new}} = Library.entry(c.user, c.entry.id)
   end
 
-  # Under the title is the player's place. Until play is pressed it shows what plays there and
+  # Above the title is the player's place. Until play is pressed it shows what plays there and
   # loads nothing from anybody else; marking and the original sit at the card's head.
-  test "the detail offers the player under its title and its actions at its head", c do
+  test "the detail offers the player above its title and its actions at its head", c do
     {:ok, view, _} = live(c.conn, item_path(c.entry))
 
     assert has_element?(view, "#item-detail #player-slot #start-playback")

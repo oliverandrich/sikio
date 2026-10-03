@@ -922,7 +922,6 @@ defmodule SikioWeb.LibraryLive do
           </.card_action>
         </div>
       </div>
-      <h2 class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
       <%!-- The player's place. The dock lays the playing player over it; until then it shows what
       would play and loads nothing from anybody else. See assets/js/dock_place.mjs. --%>
       <div
@@ -965,9 +964,11 @@ defmodule SikioWeb.LibraryLive do
           }
         />
       </div>
-      <%!-- The card keeps the column's width; the notes stop at a reading measure in its middle. --%>
-      <section class="border-t border-line pt-4">
-        <div class="mx-auto flex max-w-[80ch] flex-col gap-3">
+      <%!-- The medium first, then the text about it. The title and the notes share one column at a
+      reading measure in the card's middle; the card keeps the column's width. --%>
+      <section class="mx-auto flex w-full max-w-[80ch] flex-col gap-3 pt-2">
+        <h2 class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
+        <div class="flex flex-col gap-3 border-t border-line pt-4">
           <div :if={@notes} id="item-notes" class="notes text-body text-ink">
             {@notes}
           </div>
