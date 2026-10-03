@@ -30,7 +30,9 @@ persistent data outside that directory.
 For a SQLite release, choose an absolute path for the database file outside the release, in a
 directory the service can write to. `bin/migrate` creates the file. SQLite keeps a write-ahead
 log beside it, `-wal` and `-shm`, which belong to the database. For a PostgreSQL release,
-provide PostgreSQL 18 and an existing database with a dedicated owner.
+provide PostgreSQL 18 and an existing database with a dedicated owner. `bin/migrate` creates the
+`pg_trgm` extension for the library's search index; since PostgreSQL 13 the database's owner
+may do that without further rights.
 
 Export these variables in the environment used for both migration and startup:
 

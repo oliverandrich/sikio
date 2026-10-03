@@ -126,7 +126,8 @@ defmodule Sikio.LibraryTest do
       },
       %{entry | external_id: "c", title: "Tea", description: nil, excerpt: "bridges at dawn"},
       %{entry | external_id: "d", title: "50% off", description: nil, excerpt: nil},
-      %{entry | external_id: "e", title: "Ärger im Hafen", description: nil, excerpt: nil}
+      %{entry | external_id: "e", title: "Ärger im Hafen", description: nil, excerpt: nil},
+      %{entry | external_id: "f", title: "Ask me? [live]", description: nil, excerpt: nil}
     ]
 
     Library.subscribe(ctx.alice, %{ctx.preview | entries: entries})
@@ -139,6 +140,9 @@ defmodule Sikio.LibraryTest do
     assert titles.(%{"q" => "  sing "}) == ["Bridges that sing"]
     assert titles.(%{"q" => "%"}) == ["50% off"]
     assert titles.(%{"q" => "_"}) == []
+    assert titles.(%{"q" => "?"}) == ["Ask me? [live]"]
+    assert titles.(%{"q" => "[live]"}) == ["Ask me? [live]"]
+    assert titles.(%{"q" => "*"}) == []
     # Words set apart by markup still read as one phrase.
     assert titles.(%{"q" => "about old bridges"}) == ["Bread"]
     # Case is ignored beyond ASCII as well.
@@ -148,6 +152,21 @@ defmodule Sikio.LibraryTest do
     assert titles.(%{"q" => "p>"}) == []
     assert Library.count(ctx.alice, %{"q" => "bridges"}) == 3
     assert Library.entries(ctx.bob, %{"q" => "bridges"}) == []
+  end
+
+  # The search follows the notes as a poll changes them, and forgets a source that is removed.
+  test "search follows changed notes and forgets removed items", ctx do
+    entry = %{hd(ctx.preview.entries) | title: "Bread", description: "<p>About bridges</p>"}
+    {:ok, _} = Library.subscribe(ctx.alice, %{ctx.preview | entries: [entry]})
+    search = fn q -> ctx.alice |> Library.entries(%{"q" => q}) |> Enum.map(& &1.title) end
+    assert search.("bridges") == ["Bread"]
+
+    Sikio.Feeds.store(%{ctx.preview | entries: [%{entry | description: "<p>About tunnels</p>"}]})
+    assert search.("tunnels") == ["Bread"]
+    assert search.("bridges") == []
+
+    Repo.delete_all(Entry)
+    assert search.("tunnels") == []
   end
 
   # A poll that leaves the notes out keeps the stored ones, and the search keeps finding them,

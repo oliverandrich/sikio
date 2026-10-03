@@ -279,9 +279,30 @@ defmodule Sikio.Library do
   # in it are escaped, and lowercase too, so case never decides.
   defp matching(query, ""), do: query
 
-  defp matching(query, text) do
-    pattern = "%" <> String.replace(String.downcase(text), ["\\", "%", "_"], &("\\" <> &1)) <> "%"
-    where(query, [e], fragment("? LIKE ? ESCAPE '\\'", e.search_text, ^pattern))
+  defp matching(query, text), do: where(query, [e], ^containing(String.downcase(text)))
+
+  # A trigram index serves the search on either database. Postgres keeps it on the column, which
+  # `LIKE` uses. SQLite keeps it in a full-text table of its own, which uses it for `GLOB` and
+  # for `LIKE` without `ESCAPE`, so the search asks that table with `GLOB`. Each pattern language
+  # has its own wildcards, and those in what was typed are taken literally.
+  if Application.compile_env!(:sikio, :database) == :sqlite do
+    defp containing(text) do
+      pattern = "*" <> String.replace(text, ["[", "*", "?"], &("[" <> &1 <> "]")) <> "*"
+
+      dynamic(
+        [e],
+        fragment(
+          "? IN (SELECT rowid FROM entries_search WHERE search_text GLOB ?)",
+          e.id,
+          ^pattern
+        )
+      )
+    end
+  else
+    defp containing(text) do
+      pattern = "%" <> String.replace(text, ["\\", "%", "_"], &("\\" <> &1)) <> "%"
+      dynamic([e], fragment("? LIKE ? ESCAPE '\\'", e.search_text, ^pattern))
+    end
   end
 
   # The join to subscriptions is what makes this account-scoped. Every query over entries starts
