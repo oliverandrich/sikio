@@ -495,9 +495,11 @@ defmodule SikioWeb.PlayerTest do
       |> assert_has(css("#player-panel", count: 0))
     end
 
-    # Playback is global and selection is not. When they disagree the notes get the room, and on a
-    # page without a detail the bar still says what plays and can pause it.
-    feature "folds into the sidebar when the detail shows something else", context do
+    # Playback is global and selection is not. When they disagree the notes get the room, and the
+    # player floats at the bottom left, twice the sidebar's width, over the foot of the sidebar and
+    # the list, which both keep room to scroll out from under it. On a page without a detail it
+    # still says what plays and can pause it.
+    feature "floats at the bottom left when the detail shows something else", context do
       %{session: session, account: account, entry: entry, video: video} = context
 
       session
@@ -508,9 +510,21 @@ defmodule SikioWeb.PlayerTest do
       |> mark_player()
       |> click(css("#play-#{video.id}"))
       |> assert_has(css(~s|#player-panel[data-place="compact"] [data-audio-play]|))
-      |> execute_script(within("#player-panel", "header:has(#main-navigation)"), fn inside ->
-        assert inside
-      end)
+      |> execute_script(
+        """
+        const panel = document.getElementById('player-panel').getBoundingClientRect()
+        const sidebar = document.querySelector('header:has(#main-navigation)').getBoundingClientRect()
+        const room = parseFloat(getComputedStyle(document.getElementById('list-pane')).paddingBottom)
+        return [panel.left - sidebar.left, Math.round(window.innerHeight - panel.bottom),
+                Math.round(panel.width), room >= panel.height]
+        """,
+        fn [left, bottom, width, room] ->
+          assert left == 12
+          assert bottom == 16
+          assert width == 480
+          assert room, "the list keeps room to scroll out from under the player"
+        end
+      )
       |> click(css("#subscriptions-heading"))
       |> assert_has(css(~s|#player-panel[data-place="compact"]|))
       |> assert_same_player()

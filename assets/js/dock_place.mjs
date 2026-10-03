@@ -5,14 +5,17 @@
 //
 // - floating: below lg, above the bottom bar, as the stylesheet places it.
 // - pinned: in the detail's player slot under the title, when the detail shows what plays.
-// - compact: a now playing bar at the foot of the sidebar, when the detail shows something else
-//   or the page has none. Playback is global and selection is not, so the notes get the room.
+// - compact: a window at the bottom left, over the foot of the sidebar and the list, when the
+//   detail shows something else or the page has none. Playback is global and selection is not,
+//   so the notes get the room. The sidebar and the list keep room to scroll out from under it.
 export function placement({wide, shown, playing}) {
   if (!wide) return "floating"
   return shown && shown === playing ? "pinned" : "compact"
 }
 
 const GAP = 16
+// Twice what fitted inside the sidebar, so a video can still be watched.
+const COMPACT_WIDTH = 480
 const AWAY = {top: "", left: "", width: "", right: "", bottom: ""}
 const WIDE = typeof window === "object" ? window.matchMedia("(width >= 64rem)") : null
 
@@ -23,6 +26,7 @@ function place() {
   const panel = document.querySelector("#player-panel")
   const detail = document.querySelector("#item-detail")
   const sidebar = document.querySelector("#main-navigation")?.closest("header")
+  const list = document.querySelector("#list-pane")
   const shown = detail && detail.offsetParent !== null ? detail.dataset.entryId : null
 
   const playing = document.querySelector("#player-control")?.dataset.entryId ?? null
@@ -36,12 +40,14 @@ function place() {
 
   const width = panel?.offsetWidth
 
-  if (sidebar) sidebar.style.paddingBottom = where === "compact" ? `${room + GAP}px` : ""
+  const reserve = where === "compact" ? `${room + GAP}px` : ""
+  if (sidebar) sidebar.style.paddingBottom = reserve
+  if (list) list.style.paddingBottom = reserve
   if (panel) {
     panel.dataset.place = where
     Object.assign(panel.style,
       where === "pinned" && box ? {top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, right: "auto", bottom: "auto"}
-      : where === "compact" && box ? {top: "auto", left: `${box.left + 12}px`, width: `${box.width - 24}px`, right: "auto", bottom: `${GAP}px`}
+      : where === "compact" && box ? {top: "auto", left: `${box.left + 12}px`, width: `${COMPACT_WIDTH}px`, right: "auto", bottom: `${GAP}px`}
       : AWAY)
   }
 
