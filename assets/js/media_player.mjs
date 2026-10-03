@@ -81,6 +81,16 @@ export function createReporter({session, read, send, stop, message, strings, now
   }
 }
 
+// Where a chapter key goes from `position`: ahead, the next chapter's start; back, the start of
+// the chapter that plays, or the one before it just after a start, as players do.
+export function chapterTarget(starts, position, direction) {
+  if (direction > 0) return starts.find(start => start > position + 1) ?? null
+  const before = starts.filter(start => start <= position)
+  if (before.length === 0) return 0
+  const current = before[before.length - 1]
+  return position - current < 3 ? (before[before.length - 2] ?? 0) : current
+}
+
 let youtubeAPI
 function loadYouTube(unavailable) {
   if (window.YT?.Player) return Promise.resolve(window.YT)
@@ -124,19 +134,23 @@ export const MediaPlayer = {
       else if (this.peertube) this.peertube.call("pause").catch(() => {})
       else this.youtube?.pauseVideo?.()
     }
-    this.reporter = createReporter({session: this.el.dataset.session,
-      read: () => {
-        if (!this.ready) return null
-        if (this.audio) return {position: this.audio.currentTime, duration: this.audio.duration}
-        if (this.peertube) return this.reported
-        return {position: this.youtube.getCurrentTime(), duration: this.youtube.getDuration()}
-      },
+    // Where the player is and how long it lasts: the audio's own, what the instance last reported,
+    // YouTube's. Nothing before the player knows itself.
+    this.read = () => {
+      if (!this.ready) return null
+      if (this.audio) return {position: this.audio.currentTime, duration: this.audio.duration}
+      if (this.peertube) return this.reported
+      return {position: this.youtube.getCurrentTime(), duration: this.youtube.getDuration()}
+    }
+    this.reporter = createReporter({session: this.el.dataset.session, read: this.read,
       send: (sample, reply) => this.pushEvent("progress", sample, reply),
       stop: this.stop, message: this.message, strings: this.strings})
     this.listen(this.el, "sikio:flush", event => this.reporter.finish(event.detail.done))
     // A chapter moves the player. Each player is moved its own way; the save follows as for a
     // seek by hand.
     this.listen(this.el, "sikio:seek", event => this.seek(event.detail.position))
+    // The page's keys, routed here by the dock; see assets/js/player_keys.mjs.
+    this.listen(this.el, "sikio:command", event => this.command(event.detail))
     this.listen(document, "visibilitychange", () => {
       if (document.hidden) this.reporter.save(false, true)
     })
@@ -160,6 +174,7 @@ export const MediaPlayer = {
 
         if (typeof status === "object") {
           this.reported = {position: status.position, duration: status.duration}
+          if (!this.silenced && status.volume > 0) this.volume = status.volume
           this.ready = true
         }
 
@@ -258,6 +273,56 @@ export const MediaPlayer = {
       this.pendingSeek = null
       this.youtube?.seekTo?.(position, true)
     }
+  },
+
+  command({name, by, direction}) {
+    if (name === "toggle") this.toggle()
+    else if (name === "skip") this.seek(Math.max(this.place() + by, 0))
+    else if (name === "chapter") {
+      // Read at each press: the page may learn the chapters after the player started.
+      const starts = JSON.parse(this.el.dataset.chapters || "[]")
+      const at = chapterTarget(starts, this.place(), direction)
+      if (at !== null) this.seek(at)
+    } else if (name === "mute") this.mute()
+    else if (name === "fullscreen") this.fullscreen()
+  },
+
+  // Until a player knows itself, it is where it is about to start.
+  place() {
+    return this.read()?.position ?? this.pendingSeek ?? Number(this.el.dataset.position)
+  },
+
+  toggle() {
+    if (this.audio) {
+      if (this.audio.paused) this.audio.play().catch(() => this.message(this.strings.readyAudioManual))
+      else this.audio.pause()
+    } else if (this.peertube) {
+      this.peertube.call(this.lastState === "playing" ? "pause" : "play").catch(() => {})
+    } else if (this.youtube?.getPlayerState) {
+      // A video that buffers is meant to play, so the key pauses it as well.
+      const {PLAYING, BUFFERING} = window.YT?.PlayerState ?? {}
+      if ([PLAYING, BUFFERING].includes(this.youtube.getPlayerState())) this.youtube.pauseVideo()
+      else this.youtube.playVideo()
+    }
+  },
+
+  // PeerTube has no mute of its own, so the volume it last reported is put back.
+  mute() {
+    if (this.audio) {
+      this.audio.muted = !this.audio.muted
+    } else if (this.peertube) {
+      this.silenced = !this.silenced
+      this.peertube.call("setVolume", this.silenced ? 0 : (this.volume || 1)).catch(() => {})
+    } else if (this.youtube?.isMuted) {
+      if (this.youtube.isMuted()) this.youtube.unMute()
+      else this.youtube.mute()
+    }
+  },
+
+  // The frame fills the screen; a key press is the gesture the browser asks for.
+  fullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen?.()
+    else this.el.querySelector("iframe")?.requestFullscreen?.()
   },
 
   disconnected() { this.reporter.disconnect() },

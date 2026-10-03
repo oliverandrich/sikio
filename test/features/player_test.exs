@@ -316,9 +316,9 @@ defmodule SikioWeb.PlayerTest do
       )
     end
 
-    # The players use letters of their own: m mutes, f fills the screen, j and k seek. Once play
-    # is pressed the player has the keyboard, so those keys reach it rather than the library.
-    feature "takes the keyboard once play is pressed", context do
+    # The page keeps the keyboard and drives the player through it: p plays and pauses, the
+    # arrows skip. Space stays the page's. The library's keys stay the library's, wherever the focus is.
+    feature "the page's keys drive the player", context do
       %{session: session, account: account, entry: entry} = context
 
       session
@@ -327,15 +327,65 @@ defmodule SikioWeb.PlayerTest do
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
       |> execute_script(
-        "return document.activeElement.hasAttribute('data-audio-play')",
-        fn play ->
-          assert play, "the player's play button has the keyboard"
-        end
+        """
+        window.commands = []
+        document.querySelector("#player-control [phx-hook='MediaPlayer']")
+          .addEventListener('sikio:command', event => window.commands.push(event.detail.name))
+        return document.activeElement.closest('#player-panel') === null
+        """,
+        fn outside -> assert outside, "the started player leaves the keyboard to the page" end
       )
-      |> send_keys(["m"])
-      |> execute_script("return new Promise(r => setTimeout(r, 300))")
+      |> send_keys(["p", " ", :right_arrow])
+      |> then(fn session ->
+        assert {:ok, _} =
+                 retry(fn ->
+                   holds(session, "return window.commands.join() === 'toggle,skip'")
+                 end)
 
-      assert Library.entry(account, entry.id).playback.status == :new
+        session
+      end)
+      |> send_keys(["m"])
+      |> assert_has(css("#mark-new"))
+
+      assert Library.entry(account, entry.id).playback.status == :completed
+    end
+
+    # Before anything plays, p starts the open item as its play button does.
+    feature "p starts the open item", context do
+      %{session: session, entry: entry} = context
+
+      session
+      |> resize_window(1280, 900)
+      |> open(item_path(entry))
+      |> assert_has(css("#start-playback"))
+      |> refute_has(css("#player-control[data-entry-id]"))
+      |> send_keys(["p"])
+      |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
+    end
+
+    # A click into a video's frame takes the keyboard where the page cannot hear it. The page takes
+    # it back and gives it to the panel. A frame of the page's own stands in for the video's.
+    feature "takes the keyboard back from a frame in the player", context do
+      %{session: session, entry: entry} = context
+
+      session
+      |> resize_window(1280, 900)
+      |> open(item_path(entry))
+      |> click(css("#start-playback"))
+      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
+      |> execute_script("""
+      const frame = document.createElement('iframe')
+      frame.id = 'stand-in'
+      frame.srcdoc = '<button id="inside" style="width:100%;height:100%">inside</button>'
+      frame.style.cssText = 'width: 300px; height: 120px'
+      document.getElementById('player-panel').prepend(frame)
+      """)
+      |> click(css("#stand-in"))
+      |> then(fn session ->
+        script = "return document.activeElement && document.activeElement.id === 'player-panel'"
+        assert {:ok, _} = retry(fn -> holds(session, script) end)
+        session
+      end)
     end
 
     # The detail scrolls in its own column, and the pinned player moves with its slot.

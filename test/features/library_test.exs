@@ -26,6 +26,37 @@ defmodule SikioWeb.LibraryTest do
     :ok
   end
 
+  # Every key in one place: ? opens the overview from anywhere outside a field, the account menu
+  # opens it without a keyboard, and Escape closes it.
+  feature "? shows every key", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/all")
+    |> assert_has(css("#entries article", count: 25))
+    |> refute_has(css("#shortcuts[open]"))
+    # Chromedriver types ? as Shift and an underscore. A keyboard sends the character itself, in
+    # whichever layout puts it where, and that is what the page reads.
+    |> execute_script(
+      "document.body.dispatchEvent(new KeyboardEvent('keydown', {key: '?', shiftKey: true, bubbles: true}))"
+    )
+    |> assert_has(css("#shortcuts[open]", text: "Play or pause"))
+    |> assert_has(css("#shortcuts", text: "Previous or next chapter"))
+    |> assert_has(css("#entries article:nth-of-type(1) a[aria-current]"))
+    # The open overview keeps the keys from the page behind it. A key from outside it moves the
+    # list by one, and the page that follows leaves the overview open.
+    |> send_keys(["j"])
+    |> execute_script(
+      "document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'j', bubbles: true}))"
+    )
+    |> assert_has(css("#entries article:nth-of-type(2) a[aria-current]"))
+    |> assert_has(css("#shortcuts[open]"))
+    |> send_keys([:escape])
+    |> assert_has(css("#shortcuts[open]", count: 0))
+    |> click(css("#user-menu summary"))
+    |> click(css("#show-shortcuts"))
+    |> assert_has(css("#shortcuts[open]"))
+  end
+
   # The search folds away behind the magnifier. Opened, the field takes the keyboard, so typing
   # j or k searches rather than moves; Escape clears it and folds it away again.
   feature "the magnifier opens a search that narrows the list", %{session: session} do

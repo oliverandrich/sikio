@@ -309,19 +309,10 @@ defmodule SikioWeb.LibraryLive do
       else: Map.put(read_notes(entry), :read, read)
   end
 
-  # Chapters the feed names are meant as chapters, so two make a list, and the notes stay as they
-  # are. Otherwise the notes may list them, and then they show once, in the box.
-  defp read_notes(%{chapters: [_, _ | _] = chapters} = entry) do
-    %{
-      chapters: Enum.map(chapters, &%{at: &1["at"], title: &1["title"]}),
-      notes: Notes.notes(entry.description, entry.description_format || :html)
-    }
-  end
-
+  # The chapters and the notes beside them; see Sikio.Chapters.of/2.
   defp read_notes(entry) do
-    format = entry.description_format || :html
-    {chapters, rest} = Chapters.split(entry.description, format, length_of(entry))
-    %{chapters: chapters, notes: Notes.notes(rest, format)}
+    {chapters, notes} = Chapters.of(entry, length_of(entry))
+    %{chapters: chapters, notes: Notes.notes(notes, entry.description_format || :html)}
   end
 
   # A podcast's chapters file is fetched once somebody opens the item, and only when another item

@@ -161,6 +161,48 @@ defmodule SikioWeb.PlayerDockLiveTest do
       "ended" => false
     }
 
+  # Shift and an arrow move between chapters, so the player knows the starts of what it plays,
+  # by the same rule the detail lists them.
+  test "the player knows the chapters of what it plays", c do
+    body =
+      String.replace(
+        podcast("Chapters"),
+        ~r|<content:encoded>.*?</content:encoded>|s,
+        "<content:encoded><![CDATA[<p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>]]></content:encoded>"
+      )
+
+    {:ok, preview} = Parser.parse(body, feed_url())
+    {:ok, _} = Library.subscribe(c.user, preview)
+    entry = Enum.find(Library.entries(c.user), &(&1.feed.title == "Chapters"))
+
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+    assert has_element?(dock, ~s|[phx-hook='MediaPlayer'][data-chapters="[0,118,291]"]|)
+  end
+
+  # A podcast's chapters file is fetched when somebody first wants it. A player started before
+  # anybody opened the item fetches it itself.
+  test "the player fetches the chapters file of what it plays", c do
+    tag =
+      ~s|<podcast:chapters href="https://example.org/dock/chapters.json" type="application/json+chapters"/>|
+
+    body = String.replace(podcast("File"), "<itunes:duration>", tag <> "<itunes:duration>")
+    {:ok, preview} = Parser.parse(body, feed_url())
+    {:ok, _} = Library.subscribe(c.user, preview)
+    entry = Enum.find(Library.entries(c.user), &(&1.feed.title == "File"))
+
+    Sikio.PictureFixtures.serving(%{
+      "/dock/chapters.json" =>
+        {"application/json",
+         ~s|{"chapters":[{"startTime":0,"title":"A"},{"startTime":90,"title":"B"}]}|}
+    })
+
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+    render_async(dock)
+    assert has_element?(dock, ~s|[phx-hook='MediaPlayer'][data-chapters="[0,90]"]|)
+  end
+
   # The card's player starts where it was dragged to.
   test "a start may name the place to begin at", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)

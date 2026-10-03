@@ -14,12 +14,14 @@ test("j and k move, m marks and f searches, other keys do not", () => {
   assert.equal(readerKey(press("x")), null)
 })
 
-// A player that has the keyboard uses letters of its own, so its keys are not the library's.
-test("keys pressed into a player belong to the player", () => {
+// A key pressed into a video's frame never reaches the page; one sent from a media element would
+// be its own. Sikio's player is no exception to the library's keys.
+test("keys pressed into a media element are not the library's", () => {
   assert.equal(readerKey(press("m", {target: {tagName: "AUDIO"}})), null)
   assert.equal(readerKey(press("j", {target: {tagName: "IFRAME"}})), null)
+  // Sikio's own player keeps no keys of its own: m on one of its buttons marks as anywhere.
   const control = {tagName: "BUTTON", closest: selector => selector === "#player-panel" ? {} : null}
-  assert.equal(readerKey(press("m", {target: control})), null, "Sikio's own player counts too")
+  assert.equal(readerKey(press("m", {target: control})), "m")
 })
 
 // Held down, m would mark and unmark in a stream. j and k may repeat; moving on is what they do.
@@ -53,6 +55,7 @@ test("a key typed into a form control stays there", () => {
   for (const tagName of ["INPUT", "SELECT", "TEXTAREA"])
     assert.equal(readerKey(press("j", {target: {tagName}})), null, tagName)
   assert.equal(readerKey(press("j", {target: {tagName: "DIV", isContentEditable: true}})), null)
+  assert.equal(readerKey(press("j", {target: {tagName: "BUTTON", closest: selector => selector === "dialog" ? {} : null}})), null, "an open dialog keeps the page's keys")
 })
 
 // The list's head stands over the top of the pane, so a row is only in view beneath it.

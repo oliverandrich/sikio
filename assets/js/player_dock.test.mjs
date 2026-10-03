@@ -4,20 +4,27 @@ import {test} from "node:test"
 import assert from "node:assert/strict"
 import {PlayerDock, rejoinParams} from "./player_dock.mjs"
 
-function fixture() {
-  const previousWindow = globalThis.window
+function fixture({player: playing = true, start = null} = {}) {
+  const previousWindow = globalThis.window, previousDocument = globalThis.document
   globalThis.window = new EventTarget()
   const media = new EventTarget(), calls = [], focused = []
-  const player = {focus: () => focused.push("player")}
+  const panel = {focus: () => focused.push("panel")}
+  const frame = {tagName: "IFRAME"}
   let finish
   media.addEventListener("sikio:flush", event => {finish = event.detail.done})
-  const hook = {...PlayerDock, el: {dataset: {entryId: "1"}, querySelector: selector => selector.includes("MediaPlayer") ? media : selector.includes("iframe") ? player : null},
-    pushEvent: (event, params, reply) => {calls.push({event, params}); reply(event === "start" ? {started: true} : {})}}
+  const el = {dataset: {entryId: "1"}, contains: node => node === frame,
+    querySelector: selector => selector.includes("MediaPlayer") ? (playing ? media : null)
+      : selector === "#player-panel" ? panel : null}
+  const state = {frameFocused: false}
+  globalThis.document = {get activeElement() { return state.frameFocused ? frame : null },
+    getElementById: id => id === "start-playback" ? start : null}
+  const hook = {...PlayerDock, el,
+    pushEvent: (event, params, reply) => {calls.push({event, params}); reply({})}}
   hook.mounted()
-  return {hook, calls, focused, finish: saved => {assert.equal(typeof finish, "function", "player must request a flush"); finish(saved)},
+  return {hook, calls, focused, set frameFocused(value) { state.frameFocused = value }, finish: saved => {assert.equal(typeof finish, "function", "player must request a flush"); finish(saved)},
     play: (id, position) => window.dispatchEvent(new CustomEvent("sikio:play", {detail: {id, position}})),
     close: () => window.dispatchEvent(new CustomEvent("sikio:close-player")),
-    cleanup: () => {hook.destroyed(); globalThis.window = previousWindow}}
+    cleanup: () => {hook.destroyed(); globalThis.window = previousWindow; globalThis.document = previousDocument}}
 }
 
 test("changing episodes waits for the current player's save before replacing it", () => {
@@ -55,13 +62,86 @@ test("a start carries the place to begin at", () => {
   } finally {f.cleanup()}
 })
 
-// Pressing play hands the keyboard to the player that starts, whose letters mean something else.
-test("a started player takes the focus", () => {
+// The page keeps the keyboard: a started player does not take the focus.
+test("a started player leaves the focus where it was", () => {
   const f = fixture()
   try {
     f.play(2)
     f.finish(true)
-    assert.deepEqual(f.focused, ["player"])
+    assert.deepEqual(f.focused, [])
+  } finally {f.cleanup()}
+})
+
+const keydown = (key, extra = {}) =>
+  Object.assign(new Event("keydown", {cancelable: true}), {key, ...extra})
+
+// The player's keys work on every page, through whichever player plays.
+test("a player's key reaches the player that plays and goes no further", () => {
+  const f = fixture()
+  const commands = []
+  f.hook.el.querySelector("[phx-hook='MediaPlayer']")
+    .addEventListener("sikio:command", event => commands.push(event.detail))
+  try {
+    const play = keydown("p")
+    window.dispatchEvent(play)
+    window.dispatchEvent(keydown("ArrowRight"))
+    window.dispatchEvent(keydown("j"))
+    assert.deepEqual(commands, [{name: "toggle"}, {name: "skip", by: 30}])
+    assert.equal(play.defaultPrevented, true)
+  } finally {f.cleanup()}
+})
+
+test("without a player the keys are the page's", () => {
+  const f = fixture({player: false})
+  try {
+    const arrow = keydown("ArrowRight")
+    const play = keydown("p")
+    window.dispatchEvent(arrow)
+    window.dispatchEvent(play)
+    assert.equal(arrow.defaultPrevented, false)
+    assert.equal(play.defaultPrevented, false, "nothing to start without an open item")
+  } finally {f.cleanup()}
+})
+
+// Without a player, p starts the item that is open, as its play button does.
+test("without a player p starts the open item", () => {
+  let pressed = 0
+  const f = fixture({player: false, start: {click: () => pressed++}})
+  try {
+    const play = keydown("p")
+    window.dispatchEvent(play)
+    window.dispatchEvent(keydown("ArrowRight"))
+    assert.equal(pressed, 1)
+    assert.equal(play.defaultPrevented, true)
+  } finally {f.cleanup()}
+})
+
+// A click into a video's frame takes the keyboard there, where the page cannot hear it. The
+// page takes it back at once and gives it to the panel.
+test("the focus comes back from the player's frame", async () => {
+  const f = fixture()
+  try {
+    f.frameFocused = true
+    window.dispatchEvent(new Event("blur"))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    assert.deepEqual(f.focused, ["panel"])
+  } finally {f.cleanup()}
+})
+
+// Tab moves into the frame on purpose, to reach the embed's own controls; a click does not.
+test("the keyboard that tabs into the player's frame stays there", async () => {
+  const f = fixture()
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0))
+  try {
+    f.frameFocused = true
+    window.dispatchEvent(keydown("Tab"))
+    window.dispatchEvent(new Event("blur"))
+    await settle()
+    assert.deepEqual(f.focused, [])
+    window.dispatchEvent(new Event("pointerdown"))
+    window.dispatchEvent(new Event("blur"))
+    await settle()
+    assert.deepEqual(f.focused, ["panel"])
   } finally {f.cleanup()}
 })
 

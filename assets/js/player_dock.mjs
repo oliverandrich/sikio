@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import {playerKey} from "./player_keys.mjs"
+
 // LiveView asks for these on every join of every view. The Phoenix socket shares the option and
 // asks without a view on every connect. Only the dock carries a player, and only while it plays.
 export function rejoinParams(view) {
@@ -29,8 +31,34 @@ export const PlayerDock = {
       this.change("start", {id, position})
     }
     this.close = () => this.change("close", {})
+    // The page keeps the keyboard on every page and hands the player's keys to whichever player
+    // plays. Without one, p starts the open item as its play button does; the rest are the page's.
+    this.onKey = event => {
+      this.tabbed = event.key === "Tab"
+      const command = playerKey(event)
+      if (!command) return
+      const media = this.el.querySelector("[phx-hook='MediaPlayer']")
+      const start = !media && command.name === "toggle" && document.getElementById("start-playback")
+      if (!media && !start) return
+      event.preventDefault()
+      if (start) start.click()
+      else media.dispatchEvent(new CustomEvent("sikio:command", {detail: command}))
+    }
+    // A click into a video's frame takes the keyboard where the page cannot hear it. The click has
+    // reached the frame by then; the page takes the keyboard back and gives it to the panel.
+    // Tab into the frame is meant, to reach the embed's own controls, and keeps it there.
+    this.onPointer = () => {this.tabbed = false}
+    this.onBlur = () => setTimeout(() => {
+      const active = document.activeElement
+      if (!this.tabbed && active?.tagName === "IFRAME" && this.el.contains(active)) {
+        this.el.querySelector("#player-panel")?.focus({preventScroll: true})
+      }
+    }, 0)
     window.addEventListener("sikio:play", this.play)
     window.addEventListener("sikio:close-player", this.close)
+    window.addEventListener("keydown", this.onKey)
+    window.addEventListener("blur", this.onBlur)
+    window.addEventListener("pointerdown", this.onPointer)
   },
   change(event, params) {
     if (this.busy || this.closed) return
@@ -38,12 +66,7 @@ export const PlayerDock = {
     const proceed = saved => {
       if (this.closed) return
       if (!saved) {this.busy = false; return}
-      this.pushEvent(event, params, reply => {
-        this.busy = false
-        // The player that starts takes the keyboard. Its letters mean something else: m mutes,
-        // f fills the screen, j and k seek. Clicking anywhere else gives them back.
-        if (reply?.started) this.el.querySelector("#player-panel :is(iframe, [data-audio-play])")?.focus()
-      })
+      this.pushEvent(event, params, () => {this.busy = false})
     }
     const media = this.el.querySelector("[phx-hook='MediaPlayer']")
     if (media) media.dispatchEvent(new CustomEvent("sikio:flush", {detail: {done: proceed}}))
@@ -54,5 +77,8 @@ export const PlayerDock = {
     this.closed = true
     window.removeEventListener("sikio:play", this.play)
     window.removeEventListener("sikio:close-player", this.close)
+    window.removeEventListener("keydown", this.onKey)
+    window.removeEventListener("blur", this.onBlur)
+    window.removeEventListener("pointerdown", this.onPointer)
   }
 }

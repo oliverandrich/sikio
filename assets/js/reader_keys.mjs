@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import {elsewhere} from "./player_keys.mjs"
+
 // j and k move through the reader's list, m marks what is selected and f opens the search. A key
-// held with a modifier, typed into a form control or pressed into a player belongs to something
-// else: a player uses letters of its own.
+// held with a modifier, typed into a form control, sent from a media element or pressed in an open
+// dialog belongs to something else. The player's own keys are in assets/js/player_keys.mjs.
 export function readerKey(event) {
-  if (event.metaKey || event.ctrlKey || event.altKey) return null
-  const target = event.target
-  if (["INPUT", "SELECT", "TEXTAREA", "AUDIO", "VIDEO", "IFRAME"].includes(target?.tagName) ||
-      target?.isContentEditable || target?.closest?.("#player-panel")) return null
+  if (elsewhere(event) || ["AUDIO", "VIDEO", "IFRAME"].includes(event.target?.tagName)) return null
   if (event.key === "m" || event.key === "f") return event.repeat ? null : event.key
   return event.key === "j" || event.key === "k" ? event.key : null
 }

@@ -17,6 +17,8 @@ defmodule SikioWeb.PlayerDockLive do
   import SikioWeb.AudioFace
   import SikioWeb.MediaComponents
 
+  alias Sikio.Chapters
+  alias Sikio.Feeds
   alias Sikio.Library
   alias Sikio.Library.Events
   alias Sikio.Playback
@@ -31,7 +33,9 @@ defmodule SikioWeb.PlayerDockLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: Events.subscribe(socket.assigns.current_account)
 
-    socket = assign(socket, entry: nil, player: nil, notice: nil, compact: false)
+    socket =
+      assign(socket, entry: nil, player: nil, notice: nil, compact: false, chapters: {nil, "[]"})
+
     {:ok, rejoin(socket, get_connect_params(socket)), layout: false}
   end
 
@@ -43,7 +47,7 @@ defmodule SikioWeb.PlayerDockLive do
        when is_binary(session) do
     case Library.entry(socket.assigns.current_account, id) do
       %{playback: %{session_id: ^session} = player} = entry ->
-        assign(socket, entry: entry, player: player)
+        socket |> assign(entry: entry, player: player) |> assign_chapters()
 
       %{} = entry ->
         socket |> assign(:entry, entry) |> interrupted()
@@ -59,7 +63,7 @@ defmodule SikioWeb.PlayerDockLive do
   # The card's player may name a place: it can be dragged or skipped before anything loads.
   def handle_event("start", %{"id" => id} = params, socket) do
     if socket.assigns.player && to_string(socket.assigns.entry.id) == to_string(id) do
-      {:reply, %{started: true}, socket}
+      {:noreply, socket}
     else
       start_entry(socket, id, params["position"])
     end
@@ -124,14 +128,33 @@ defmodule SikioWeb.PlayerDockLive do
          {:ok, player} <- Playback.start(account, id, at) do
       stop_current(socket)
 
-      {:reply, %{started: true},
-       assign(socket, entry: %{entry | playback: player}, player: player, notice: nil)}
+      {:noreply,
+       socket
+       |> assign(entry: %{entry | playback: player}, player: player, notice: nil)
+       |> assign_chapters()
+       |> fetch_chapters(entry)}
     else
       _ ->
-        {:reply, %{started: false},
-         assign(socket, notice: gettext("This item is no longer in your library."))}
+        {:noreply, assign(socket, notice: gettext("This item is no longer in your library."))}
     end
   end
+
+  # The keys move between chapters, so a chapters file nobody fetched yet is fetched here.
+  defp fetch_chapters(socket, %{chapters: nil, chapters_url: url} = entry) when is_binary(url),
+    do: start_async(socket, :chapters, fn -> {entry.id, Feeds.chapters(entry)} end)
+
+  defp fetch_chapters(socket, _entry), do: socket
+
+  @impl true
+  def handle_async(
+        :chapters,
+        {:ok, {id, {:ok, chapters}}},
+        %{assigns: %{entry: %{id: id}}} = socket
+      ),
+      do: {:noreply, socket |> update(:entry, &%{&1 | chapters: chapters}) |> assign_chapters()}
+
+  # Another item plays by now, or the file could not be read: the keys keep the notes' chapters.
+  def handle_async(:chapters, _result, socket), do: {:noreply, socket}
 
   defp stop_current(%{assigns: %{player: nil}}), do: :ok
 
@@ -162,7 +185,8 @@ defmodule SikioWeb.PlayerDockLive do
       )
 
   defp assign_progress(socket, progress),
-    do: assign(socket, :entry, %{socket.assigns.entry | playback: progress})
+    do:
+      socket |> assign(:entry, %{socket.assigns.entry | playback: progress}) |> assign_chapters()
 
   # The address the feed named, with what the embed needs from us: permission to speak through
   # its api, to start at once, and the second to resume at. Peer to peer stays off, so the
@@ -193,6 +217,21 @@ defmodule SikioWeb.PlayerDockLive do
       })
 
     "https://www.youtube-nocookie.com/embed/#{entry.video_id}?#{query}"
+  end
+
+  # Where the chapters of what plays begin, for the keys that move between them. The same rule as
+  # the detail's list; the length a player measured counts here as there. Progress replaces the
+  # entry every few seconds, so the notes are read again only when what they depend on changed.
+  defp assign_chapters(%{assigns: %{entry: entry, chapters: {read, _starts}}} = socket) do
+    length = (entry.playback && entry.playback.duration) || entry.duration
+    key = {entry.id, entry.description, length, entry.chapters}
+
+    if key == read do
+      socket
+    else
+      {chapters, _notes} = Chapters.of(entry, length)
+      assign(socket, :chapters, {key, chapters |> Enum.map(& &1.at) |> Jason.encode!()})
+    end
   end
 
   @impl true
@@ -297,6 +336,7 @@ defmodule SikioWeb.PlayerDockLive do
               "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
             )
           }
+          data-chapters={elem(@chapters, 1)}
           data-label-play={gettext("Play")}
           data-label-pause={gettext("Pause")}
           data-position-of={

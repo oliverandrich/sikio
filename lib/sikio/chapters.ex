@@ -24,6 +24,19 @@ defmodule Sikio.Chapters do
   @breaks ~r{(<br\s*/?>|</(?:p|li|ul|ol|div|blockquote|h[1-6])>|\R)}iu
 
   @doc """
+  An entry's chapters and the notes to show beside them, by one rule for every place that asks.
+
+  Chapters the feed names are meant as chapters, so two make a list, and the notes stay whole.
+  Otherwise the notes may list them, and then their lines leave the notes. `length` is what the
+  entry is known to last, which a player may have measured.
+  """
+  def of(%{chapters: [_, _ | _] = chapters, description: description}, _length) do
+    {Enum.map(chapters, &%{at: &1["at"], title: &1["title"]}), description}
+  end
+
+  def of(entry, length), do: split(entry.description, entry.description_format || :html, length)
+
+  @doc """
   The chapters in `description` and the description without their lines, or no chapters and the
   description untouched. `format` is `:html` or `:text`, `duration` the length in seconds or nil.
   """

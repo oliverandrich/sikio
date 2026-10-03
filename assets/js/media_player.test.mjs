@@ -126,6 +126,84 @@ test("unknown live duration is omitted and invalid positions are not persisted",
   assert.equal(calls[0].duration, null)
 })
 
+// The page's keys drive the audio: play and pause, the skips, the chapters and the sound.
+test("audio follows the player's keys", () => {
+  const calls = []
+  const audio = new EventTarget()
+  Object.assign(audio, {dataset: {}, currentTime: 0, duration: 400, readyState: 0, playbackRate: 1,
+    paused: true, muted: false,
+    play() { calls.push("play"); this.paused = false; return Promise.resolve() },
+    pause() { calls.push("pause"); this.paused = true }, load() {}, removeAttribute() {}})
+  const previousDocument = globalThis.document
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false})
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {
+    dataset: {kind: "podcast", session: "abc", position: "0", chapters: "[0,118,291]", ...STRINGS},
+    querySelector: selector => ({audio, "[data-player-message]": {textContent: ""}}[selector])}),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})}
+  const command = detail => hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail}))
+  try {
+    hook.mounted()
+    audio.readyState = 1
+    audio.dispatchEvent(new Event("loadedmetadata"))
+    // Restoring the place starts the audio, so the first press pauses it and the next plays.
+    command({name: "toggle"})
+    command({name: "toggle"})
+    assert.deepEqual(calls, ["play", "pause", "play"])
+    command({name: "skip", by: 30})
+    assert.equal(audio.currentTime, 30)
+    command({name: "skip", by: -15})
+    assert.equal(audio.currentTime, 15)
+    command({name: "chapter", direction: 1})
+    assert.equal(audio.currentTime, 118)
+    command({name: "chapter", direction: 1})
+    assert.equal(audio.currentTime, 291)
+    command({name: "chapter", direction: 1})
+    assert.equal(audio.currentTime, 291, "past the last chapter it stays")
+    audio.currentTime = 300
+    command({name: "chapter", direction: -1})
+    assert.equal(audio.currentTime, 291, "back goes to the start of the chapter that plays")
+    audio.currentTime = 292
+    command({name: "chapter", direction: -1})
+    assert.equal(audio.currentTime, 118, "just after a start, back goes one further")
+    command({name: "mute"})
+    assert.equal(audio.muted, true)
+    command({name: "mute"})
+    assert.equal(audio.muted, false)
+    // The page may learn the chapters later, from a file or a measured length.
+    hook.el.dataset.chapters = "[0,50]"
+    audio.currentTime = 10
+    command({name: "chapter", direction: 1})
+    assert.equal(audio.currentTime, 50, "the chapters the page names now")
+  } finally {
+    hook.destroyed()
+    globalThis.document = previousDocument
+  }
+})
+
+// A key before the audio knows itself moves from the saved place, not from zero.
+test("a skip before the audio is ready starts from the saved place", () => {
+  const audio = new EventTarget()
+  Object.assign(audio, {dataset: {}, currentTime: 0, duration: 4000, readyState: 0, playbackRate: 1,
+    paused: true, muted: false, play() { this.paused = false; return Promise.resolve() },
+    pause() { this.paused = true }, load() {}, removeAttribute() {}})
+  const previousDocument = globalThis.document
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false})
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {
+    dataset: {kind: "podcast", session: "abc", position: "1200", ...STRINGS},
+    querySelector: selector => ({audio, "[data-player-message]": {textContent: ""}}[selector])}),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})}
+  try {
+    hook.mounted()
+    hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail: {name: "skip", by: 30}}))
+    audio.readyState = 1
+    audio.dispatchEvent(new Event("loadedmetadata"))
+    assert.equal(audio.currentTime, 1230)
+  } finally {
+    hook.destroyed()
+    globalThis.document = previousDocument
+  }
+})
+
 test("audio restores after metadata, saves end and cleans up", () => {
   const audio = new EventTarget()
   Object.assign(audio, {dataset: {}, currentTime: 0, duration: 100, readyState: 0, playbackRate: 1,
@@ -176,16 +254,22 @@ test("an end event survives a disconnect before its acknowledgement", () => {
 test("YouTube saves a seek while paused, maps errors and destroys the iframe", async () => {
   const previous = {document: globalThis.document, window: globalThis.window, interval: globalThis.setInterval}
   const doc = new EventTarget(), message = {textContent: ""}, samples = []
-  let events, poll, position = 0, destroyed = false, sought = null, playerReady = false
+  let events, poll, position = 0, destroyed = false, sought = null, playerReady = false, muted = false
+  let state = 2
+  const calls = []
   globalThis.document = doc
-  globalThis.window = {YT: {PlayerState: {PLAYING: 1, PAUSED: 2, ENDED: 0}, Player: class {
+  globalThis.window = {YT: {PlayerState: {PLAYING: 1, PAUSED: 2, BUFFERING: 3, ENDED: 0}, Player: class {
     constructor(_frame, options) {events = options.events}
     getCurrentTime() {return position}
     getDuration() {return 100}
-    getPlayerState() {return 2}
-    pauseVideo() {}
+    getPlayerState() {return state}
+    pauseVideo() {calls.push("pauseVideo")}
     // Like YouTube's own, the player answers only once it said it is ready.
     seekTo(at) {if (playerReady) sought = at}
+    playVideo() {calls.push("playVideo")}
+    mute() {muted = true}
+    unMute() {muted = false}
+    isMuted() {return muted}
     destroy() {destroyed = true}
   }}}
   globalThis.setInterval = callback => {poll = callback; return 0}
@@ -203,6 +287,22 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     assert.equal(message.textContent, "", "a player that works says nothing")
     hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 55}}))
     assert.equal(sought, 55, "a chapter moves the video")
+    // The page's keys drive the video through the API. The fake reports paused.
+    const command = detail => hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail}))
+    command({name: "toggle"})
+    assert.deepEqual(calls, ["playVideo"])
+    // A video that buffers after a skip is meant to play, so the key pauses it.
+    state = 3
+    command({name: "toggle"})
+    assert.deepEqual(calls, ["playVideo", "pauseVideo"])
+    state = 2
+    position = 40
+    command({name: "skip", by: 30})
+    assert.equal(sought, 70)
+    command({name: "mute"})
+    assert.equal(muted, true)
+    command({name: "mute"})
+    assert.equal(muted, false)
     poll()
     position = 30
     poll()
@@ -312,6 +412,14 @@ test("PeerTube reports its own position and does not save before it has one", as
     // A chapter moves the instance's player.
     hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 118}}))
     assert.ok(posted.some(m => m.method === "peertube::seek" && m.params === 118), "the instance seeks")
+    // The page's keys drive the instance's player. It said last that it ended, so play.
+    const command = detail => hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail}))
+    command({name: "toggle"})
+    assert.ok(posted.some(m => m.method === "peertube::play"), "toggle plays what is not playing")
+    command({name: "skip", by: -15})
+    assert.ok(posted.some(m => m.method === "peertube::seek" && m.params === 27.5), "a skip from the reported place")
+    command({name: "mute"})
+    assert.ok(posted.some(m => m.method === "peertube::setVolume" && m.params === 0), "sound off")
 
     // Closing flushes first, while the frame is still in the page, and that is what pauses it.
     hook.el.dispatchEvent(new CustomEvent("sikio:flush", {detail: {done: () => {}}}))

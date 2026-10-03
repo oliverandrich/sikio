@@ -309,6 +309,16 @@ defmodule SikioWeb.Layouts do
                 navigate={~p"/account/recovery-codes"}
                 class="block rounded-control px-3 py-2 hover:bg-ground"
               >{gettext("Recovery codes")}</.link>
+              <button
+                id="show-shortcuts"
+                type="button"
+                phx-click={
+                  JS.remove_attribute("open", to: "#user-menu") |> JS.dispatch("sikio:shortcuts")
+                }
+                class="block w-full rounded-control px-3 py-2 text-left hover:bg-ground"
+              >
+                {gettext("Keyboard shortcuts")}
+              </button>
               <.source_offer class="block rounded-control px-3 py-2 hover:bg-ground" />
               <.link
                 href={~p"/session"}
@@ -331,7 +341,71 @@ defmodule SikioWeb.Layouts do
         </main>
       </div>
       <.flash_group flash={@flash} />
+      <.shortcuts />
     </div>
+    """
+  end
+
+  # Every key, opened with ? or from the account menu; see assets/js/shortcuts.mjs. The player's
+  # keys work on every page while something plays, the library's in the library.
+  defp shortcuts(assigns) do
+    ~H"""
+    <dialog
+      id="shortcuts"
+      phx-hook="Shortcuts"
+      aria-labelledby="shortcuts-heading"
+      class="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl backdrop:bg-black/40"
+    >
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <h2 id="shortcuts-heading" class="text-title font-semibold">
+          {gettext("Keyboard shortcuts")}
+        </h2>
+        <form method="dialog">
+          <button
+            aria-label={gettext("Close")}
+            class="flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground"
+          >
+            <Lucideicons.x aria-hidden="true" class="size-4.5" />
+          </button>
+        </form>
+      </div>
+      <section
+        :for={
+          {heading, keys} <- [
+            {gettext("Player"),
+             [
+               {["p"], gettext("Play or pause")},
+               {["←", "→"], gettext("15 seconds back or 30 forward")},
+               {["Shift", "←", "→"], gettext("Previous or next chapter")},
+               {["u"], gettext("Sound off or on")},
+               {["x"], gettext("Full screen, for a video")}
+             ]},
+            {gettext("Library"),
+             [
+               {["j", "k"], gettext("Next or previous item")},
+               {["m"], gettext("Mark as finished, or as new again")},
+               {["f"], gettext("Search")},
+               {["Esc"], gettext("Close the search or this overview")},
+               {["?"], gettext("This overview")}
+             ]}
+          ]
+        }
+        class="mb-4 last:mb-0"
+      >
+        <h3 class="mb-2 text-meta font-semibold tracking-wider text-muted uppercase">{heading}</h3>
+        <dl class="flex flex-col gap-1.5">
+          <div :for={{combo, meaning} <- keys} class="flex items-baseline gap-3 text-label">
+            <dt class="flex w-28 shrink-0 gap-1">
+              <kbd
+                :for={key <- combo}
+                class="rounded-md bg-ground px-1.5 py-0.5 font-mono text-meta ring-1 ring-line"
+              >{key}</kbd>
+            </dt>
+            <dd>{meaning}</dd>
+          </div>
+        </dl>
+      </section>
+    </dialog>
     """
   end
 
