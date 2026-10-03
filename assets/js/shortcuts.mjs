@@ -2,8 +2,8 @@
 
 import {elsewhere} from "./player_keys.mjs"
 
-// The overview of every key, opened with ? from anywhere outside a field, or from the account
-// menu. The dialog closes on Escape by itself.
+// The overview of every key, opened with ? from anywhere outside a field. The account menu opens
+// it as every overview, with sikio:show. The dialog closes on Escape by itself.
 export function opensShortcuts(event) {
   return event.key === "?" && !elsewhere(event)
 }
@@ -17,10 +17,8 @@ export const Shortcuts = {
       this.open()
     }
     window.addEventListener("keydown", this.onKey)
-    window.addEventListener("sikio:shortcuts", this.open)
   },
   destroyed() {
     window.removeEventListener("keydown", this.onKey)
-    window.removeEventListener("sikio:shortcuts", this.open)
   }
 }

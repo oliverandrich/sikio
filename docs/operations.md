@@ -44,8 +44,8 @@ Browsers load them from this host, so publishers never see who reads their feed.
 relative path stops the boot. The directory is a cache: deleting it loses nothing, and a daily
 job removes pictures nobody was served for thirty days.
 
-`SOURCE_URL` is what the footer links to, which AGPL §13 asks an operator to offer. Leave it
-unset to point at the upstream repository. A value that is not an absolute http or https URL
+`SOURCE_URL` is the source code link in the sidebar and the About dialog. AGPL §13 asks an
+operator to offer it. Leave it unset to point at the upstream repository. A value that is not an absolute http or https URL
 stops the boot, so a typo is refused by `bin/migrate` and `bin/server` rather than shown as a
 link that goes nowhere.
 

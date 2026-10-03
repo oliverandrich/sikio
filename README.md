@@ -54,5 +54,5 @@ Sikio is free software, licensed under the GNU Affero General Public License
 version 3 or later (`AGPL-3.0-or-later`). See [LICENSE](LICENSE) for the full text.
 
 Sikio is network-facing software, so AGPL §13 applies: any hosted instance must offer its
-(modified) source to its users. The footer carries that link. [Operations](docs/operations.md)
-says what to set when you deploy a modified version.
+(modified) source to its users. The sidebar's foot and the About dialog carry that link.
+[Operations](docs/operations.md) says what to set when you deploy a modified version.

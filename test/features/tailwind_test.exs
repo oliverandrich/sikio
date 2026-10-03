@@ -111,10 +111,10 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
-  # From lg the sources may run long. They scroll, while the wordmark above and the account below
-  # stay where they are. Only a window too short for those two scrolls the whole column. The
-  # heading over the sources leads to managing them, so the link to subscriptions is the phone's.
-  feature "the sidebar scrolls between a standing wordmark and account", %{session: session} do
+  # From lg the sources may run long. They scroll, while the wordmark above and the offer of the
+  # source below stay where they are. Only a window too short for those two scrolls the whole
+  # column. The heading over the sources leads to managing them, so the bar of links is the phone's.
+  feature "the sidebar scrolls between a standing wordmark and its foot", %{session: session} do
     signed_up(session, "ada")
 
     session
@@ -124,7 +124,7 @@ defmodule SikioWeb.TailwindTest do
       """
       const style = selector => getComputedStyle(document.querySelector(selector))
       return [style('#sidebar').overflowY, style('header:has(#sidebar)').overflowY,
-              style('#subscriptions-link').display]
+              style('#main-navigation').display]
       """,
       fn [sidebar, header, link] ->
         assert sidebar == "auto"

@@ -57,6 +57,23 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#shortcuts[open]"))
   end
 
+  # What the footer said lives in an overview the account menu opens: the name, the tagline and
+  # the offer of the source code.
+  feature "the account menu tells about Sikio", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/all")
+    |> refute_has(css("#about[open]"))
+    |> click(css("#user-menu summary"))
+    |> click(css("#show-about"))
+    |> assert_has(css("#about[open]", text: "A little more intention. A little less autoplay."))
+    |> assert_has(css("#about[open]", text: "Your personal media library"))
+    |> assert_has(css("#about[open] a", text: "Source code"))
+    |> refute_has(css("#user-menu[open]"))
+    |> send_keys([:escape])
+    |> assert_has(css("#about[open]", count: 0))
+  end
+
   # The search folds away behind the magnifier. Opened, the field takes the keyboard, so typing
   # j or k searches rather than moves; Escape clears it and folds it away again.
   feature "the magnifier opens a search that narrows the list", %{session: session} do

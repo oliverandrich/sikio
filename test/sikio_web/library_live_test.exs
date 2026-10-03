@@ -501,6 +501,17 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#user-menu[data-active]")
     end
 
+    # The account sits beside the name at the top, on a phone as on a desktop. The bar at the
+    # foot holds the places a reader moves between.
+    test "puts the account menu beside the name", c do
+      {:ok, view, _} = live(c.conn, ~p"/all")
+
+      assert has_element?(view, "#masthead #user-menu")
+      refute has_element?(view, "#main-navigation #user-menu")
+      assert has_element?(view, ~s|#user-menu summary[aria-label="#{c.user.username}"] svg|)
+      assert has_element?(view, "#user-menu nav", c.user.username)
+    end
+
     # A source whose last refresh failed says so beside its name, and what went wrong on hover.
     # The words are there for a screen reader too; a flash of lightning alone says nothing.
     test "marks a source whose last refresh failed", c do
@@ -530,7 +541,7 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, ~s|#source-#{c.sub.feed_id} img[src^="/pictures/"]|)
       refute has_element?(view, "#source-#{video.feed_id} img")
       assert has_element?(view, "#source-#{video.feed_id} [data-initial]", "G")
-      assert has_element?(view, "#user-menu summary [data-initial]")
+      refute has_element?(view, "#user-menu summary [data-initial]")
     end
   end
 

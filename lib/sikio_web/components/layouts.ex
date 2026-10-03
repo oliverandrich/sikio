@@ -173,13 +173,83 @@ defmodule SikioWeb.Layouts do
         phx-mounted={JS.ignore_attributes("style")}
         class="flex flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-12 sm:py-7 lg:sticky lg:top-0 lg:h-svh lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-start lg:gap-5 lg:overflow-y-auto lg:border-r lg:border-line lg:px-3 lg:py-4"
       >
-        <.link
-          navigate={~p"/"}
-          class="flex items-center gap-3 lg:px-2.5"
-          aria-label={gettext("Sikio home")}
-        >
-          <span class="text-[30px] leading-none font-bold tracking-tight"><.wordmark /></span>
-        </.link>
+        <div id="masthead" class="flex w-full items-center justify-between gap-3 lg:pl-2.5">
+          <.link
+            navigate={~p"/"}
+            class="flex items-center gap-3"
+            aria-label={gettext("Sikio home")}
+          >
+            <span class="text-[30px] leading-none font-bold tracking-tight"><.wordmark /></span>
+          </.link>
+          <details
+            id="user-menu"
+            data-active={@section in [:account, :invitations]}
+            class="relative shrink-0"
+            phx-click-away={JS.remove_attribute("open", to: "#user-menu")}
+            phx-window-keydown={JS.remove_attribute("open", to: "#user-menu")}
+            phx-key="Escape"
+          >
+            <summary
+              aria-label={@current_account.username}
+              title={@current_account.username}
+              class={[
+                "flex size-11 cursor-pointer list-none items-center justify-center rounded-control lg:size-7 text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-accent",
+                @section in [:account, :invitations] && "bg-selection text-accent"
+              ]}
+            >
+              <Lucideicons.settings aria-hidden="true" class="size-5 lg:size-4.5" />
+            </summary>
+            <nav
+              aria-label={gettext("Your account")}
+              class="absolute top-full right-0 z-40 mt-2 w-56 rounded-control border border-line bg-surface p-1 font-normal shadow-lg"
+            >
+              <p class="truncate border-b border-line px-3 pt-2 pb-2.5 mb-1 text-label font-semibold">
+                {@current_account.username}
+              </p>
+              <.link
+                id="invitations-link"
+                navigate={~p"/invitations"}
+                aria-current={@section == :invitations && "page"}
+                class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
+              >{gettext("Invitations")}</.link>
+              <.link
+                navigate={~p"/account/passkeys"}
+                class="block rounded-control px-3 py-2 hover:bg-ground"
+              >{gettext("Manage passkeys")}</.link>
+              <.link
+                navigate={~p"/account/recovery-codes"}
+                class="block rounded-control px-3 py-2 hover:bg-ground"
+              >{gettext("Recovery codes")}</.link>
+              <button
+                id="show-shortcuts"
+                type="button"
+                phx-click={
+                  JS.remove_attribute("open", to: "#user-menu")
+                  |> JS.dispatch("sikio:show", to: "#shortcuts")
+                }
+                class="block w-full rounded-control px-3 py-2 text-left hover:bg-ground"
+              >
+                {gettext("Keyboard shortcuts")}
+              </button>
+              <button
+                id="show-about"
+                type="button"
+                phx-click={
+                  JS.remove_attribute("open", to: "#user-menu")
+                  |> JS.dispatch("sikio:show", to: "#about")
+                }
+                class="block w-full rounded-control px-3 py-2 text-left hover:bg-ground"
+              >
+                {gettext("About Sikio")}
+              </button>
+              <.link
+                href={~p"/session"}
+                method="delete"
+                class="mt-1 block rounded-control border-t border-line px-3 py-2 text-danger hover:bg-danger-surface"
+              >{gettext("Sign out")}</.link>
+            </nav>
+          </details>
+        </div>
         <div
           :if={@sidebar}
           id="sidebar"
@@ -250,16 +320,23 @@ defmodule SikioWeb.Layouts do
             </.sidebar_link>
           </nav>
         </div>
+        <div id="colophon" class="hidden text-meta text-muted lg:mt-auto lg:block lg:px-2.5 lg:pb-1">
+          <p>
+            {gettext("Sikio is free and open source software under the AGPL-3.0.")}
+            <span aria-hidden="true">·</span>
+            <.source_offer class="font-semibold text-ink hover:text-accent" />
+          </p>
+        </div>
         <nav
           id="main-navigation"
-          class="fixed inset-x-0 bottom-0 z-30 flex min-h-[var(--nav-bar)] items-center justify-around border-t border-line bg-ground pb-[env(safe-area-inset-bottom)] text-label font-semibold lg:static lg:mt-auto lg:flex-col lg:items-stretch lg:justify-start lg:gap-0.5 lg:bg-transparent lg:pt-3 lg:pb-0 lg:font-normal"
+          class="fixed inset-x-0 bottom-0 z-30 flex min-h-[var(--nav-bar)] items-center justify-around border-t border-line bg-ground pb-[env(safe-area-inset-bottom)] text-label font-semibold lg:hidden"
           aria-label={gettext("Main navigation")}
         >
           <.link
             id="library-link"
             aria-current={@section == :library && "page"}
             navigate={~p"/"}
-            class={[nav_link_class(), "lg:hidden"]}
+            class={nav_link_class()}
           >
             {gettext("Library")}
           </.link>
@@ -267,66 +344,10 @@ defmodule SikioWeb.Layouts do
             id="subscriptions-link"
             aria-current={@section == :subscriptions && "page"}
             navigate={~p"/subscriptions"}
-            class={[nav_link_class(), "lg:hidden"]}
+            class={nav_link_class()}
           >
             {gettext("Subscriptions")}
           </.link>
-          <details
-            id="user-menu"
-            data-active={@section in [:account, :invitations]}
-            class="relative shrink-0"
-            phx-click-away={JS.remove_attribute("open", to: "#user-menu")}
-            phx-window-keydown={JS.remove_attribute("open", to: "#user-menu")}
-            phx-key="Escape"
-          >
-            <summary class={[
-              "flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-control px-2 focus-visible:outline-2 focus-visible:outline-accent lg:min-h-9 lg:px-2.5 lg:hover:bg-surface",
-              @section in [:account, :invitations] && "font-semibold text-accent lg:bg-selection"
-            ]}>
-              <.initial name={@current_account.username} class="hidden lg:flex" /><span
-                class="max-w-32 truncate"
-                title={@current_account.username}
-              >{@current_account.username}</span><Lucideicons.chevron_down
-                aria-hidden="true"
-                class="size-4 shrink-0 transition"
-              />
-            </summary>
-            <nav
-              aria-label={gettext("Your account")}
-              class="absolute right-0 bottom-full z-20 mb-2 w-56 rounded-control border border-line bg-surface p-1 font-normal shadow-lg lg:right-auto lg:left-0"
-            >
-              <.link
-                id="invitations-link"
-                navigate={~p"/invitations"}
-                aria-current={@section == :invitations && "page"}
-                class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
-              >{gettext("Invitations")}</.link>
-              <.link
-                navigate={~p"/account/passkeys"}
-                class="block rounded-control px-3 py-2 hover:bg-ground"
-              >{gettext("Manage passkeys")}</.link>
-              <.link
-                navigate={~p"/account/recovery-codes"}
-                class="block rounded-control px-3 py-2 hover:bg-ground"
-              >{gettext("Recovery codes")}</.link>
-              <button
-                id="show-shortcuts"
-                type="button"
-                phx-click={
-                  JS.remove_attribute("open", to: "#user-menu") |> JS.dispatch("sikio:shortcuts")
-                }
-                class="block w-full rounded-control px-3 py-2 text-left hover:bg-ground"
-              >
-                {gettext("Keyboard shortcuts")}
-              </button>
-              <.source_offer class="block rounded-control px-3 py-2 hover:bg-ground" />
-              <.link
-                href={~p"/session"}
-                method="delete"
-                class="mt-1 block rounded-control border-t border-line px-3 py-2 text-danger hover:bg-danger-surface"
-              >{gettext("Sign out")}</.link>
-            </nav>
-          </details>
         </nav>
       </header>
       <div class="min-w-0">
@@ -342,6 +363,7 @@ defmodule SikioWeb.Layouts do
       </div>
       <.flash_group flash={@flash} />
       <.shortcuts />
+      <.about />
     </div>
     """
   end
@@ -350,25 +372,7 @@ defmodule SikioWeb.Layouts do
   # keys work on every page while something plays, the library's in the library.
   defp shortcuts(assigns) do
     ~H"""
-    <dialog
-      id="shortcuts"
-      phx-hook="Shortcuts"
-      aria-labelledby="shortcuts-heading"
-      class="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl backdrop:bg-black/40"
-    >
-      <div class="mb-4 flex items-center justify-between gap-3">
-        <h2 id="shortcuts-heading" class="text-title font-semibold">
-          {gettext("Keyboard shortcuts")}
-        </h2>
-        <form method="dialog">
-          <button
-            aria-label={gettext("Close")}
-            class="flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground"
-          >
-            <Lucideicons.x aria-hidden="true" class="size-4.5" />
-          </button>
-        </form>
-      </div>
+    <.overview id="shortcuts" title={gettext("Keyboard shortcuts")} phx-hook="Shortcuts">
       <section
         :for={
           {heading, keys} <- [
@@ -405,6 +409,52 @@ defmodule SikioWeb.Layouts do
           </div>
         </dl>
       </section>
+    </.overview>
+    """
+  end
+
+  # What the member pages' footer once said, and the offer of the source code the licence asks for.
+  defp about(assigns) do
+    ~H"""
+    <.overview id="about" title={gettext("About Sikio")}>
+      <p class="text-4xl font-semibold tracking-tight"><.wordmark /></p>
+      <p class="mt-1 text-label text-muted">{gettext("Your personal media library")}</p>
+      <p class="mt-5 text-body">{gettext("A little more intention. A little less autoplay.")}</p>
+      <p class="mt-5 text-label text-muted">
+        {gettext("Sikio is free and open source software under the AGPL-3.0.")}
+        <.source_offer class="font-semibold text-accent hover:underline" />
+      </p>
+    </.overview>
+    """
+  end
+
+  # A dialog over the page with a heading and a close button. Opened by a sikio:show event on it,
+  # see assets/js/app.js; Escape closes it by itself.
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  defp overview(assigns) do
+    ~H"""
+    <dialog
+      id={@id}
+      aria-labelledby={"#{@id}-heading"}
+      class="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl backdrop:bg-black/40"
+      {@rest}
+    >
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <h2 id={"#{@id}-heading"} class="text-title font-semibold">{@title}</h2>
+        <form method="dialog">
+          <button
+            aria-label={gettext("Close")}
+            class="flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground"
+          >
+            <Lucideicons.x aria-hidden="true" class="size-4.5" />
+          </button>
+        </form>
+      </div>
+      {render_slot(@inner_block)}
     </dialog>
     """
   end
