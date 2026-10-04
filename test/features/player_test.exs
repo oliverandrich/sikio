@@ -154,6 +154,27 @@ defmodule SikioWeb.PlayerTest do
       %{video: video}
     end
 
+    # The card's menu opens over the player that lies on the card, not beneath it.
+    feature "the card's menu opens over the playing player", context do
+      %{session: session, entry: entry} = context
+
+      session
+      |> resize_window(1280, 900)
+      |> open(item_path(entry))
+      |> click(css("#start-playback"))
+      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
+      |> click(css("#item-more summary"))
+      |> assert_has(css("#item-more[open] #dequeue", visible: true))
+      |> execute_script(
+        """
+        const box = document.getElementById('dequeue').getBoundingClientRect()
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        return hit.closest('#item-more') !== null
+        """,
+        fn on_top -> assert on_top, "the menu lies under the player" end
+      )
+    end
+
     # A video spans its card from edge to edge, as it spans a phone's screen. Its place is
     # measured before it plays, so nothing is asked of YouTube.
     feature "a video's place spans its card", context do

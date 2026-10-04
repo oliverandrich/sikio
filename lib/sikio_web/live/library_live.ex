@@ -1527,7 +1527,8 @@ defmodule SikioWeb.LibraryLive do
           <Lucideicons.ellipsis aria-hidden="true" class="size-4.5" />
         <% end %>
       </summary>
-      <div class="absolute top-full right-0 z-30 mt-1 flex w-max min-w-48 flex-col rounded-control border border-line bg-surface p-1 shadow-lg">
+      <%!-- Above the player, which the dock lays over the card's slot at z-40. --%>
+      <div class="absolute top-full right-0 z-50 mt-1 flex w-max min-w-48 flex-col rounded-control border border-line bg-surface p-1 shadow-lg">
         {render_slot(@inner_block)}
       </div>
     </details>
