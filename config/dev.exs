@@ -41,6 +41,23 @@ config :sikio, SikioWeb.Endpoint,
     tailwind: {Tailwind, :install_and_run, [:sikio, ~w(--watch)]}
   ]
 
+# A phone reaches the development server through a tunnel such as `tailscale serve`. Passkeys
+# are bound to the host the endpoint names, so SIKIO_DEV_URL gives it the tunnel's address.
+case "SIKIO_DEV_URL" |> System.get_env("") |> String.trim() do
+  "" ->
+    :ok
+
+  address ->
+    case URI.parse(address) do
+      %URI{scheme: "https", host: host, port: port} when is_binary(host) and host != "" ->
+        config :sikio, SikioWeb.Endpoint, url: [scheme: "https", host: host, port: port]
+
+      _other ->
+        raise "SIKIO_DEV_URL must be an https address such as https://mac.tailnet.ts.net, " <>
+                "not #{inspect(address)}"
+    end
+end
+
 # ## SSL Support
 #
 # In order to use HTTPS in development, a self-signed

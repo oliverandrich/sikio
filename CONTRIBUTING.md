@@ -100,6 +100,22 @@ infrastructure fails instead of silently skipping coverage.
 
 `mix ithibati.doctor` is part of the test-environment gate after schema setup.
 
+## Testing on a phone
+
+Passkeys need HTTPS and a host name, so a phone reaches the development server through a
+private tunnel. With Tailscale on the Mac and the phone:
+
+```bash
+tailscale serve --bg 4000
+SIKIO_DEV_URL=https://<mac>.<tailnet>.ts.net mise run dev
+```
+
+SIKIO_DEV_URL names the endpoint's host, which passkeys are bound to. Passkeys made for
+`localhost` do not work there; sign in with a recovery code and add one on the phone.
+
+Do not expose the development server through a public tunnel. Tidewave runs in it and
+trusts requests from the loopback, which a tunnel's local agent is.
+
 ## Release verification
 
 ```sh
