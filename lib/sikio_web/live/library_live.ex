@@ -207,7 +207,9 @@ defmodule SikioWeb.LibraryLive do
     >
       <div class="p-5 sm:p-6">
         <h2 id={"#{@name}-heading"} class="text-[17px] leading-6 font-semibold">{@title}</h2>
-        <div class="mt-2 text-sm text-muted">{render_slot(@inner_block)}</div>
+        <div class={["text-sm text-muted", if(@wide, do: "mt-5", else: "mt-2")]}>
+          {render_slot(@inner_block)}
+        </div>
       </div>
       <%!-- The answers in a band of their own. On a phone they stack, the confirming one on top;
       from sm they stand in a row from the right, another way out at the far left. --%>

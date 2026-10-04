@@ -200,7 +200,7 @@ defmodule SikioWeb.TailwindTest do
   end
 
   # A dialog keeps to quiet sizes from sm: a short title, buttons of 36px and its answers in a band
-  # of their own at the foot.
+  # of their own at the foot. A form stands further from the title than a question.
   feature "a dialog keeps quiet sizes beside a mouse", %{session: session} do
     feed = subscribed(session)
 
@@ -217,12 +217,15 @@ defmodule SikioWeb.TailwindTest do
       const style = id => getComputedStyle(document.getElementById(id))
       return [Math.round(document.getElementById('confirm-edit-subscription').getBoundingClientRect().height),
               style('edit-subscription-heading').fontSize, style('edit-subscription-actions').backgroundColor,
-              getComputedStyle(probe).backgroundColor]
+              getComputedStyle(probe).backgroundColor,
+              Math.round(document.getElementById('subscription-form').getBoundingClientRect().top -
+                document.getElementById('edit-subscription-heading').getBoundingClientRect().bottom)]
       """,
-      fn [height, title, band, ground] ->
+      fn [height, title, band, ground, gap] ->
         assert height == 36
         assert title == "17px"
         assert band == ground
+        assert gap >= 20, "a form stands apart from the title"
       end
     )
   end
