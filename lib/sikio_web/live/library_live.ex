@@ -1465,24 +1465,112 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  attr :id, :string, required: true
-  attr :event, :string, required: true
-  attr :at, :string, default: nil
   attr :entry, :map, required: true
+  attr :again, :boolean, required: true, doc: "the item was heard and goes in once more"
+
+  # The way into the queue, at its head or its end.
+  defp queue_menu(assigns) do
+    ~H"""
+    <.item_menu
+      id="queue-menu"
+      label={if @again, do: gettext("Queue again"), else: gettext("Add to queue")}
+      named
+    >
+      <:icon><Lucideicons.list_plus aria-hidden="true" class="size-4.5" /></:icon>
+      <.menu_item id="queue-first" push={{"queue", %{id: @entry.id, at: "first"}}} menu="queue-menu">
+        <:icon><Lucideicons.list_start aria-hidden="true" class="size-4" /></:icon>
+        {gettext("Play next")}
+      </.menu_item>
+      <.menu_item id="queue-last" push={{"queue", %{id: @entry.id, at: "last"}}} menu="queue-menu">
+        <:icon><Lucideicons.list_end aria-hidden="true" class="size-4" /></:icon>
+        {gettext("Play last")}
+      </.menu_item>
+    </.item_menu>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+
+  attr :named, :boolean,
+    default: false,
+    doc: "shows its label beside a chevron, as the actions do"
+
+  slot :icon
   slot :inner_block, required: true
 
-  # A way into the queue or out of it, beneath the card's head.
-  defp queue_button(assigns) do
+  # A menu at the card's head. The card renders again while its item plays, so the menu keeps
+  # its own open state, and a click elsewhere or Escape closes it.
+  defp item_menu(assigns) do
     ~H"""
+    <details
+      id={@id}
+      class="relative"
+      phx-mounted={JS.ignore_attributes(["open"])}
+      phx-click-away={JS.remove_attribute("open", to: "##{@id}")}
+      phx-window-keydown={JS.remove_attribute("open", to: "##{@id}")}
+      phx-key="Escape"
+    >
+      <summary
+        aria-label={!@named && @label}
+        title={!@named && @label}
+        class={[
+          "flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-full text-label font-medium text-muted hover:bg-ground hover:text-ink focus-visible:outline-2 focus-visible:outline-accent [[open]>&]:bg-ground [[open]>&]:text-ink",
+          if(@named, do: "px-3", else: "w-9 justify-center")
+        ]}
+      >
+        <%= if @named do %>
+          {render_slot(@icon)}
+          <span class="@max-2xl:sr-only">{@label}</span>
+          <Lucideicons.chevron_down aria-hidden="true" class="size-3.5 @max-2xl:hidden" />
+        <% else %>
+          <Lucideicons.ellipsis aria-hidden="true" class="size-4.5" />
+        <% end %>
+      </summary>
+      <div class="absolute top-full right-0 z-30 mt-1 flex w-max min-w-48 flex-col rounded-control border border-line bg-surface p-1 shadow-lg">
+        {render_slot(@inner_block)}
+      </div>
+    </details>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :menu, :string, required: true, doc: "the menu it closes"
+  attr :push, :any, default: nil, doc: "the event and its values"
+  attr :href, :string, default: nil, doc: "an address it opens in a new tab instead"
+  slot :icon, required: true
+  slot :inner_block, required: true
+
+  defp menu_item(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :class,
+        "flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-control px-3 text-left text-label text-ink hover:bg-ground sm:min-h-9"
+      )
+
+    ~H"""
+    <a
+      :if={@href}
+      id={@id}
+      href={@href}
+      target="_blank"
+      rel="noopener noreferrer"
+      phx-click={JS.remove_attribute("open", to: "##{@menu}")}
+      class={@class}
+    >
+      {render_slot(@icon)}{render_slot(@inner_block)}
+    </a>
     <button
+      :if={!@href}
       id={@id}
       type="button"
-      phx-click={@event}
-      phx-value-id={@entry.id}
-      phx-value-at={@at}
-      class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 font-semibold text-ink hover:bg-ground focus-visible:outline-2 focus-visible:outline-accent"
+      phx-click={
+        JS.push(elem(@push, 0), value: elem(@push, 1)) |> JS.remove_attribute("open", to: "##{@menu}")
+      }
+      class={@class}
     >
-      {render_slot(@inner_block)}
+      {render_slot(@icon)}{render_slot(@inner_block)}
     </button>
     """
   end
@@ -1659,17 +1747,35 @@ defmodule SikioWeb.LibraryLive do
             aria-live="polite"
             class="meta-dots flex flex-wrap items-center text-meta text-muted"
           >
-            <span>{medium_label(@entry)}</span>
+            <%!-- The medium leads to the original, as the menu's last entry does. --%>
+            <span :if={!@original}>{medium_label(@entry)}</span>
+            <span :if={@original}>
+              <a
+                href={elem(@original, 0)}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="underline decoration-track underline-offset-2 hover:text-ink hover:decoration-current"
+              >
+                {medium_label(@entry)}
+              </a>
+            </span>
             <span :if={@entry.published_at} class="font-mono tracking-tighter">
               {date(@entry.published_at)}
             </span>
             <span :if={@runtime} class="font-mono tracking-tighter">{@runtime}</span>
             <span><.status_mark entry={@entry} status={@status} /></span>
+            <%!-- An icon alone, so starting an item never makes the line wrap and the card jump. --%>
+            <span :if={@queued} title={gettext("In the queue")}>
+              <Lucideicons.list_ordered aria-hidden="true" class="size-3.5" />
+              <span class="sr-only">{gettext("In the queue")}</span>
+            </span>
           </p>
         </div>
+        <%!-- What comes next for the item stands at the head; the menu holds the rest. --%>
         <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center gap-1">
+          <.queue_menu :if={!@queued} entry={@entry} again={@status == :heard} />
           <.card_action
-            :if={@status != :heard}
+            :if={@queued and @status != :heard}
             id="mark-completed"
             label={mark_done_label(@entry)}
             phx-click="mark"
@@ -1679,7 +1785,7 @@ defmodule SikioWeb.LibraryLive do
             <:icon><Lucideicons.check aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
           <.card_action
-            :if={@status not in [:heard, :archived]}
+            :if={!@queued and @status in [:new, :in_progress]}
             id="archive"
             label={gettext("Archive")}
             phx-click="mark"
@@ -1688,43 +1794,56 @@ defmodule SikioWeb.LibraryLive do
           >
             <:icon><Lucideicons.archive aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
-          <.card_action
-            :if={@status in [:heard, :archived]}
-            id="mark-new"
-            label={gettext("Back to the inbox")}
-            phx-click="mark"
-            phx-value-id={@entry.id}
-            phx-value-status="new"
-          >
-            <:icon><Lucideicons.archive_restore aria-hidden="true" class="size-4.5" /></:icon>
-          </.card_action>
-          <.card_action
-            :if={@original}
-            id="open-original"
-            label={elem(@original, 1)}
-            href={elem(@original, 0)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <:icon><Lucideicons.external_link aria-hidden="true" class="size-4.5" /></:icon>
-          </.card_action>
+          <.item_menu id="item-more" label={gettext("More actions")}>
+            <.menu_item
+              :if={@queued}
+              id="dequeue"
+              push={{"dequeue", %{id: @entry.id}}}
+              menu="item-more"
+            >
+              <:icon><Lucideicons.list_x aria-hidden="true" class="size-4" /></:icon>
+              {gettext("Remove from the queue")}
+            </.menu_item>
+            <.menu_item
+              :if={!@queued and @status != :heard}
+              id="mark-completed"
+              push={{"mark", %{id: @entry.id, status: "heard"}}}
+              menu="item-more"
+            >
+              <:icon><Lucideicons.check aria-hidden="true" class="size-4" /></:icon>
+              {mark_done_label(@entry)}
+            </.menu_item>
+            <.menu_item
+              :if={@queued and @status != :heard}
+              id="archive"
+              push={{"mark", %{id: @entry.id, status: "archived"}}}
+              menu="item-more"
+            >
+              <:icon><Lucideicons.archive aria-hidden="true" class="size-4" /></:icon>
+              {gettext("Archive")}
+            </.menu_item>
+            <.menu_item
+              :if={@status in [:heard, :archived]}
+              id="mark-new"
+              push={{"mark", %{id: @entry.id, status: "new"}}}
+              menu="item-more"
+            >
+              <:icon><Lucideicons.inbox aria-hidden="true" class="size-4" /></:icon>
+              {if @status == :heard,
+                do: mark_new_label(@entry),
+                else: gettext("Back to the inbox")}
+            </.menu_item>
+            <.menu_item
+              :if={@original}
+              id="open-original"
+              href={elem(@original, 0)}
+              menu="item-more"
+            >
+              <:icon><Lucideicons.external_link aria-hidden="true" class="size-4" /></:icon>
+              {elem(@original, 1)}
+            </.menu_item>
+          </.item_menu>
         </div>
-      </div>
-      <%!-- Where the item stands in the queue, and the way in or out of it. --%>
-      <div id="item-queue" class="flex flex-wrap items-center gap-2 text-label">
-        <span :if={@queued} class="inline-flex items-center gap-1.5 font-semibold text-accent">
-          <Lucideicons.list_ordered aria-hidden="true" class="size-4" />
-          {gettext("In the queue")}
-        </span>
-        <.queue_button :if={@queued} id="dequeue" event="dequeue" entry={@entry}>
-          <Lucideicons.list_x aria-hidden="true" class="size-4" />{gettext("Remove")}
-        </.queue_button>
-        <.queue_button :if={!@queued} id="queue-first" event="queue" at="first" entry={@entry}>
-          <Lucideicons.list_start aria-hidden="true" class="size-4" />{gettext("Play next")}
-        </.queue_button>
-        <.queue_button :if={!@queued} id="queue-last" event="queue" at="last" entry={@entry}>
-          <Lucideicons.list_end aria-hidden="true" class="size-4" />{gettext("Play last")}
-        </.queue_button>
       </div>
       <%!-- The player's place. The dock lays the playing player over it; until then it shows what
       would play and loads nothing from anybody else. See assets/js/dock_place.mjs. --%>

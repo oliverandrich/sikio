@@ -26,7 +26,7 @@ defmodule SikioWeb.LibraryDetailTest do
 
     view |> element("#queue-first") |> render_click()
     assert Playback.queue(c.user) == [c.entry.id]
-    assert has_element?(view, "#item-queue", "In the queue")
+    assert has_element?(view, "#playback-status", "In the queue")
 
     view |> element("#dequeue") |> render_click()
     assert Playback.queue(c.user) == []
@@ -43,6 +43,36 @@ defmodule SikioWeb.LibraryDetailTest do
 
     view |> element("#mark-completed") |> render_click()
     assert %{playback: %{status: :heard}} = Library.entry(c.user, c.entry.id)
+  end
+
+  # The card's head offers what comes next for its item, and a menu holds the rest. New, it is
+  # queued or archived; queued, it is marked heard; heard or archived, it is queued again.
+  test "the card's head offers what comes next for its item", c do
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
+
+    assert has_element?(view, "#item-actions > #queue-menu #queue-first")
+    assert has_element?(view, "#item-actions > #queue-menu #queue-last")
+    assert has_element?(view, "#item-actions > #archive")
+    assert has_element?(view, "#item-more #mark-completed")
+    assert has_element?(view, "#item-more #open-original")
+
+    view |> element("#queue-last") |> render_click()
+    assert has_element?(view, "#playback-status", "In the queue")
+    assert has_element?(view, "#item-actions > #mark-completed")
+    assert has_element?(view, "#item-more #dequeue")
+    assert has_element?(view, "#item-more #archive")
+    refute has_element?(view, "#queue-menu")
+
+    view |> element("#mark-completed") |> render_click()
+    assert has_element?(view, "#item-actions > #queue-menu", "Queue again")
+    assert has_element?(view, "#item-more #mark-new")
+    refute has_element?(view, "#archive")
+
+    view |> element("#mark-new") |> render_click()
+    view |> element("#archive") |> render_click()
+    assert has_element?(view, "#item-actions > #queue-menu #queue-first")
+    assert has_element?(view, "#item-more #mark-completed")
+    assert has_element?(view, "#item-more #mark-new")
   end
 
   test "library opens a player and shows reversible personal status", c do
@@ -73,7 +103,8 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#item-actions #mark-completed", "Mark as listened")
   end
 
-  # Every item with a page of its own offers it, named for where it leads.
+  # Every item with a page of its own offers it, named for where it leads, and its medium in the
+  # meta line leads there too.
   test "the detail opens the original page of each kind", c do
     for {body, url} <- [{peertube(), peertube_feed_url()}, {youtube(), youtube_feed_url()}] do
       {:ok, preview} = Parser.parse(body, url)
@@ -95,6 +126,8 @@ defmodule SikioWeb.LibraryDetailTest do
                ~s|#item-actions #open-original[href="#{href}"][target="_blank"]|,
                label
              )
+
+      assert has_element?(view, ~s|#playback-status a[href="#{href}"][target="_blank"]|)
     end
   end
 
@@ -116,6 +149,8 @@ defmodule SikioWeb.LibraryDetailTest do
 
     {:ok, view, _} = live(c.conn, item_path(c.entry))
     refute has_element?(view, "#open-original")
+    assert has_element?(view, "#playback-status", "Podcast")
+    refute has_element?(view, "#playback-status a")
   end
 
   # One way at a time: anything not finished can be marked as finished, and only a finished item
