@@ -1779,30 +1779,30 @@ msgstr "Passkeys"
 #, elixir-autogen, elixir-format
 msgid "%{count} item in this list will be archived. It stays out of your history."
 msgid_plural "%{count} items in this list will be archived. They stay out of your history."
-msgstr[0] "%{count} Eintrag in dieser Liste wird abgelegt. Er erscheint nicht in deinem Verlauf."
-msgstr[1] "%{count} Einträge in dieser Liste werden abgelegt. Sie erscheinen nicht in deinem Verlauf."
+msgstr[0] "%{count} Eintrag in dieser Liste wird archiviert. Er erscheint nicht in deinem Verlauf."
+msgstr[1] "%{count} Einträge in dieser Liste werden archiviert. Sie erscheinen nicht in deinem Verlauf."
 
 #: lib/sikio_web/live/library_live.ex:1003
 #: lib/sikio_web/live/library_live.ex:1655
 #, elixir-autogen, elixir-format
 msgid "Archive"
-msgstr "Ablegen"
+msgstr "Archivieren"
 
 #: lib/sikio_web/live/library_live.ex:929
 #: lib/sikio_web/live/library_live.ex:930
 #, elixir-autogen, elixir-format
 msgid "Archive all"
-msgstr "Alle ablegen"
+msgstr "Alle archivieren"
 
 #: lib/sikio_web/live/library_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "Archive everything here?"
-msgstr "Alles hier ablegen?"
+msgstr "Alles hier archivieren?"
 
 #: lib/sikio_web/components/media_components.ex:45
 #, elixir-autogen, elixir-format
 msgid "Archived"
-msgstr "Abgelegt"
+msgstr "Archiviert"
 
 #: lib/sikio_web/live/library_live.ex:438
 #, elixir-autogen, elixir-format
