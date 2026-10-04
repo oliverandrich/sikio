@@ -34,7 +34,7 @@ defmodule SikioWeb.MobileTest do
 
     session
     |> resize_window(390, 844)
-    |> open("/new")
+    |> open("/inbox")
     |> execute_script(gap_below("#main-navigation"), fn gap -> assert gap == 0 end)
     |> click(css("#tab-library"))
     |> assert_has(css(~s|#tab-library[aria-current="page"]|))
@@ -59,7 +59,7 @@ defmodule SikioWeb.MobileTest do
       "document.documentElement.style.cssText = '--safe-top: 47px; --safe-bottom: 34px'"
     )
     |> click(css("#start-playback"))
-    |> click(css("#tab-new"))
+    |> click(css("#tab-inbox"))
     |> assert_has(css(~s|#player-panel[data-place="floating"]|))
     |> execute_script(
       """
@@ -84,7 +84,7 @@ defmodule SikioWeb.MobileTest do
   # the root, in light and dark, rather than leaving the browser to infer it from the body.
   feature "the page names its colour for the status bar", %{session: session} do
     session
-    |> open("/new")
+    |> open("/inbox")
     |> execute_script(
       """
       const ground = getComputedStyle(document.body).backgroundColor
@@ -101,7 +101,7 @@ defmodule SikioWeb.MobileTest do
   # The viewport has to ask for the whole screen, or iOS reports no safe areas at all.
   feature "the page asks for the whole screen", %{session: session} do
     session
-    |> open("/new")
+    |> open("/inbox")
     |> execute_script(
       "return document.querySelector('meta[name=viewport]').content",
       fn content -> assert content =~ "viewport-fit=cover" end
@@ -114,14 +114,14 @@ defmodule SikioWeb.MobileTest do
 
     session
     |> resize_window(844, 390)
-    |> open("/new")
+    |> open("/inbox")
     |> execute_script(
       "document.documentElement.style.cssText = '--safe-left: 47px; --safe-right: 47px'"
     )
     |> execute_script(
       """
       const left = s => document.querySelector(s).getBoundingClientRect().left
-      return [left('#library-heading'), left('#masthead a'), left('#tab-new')].map(Math.round)
+      return [left('#library-heading'), left('#masthead a'), left('#tab-inbox')].map(Math.round)
       """,
       fn lefts ->
         assert Enum.all?(lefts, &(&1 >= 47)), "something sits under the notch: #{inspect(lefts)}"
@@ -142,7 +142,7 @@ defmodule SikioWeb.MobileTest do
   ]
   feature "held sideways the list gets most of the height", %{session: session} do
     session
-    |> open("/new")
+    |> open("/inbox")
     |> assert_has(css("#entries article", count: 2))
     |> execute_script(
       """
@@ -155,7 +155,7 @@ defmodule SikioWeb.MobileTest do
       fn [head, title, heading, hidden] ->
         assert head <= 56, "the list's head takes #{head}px"
         assert title == "1", "the bar names the place"
-        assert heading == "New", "the heading stays for screen readers"
+        assert heading == "Inbox", "the heading stays for screen readers"
         assert hidden, "the large heading takes no room"
       end
     )
@@ -168,7 +168,7 @@ defmodule SikioWeb.MobileTest do
 
     session
     |> resize_window(500, 900)
-    |> open("/feeds/#{entries.podcast.feed_id}/completed")
+    |> open("/feeds/#{entries.podcast.feed_id}/history")
     |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
     |> execute_script(look, fn open -> Process.put(:open, open) end)
     |> click(css("#toggle-filters"))
@@ -185,9 +185,9 @@ defmodule SikioWeb.MobileTest do
 
     session
     |> resize_window(390, 844)
-    |> open("/new")
+    |> open("/inbox")
     |> click(css("#entries a", text: entries.podcast.title))
-    |> assert_has(css("#nav-back", text: "New"))
+    |> assert_has(css("#nav-back", text: "Inbox"))
     |> refute_has(css("#app-header[data-shrunk]"))
     |> execute_script("""
     document.getElementById('item-detail').style.paddingBottom = '2000px'
@@ -206,11 +206,11 @@ defmodule SikioWeb.MobileTest do
 
     session
     |> resize_window(500, 900)
-    |> open("/feeds/#{entries.podcast.feed_id}/completed")
+    |> open("/feeds/#{entries.podcast.feed_id}/history")
     |> assert_has(css("#filter-status-all"))
     |> click(css("#filter-status-all"))
     |> assert_has(css(~s|#filter-status-all[aria-current="true"]|))
-    |> assert_has(css("#filter-status-new"))
+    |> assert_has(css("#filter-status-inbox"))
     |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
   end
 
@@ -274,10 +274,11 @@ defmodule SikioWeb.MobileTest do
       )
     )
 
+    # The window leaves 247 pixels, so the poster lies under the tab bar: pressed where it is.
     session
     |> resize_window(844, 390)
     |> open(item_path(video))
-    |> click(css("#start-playback"))
+    |> execute_script("document.getElementById('start-playback').click()")
     |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
     |> execute_script(
       """
@@ -478,7 +479,7 @@ defmodule SikioWeb.MobileTest do
     |> open(item_path(entries.podcast))
     |> click(css("#start-playback"))
     |> assert_has(css(~s|#player-panel[data-place="pinned"]|))
-    |> click(css("#tab-new"))
+    |> click(css("#tab-inbox"))
     |> assert_has(css(~s|#player-panel[data-place="floating"] #capsule-play|))
     |> assert_has(css("#capsule-art"))
     |> assert_has(css("#close-player"))
@@ -521,7 +522,7 @@ defmodule SikioWeb.MobileTest do
     |> open(item_path(video))
     |> click(css("#start-playback"))
     |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
-    |> click(css("#tab-new"))
+    |> click(css("#tab-inbox"))
     |> assert_has(css(~s|#player-panel[data-place="floating"] iframe|))
     |> refute_has(css("#capsule-art"))
     |> execute_script(

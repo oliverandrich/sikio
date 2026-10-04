@@ -2,11 +2,12 @@
 
 defmodule SikioWeb.MediaComponents do
   @moduledoc """
-  Shared playback labels and time formatting.
+  Shared playback labels, time formatting and the views' icons.
 
   Watched or listened depends on what the thing is, so the wording is decided here rather than in
   three templates that would drift apart.
   """
+  use Phoenix.Component
   use Gettext, backend: SikioWeb.Gettext
   use SikioWeb, :verified_routes
 
@@ -106,17 +107,40 @@ defmodule SikioWeb.MediaComponents do
     do: "#{div(seconds, 3600)}:" <> String.pad_leading(timestamp(rem(seconds, 3600)), 5, "0")
 
   @doc """
-  The library's views by status: the filter value, the count's key and the name.
+  The library's views: the filter value, the count's key and the name.
 
-  New comes first, the library's front. All items come last.
+  The inbox comes first, the library's front, then the queue and the history. All items come
+  last, the archived among them.
   """
   def views do
     [
-      {"new", :new, gettext("New")},
-      {"in_progress", :in_progress, gettext("In progress")},
-      {"completed", :completed, gettext("Completed")},
+      {"inbox", :inbox, gettext("Inbox")},
+      {"queue", :queue, gettext("Queue")},
+      {"heard", :heard, gettext("History")},
       {"", :all, gettext("All items")}
     ]
+  end
+
+  @doc "The lists within a source or a tag: what is new there, what was heard, and everything."
+  def segments do
+    [
+      {"inbox", :inbox, gettext("New")},
+      {"heard", :heard, gettext("Heard")},
+      {"", :all, gettext("All items")}
+    ]
+  end
+
+  @doc "A view's icon, wherever the view is named."
+  attr :view, :atom, required: true
+  attr :class, :any, default: "size-4"
+
+  def view_icon(assigns) do
+    ~H"""
+    <Lucideicons.inbox :if={@view == :inbox} aria-hidden="true" class={@class} />
+    <Lucideicons.list_ordered :if={@view == :queue} aria-hidden="true" class={@class} />
+    <Lucideicons.history :if={@view == :heard} aria-hidden="true" class={@class} />
+    <Lucideicons.library :if={@view == :all} aria-hidden="true" class={@class} />
+    """
   end
 
   @doc "A day as a list and a heading show it, with the month in the reader's language."

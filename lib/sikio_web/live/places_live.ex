@@ -9,7 +9,7 @@ defmodule SikioWeb.PlacesLive do
   """
   use SikioWeb, :live_view
 
-  import SikioWeb.MediaComponents, only: [views: 0]
+  import SikioWeb.MediaComponents, only: [views: 0, view_icon: 1]
 
   alias Sikio.Library
   alias SikioWeb.Sidebar
@@ -39,10 +39,11 @@ defmodule SikioWeb.PlacesLive do
       <.places id="places-views">
         <.place
           :for={{status, key, label} <- views()}
-          :if={key not in [:new, :in_progress]}
+          :if={key not in [:inbox, :queue]}
           to={Sidebar.place_path("status", status)}
-          count={@counts[key]}
+          count={if(key == :all, do: @counts[key], else: 0)}
         >
+          <:icon><.view_icon view={key} class="size-5 text-muted" /></:icon>
           {label}
         </.place>
       </.places>
@@ -91,6 +92,7 @@ defmodule SikioWeb.PlacesLive do
 
   attr :to, :string, required: true
   attr :count, :integer, required: true
+  slot :icon
   slot :inner_block, required: true
 
   defp place(assigns) do
@@ -99,6 +101,7 @@ defmodule SikioWeb.PlacesLive do
       navigate={@to}
       class="flex min-h-12 items-center gap-3 px-4 text-body text-ink hover:bg-ground"
     >
+      {render_slot(@icon)}
       <span class="min-w-0 grow truncate">{render_slot(@inner_block)}</span>
       <span :if={@count > 0} class="font-mono text-meta text-muted">{@count}</span>
       <Lucideicons.chevron_right aria-hidden="true" class="size-4 shrink-0 text-muted" />

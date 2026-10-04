@@ -112,32 +112,37 @@ defmodule Sikio.Library do
     by = sorted_by(filters)
     query = user_id |> filtered_entries(filters) |> behind(by, opts[:after])
 
-    Repo.all(
-      from e in query,
-        order_by: ^[desc_nulls_last: key(by), desc: dynamic([e], e.id)],
-        limit: ^Keyword.get(opts, :limit, 100)
-    )
+    order =
+      if by == :queue,
+        do: [asc: key(by), asc: dynamic([e], e.id)],
+        else: [desc_nulls_last: key(by), desc: dynamic([e], e.id)]
+
+    Repo.all(from e in query, order_by: ^order, limit: ^Keyword.get(opts, :limit, 100))
   end
 
   @doc """
-  The date a list with `filters` runs by: what is in progress by when it was last played, what is
-  finished by when it was finished, everything else by when it was published.
+  What a list with `filters` runs by: the queue by its own order, what was heard by when it was
+  heard, everything else by when it was published.
   """
   def sorted_by(filters) do
     case normalize_filters(filters)["status"] do
-      "in_progress" -> :played
-      "completed" -> :finished
+      "queue" -> :queue
+      "heard" -> :finished
       _ -> :published
     end
   end
 
   @doc "The date `entry` has in a list that runs `by` it, or nil when it has none."
   def sort_date(entry, :published), do: entry.published_at
-  def sort_date(%{playback: %{updated_at: at}}, :played), do: at
   def sort_date(%{playback: %{completed_at: at}}, :finished), do: at
   def sort_date(_entry, _by), do: nil
 
-  @doc "Whether `a` comes before `b` in a list that runs `by` a date: later first, undated last."
+  @doc """
+  Whether `a` comes before `b` in a list that runs `by` something: the queue first to last, a
+  date later first, undated last.
+  """
+  def before?(a, b, :queue), do: {rank(a), a.id} < {rank(b), b.id}
+
   def before?(a, b, by) do
     case {sort_date(a, by), sort_date(b, by)} do
       {nil, %DateTime{}} ->
@@ -151,12 +156,20 @@ defmodule Sikio.Library do
     end
   end
 
+  defp rank(%{playback: %{queue_rank: rank}}) when is_number(rank), do: rank
+  defp rank(_entry), do: :infinity
+
   defp key(:published), do: dynamic([e], e.published_at)
-  defp key(:played), do: dynamic([e, s, p], p.updated_at)
   defp key(:finished), do: dynamic([e, s, p], p.completed_at)
+  defp key(:queue), do: dynamic([e, s, p], p.queue_rank)
 
   # The entries after `entry` in the list's order, for loading the next batch.
   defp behind(query, _by, nil), do: query
+
+  defp behind(query, :queue, %{id: id} = entry) do
+    rank = rank(entry)
+    where(query, [e, s, p], p.queue_rank > ^rank or (p.queue_rank == ^rank and e.id > ^id))
+  end
 
   defp behind(query, by, %{id: id} = entry) do
     key = key(by)
@@ -181,21 +194,21 @@ defmodule Sikio.Library do
   def counts(%User{id: user_id}) do
     Repo.all(
       from [e, s, p] in scoped_entries(user_id),
-        group_by: [e.feed_id, p.status],
-        select: {e.feed_id, p.status, count(e.id)}
+        group_by: [e.feed_id, p.status, is_nil(p.queue_rank)],
+        select: {e.feed_id, p.status, is_nil(p.queue_rank), count(e.id)}
     )
-    |> Enum.map(fn {feed_id, status, count} ->
-      %{feed_id: feed_id, status: view(status || :new), count: count}
+    |> Enum.map(fn {feed_id, status, unqueued, count} ->
+      %{feed_id: feed_id, status: view(status, unqueued), count: count}
     end)
   end
 
-  # The views a list offers by status, against what is stored. The finished view shows what was
-  # heard; what was archived shows only among all items.
-  defp view(:heard), do: :completed
-  defp view(status), do: status
-
-  defp stored("completed"), do: :heard
-  defp stored(status), do: String.to_existing_atom(status)
+  # The list an entry shows in besides all items: the queue holds whatever stands in it, the inbox
+  # what is new beside it, the history what was heard. What is archived, or under way outside the
+  # queue, shows only among all items.
+  defp view(_status, false), do: :queue
+  defp view(status, true) when status in [nil, :new], do: :inbox
+  defp view(:heard, true), do: :heard
+  defp view(_status, true), do: :elsewhere
 
   @doc """
   How many items each link in the sidebar shows, under the filters in force.
@@ -216,12 +229,12 @@ defmodule Sikio.Library do
 
     # A source and a tag are places of their own, so each counts beside whichever is chosen.
     new_or_chosen =
-      beside.([:source, :tag]) |> Enum.filter(&(filters["status"] != "" or &1.status == :new))
+      beside.([:source, :tag]) |> Enum.filter(&(filters["status"] != "" or &1.status == :inbox))
 
     by_feed = sum_by(new_or_chosen, :feed_id)
 
-    %{all: 0, new: 0, in_progress: 0, completed: 0}
-    |> Map.merge(sum_by(beside.([:status]), :status))
+    %{all: 0, inbox: 0, queue: 0, heard: 0}
+    |> Map.merge(Map.take(sum_by(beside.([:status]), :status), [:inbox, :queue, :heard]))
     |> Map.update!(:all, fn _ -> beside.([:status]) |> Enum.map(& &1.count) |> Enum.sum() end)
     |> Map.put(:sources, Map.merge(sources, by_feed))
     |> Map.put(
@@ -294,7 +307,7 @@ defmodule Sikio.Library do
   """
   def normalize_filters(params) do
     %{
-      "status" => choice(params["status"], ~w(new in_progress completed)),
+      "status" => params["status"] |> renamed() |> choice(~w(inbox queue heard)),
       "source" => source_id(params["source"]),
       "tag" => source_id(params["tag"]),
       "q" => search_text(params["q"])
@@ -304,6 +317,12 @@ defmodule Sikio.Library do
   # What was typed, trimmed and of a length worth asking for.
   defp search_text(text) when is_binary(text), do: text |> String.trim() |> String.slice(0, 100)
   defp search_text(_text), do: ""
+
+  # The lists' names before the inbox, which old addresses and links still carry.
+  defp renamed("new"), do: "inbox"
+  defp renamed("in_progress"), do: "queue"
+  defp renamed("completed"), do: "heard"
+  defp renamed(status), do: status
 
   defp choice(value, values), do: if(value in values, do: value, else: "")
 
@@ -332,10 +351,18 @@ defmodule Sikio.Library do
 
     query =
       case filters["status"] do
-        "" -> query
+        "" ->
+          query
+
         # An entry nobody has opened has no row at all, which is the same thing as new.
-        "new" -> where(query, [e, s, p], is_nil(p.id) or p.status == :new)
-        status -> where(query, [e, s, p], p.status == ^stored(status))
+        "inbox" ->
+          where(query, [e, s, p], (is_nil(p.id) or p.status == :new) and is_nil(p.queue_rank))
+
+        "queue" ->
+          where(query, [e, s, p], not is_nil(p.queue_rank))
+
+        "heard" ->
+          where(query, [e, s, p], p.status == :heard)
       end
 
     matching(query, filters["q"])

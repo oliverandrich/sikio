@@ -115,7 +115,7 @@ defmodule SikioWeb.PlayerTest do
     |> open(item_path(entry))
     |> click(css("#start-playback"))
     |> assert_has(css("#player-panel"))
-    |> click(css("#tab-new"))
+    |> click(css("#tab-inbox"))
     |> assert_has(css(~s|#player-panel[data-place="floating"]|))
     |> execute_script(padding(), fn padding -> refute padding == "0px" end)
     |> press("close-player")
@@ -458,9 +458,10 @@ defmodule SikioWeb.PlayerTest do
       {:ok, subscription} = Library.subscribe(account, %{preview | entries: entries})
       [first, second] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
 
+      # All items: playing moves an item from the inbox into the queue.
       session
       |> resize_window(1280, 900)
-      |> open("/new")
+      |> open("/all")
       |> click(css("#entries-#{first.id} a"))
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-control[data-entry-id="#{first.id}"]|))
@@ -468,9 +469,9 @@ defmodule SikioWeb.PlayerTest do
       |> assert_has(css(~s|#player-panel[data-place="compact"] .player-title|))
       |> click(css("#player-panel .player-title"))
       |> assert_has(css("#item-detail h2", text: "Part 1"))
-      |> assert_has(css("#library-heading", text: "New"))
+      |> assert_has(css("#library-heading", text: "All items"))
       |> then(fn session ->
-        assert current_path(session) == "/new/#{first.id}-part-1"
+        assert current_path(session) == "/all/#{first.id}-part-1"
         session
       end)
     end

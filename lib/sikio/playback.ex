@@ -47,12 +47,14 @@ defmodule Sikio.Playback do
   A place comes from a browser: the card's player can be dragged before anything loads. It is
   checked like a sample, and one that is not a place in an episode starts at the beginning.
   """
-  def start(account, id, at \\ nil) do
+  def start(%User{id: user_id} = account, id, at \\ nil) do
     change(account, id, fn state ->
       [
         session_id: Ecto.UUID.generate(),
         sequence: 0,
-        position: starting_at(state, at)
+        position: starting_at(state, at),
+        # As in Castro, what plays stands at the head of the queue unless it stands in it already.
+        queue_rank: state.queue_rank || rank(user_id, :first)
       ]
     end)
   end
@@ -89,18 +91,17 @@ defmodule Sikio.Playback do
   end
 
   @doc "Puts the entry into the queue, before everything in it or after it."
-  def enqueue(%User{id: user_id} = account, id, at) when at in [:first, :last] do
-    change(account, id, fn _state ->
-      ranks = from(p in State, where: p.user_id == ^user_id and not is_nil(p.queue_rank))
+  def enqueue(%User{id: user_id} = account, id, at) when at in [:first, :last],
+    do: change(account, id, fn _state -> [queue_rank: rank(user_id, at)] end)
 
-      rank =
-        case at do
-          :first -> (Repo.one(from p in ranks, select: min(p.queue_rank)) || 1.0) - 1.0
-          :last -> (Repo.one(from p in ranks, select: max(p.queue_rank)) || 0.0) + 1.0
-        end
+  # A rank before everything in the account's queue, or after it.
+  defp rank(user_id, at) do
+    ranks = from(p in State, where: p.user_id == ^user_id and not is_nil(p.queue_rank))
 
-      [queue_rank: rank]
-    end)
+    case at do
+      :first -> (Repo.one(from p in ranks, select: min(p.queue_rank)) || 1.0) - 1.0
+      :last -> (Repo.one(from p in ranks, select: max(p.queue_rank)) || 0.0) + 1.0
+    end
   end
 
   @doc "Takes the entry out of the queue."

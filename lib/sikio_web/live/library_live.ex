@@ -48,7 +48,7 @@ defmodule SikioWeb.LibraryLive do
        deleting: nil,
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket)),
-       tab: :new
+       tab: :inbox
      )}
   end
 
@@ -152,6 +152,9 @@ defmodule SikioWeb.LibraryLive do
   end
 
   # The list's rows with a heading wherever the date group changes, by the date the list runs by.
+  # The queue runs by its own order and has no dates to group by.
+  defp grouped(entries, %{"status" => "queue"}, _offset), do: Enum.map(entries, &{:entry, &1})
+
   defp grouped(entries, filters, offset) do
     by = Library.sorted_by(filters)
     now = DateTime.utc_now()
@@ -245,12 +248,12 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # A phone's tab: searching is Search, what is new and what is in progress are their own tabs,
-  # every other place is the Library's.
+  # A phone's tab: searching is Search, the inbox and the queue are their own tabs, every other
+  # place is the Library's.
   defp tab("/search", _filters), do: :search
   defp tab(_path, %{"q" => q}) when q != "", do: :search
-  defp tab(_path, %{"status" => "new", "source" => "", "tag" => ""}), do: :new
-  defp tab(_path, %{"status" => "in_progress", "source" => "", "tag" => ""}), do: :in_progress
+  defp tab(_path, %{"status" => "inbox", "source" => "", "tag" => ""}), do: :inbox
+  defp tab(_path, %{"status" => "queue", "source" => "", "tag" => ""}), do: :queue
   defp tab(_path, _filters), do: :library
 
   attr :filters, :map, required: true
@@ -276,15 +279,15 @@ defmodule SikioWeb.LibraryLive do
   defp nothing(%{"q" => q}) when q not in [nil, ""],
     do: {gettext("Nothing matches “%{query}”.", query: q), nil}
 
-  defp nothing(%{"status" => "new"}),
+  defp nothing(%{"status" => "inbox"}),
     do: {gettext("Nothing new."), gettext("You’re all caught up.")}
 
-  defp nothing(%{"status" => "in_progress"}),
+  defp nothing(%{"status" => "queue"}),
     do:
-      {gettext("Nothing in progress."),
-       gettext("What you start playing waits here, so you can go on with it.")}
+      {gettext("Nothing in the queue."),
+       gettext("What you play or queue waits here, in your order.")}
 
-  defp nothing(%{"status" => "completed"}), do: {gettext("Nothing finished yet."), nil}
+  defp nothing(%{"status" => "heard"}), do: {gettext("Nothing heard yet."), nil}
 
   defp nothing(_filters),
     do: {gettext("No items yet."), gettext("New items arrive as your sources publish them.")}
@@ -563,7 +566,7 @@ defmodule SikioWeb.LibraryLive do
     {:noreply,
      socket
      |> assign(:deleting, nil)
-     |> push_patch(to: SikioWeb.Sidebar.place_path("status", "new"))}
+     |> push_patch(to: SikioWeb.Sidebar.place_path("status", "inbox"))}
   end
 
   # A source is left after a question that names it, from the subscription the sidebar holds.
@@ -586,7 +589,7 @@ defmodule SikioWeb.LibraryLive do
         {:noreply,
          socket
          |> assign(:unsubscribing, nil)
-         |> push_patch(to: SikioWeb.Sidebar.place_path("status", "new"))}
+         |> push_patch(to: SikioWeb.Sidebar.place_path("status", "inbox"))}
 
       _ ->
         {:noreply,
@@ -612,12 +615,27 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  def handle_event("mark", %{"id" => id, "status" => status}, socket)
-      when status in ["new", "heard"] do
-    status = String.to_existing_atom(status)
+  def handle_event("queue", %{"id" => id, "at" => at}, socket) when at in ["first", "last"],
+    do:
+      changed(
+        socket,
+        Playback.enqueue(socket.assigns.current_account, id, String.to_existing_atom(at))
+      )
 
-    # The change is broadcast, and the broadcast reloads the list along with the sidebar.
-    case Playback.mark(socket.assigns.current_account, id, status) do
+  def handle_event("dequeue", %{"id" => id}, socket),
+    do: changed(socket, Playback.dequeue(socket.assigns.current_account, id))
+
+  def handle_event("mark", %{"id" => id, "status" => status}, socket)
+      when status in ["new", "heard", "archived"],
+      do:
+        changed(
+          socket,
+          Playback.mark(socket.assigns.current_account, id, String.to_existing_atom(status))
+        )
+
+  # The change is broadcast, and the broadcast reloads the list along with the sidebar.
+  defp changed(socket, result) do
+    case result do
       {:ok, _} ->
         {:noreply, socket}
 
@@ -865,7 +883,7 @@ defmodule SikioWeb.LibraryLive do
                 <div class="ml-auto flex shrink-0 items-center gap-2">
                   <%!-- An empty list or one of finished items has nothing to offer the double check. --%>
                   <button
-                    :if={@total > 0 and @filters["status"] != "completed"}
+                    :if={@total > 0 and @filters["status"] not in ["queue", "heard"]}
                     id="mark-all"
                     type="button"
                     aria-label={gettext("Archive all")}
@@ -1105,7 +1123,7 @@ defmodule SikioWeb.LibraryLive do
               >
                 <.segments label={gettext("Status")}>
                   <.segment
-                    :for={{value, key, label} <- views()}
+                    :for={{value, key, label} <- segments()}
                     id={"filter-status-#{key}"}
                     to={
                       SikioWeb.Sidebar.library_path(
@@ -1317,6 +1335,28 @@ defmodule SikioWeb.LibraryLive do
   end
 
   attr :id, :string, required: true
+  attr :event, :string, required: true
+  attr :at, :string, default: nil
+  attr :entry, :map, required: true
+  slot :inner_block, required: true
+
+  # A way into the queue or out of it, beneath the card's head.
+  defp queue_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      phx-click={@event}
+      phx-value-id={@entry.id}
+      phx-value-at={@at}
+      class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 font-semibold text-ink hover:bg-ground focus-visible:outline-2 focus-visible:outline-accent"
+    >
+      {render_slot(@inner_block)}
+    </button>
+    """
+  end
+
+  attr :id, :string, required: true
   attr :label, :string, required: true
   attr :href, :string, default: nil
   attr :rest, :global, include: ~w(target rel)
@@ -1458,6 +1498,7 @@ defmodule SikioWeb.LibraryLive do
     assigns =
       assign(assigns,
         status: status(entry),
+        queued: match?(%{playback: %{queue_rank: rank}} when not is_nil(rank), entry),
         runtime: runtime(length_of(entry)),
         original: original(entry)
       )
@@ -1507,14 +1548,24 @@ defmodule SikioWeb.LibraryLive do
             <:icon><Lucideicons.check aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
           <.card_action
+            :if={@status not in [:heard, :archived]}
+            id="archive"
+            label={gettext("Archive")}
+            phx-click="mark"
+            phx-value-id={@entry.id}
+            phx-value-status="archived"
+          >
+            <:icon><Lucideicons.archive aria-hidden="true" class="size-4.5" /></:icon>
+          </.card_action>
+          <.card_action
             :if={@status in [:heard, :archived]}
             id="mark-new"
-            label={mark_new_label(@entry)}
+            label={gettext("Back to the inbox")}
             phx-click="mark"
             phx-value-id={@entry.id}
             phx-value-status="new"
           >
-            <:icon><Lucideicons.rotate_ccw aria-hidden="true" class="size-4.5" /></:icon>
+            <:icon><Lucideicons.archive_restore aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
           <.card_action
             :if={@original}
@@ -1527,6 +1578,22 @@ defmodule SikioWeb.LibraryLive do
             <:icon><Lucideicons.external_link aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
         </div>
+      </div>
+      <%!-- Where the item stands in the queue, and the way in or out of it. --%>
+      <div id="item-queue" class="flex flex-wrap items-center gap-2 text-label">
+        <span :if={@queued} class="inline-flex items-center gap-1.5 font-semibold text-accent">
+          <Lucideicons.list_ordered aria-hidden="true" class="size-4" />
+          {gettext("In the queue")}
+        </span>
+        <.queue_button :if={@queued} id="dequeue" event="dequeue" entry={@entry}>
+          <Lucideicons.list_x aria-hidden="true" class="size-4" />{gettext("Remove")}
+        </.queue_button>
+        <.queue_button :if={!@queued} id="queue-first" event="queue" at="first" entry={@entry}>
+          <Lucideicons.list_start aria-hidden="true" class="size-4" />{gettext("Play next")}
+        </.queue_button>
+        <.queue_button :if={!@queued} id="queue-last" event="queue" at="last" entry={@entry}>
+          <Lucideicons.list_end aria-hidden="true" class="size-4" />{gettext("Play last")}
+        </.queue_button>
       </div>
       <%!-- The player's place. The dock lays the playing player over it; until then it shows what
       would play and loads nothing from anybody else. See assets/js/dock_place.mjs. --%>

@@ -63,10 +63,15 @@ defmodule SikioWeb.Sidebar do
     })
   end
 
-  # A status as the address spells it. What is new is the place without a status, at the
-  # library's front as within a source, and every item is `all`.
-  @statuses %{"new" => "new", "in_progress" => "in-progress", "completed" => "completed"}
+  # A list as the address spells it. The inbox is the place without one within a source or a tag,
+  # and every item is `all`. The segments from before the inbox still read as what they meant.
+  @statuses %{"inbox" => "inbox", "queue" => "queue", "heard" => "history"}
   @status_segments Map.new(@statuses, fn {status, segment} -> {segment, status} end)
+                   |> Map.merge(%{
+                     "new" => "inbox",
+                     "in-progress" => "queue",
+                     "completed" => "heard"
+                   })
 
   @doc """
   The library's address: the list on screen as a path, the item shown beside it appended.
@@ -76,9 +81,9 @@ defmodule SikioWeb.Sidebar do
   source's number to its title, and `item` is an entry, an id or nil. A search is a filter
   within a list and stays in the query.
 
-      /new  /in-progress  /completed  /all
+      /inbox  /queue  /history  /all
       /feeds/106-metacheles-tonspur  /feeds/106-metacheles-tonspur/all
-      /new/4056-ki-verfassung  /feeds/106-metacheles-tonspur/4056-ki-verfassung
+      /inbox/4056-ki-verfassung  /feeds/106-metacheles-tonspur/4056-ki-verfassung
 
   Built by hand rather than with `~p`: the router declares every shape, and this module is
   where an address is spelled and read.
@@ -97,7 +102,7 @@ defmodule SikioWeb.Sidebar do
   # A source and a tag are places of their own, beneath which a status narrows the list.
   defp place(filters, titles) do
     status = Map.get(@statuses, filters["status"])
-    within = if status == "new", do: [], else: [status || "all"]
+    within = if status == "inbox", do: [], else: [status || "all"]
 
     cond do
       (filters["source"] || "") != "" ->
@@ -151,10 +156,10 @@ defmodule SikioWeb.Sidebar do
     {place, item} =
       case String.split(path, "/", trim: true) do
         [] ->
-          {%{"status" => "new"}, nil}
+          {%{"status" => "inbox"}, nil}
 
         [place, named] when place in ["feeds", "tags"] ->
-          {within(place, named, "new"), nil}
+          {within(place, named, "inbox"), nil}
 
         [place, named, segment] when place in ["feeds", "tags"] ->
           below(place, named, segment)
@@ -172,11 +177,11 @@ defmodule SikioWeb.Sidebar do
     {Library.normalize_filters(Map.merge(Map.take(query, ["q"]), place)), item}
   end
 
-  # Below a source or a tag the next segment is a status, or else an item of what is new.
+  # Below a source or a tag the next segment is a list, or else an item of its inbox.
   defp below(place, named, segment) do
     if Map.has_key?(@status_segments, segment) or segment == "all",
       do: {within(place, named, segment), nil},
-      else: {within(place, named, "new"), item_id(segment)}
+      else: {within(place, named, "inbox"), item_id(segment)}
   end
 
   defp within("feeds", feed, status), do: %{"source" => number(feed), "status" => status(status)}
@@ -202,12 +207,12 @@ defmodule SikioWeb.Sidebar do
   The library's address for one place: a view by its status, a source or a tag.
 
   The sidebar and the phone's chips are where the reader is, not filters to combine, so nothing
-  chosen before comes along. A source or a tag opens on what is new in it, as the library does.
+  chosen before comes along. A source or a tag opens on its inbox, as the library does.
   """
   def place_path(key, value, feed_titles \\ %{})
 
   def place_path(key, value, feed_titles) when key in ["source", "tag"],
-    do: library_path(%{key => value, "status" => "new"}, nil, feed_titles)
+    do: library_path(%{key => value, "status" => "inbox"}, nil, feed_titles)
 
   def place_path(key, value, feed_titles), do: library_path(%{key => value}, nil, feed_titles)
 

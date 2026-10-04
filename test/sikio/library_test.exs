@@ -68,8 +68,8 @@ defmodule Sikio.LibraryTest do
     Library.subscribe(ctx.alice, video)
     Library.subscribe(ctx.bob, ctx.preview)
     Playback.mark(ctx.bob, audio.id, :heard)
-    assert length(Library.entries(ctx.alice, %{"status" => "new"})) == 2
-    assert Library.entries(ctx.alice, %{"status" => "completed"}) == []
+    assert length(Library.entries(ctx.alice, %{"status" => "inbox"})) == 2
+    assert Library.entries(ctx.alice, %{"status" => "heard"}) == []
     assert [item] = Library.entries(ctx.alice, %{"source" => to_string(sub.feed_id)})
     assert item.id == audio.id
     {:ok, state} = Playback.start(ctx.alice, audio.id)
@@ -81,15 +81,22 @@ defmodule Sikio.LibraryTest do
       "ended" => false
     })
 
+    # Playing an item puts it into the queue, out of the inbox.
     assert [%{id: id}] =
-             Library.entries(ctx.alice, %{
-               "status" => "in_progress",
-               "source" => to_string(sub.feed_id)
-             })
+             Library.entries(ctx.alice, %{"status" => "queue", "source" => to_string(sub.feed_id)})
 
     assert id == audio.id
+    assert length(Library.entries(ctx.alice, %{"status" => "inbox"})) == 1
     Playback.mark(ctx.alice, audio.id, :new)
-    assert length(Library.entries(ctx.alice, %{"status" => "new"})) == 2
+    assert length(Library.entries(ctx.alice, %{"status" => "inbox"})) == 2
+    assert Library.entries(ctx.alice, %{"status" => "queue"}) == []
+  end
+
+  # Addresses and links from before the inbox still name the list they meant.
+  test "the old names of the lists still name them" do
+    for {old, new} <- [{"new", "inbox"}, {"in_progress", "queue"}, {"completed", "heard"}] do
+      assert Library.normalize_filters(%{"status" => old})["status"] == new
+    end
   end
 
   test "filters before applying the latest-100 limit and orders ties consistently", ctx do
@@ -103,12 +110,12 @@ defmodule Sikio.LibraryTest do
     assert Enum.map(newest, & &1.id) == Enum.sort(Enum.map(newest, & &1.id), :desc)
     oldest = Repo.one!(from e in Entry, order_by: [asc: e.id], limit: 1)
     Playback.mark(ctx.alice, oldest.id, :heard)
-    assert [%{id: id}] = Library.entries(ctx.alice, %{"status" => "completed"})
+    assert [%{id: id}] = Library.entries(ctx.alice, %{"status" => "heard"})
     assert id == oldest.id
   end
 
-  # New and all items run by publication. What is in progress runs by when it was last played,
-  # what is finished by when it was finished, and loading more follows the same order.
+  # The inbox and all items run by publication, the queue by its own order first to last, what
+  # was heard by when it was heard, and loading more follows the same order.
   test "each list sorts by its own date, and loading more follows it", ctx do
     episodes =
       for {n, day} <- [{1, 3}, {2, 2}, {3, 1}],
@@ -123,20 +130,15 @@ defmodule Sikio.LibraryTest do
     ids = Map.new(Library.entries(ctx.alice), &{&1.title, &1.id})
     titles = fn entries -> Enum.map(entries, & &1.title) end
 
-    # Episode 3 was published first, played last and finished first.
-    for {title, minute} <- [{"Episode 3", 30}, {"Episode 1", 20}, {"Episode 2", 10}] do
-      Playback.start(ctx.alice, ids[title])
-
-      Repo.update_all(from(p in Sikio.Playback.State, where: p.entry_id == ^ids[title]),
-        set: [status: :in_progress, session_id: nil, updated_at: at(minute)]
-      )
-    end
+    # Episode 3 was published first, queued first and heard first.
+    for title <- ["Episode 3", "Episode 1", "Episode 2"],
+        do: {:ok, _} = Playback.enqueue(ctx.alice, ids[title], :last)
 
     assert titles.(Library.entries(ctx.alice)) == ["Episode 1", "Episode 2", "Episode 3"]
-    played = Library.entries(ctx.alice, %{"status" => "in_progress"})
-    assert titles.(played) == ["Episode 3", "Episode 1", "Episode 2"]
+    queued = Library.entries(ctx.alice, %{"status" => "queue"})
+    assert titles.(queued) == ["Episode 3", "Episode 1", "Episode 2"]
 
-    assert titles.(Library.entries(ctx.alice, %{"status" => "in_progress"}, after: hd(played))) ==
+    assert titles.(Library.entries(ctx.alice, %{"status" => "queue"}, after: hd(queued))) ==
              ["Episode 1", "Episode 2"]
 
     for {title, minute} <- [{"Episode 3", 5}, {"Episode 1", 50}, {"Episode 2", 40}] do
@@ -145,12 +147,10 @@ defmodule Sikio.LibraryTest do
       )
     end
 
-    finished = Library.entries(ctx.alice, %{"status" => "completed"})
-    assert titles.(finished) == ["Episode 1", "Episode 2", "Episode 3"]
+    heard = Library.entries(ctx.alice, %{"status" => "heard"})
+    assert titles.(heard) == ["Episode 1", "Episode 2", "Episode 3"]
 
-    assert titles.(
-             Library.entries(ctx.alice, %{"status" => "completed"}, after: Enum.at(finished, 1))
-           ) ==
+    assert titles.(Library.entries(ctx.alice, %{"status" => "heard"}, after: Enum.at(heard, 1))) ==
              ["Episode 3"]
   end
 
@@ -314,8 +314,9 @@ defmodule Sikio.LibraryTest do
 
       counts = ctx.alice |> Library.counts() |> Library.tally(%{})
 
-      assert Map.take(counts, [:all, :new, :in_progress, :completed]) ==
-               %{all: 3, new: 1, in_progress: 1, completed: 1}
+      # Played, the video stands in the queue.
+      assert Map.take(counts, [:all, :inbox, :queue, :heard]) ==
+               %{all: 3, inbox: 1, queue: 1, heard: 1}
 
       assert counts.sources == %{
                entries.podcast.feed_id => 0,
@@ -331,19 +332,19 @@ defmodule Sikio.LibraryTest do
       {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :heard)
       rows = Library.counts(ctx.alice)
 
-      finished = Library.tally(rows, %{"status" => "completed"})
-      assert Map.take(finished, [:all, :new, :completed]) == %{all: 3, new: 2, completed: 1}
-      assert finished.sources[entries.podcast.feed_id] == 1
-      assert finished.sources[entries.youtube.feed_id] == 0
+      heard = Library.tally(rows, %{"status" => "heard"})
+      assert Map.take(heard, [:all, :inbox, :heard]) == %{all: 3, inbox: 2, heard: 1}
+      assert heard.sources[entries.podcast.feed_id] == 1
+      assert heard.sources[entries.youtube.feed_id] == 0
     end
 
     test "an account without sources counts nothing", ctx do
       assert ctx.bob |> Library.counts() |> Library.tally(%{}) ==
                %{
                  all: 0,
-                 new: 0,
-                 in_progress: 0,
-                 completed: 0,
+                 inbox: 0,
+                 queue: 0,
+                 heard: 0,
                  sources: %{},
                  tags: %{}
                }

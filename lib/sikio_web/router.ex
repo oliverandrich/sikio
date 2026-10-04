@@ -92,6 +92,13 @@ defmodule SikioWeb.Router do
       ] do
       # The library's places and the item shown in one; see SikioWeb.Sidebar.library_path/3.
       live "/", LibraryLive, :index
+      live "/inbox", LibraryLive, :index
+      live "/inbox/:item", LibraryLive, :index
+      live "/queue", LibraryLive, :index
+      live "/queue/:item", LibraryLive, :index
+      live "/history", LibraryLive, :index
+      live "/history/:item", LibraryLive, :index
+      # The addresses from before the inbox, which the library spells anew.
       live "/new", LibraryLive, :index
       live "/new/:item", LibraryLive, :index
       live "/in-progress", LibraryLive, :index

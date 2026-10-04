@@ -129,6 +129,23 @@ defmodule Sikio.PlaybackTest do
     end
   end
 
+  # As in Castro, playing an item puts it at the head of the queue unless it stands there already.
+  test "playing an item queues it first, and leaves a queued one where it is", c do
+    entries =
+      for n <- 1..2, do: %{hd(c.preview.entries) | external_id: "p#{n}", title: "Played #{n}"}
+
+    {:ok, _} = Library.subscribe(c.alice, %{c.preview | entries: entries})
+    id = &Repo.one!(from e in Entry, where: e.title == ^&1, select: e.id)
+
+    {:ok, _} = Playback.enqueue(c.alice, id.("Played 1"), :last)
+    {:ok, _} = Playback.enqueue(c.alice, id.("Played 2"), :last)
+    {:ok, _} = Playback.start(c.alice, c.entry.id)
+    assert Playback.queue(c.alice) == [c.entry.id, id.("Played 1"), id.("Played 2")]
+
+    {:ok, _} = Playback.start(c.alice, id.("Played 2"))
+    assert Playback.queue(c.alice) == [c.entry.id, id.("Played 1"), id.("Played 2")]
+  end
+
   # What was put aside and is played after all is under way again.
   test "an archived item played again is in progress", c do
     {:ok, _} = Playback.mark(c.alice, c.entry.id, :archived)

@@ -155,7 +155,7 @@ defmodule SikioWeb.Layouts do
 
   attr :tab, :atom,
     default: nil,
-    values: [nil, :new, :in_progress, :library, :search],
+    values: [nil, :inbox, :queue, :library, :search],
     doc:
       "the phone's tab the page belongs to; the library's own pages and the subscriptions are the library's"
 
@@ -319,8 +319,11 @@ defmodule SikioWeb.Layouts do
               to={SikioWeb.Sidebar.place_path("status", status)}
               patch={@patch}
               active={@patch and SikioWeb.Sidebar.place?(@filters, "status", status)}
-              count={@counts[key]}
+              count={if(key == :heard, do: 0, else: @counts[key])}
             >
+              <:mark>
+                <SikioWeb.MediaComponents.view_icon view={key} class="size-4 shrink-0" />
+              </:mark>
               {label}
             </.sidebar_link>
           </nav>
@@ -418,16 +421,11 @@ defmodule SikioWeb.Layouts do
           class="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--nav-bar)+var(--safe-bottom))] items-stretch justify-around border-t border-line bg-ground/85 pb-[var(--safe-bottom)] backdrop-blur-md lg:hidden"
           aria-label={gettext("Main navigation")}
         >
-          <.tab id="tab-new" to={~p"/new"} current={@tab == :new} label={gettext("New")}>
-            <Lucideicons.sparkles aria-hidden="true" class="size-6" />
+          <.tab id="tab-inbox" to={~p"/inbox"} current={@tab == :inbox} label={gettext("Inbox")}>
+            <Lucideicons.inbox aria-hidden="true" class="size-6" />
           </.tab>
-          <.tab
-            id="tab-in-progress"
-            to={~p"/in-progress"}
-            current={@tab == :in_progress}
-            label={gettext("In progress")}
-          >
-            <Lucideicons.circle_play aria-hidden="true" class="size-6" />
+          <.tab id="tab-queue" to={~p"/queue"} current={@tab == :queue} label={gettext("Queue")}>
+            <Lucideicons.list_ordered aria-hidden="true" class="size-6" />
           </.tab>
           <.tab
             id="tab-library"

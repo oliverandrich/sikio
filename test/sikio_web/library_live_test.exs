@@ -45,12 +45,12 @@ defmodule SikioWeb.LibraryLiveTest do
 
   # The mini player's title shows what plays in the list on screen, or else in its source.
   test "showing what plays keeps the list when it holds the item", c do
-    {:ok, view, _} = live(c.conn, ~p"/new")
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
     render_hook(view, "show", %{"id" => c.audio.id})
-    assert_patch(view, "/new/#{c.audio.id}-one-two")
+    assert_patch(view, "/inbox/#{c.audio.id}-one-two")
 
     Playback.mark(c.user, c.audio.id, :heard)
-    {:ok, view, _} = live(c.conn, ~p"/new")
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
     render_hook(view, "show", %{"id" => c.audio.id})
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/all/#{c.audio.id}-one-two")
 
@@ -63,7 +63,7 @@ defmodule SikioWeb.LibraryLiveTest do
   test "marking and changes from another tab keep filtered membership current", c do
     [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
     Playback.mark(c.user, video.id, :heard)
-    {:ok, view, _} = live(c.conn, "/new/#{c.audio.id}-one-two")
+    {:ok, view, _} = live(c.conn, "/inbox/#{c.audio.id}-one-two")
     view |> element("#mark-completed") |> render_click()
     refute has_element?(view, "#entries-#{c.audio.id}")
     refute has_element?(view, "#entries article")
@@ -110,19 +110,20 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, preview} = Parser.parse(podcast(), c.podcast_url)
     Library.subscribe(other, preview)
     # Nonsense in an address is set right, here to the library's front.
-    {:ok, view, _} = c.conn |> live("/feeds/oops?kind=invalid") |> follow_redirect(c.conn, "/new")
+    {:ok, view, _} =
+      c.conn |> live("/feeds/oops?kind=invalid") |> follow_redirect(c.conn, "/inbox")
 
     # Both halves matter. Their write has to land, or this proves only that a stranger cannot
     # write, which is a different test and one that passes for the wrong reason.
     assert {:ok, %{status: :heard}} = Playback.mark(other, c.audio.id, :heard)
     assert has_element?(view, "#entries-#{c.audio.id}", "New")
-    {:ok, reloaded, _} = live(c.conn, ~p"/new")
+    {:ok, reloaded, _} = live(c.conn, ~p"/inbox")
     assert has_element?(reloaded, "#entries-#{c.audio.id}", "New")
   end
 
   # Within its own source a row does not repeat the source's name; everywhere else it names it.
   test "a row names its source except within that source", c do
-    {:ok, view, _} = live(c.conn, ~p"/new")
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
     assert has_element?(view, "#entries-#{c.audio.id} [data-source]", "Small Hours")
 
     {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
@@ -145,7 +146,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
   # No list is narrowed by medium. An old address that names one is set right and narrows nothing.
   test "no list offers a medium filter", c do
-    {:ok, view, _} = c.conn |> live("/new?kind=video") |> follow_redirect(c.conn, "/new")
+    {:ok, view, _} = c.conn |> live("/inbox?kind=video") |> follow_redirect(c.conn, "/inbox")
     refute has_element?(view, "[id^=filter-kind]")
     assert has_element?(view, "#entries article", "A good video")
     assert has_element?(view, "#entries article", "One & two")
@@ -154,9 +155,9 @@ defmodule SikioWeb.LibraryLiveTest do
   # An empty list says what it would hold, in a word fitting the place, and gives no advice.
   test "an empty list says so in its own words", c do
     for {path, words} <- [
-          {"/in-progress", "Nothing in progress."},
-          {"/completed", "Nothing finished yet."},
-          {"/feeds/#{c.sub.feed_id}-small-hours/in-progress", "Nothing in progress."},
+          {"/queue", "Nothing in the queue."},
+          {"/history", "Nothing heard yet."},
+          {"/feeds/#{c.sub.feed_id}-small-hours/history", "Nothing heard yet."},
           {"/all?q=nowhere", "Nothing matches “nowhere”."}
         ] do
       {:ok, view, _} = live(c.conn, path)
@@ -164,31 +165,31 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#list-empty", words), path
     end
 
-    {:ok, view, _} = live(c.conn, ~p"/new")
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
     assert has_element?(view, "#entries article")
     refute has_element?(view, "#list-empty")
 
     for entry <- Library.entries(c.user), do: Sikio.Playback.mark(c.user, entry.id, :heard)
-    {:ok, view, _} = live(c.conn, ~p"/new")
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
     assert has_element?(view, "#list-empty", "You’re all caught up.")
   end
 
   # Within a source the statuses are a filter; elsewhere they are the place itself.
   test "a chosen source filters by status, other places do not offer it", c do
     Playback.mark(c.user, c.audio.id, :heard)
-    {:ok, view, _} = live(c.conn, ~p"/new")
-    refute has_element?(view, "#filter-status-completed")
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
+    refute has_element?(view, "#filter-status-heard")
 
     # A source opens on what is new in it, and says so.
     {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
-    assert has_element?(view, ~s|#filter-status-new[aria-current="true"]|)
+    assert has_element?(view, ~s|#filter-status-inbox[aria-current="true"]|)
     refute has_element?(view, "#filter-kind-video")
-    view |> element("#filter-status-completed") |> render_click()
-    assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/completed")
+    view |> element("#filter-status-heard") |> render_click()
+    assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/history")
     assert has_element?(view, "#entries article", "One & two")
     assert has_element?(view, "#source-#{c.sub.feed_id}[aria-current=page]")
 
-    view |> element("#filter-status-new") |> render_click()
+    view |> element("#filter-status-inbox") |> render_click()
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours")
     refute has_element?(view, "#entries article", "One & two")
 
@@ -200,10 +201,10 @@ defmodule SikioWeb.LibraryLiveTest do
   # The magnifier opens a field that searches the place as it is filtered. What was typed is in
   # the address; Escape clears it, and another place starts without it.
   test "a search narrows the place and counts what it finds", c do
-    {:ok, view, _} = live(c.conn, ~p"/new")
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
 
     view |> form("#search-form", %{q: "good"}) |> render_change()
-    assert_patch(view, "/new?q=good")
+    assert_patch(view, "/inbox?q=good")
     assert has_element?(view, "#entries article", "A good video")
     refute has_element?(view, "#entries article", "One & two")
     assert has_element?(view, "#library-count", "1 item")
@@ -211,9 +212,9 @@ defmodule SikioWeb.LibraryLiveTest do
 
     # Escape in the field sends this; the browser test presses the key itself.
     render_hook(view, "close_search", %{})
-    assert_patch(view, "/new")
+    assert_patch(view, "/inbox")
 
-    {:ok, view, _} = live(c.conn, ~p"/new?q=good")
+    {:ok, view, _} = live(c.conn, ~p"/inbox?q=good")
     view |> element("#view-all") |> render_click()
     assert_patch(view, "/all")
   end
@@ -254,7 +255,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
   # Choosing another place starts it unfiltered.
   test "a new place drops the filters of the last", c do
-    {:ok, view, _} = live(c.conn, ~p"/new?q=one")
+    {:ok, view, _} = live(c.conn, ~p"/inbox?q=one")
     view |> element("#view-all") |> render_click()
     assert_patch(view, "/all")
   end
@@ -309,10 +310,10 @@ defmodule SikioWeb.LibraryLiveTest do
   # of finished items has nothing to offer it.
   describe "marking a list finished" do
     test "asks first, and a cancel changes nothing", c do
-      {:ok, view, _} = live(c.conn, ~p"/completed")
+      {:ok, view, _} = live(c.conn, ~p"/history")
       refute has_element?(view, "#mark-all")
 
-      {:ok, view, _} = live(c.conn, ~p"/new")
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
       refute has_element?(view, "#mark-all-confirm")
       view |> element("#mark-all") |> render_click()
       assert has_element?(view, "dialog#mark-all-confirm", "2 items in this list")
@@ -371,7 +372,7 @@ defmodule SikioWeb.LibraryLiveTest do
     test "stand above the subscriptions and open as places", c do
       {:ok, [tech]} = Sikio.Tags.set(c.user, c.sub.id, ["Tech"])
 
-      {:ok, view, html} = live(c.conn, ~p"/new")
+      {:ok, view, html} = live(c.conn, ~p"/inbox")
       assert html =~ ~r/id="tags-heading".*id="sources-heading"/s
       assert has_element?(view, "#tag-#{tech.id}", "Tech")
       assert has_element?(view, "#tag-#{tech.id}-count", "1")
@@ -382,7 +383,7 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#entries article", "One & two")
       refute has_element?(view, "#entries article", "A good video")
       assert has_element?(view, ~s|#tag-#{tech.id}[aria-current="page"]|)
-      assert has_element?(view, ~s|#filter-status-new[aria-current="true"]|)
+      assert has_element?(view, ~s|#filter-status-inbox[aria-current="true"]|)
     end
 
     # A source's header gives it tags: the account's tags to tick, and a field for a new one.
@@ -390,7 +391,7 @@ defmodule SikioWeb.LibraryLiveTest do
       [video] = Library.subscriptions(c.user) |> Enum.filter(&(&1.feed.kind == :youtube))
       {:ok, _} = Sikio.Tags.set(c.user, video.id, ["Tech"])
 
-      {:ok, view, _} = live(c.conn, ~p"/new")
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
       refute has_element?(view, "#edit-tags")
 
       {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
@@ -455,13 +456,13 @@ defmodule SikioWeb.LibraryLiveTest do
       view |> element("#delete-tag") |> render_click()
       assert has_element?(view, "dialog#delete-tag-confirm", "Delete Technik?")
       view |> element("#confirm-delete-tag") |> render_click()
-      assert_patch(view, "/new")
+      assert_patch(view, "/inbox")
       refute has_element?(view, "#tag-#{tech.id}")
       assert [_, _] = Library.subscriptions(c.user)
     end
 
     test "a section without tags is not shown", c do
-      {:ok, view, _} = live(c.conn, ~p"/new")
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
       refute has_element?(view, "#tags-heading")
     end
   end
@@ -469,7 +470,7 @@ defmodule SikioWeb.LibraryLiveTest do
   # A source can be left where it is read, after a question that names it.
   describe "unsubscribing from a source" do
     test "is offered only within a source, and a cancel keeps it", c do
-      {:ok, view, _} = live(c.conn, ~p"/new")
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
       refute has_element?(view, "#unsubscribe")
 
       {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
@@ -486,7 +487,7 @@ defmodule SikioWeb.LibraryLiveTest do
       view |> element("#unsubscribe") |> render_click()
       view |> element("#confirm-unsubscribe") |> render_click()
 
-      assert_patch(view, "/new")
+      assert_patch(view, "/inbox")
       refute has_element?(view, "#source-#{c.sub.feed_id}")
       assert [%{feed: %{kind: :youtube}}] = Library.subscriptions(c.user)
     end
@@ -597,7 +598,7 @@ defmodule SikioWeb.LibraryLiveTest do
     # New is where the library opens, at its front and after signing in. All items come last.
     test "opens on new and lists all items last", c do
       {:ok, view, html} = live(c.conn, ~p"/")
-      assert has_element?(view, "#view-new[aria-current=page]")
+      assert has_element?(view, "#view-inbox[aria-current=page]")
 
       order =
         html
@@ -606,14 +607,14 @@ defmodule SikioWeb.LibraryLiveTest do
         |> Enum.map(&(Floki.attribute(&1, "id") |> hd()))
         |> Enum.reject(&String.ends_with?(&1, "-count"))
 
-      assert order == ["view-new", "view-in_progress", "view-completed", "view-all"]
+      assert order == ["view-inbox", "view-queue", "view-heard", "view-all"]
       assert has_element?(view, "#view-all[href='/all']")
-      assert has_element?(view, "#view-new[href='/new']")
+      assert has_element?(view, "#view-inbox[href='/inbox']")
     end
 
     # The sidebar is where the reader is, not a set of filters: one entry at a time.
     test "chooses one place at a time and marks where the reader is", c do
-      {:ok, view, _} = live(c.conn, ~p"/new")
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
       refute has_element?(view, "#kind-audio")
 
       view |> element("#source-#{c.sub.feed_id}") |> render_click()
@@ -621,13 +622,13 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#entries article", "One & two")
       refute has_element?(view, "#entries article", "A good video")
       assert has_element?(view, "#source-#{c.sub.feed_id}[aria-current=page]")
-      refute has_element?(view, "#view-new[aria-current=page]")
+      refute has_element?(view, "#view-inbox[aria-current=page]")
 
       # A count says what is in that place, whichever place is open.
       assert view |> element("#view-all-count") |> render() =~ "2"
 
-      view |> element("#view-new") |> render_click()
-      assert_patch(view, "/new")
+      view |> element("#view-inbox") |> render_click()
+      assert_patch(view, "/inbox")
     end
 
     test "counts new items per source and follows what the reader does", c do
@@ -638,27 +639,27 @@ defmodule SikioWeb.LibraryLiveTest do
       view |> element("#mark-completed") |> render_click()
 
       refute has_element?(view, "#source-#{c.sub.feed_id}-count")
-      assert view |> element("#view-completed-count") |> render() =~ "1"
+      assert view |> element("#view-inbox-count") |> render() =~ "1"
     end
 
     # A page that is not the library still follows what happens elsewhere.
     test "stays current on a page that is not the library", c do
       {:ok, view, _} = live(c.conn, ~p"/subscriptions")
-      refute has_element?(view, "#view-completed-count")
+      assert view |> element("#view-inbox-count") |> render() =~ "2"
 
       {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
 
-      assert view |> element("#view-completed-count") |> render() =~ "1"
+      assert view |> element("#view-inbox-count") |> render() =~ "1"
     end
 
     test "every member page carries it, and it leads back to the library", c do
       {:ok, view, _} = live(c.conn, ~p"/subscriptions")
 
       assert has_element?(view, "#sidebar #source-#{c.sub.feed_id}", "Small Hours")
-      assert has_element?(view, ~s|#view-new[href="/new"]|)
+      assert has_element?(view, ~s|#view-inbox[href="/inbox"]|)
       refute has_element?(view, "#sidebar [aria-current]:not(#subscriptions-heading)")
       assert has_element?(view, ~s|#tab-library[aria-current="page"]|)
-      refute has_element?(view, ~s|#tab-new[aria-current="page"]|)
+      refute has_element?(view, ~s|#tab-inbox[aria-current="page"]|)
     end
 
     # A phone's header is a slim bar: the name or the way back to the Library, the title once the
@@ -666,12 +667,12 @@ defmodule SikioWeb.LibraryLiveTest do
     # are the Library's, so the list's own head has no chips.
     test "a phone's header names where it is and leads back to the Library", c do
       for {path, title, back?} <- [
-            {"/new", "New", false},
+            {"/inbox", "Inbox", false},
             {"/search", "Search", false},
             {"/all?q=video", "Search", false},
             {"/all", "All items", true},
-            {"/in-progress", "In progress", false},
-            {"/completed", "Completed", true},
+            {"/queue", "Queue", false},
+            {"/history", "History", true},
             {"/feeds/#{c.sub.feed_id}-small-hours", "Small Hours", true}
           ] do
         {:ok, view, _} = live(c.conn, path)
@@ -694,15 +695,15 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#library-heading", "Search")
       assert has_element?(view, "#search-input[placeholder='Search in All items']")
 
-      {:ok, view, _} = live(c.conn, ~p"/new?q=good")
-      assert has_element?(view, "#library-heading", "New")
+      {:ok, view, _} = live(c.conn, ~p"/inbox?q=good")
+      assert has_element?(view, "#library-heading", "Inbox")
     end
 
     # An item leads back to the list it was opened from and names itself once its title has
     # scrolled away. The bar's way back is its only one.
     test "a phone's item leads back to its list", c do
-      {:ok, view, _} = live(c.conn, "/new/#{c.audio.id}-one-two")
-      assert has_element?(view, ~s|#nav-back[href="/new"]|, "New")
+      {:ok, view, _} = live(c.conn, "/inbox/#{c.audio.id}-one-two")
+      assert has_element?(view, ~s|#nav-back[href="/inbox"]|, "Inbox")
       assert has_element?(view, "#nav-title", c.audio.title)
       assert has_element?(view, "#item-detail h2[data-large-title]")
       refute has_element?(view, "#library-heading[data-large-title]")
@@ -711,18 +712,18 @@ defmodule SikioWeb.LibraryLiveTest do
 
     # A phone moves between four tabs, and the one it is in is marked. What is in progress has a
     # tab of its own, because going on with it is what a reader most often comes for.
-    test "a phone's tabs lead to new, the library and search, and mark where it is", c do
+    test "a phone's tabs lead to the inbox, the queue, the library and search", c do
       for {path, tab} <- [
-            {"/new", "new"},
+            {"/inbox", "inbox"},
             {"/library", "library"},
-            {"/in-progress", "in-progress"},
-            {"/completed", "library"},
+            {"/queue", "queue"},
+            {"/history", "library"},
             {"/feeds/#{c.sub.feed_id}-small-hours", "library"},
             {"/search", "search"}
           ] do
         {:ok, view, _} = live(c.conn, path)
-        assert has_element?(view, ~s|#tab-new[href="/new"]|)
-        assert has_element?(view, ~s|#tab-in-progress[href="/in-progress"]|)
+        assert has_element?(view, ~s|#tab-inbox[href="/inbox"]|)
+        assert has_element?(view, ~s|#tab-queue[href="/queue"]|)
         assert has_element?(view, ~s|#tab-library[href="/library"]|)
         assert has_element?(view, ~s|#tab-search[href="/search"]|)
         assert has_element?(view, ~s|#tab-#{tab}[aria-current="page"]|), path
@@ -944,18 +945,12 @@ defmodule SikioWeb.LibraryLiveTest do
       refute has_element?(view, "#entries article[data-group]")
     end
 
-    test "what is in progress is grouped by when it was last played", c do
-      {:ok, state} = Playback.start(c.user, c.audio.id)
-
-      Playback.save(c.user, c.audio.id, state.session_id, %{
-        "sequence" => 1,
-        "position" => 30,
-        "duration" => 100,
-        "ended" => false
-      })
-
-      {:ok, view, _} = live(c.conn, ~p"/in-progress")
-      assert headings(view) == ["Today"]
+    # The queue runs by the reader's own order, which no date divides.
+    test "the queue has no date groups", c do
+      {:ok, _} = Playback.start(c.user, c.audio.id)
+      {:ok, view, _} = live(c.conn, ~p"/queue")
+      assert has_element?(view, "#entries article", "One & two")
+      assert headings(view) == []
     end
   end
 

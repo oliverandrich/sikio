@@ -19,6 +19,32 @@ defmodule SikioWeb.LibraryDetailTest do
 
   setup :sign_in_with_episode
 
+  # An item goes into the queue first or last, and out of it again. It can be marked heard, put
+  # aside, and brought back to the inbox, each from its card.
+  test "the card queues, marks and archives its item", c do
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
+
+    view |> element("#queue-first") |> render_click()
+    assert Playback.queue(c.user) == [c.entry.id]
+    assert has_element?(view, "#item-queue", "In the queue")
+
+    view |> element("#dequeue") |> render_click()
+    assert Playback.queue(c.user) == []
+    assert has_element?(view, "#queue-last")
+
+    view |> element("#queue-last") |> render_click()
+    view |> element("#archive") |> render_click()
+    assert %{playback: %{status: :archived, queue_rank: nil}} = Library.entry(c.user, c.entry.id)
+    assert has_element?(view, "#mark-new")
+    refute has_element?(view, "#archive")
+
+    view |> element("#mark-new") |> render_click()
+    assert %{playback: %{status: :new}} = Library.entry(c.user, c.entry.id)
+
+    view |> element("#mark-completed") |> render_click()
+    assert %{playback: %{status: :heard}} = Library.entry(c.user, c.entry.id)
+  end
+
   test "library opens a player and shows reversible personal status", c do
     {:ok, view, _} = live(c.conn, ~p"/all")
     assert has_element?(view, "#play-#{c.entry.id}[href='/all/#{c.entry.id}-one-two']")
@@ -415,11 +441,11 @@ defmodule SikioWeb.LibraryDetailTest do
     end
 
     test "patches the address, keeps the list standing and marks the row", c do
-      {:ok, view, _} = live(c.conn, ~p"/new")
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
 
       view |> element("#play-#{c.entry.id}") |> render_click()
 
-      assert_patch(view, "/new/#{c.entry.id}-one-two")
+      assert_patch(view, "/inbox/#{c.entry.id}-one-two")
       assert has_element?(view, "#entries #entries-#{c.entry.id}")
       assert has_element?(view, "#item-detail h2", "One & two")
       assert has_element?(view, ~s|#play-#{c.entry.id}[aria-current="true"]|)
@@ -440,9 +466,9 @@ defmodule SikioWeb.LibraryDetailTest do
     # On a wide screen the browser asks for the first item when none is chosen. The address is
     # replaced, so Back does not land on the empty view again.
     test "the first item is chosen when the browser asks and nothing is", c do
-      {:ok, view, _} = live(c.conn, ~p"/new")
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
       render_hook(view, "select_first", %{})
-      assert_patch(view, "/new/#{c.entry.id}-one-two")
+      assert_patch(view, "/inbox/#{c.entry.id}-one-two")
 
       view |> element("#play-#{c.video.id}") |> render_click()
       render_hook(view, "select_first", %{})
@@ -452,11 +478,11 @@ defmodule SikioWeb.LibraryDetailTest do
     # An item the page chose for a wide screen is let go when the screen turns narrow, where it
     # would cover the list. One the reader chose stays.
     test "an item chosen for a wide screen is let go when it narrows", c do
-      {:ok, view, _} = live(c.conn, ~p"/new")
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
       render_hook(view, "select_first", %{})
-      assert_patch(view, "/new/#{c.entry.id}-one-two")
+      assert_patch(view, "/inbox/#{c.entry.id}-one-two")
       render_hook(view, "release_first", %{})
-      assert_patch(view, "/new")
+      assert_patch(view, "/inbox")
 
       view |> element("#play-#{c.video.id}") |> render_click()
       render_hook(view, "release_first", %{})

@@ -8,46 +8,13 @@ defmodule Sikio.PlaybackMigrationTest do
   watched inside the sandbox, which starts with every migration already run. What was completed
   becomes heard when its place had reached 90 % of its length, and archived otherwise.
   """
-  use ExUnit.Case, async: false
-
-  import Ecto.Query
+  use Sikio.MigrationCase
 
   alias Sikio.Accounts.User
   alias Sikio.Feeds.{Entry, Feed}
-  alias Sikio.Repo
 
   @before 20_261_005_090_000
   @version 20_261_006_090_000
-
-  setup do
-    name =
-      case Application.fetch_env!(:sikio, :database) do
-        :sqlite -> Path.join(System.tmp_dir!(), "sikio_migration_#{unique()}.db")
-        :postgres -> "sikio_migration_#{unique()}"
-      end
-
-    config =
-      Keyword.merge(Repo.config(),
-        name: nil,
-        database: name,
-        pool: DBConnection.ConnectionPool,
-        pool_size: 2
-      )
-
-    # Each test loads the migration files again, which redefines their modules on purpose.
-    conflicts = Code.get_compiler_option(:ignore_module_conflict)
-    Code.put_compiler_option(:ignore_module_conflict, true)
-    on_exit(fn -> Code.put_compiler_option(:ignore_module_conflict, conflicts) end)
-
-    :ok = Repo.__adapter__().storage_up(config)
-    {:ok, repo} = Repo.start_link(config)
-    previous = Repo.put_dynamic_repo(repo)
-
-    # The repo ends with the test process it is linked to; what is left is the database.
-    on_exit(fn -> Repo.__adapter__().storage_down(config) end)
-    on_exit(fn -> Repo.put_dynamic_repo(previous) end)
-    %{repo: repo}
-  end
 
   test "what was finished becomes heard or archived by how far it was played", %{repo: repo} do
     migrate(repo, :up, @before)
@@ -97,7 +64,7 @@ defmodule Sikio.PlaybackMigrationTest do
     # The queue holds a rank, and the database refuses a status it no longer knows.
     Repo.update_all(from(p in "playback_states"), set: [queue_rank: 1.0])
 
-    assert_raise error_module(), fn ->
+    assert_raise database_error(), fn ->
       Repo.update_all(from(p in "playback_states"), set: [status: "completed"])
     end
   end
@@ -130,16 +97,6 @@ defmodule Sikio.PlaybackMigrationTest do
     assert_raise_on_queue_rank()
   end
 
-  defp migrate(repo, direction, version) do
-    path = Ecto.Migrator.migrations_path(Repo)
-    opts = [dynamic_repo: repo, log: false, log_migrations_sql: false]
-
-    case direction do
-      :up -> Ecto.Migrator.run(Repo, path, :up, [to: version] ++ opts)
-      :down -> Ecto.Migrator.run(Repo, path, :down, [to: version + 1] ++ opts)
-    end
-  end
-
   defp statuses do
     Repo.all(
       from p in "playback_states",
@@ -151,17 +108,8 @@ defmodule Sikio.PlaybackMigrationTest do
   end
 
   defp assert_raise_on_queue_rank do
-    assert_raise error_module(), fn ->
+    assert_raise database_error(), fn ->
       Repo.all(from p in "playback_states", select: p.queue_rank)
     end
   end
-
-  defp error_module do
-    case Application.fetch_env!(:sikio, :database) do
-      :sqlite -> Exqlite.Error
-      :postgres -> Postgrex.Error
-    end
-  end
-
-  defp unique, do: System.unique_integer([:positive])
 end

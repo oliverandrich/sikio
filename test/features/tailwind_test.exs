@@ -152,16 +152,16 @@ defmodule SikioWeb.TailwindTest do
         range.selectNodeContents(document.getElementById(id))
         return Math.round(range.getBoundingClientRect().right)
       }
-      const link = document.getElementById('view-new').getBoundingClientRect()
-      const label = document.createRange()
-      label.selectNodeContents(document.querySelector('#view-new span span:last-child'))
-      return [right('view-all-count'), right('view-new-count'),
-              Math.round(label.getBoundingClientRect().left - link.left),
-              Math.round(link.right) - right('view-new-count')]
+      const link = document.getElementById('view-inbox').getBoundingClientRect()
+      // The row starts with the view's icon.
+      const start = document.querySelector('#view-inbox > span').firstElementChild
+      return [right('view-all-count'), right('view-inbox-count'),
+              Math.round(start.getBoundingClientRect().left - link.left),
+              Math.round(link.right) - right('view-inbox-count')]
       """,
       fn [active, inactive, left_inset, right_inset] ->
         assert active == inactive
-        assert left_inset == right_inset, "the digits sit as far from the edge as the name"
+        assert left_inset == right_inset, "the digits sit as far from the edge as the icon"
       end
     )
   end

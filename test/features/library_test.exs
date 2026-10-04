@@ -79,7 +79,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the double check marks a list after asking", %{session: session} do
     session
     |> resize_window(1440, 900)
-    |> open("/new")
+    |> open("/inbox")
     |> click(css("#mark-all"))
     |> assert_has(css("dialog#mark-all-confirm[open]", text: "40 items in this list"))
     # The dialog takes the focus itself, so no button shows a ring before anybody tabs to it.
@@ -92,15 +92,16 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#confirm-mark-all"))
     |> refute_has(css("#entries article"))
     |> assert_has(css("#view-all-count", text: "40"))
-    |> assert_has(css("#view-completed-count", count: 0))
+    |> assert_has(css("#view-heard-count", count: 0))
   end
 
   # The dialog offers to leave the player's item only while the player holds one. Unticked, it
   # counts one fewer and that item stays as it was.
   feature "the double check may leave the item in the player", %{session: session} do
+    # All items, since the item that plays stands in the queue and no longer in the inbox.
     session
     |> resize_window(1440, 900)
-    |> open("/new")
+    |> open("/all")
     |> click(css("#mark-all"))
     |> assert_has(css("dialog#mark-all-confirm[open]", text: "40 items in this list"))
     |> refute_has(css("#mark-all-playing"))
@@ -112,8 +113,8 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#mark-all-playing input[name=playing][type=checkbox]"))
     |> assert_has(css("dialog#mark-all-confirm[open]", text: "39 items in this list"))
     |> click(css("#confirm-mark-all"))
-    |> assert_has(css("#view-new-count", text: "1"))
-    |> assert_has(css("#entries article", count: 1))
+    |> assert_has(css("#view-queue-count", text: "1"))
+    |> assert_has(css("#entries article:not([data-status=archived])", count: 1))
   end
 
   # A source is given a tag in a dialog that stays open while it is typed in, and the tag then
@@ -121,7 +122,7 @@ defmodule SikioWeb.LibraryTest do
   feature "a source is given a tag from its own list", %{session: session} do
     session
     |> resize_window(1440, 900)
-    |> open("/new")
+    |> open("/inbox")
     |> refute_has(css("#tags-heading"))
     |> click(css("#sidebar a", text: "Small Hours"))
     |> click(css("#edit-tags"))
@@ -140,7 +141,7 @@ defmodule SikioWeb.LibraryTest do
   feature "the list's actions stand beneath its heading", %{session: session} do
     session
     |> resize_window(1440, 900)
-    |> open("/new")
+    |> open("/inbox")
     |> click(css("#sidebar a", text: "Small Hours"))
     |> assert_has(css("#unsubscribe"))
     |> execute_script(
@@ -162,7 +163,7 @@ defmodule SikioWeb.LibraryTest do
   feature "a phone's bar takes the title once the heading has scrolled away", %{session: session} do
     session
     |> resize_window(390, 844)
-    |> open("/new")
+    |> open("/inbox")
     |> assert_has(css("#entries article", count: 25))
     |> refute_has(css("#app-header[data-shrunk]"))
     |> execute_script("window.scrollTo(0, 600)")
@@ -187,7 +188,7 @@ defmodule SikioWeb.LibraryTest do
   feature "a source is left from its own list", %{session: session} do
     session
     |> resize_window(1440, 900)
-    |> open("/new")
+    |> open("/inbox")
     |> click(css("#sidebar a", text: "Small Hours"))
     |> click(css("#unsubscribe"))
     |> assert_has(css("dialog#unsubscribe-confirm[open]", text: "Unsubscribe from Small Hours?"))
@@ -196,7 +197,7 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#unsubscribe"))
     |> click(css("#confirm-unsubscribe"))
     |> refute_has(css("#sidebar a", text: "Small Hours"))
-    |> assert_has(css("#library-heading", text: "New"))
+    |> assert_has(css("#library-heading", text: "Inbox"))
   end
 
   # A date heading sticks beneath the list's head while its group scrolls past.
