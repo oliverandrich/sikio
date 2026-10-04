@@ -1306,7 +1306,7 @@ defmodule SikioWeb.LibraryLive do
       class={[
         "border-b border-line last:border-b-0 lg:last:border-b",
         @movable && "flex items-stretch",
-        @selected && "bg-selection shadow-[inset_3px_0_0_var(--color-accent)]"
+        @selected && "bg-selection"
       ]}
     >
       <.link
@@ -1336,7 +1336,7 @@ defmodule SikioWeb.LibraryLive do
           <.progress :if={@status == :in_progress} entry={@entry} />
         </span>
         <span class="flex min-w-0 grow flex-col gap-1">
-          <span :if={@source_shown} data-source class="truncate text-meta font-semibold text-accent">
+          <span :if={@source_shown} data-source class="truncate text-meta font-semibold text-muted">
             {source_name(@entry)}
           </span>
           <span class={[
@@ -1627,7 +1627,7 @@ defmodule SikioWeb.LibraryLive do
           <span :if={!@entry.feed.icon_url}>{initial(source_name(@entry))}</span>
         </span>
         <div class="flex min-w-0 grow flex-col">
-          <p class="truncate text-label font-semibold text-accent">{source_name(@entry)}</p>
+          <p class="truncate text-label font-semibold text-ink">{source_name(@entry)}</p>
           <p
             id="playback-status"
             aria-live="polite"

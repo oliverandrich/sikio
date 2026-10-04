@@ -274,7 +274,7 @@ defmodule SikioWeb.PlayerDockLive do
             class="hidden"
           />
           <div :if={@entry} class="player-text mr-auto min-w-0">
-            <p class="player-source text-meta font-semibold text-accent">
+            <p class="player-source text-meta font-semibold text-muted">
               {source_name(@entry)}
             </p>
             <.link

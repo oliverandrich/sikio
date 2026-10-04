@@ -93,7 +93,7 @@
   --color-control: var(--color-neutral-500);
   --color-accent: var(--color-neutral-950);
   --color-on-accent: var(--color-white);
-  --color-selection: var(--color-neutral-200);
+  --color-selection: var(--color-neutral-100);
   --color-signal: var(--color-amber-500);
   /* For text and for fills on a track, which amber-500 is too light for on white. */
   --color-signal-strong: var(--color-amber-700);
@@ -137,13 +137,23 @@
   }
 }
 
+/* Black text alone does not read as a link, so a link in running text carries a quiet underline
+   that darkens under the pointer. */
+@utility text-link {
+  color: var(--color-accent);
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-track);
+  text-underline-offset: 4px;
+  &:hover { text-decoration-color: currentColor; }
+}
+
 /* Show notes as a publisher wrote them, with room to read: paragraphs, lists and links. */
 @utility notes {
   & :where(p, ul, ol) { margin-bottom: 0.75rem; }
   & ul { list-style: disc; padding-left: 1.25rem; }
   & ol { list-style: decimal; padding-left: 1.25rem; }
   & li { margin-bottom: 0.25rem; }
-  & a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+  & a { @apply text-link; }
   & :where(h1, h2, h3) { font-weight: 600; }
   & img { margin-block: 0.75rem; max-width: 100%; border-radius: var(--radius-control); }
 }
@@ -393,7 +403,7 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   #player-panel[data-place="floating"] .player-title { order: -1; margin-top: 0; }
-  #player-panel[data-place="floating"] .player-source { font-weight: 400; color: var(--color-muted); }
+  #player-panel[data-place="floating"] .player-source { font-weight: 400; }
   #player-panel[data-place="floating"] :is(.player-status, .audio-face, [data-player-message]) { display: none; }
   #player-panel[data-place="floating"] #dock-notice { order: 1; flex-basis: 100%; margin: 0; }
   #player-panel[data-place="floating"] #capsule-play { display: flex; }

@@ -101,7 +101,7 @@ defmodule SikioWeb.AccountSecurityLive do
           <.link
             :if={!@confirmed}
             href={~p"/account/confirm/passkeys"}
-            class="font-medium text-accent"
+            class="font-medium text-link"
           >{gettext("Confirm your identity to add a passkey")}</.link>
           <form :if={@confirmed} id="add-passkey-form" phx-change="validate" phx-submit="add-passkey">
             <.input
@@ -151,7 +151,7 @@ defmodule SikioWeb.AccountSecurityLive do
           <.link
             :if={!@confirmed}
             href={~p"/account/confirm/recovery-codes"}
-            class="mt-6 block font-medium text-accent"
+            class="mt-6 block w-fit font-medium text-link"
           >{gettext("Confirm your identity to generate new codes")}</.link>
           <.form
             :if={@confirmed}

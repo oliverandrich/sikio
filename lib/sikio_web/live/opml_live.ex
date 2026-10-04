@@ -191,7 +191,7 @@ defmodule SikioWeb.OPMLLive do
                 type="button"
                 phx-click="cancel-upload"
                 phx-value-ref={entry.ref}
-                class="min-h-11 text-label text-accent"
+                class="min-h-11 cursor-pointer text-label text-link"
               >{gettext("Remove file")}</button>
               <p
                 :for={error <- upload_errors(@uploads.opml, entry)}
@@ -220,7 +220,7 @@ defmodule SikioWeb.OPMLLive do
         </p>
         <.link
           href={~p"/subscriptions.opml"}
-          class="mt-4 inline-flex min-h-11 items-center gap-1 font-semibold text-accent"
+          class="mt-4 inline-flex min-h-11 items-center gap-1 font-semibold text-link"
         >
           {gettext("Export my subscriptions")}
           <Lucideicons.download aria-hidden="true" class="size-4" />
@@ -238,7 +238,7 @@ defmodule SikioWeb.OPMLLive do
         :if={@summary}
         id="opml-summary"
         role="status"
-        class="mt-6 rounded-control bg-selection p-4 text-label text-accent"
+        class="mt-6 rounded-control bg-selection p-4 text-label text-ink"
       >
         {@summary}
       </p>
@@ -260,7 +260,7 @@ defmodule SikioWeb.OPMLLive do
         >
           <h2 class="font-semibold break-words">{source.title}</h2>
           <p class="mt-2 text-meta break-all text-muted">{source.url}</p>
-          <p class="mt-3 text-label text-accent">{result_label(source)}</p>
+          <p class="mt-3 text-label text-muted">{result_label(source)}</p>
         </article>
       </div>
     </Layouts.member>

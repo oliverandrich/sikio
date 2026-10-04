@@ -196,7 +196,7 @@ defmodule SikioWeb.SubscriptionsLive do
       title={gettext("Add a source")}
       back={%{to: ~p"/library", label: gettext("Library")}}
     >
-      <p class="mb-4 text-meta font-semibold text-accent">
+      <p class="mb-4 text-meta font-semibold text-muted">
         {gettext("Curated by you")}
       </p>
       <.header>
@@ -205,16 +205,16 @@ defmodule SikioWeb.SubscriptionsLive do
           {gettext("A channel, a video, a podcast website. Paste a link and let Sikio find the feed.")}
         </:subtitle>
       </.header>
-      <div class="mt-6 flex flex-wrap gap-5 text-label font-semibold text-accent">
+      <div class="mt-6 flex flex-wrap gap-5 text-label font-semibold">
         <.link
           id="opml-import-link"
           navigate={~p"/subscriptions/import"}
-          class="inline-flex min-h-11 items-center"
+          class="inline-flex min-h-11 items-center text-link"
         >{gettext("Import OPML")}</.link>
         <.link
           id="opml-export-link"
           href={~p"/subscriptions.opml"}
-          class="inline-flex min-h-11 items-center gap-1"
+          class="inline-flex min-h-11 items-center gap-1 text-link"
         >
           {gettext("Export OPML")}
           <Lucideicons.download aria-hidden="true" class="size-4" />
@@ -269,7 +269,7 @@ defmodule SikioWeb.SubscriptionsLive do
         </section>
       </div>
       <div aria-live="polite" class="mt-6">
-        <p :if={@busy} id="discovery-loading" class="text-label text-accent">
+        <p :if={@busy} id="discovery-loading" class="text-label text-muted">
           {gettext("Looking for your next good listen or watch…")}
         </p>
         <p
@@ -294,7 +294,7 @@ defmodule SikioWeb.SubscriptionsLive do
           id={dom_id}
           class="rounded-control border border-accent bg-surface p-6"
         >
-          <p class="text-meta text-accent">
+          <p class="text-meta text-muted">
             {if Map.has_key?(source, :entries),
               do: gettext("Ready to subscribe"),
               else: gettext("Apple Podcasts")}
@@ -341,7 +341,7 @@ defmodule SikioWeb.SubscriptionsLive do
             class="flex flex-wrap items-center justify-between gap-5 rounded-control border border-line bg-surface p-6"
           >
             <div class="min-w-0 flex-1">
-              <p class="text-meta font-medium text-accent">
+              <p class="text-meta font-medium text-muted">
                 {source_label(subscription.feed)} · {if subscription.paused,
                   do: gettext("Polling paused"),
                   else: gettext("Active")}
@@ -365,7 +365,7 @@ defmodule SikioWeb.SubscriptionsLive do
                 phx-click="pause"
                 phx-value-id={subscription.id}
                 phx-value-paused={to_string(!subscription.paused)}
-                class="min-h-11 text-accent"
+                class="min-h-11 cursor-pointer text-link"
               >{if subscription.paused, do: gettext("Resume"), else: gettext("Pause polling")}</button>
               <button
                 phx-click="unsubscribe"

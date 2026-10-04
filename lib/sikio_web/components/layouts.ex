@@ -413,7 +413,7 @@ defmodule SikioWeb.Layouts do
           <p>
             {gettext("Sikio is free and open source software under the AGPL-3.0.")}
             <span aria-hidden="true">·</span>
-            <.source_offer class="font-semibold text-ink hover:text-accent" />
+            <.source_offer class="font-semibold text-link" />
           </p>
         </div>
         <%!-- A phone's tab bar, in the manner of iOS: an icon and a label for each tab, on a
@@ -515,7 +515,7 @@ defmodule SikioWeb.Layouts do
       <p class="mt-5 text-body">{gettext("A little more intention. A little less autoplay.")}</p>
       <p class="mt-5 text-label text-muted">
         {gettext("Sikio is free and open source software under the AGPL-3.0.")}
-        <.source_offer class="font-semibold text-accent hover:underline" />
+        <.source_offer class="font-semibold text-link" />
       </p>
     </.overview>
     """

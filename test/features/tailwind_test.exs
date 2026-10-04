@@ -111,6 +111,47 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
+  # Ink marks actions and the current place. A source's name is neither, so it reads muted, and the
+  # chosen item stands out by its ground alone.
+  feature "a source's name reads muted and the chosen item has no edge", %{session: session} do
+    account = signed_up(session, "ada")
+    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
+    {:ok, _} = Library.subscribe(account, preview)
+    [entry] = Library.entries(account)
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/inbox")
+    |> click(css("#play-#{entry.id}"))
+    |> assert_has(css("#play-#{entry.id}[aria-current=true]"))
+    |> execute_script(
+      """
+      const probe = document.createElement('span')
+      probe.className = 'text-muted'
+      document.body.append(probe)
+      const style = el => getComputedStyle(el)
+      return [style(probe).color, style(document.querySelector('[data-source]')).color,
+              style(document.getElementById('entries-#{entry.id}')).boxShadow]
+      """,
+      fn [muted, source, edge] ->
+        assert source == muted
+        assert edge == "none"
+      end
+    )
+  end
+
+  # Black text alone does not read as a link, so links in running text are underlined.
+  feature "a link in running text is underlined", %{session: session} do
+    signed_up(session, "ada")
+
+    session
+    |> open("/subscriptions")
+    |> execute_script(
+      "return getComputedStyle(document.getElementById('opml-import-link')).textDecorationLine",
+      fn line -> assert line == "underline" end
+    )
+  end
+
   # From lg the sources may run long. They scroll, while the wordmark above and the offer of the
   # source below stay where they are. Only a window too short for those two scrolls the whole
   # column. The heading over the sources leads to managing them, so the bar of links is the phone's.
