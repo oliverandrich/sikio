@@ -213,7 +213,7 @@ defmodule SikioWeb.InvitationsLive do
       <div
         :if={@link}
         role="status"
-        class="rounded-control border p-4 border-accent bg-selection text-accent mt-4"
+        class="rounded-control border p-4 border-line bg-selection text-ink mt-4"
       >
         <span>
           {gettext("Your invitation is ready. Send this link to your guest:")}

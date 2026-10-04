@@ -183,7 +183,10 @@ defmodule SikioWeb.LibraryLive do
   attr :name, :string, required: true
   attr :title, :string, required: true
   attr :confirm_label, :string, required: true
+  attr :variant, :string, default: "primary", doc: "danger when the answer cannot be undone"
+  attr :wide, :boolean, default: false, doc: "room for a form rather than a question"
   slot :inner_block, required: true
+  slot :aside, doc: "another way out, at the left of the buttons"
 
   defp confirm_dialog(assigns) do
     assigns = assign(assigns, :event, String.replace(assigns.name, "-", "_"))
@@ -197,18 +200,22 @@ defmodule SikioWeb.LibraryLive do
       phx-mounted={JS.ignore_attributes(["open"]) |> JS.dispatch("sikio:show")}
       phx-window-keydown={"cancel_#{@event}"}
       phx-key="Escape"
-      class="m-auto w-[min(26rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl outline-none backdrop:bg-black/40"
+      class={[
+        "m-auto rounded-xl border border-line bg-surface p-6 text-ink shadow-2xl outline-none backdrop:bg-black/30",
+        if(@wide, do: "w-[min(34rem,calc(100vw-2rem))]", else: "w-[min(26rem,calc(100vw-2rem))]")
+      ]}
     >
       <h2 id={"#{@name}-heading"} class="text-title font-semibold">{@title}</h2>
       <div class="mt-2 text-body text-muted">{render_slot(@inner_block)}</div>
-      <div class="mt-6 flex justify-end gap-2">
+      <div class="mt-6 flex flex-wrap items-center justify-end gap-2">
+        <div :if={@aside != []} class="mr-auto">{render_slot(@aside)}</div>
         <.button id={"cancel-#{@name}"} type="button" phx-click={"cancel_#{@event}"}>
           {gettext("Cancel")}
         </.button>
         <.button
           id={"confirm-#{@name}"}
           type="button"
-          variant="primary"
+          variant={@variant}
           phx-click={"confirm_#{@event}"}
         >
           {@confirm_label}
@@ -1051,6 +1058,7 @@ defmodule SikioWeb.LibraryLive do
               name="edit-subscription"
               title={source_name(@editing.subscription)}
               confirm_label={gettext("Save")}
+              wide
             >
               <form
                 id="subscription-form"
@@ -1110,20 +1118,22 @@ defmodule SikioWeb.LibraryLive do
                     maxlength="80"
                     placeholder={gettext("New tag, or several set apart by commas")}
                     aria-label={gettext("New tag")}
-                    class="mt-1 min-h-10 rounded-control border border-line bg-surface px-3 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
+                    class="mt-1 min-h-10 rounded-control border border-edge bg-surface px-3 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
                   />
                 </fieldset>
               </form>
               <%!-- Leaving asks once more, in a question of its own. --%>
-              <button
-                id="unsubscribe"
-                type="button"
-                phx-click="unsubscribe"
-                class="mt-6 inline-flex items-center gap-2 text-label font-semibold text-danger hover:underline"
-              >
-                <Lucideicons.unplug aria-hidden="true" class="size-4" />
-                {gettext("Unsubscribe")}
-              </button>
+              <:aside>
+                <button
+                  id="unsubscribe"
+                  type="button"
+                  phx-click="unsubscribe"
+                  class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-label font-semibold text-danger hover:underline"
+                >
+                  <Lucideicons.unplug aria-hidden="true" class="size-4" />
+                  {gettext("Unsubscribe")}
+                </button>
+              </:aside>
             </.confirm_dialog>
             <.confirm_dialog
               :if={@renaming}
@@ -1143,7 +1153,7 @@ defmodule SikioWeb.LibraryLive do
                   value={@renaming.name}
                   maxlength="40"
                   aria-label={gettext("Name")}
-                  class="min-h-10 rounded-control border border-line bg-surface px-3 text-label text-ink focus-visible:outline-2 focus-visible:outline-accent"
+                  class="min-h-10 rounded-control border border-edge bg-surface px-3 text-label text-ink focus-visible:outline-2 focus-visible:outline-accent"
                 />
                 <p :if={@renaming.error} class="text-label text-danger">{@renaming.error}</p>
               </form>
@@ -1153,6 +1163,7 @@ defmodule SikioWeb.LibraryLive do
               name="delete-tag"
               title={gettext("Delete %{name}?", name: @deleting.name)}
               confirm_label={gettext("Delete tag")}
+              variant="danger"
             >
               <p>{gettext("The subscriptions stay; only the tag goes.")}</p>
             </.confirm_dialog>
@@ -1161,6 +1172,7 @@ defmodule SikioWeb.LibraryLive do
               name="unsubscribe"
               title={gettext("Unsubscribe from %{title}?", title: source_name(@unsubscribing))}
               confirm_label={gettext("Unsubscribe")}
+              variant="danger"
             >
               <p>
                 {gettext(
@@ -1200,7 +1212,7 @@ defmodule SikioWeb.LibraryLive do
                 aria-controls="list-filters"
                 aria-expanded="false"
                 phx-click={toggle_filters()}
-                class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink aria-expanded:border-transparent aria-expanded:bg-selection aria-expanded:text-accent lg:hidden"
+                class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-label font-semibold text-ink aria-expanded:border-transparent aria-expanded:bg-accent aria-expanded:text-on-accent lg:hidden"
               >
                 <Lucideicons.sliders_horizontal aria-hidden="true" class="size-3.5" />
                 {gettext("Filter")}
@@ -1232,7 +1244,7 @@ defmodule SikioWeb.LibraryLive do
           <section
             :if={@empty?}
             id="library-empty"
-            class="mx-6 rounded-2xl bg-surface p-8 shadow-sm ring-1 ring-line sm:mx-12 lg:m-4"
+            class="mx-6 rounded-xl bg-surface p-8 ring-1 ring-line sm:mx-12 lg:m-4"
           >
             <h2 class="text-title font-semibold">{gettext("Space for something good.")}</h2>
             <p class="mt-2 max-w-lg text-muted">
@@ -1432,7 +1444,7 @@ defmodule SikioWeb.LibraryLive do
       id={@id}
       patch={@to}
       aria-current={@active && "true"}
-      class="inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-3 text-label text-ink hover:bg-ground aria-[current=true]:border-transparent aria-[current=true]:bg-selection aria-[current=true]:font-semibold aria-[current=true]:text-accent"
+      class="inline-flex min-h-8 items-center rounded-full border border-line bg-surface px-3 text-label text-ink hover:bg-ground aria-[current=true]:border-transparent aria-[current=true]:bg-accent aria-[current=true]:font-semibold aria-[current=true]:text-on-accent"
     >
       {render_slot(@inner_block)}
     </.link>
@@ -1610,7 +1622,7 @@ defmodule SikioWeb.LibraryLive do
 
     ~H"""
     <%!-- A card from lg. A phone shows the item on the page itself. A video spans either. --%>
-    <article class="@container flex flex-col gap-4 lg:rounded-2xl lg:bg-surface lg:p-6 lg:shadow-sm lg:ring-1 lg:ring-line">
+    <article class="@container flex flex-col gap-4 lg:rounded-xl lg:bg-surface lg:p-6 lg:ring-1 lg:ring-line">
       <div class="flex items-start gap-3">
         <%!-- The source's picture through this host, as the sidebar shows it, or its initial. --%>
         <span

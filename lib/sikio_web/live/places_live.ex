@@ -83,7 +83,7 @@ defmodule SikioWeb.PlacesLive do
       >
         {@heading}
       </h2>
-      <nav class="flex flex-col divide-y divide-line overflow-hidden rounded-2xl bg-surface ring-1 ring-line">
+      <nav class="flex flex-col divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line">
         {render_slot(@inner_block)}
       </nav>
     </section>

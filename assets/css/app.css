@@ -90,6 +90,8 @@
   --color-line: var(--color-neutral-200);
   /* The unplayed part of a seek bar. */
   --color-track: var(--color-neutral-300);
+  /* The edge of a field or a quiet button, firmer than a line between rows. */
+  --color-edge: var(--color-neutral-300);
   --color-control: var(--color-neutral-500);
   --color-accent: var(--color-neutral-950);
   --color-on-accent: var(--color-white);
@@ -124,6 +126,7 @@
     --color-muted: var(--color-neutral-400);
     --color-line: var(--color-neutral-800);
     --color-track: var(--color-neutral-700);
+    --color-edge: var(--color-neutral-700);
     --color-control: var(--color-neutral-500);
     --color-accent: var(--color-neutral-100);
     --color-on-accent: var(--color-neutral-950);

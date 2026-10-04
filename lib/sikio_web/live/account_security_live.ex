@@ -96,7 +96,7 @@ defmodule SikioWeb.AccountSecurityLive do
         <p :if={length(@keys) == 1} class="mt-3 text-label text-muted">
           {gettext("Add another passkey before removing your last one.")}
         </p>
-        <div class="mt-8 rounded-control border border-accent bg-selection p-6">
+        <div class="mt-8 rounded-control border border-line bg-selection p-6">
           <h2 class="mb-4 text-lg font-semibold">{gettext("Add a passkey")}</h2>
           <.link
             :if={!@confirmed}

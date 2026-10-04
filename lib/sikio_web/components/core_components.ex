@@ -64,7 +64,7 @@ defmodule SikioWeb.CoreComponents do
       <div class={[
         "flex w-80 max-w-full items-start gap-3 rounded-control border p-4 text-label shadow-lg sm:w-96",
         @kind == :info &&
-          "border-accent bg-selection text-ink",
+          "border-line bg-surface text-ink",
         @kind == :error &&
           "border-danger bg-danger-surface text-ink"
       ]}>
@@ -94,13 +94,14 @@ defmodule SikioWeb.CoreComponents do
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled type)
   attr :class, :any, default: nil, doc: "added to the button's own classes"
-  attr :variant, :string, values: ~w(primary)
+  attr :variant, :string, values: ~w(primary danger)
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
     variants = %{
-      "primary" => "bg-accent text-on-accent hover:bg-accent/90",
-      nil => "border border-line bg-surface text-ink hover:bg-ground"
+      "primary" => "bg-accent text-on-accent hover:bg-accent/85",
+      "danger" => "bg-danger text-on-accent hover:bg-danger/85",
+      nil => "border border-edge bg-surface text-ink hover:bg-ground"
     }
 
     assigns =
@@ -500,5 +501,5 @@ defmodule SikioWeb.CoreComponents do
   # Shared by the text, select and textarea inputs.
   defp field_class,
     do:
-      "block w-full rounded-control border bg-surface px-3 py-2 text-ink shadow-sm placeholder:text-muted focus:border-accent focus:outline-2 focus:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+      "block w-full rounded-control border border-edge bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-accent focus:outline-2 focus:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
 end

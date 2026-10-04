@@ -533,7 +533,7 @@ defmodule SikioWeb.Layouts do
     <dialog
       id={@id}
       aria-labelledby={"#{@id}-heading"}
-      class="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl bg-surface p-6 text-ink shadow-xl backdrop:bg-black/40"
+      class="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-6 text-ink shadow-2xl backdrop:bg-black/30"
       {@rest}
     >
       <div class="mb-4 flex items-center justify-between gap-3">

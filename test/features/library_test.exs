@@ -178,6 +178,33 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#entries article:not([data-status=archived])", count: 1))
   end
 
+  # Leaving a source stands at the left of the dialog's buttons, apart from cancelling and saving,
+  # and the dialog is wide enough for its fields.
+  feature "a source's dialog leads out of the subscription from its button row", %{
+    session: session
+  } do
+    session
+    |> resize_window(1440, 900)
+    |> open("/inbox")
+    |> click(css("#sidebar a", text: "Small Hours"))
+    |> click(css("#edit-subscription"))
+    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
+    |> execute_script(
+      """
+      const box = id => document.getElementById(id).getBoundingClientRect()
+      const leave = box('unsubscribe'), cancel = box('cancel-edit-subscription')
+      return [Math.round(box('edit-subscription-confirm').width),
+              Math.abs(leave.top + leave.height / 2 - cancel.top - cancel.height / 2) < 2,
+              leave.right < cancel.left]
+      """,
+      fn [width, same_row, left] ->
+        assert width >= 512
+        assert same_row, "leaving shares the row of the buttons"
+        assert left, "leaving stands left of cancelling"
+      end
+    )
+  end
+
   # A source is given a tag in its own dialog, which stays open while it is typed in, and the tag
   # then stands in the sidebar as a place of its own.
   feature "a source is given a tag from its own list", %{session: session} do

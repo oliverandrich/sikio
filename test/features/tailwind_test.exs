@@ -152,6 +152,53 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
+  # The current segment is filled with ink. A dialog stands on a hairline edge, and the question
+  # before leaving a source answers in the danger colour.
+  feature "segments, dialogs and a destructive answer carry their colours", %{session: session} do
+    account = signed_up(session, "ada")
+    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
+    {:ok, _} = Library.subscribe(account, preview)
+
+    probe = fn class ->
+      """
+      const probe = document.createElement('span')
+      probe.className = '#{class}'
+      document.body.append(probe)
+      return getComputedStyle(probe).backgroundColor
+      """
+    end
+
+    background = fn id ->
+      "return getComputedStyle(document.getElementById('#{id}')).backgroundColor"
+    end
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/inbox")
+    |> click(css("#sidebar a", text: "Small Hours"))
+    |> assert_has(css("#filter-status-inbox[aria-current=true]"))
+    |> execute_script(probe.("bg-accent"), fn accent ->
+      session
+      |> execute_script(background.("filter-status-inbox"), fn current ->
+        assert current == accent
+      end)
+    end)
+    |> click(css("#edit-subscription"))
+    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
+    |> execute_script(
+      "return getComputedStyle(document.getElementById('edit-subscription-confirm')).borderTopWidth",
+      fn width -> assert width == "1px" end
+    )
+    |> click(css("#unsubscribe"))
+    |> assert_has(css("dialog#unsubscribe-confirm[open]"))
+    |> execute_script(probe.("bg-danger"), fn danger ->
+      session
+      |> execute_script(background.("confirm-unsubscribe"), fn answer ->
+        assert answer == danger
+      end)
+    end)
+  end
+
   # From lg the sources may run long. They scroll, while the wordmark above and the offer of the
   # source below stay where they are. Only a window too short for those two scrolls the whole
   # column. The heading over the sources leads to managing them, so the bar of links is the phone's.
