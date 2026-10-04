@@ -121,6 +121,28 @@ defmodule SikioWeb.HardeningTest do
              Auth.registration_subject(expired, %{"intent" => "add_passkey"})
   end
 
+  # The session lives in a cookie of at most 4 KB. Adding a passkey keeps its challenge there,
+  # beside whatever signing up or recovering left behind, and the response must still fit. On a
+  # new host the passkey prompt finds nothing, so its challenge is never spent and stays.
+  test "adding a passkey after confirming fits the session cookie" do
+    {conn, account} = signed()
+    conn = conn |> get("/account/confirm/passkeys") |> recycle() |> get("/account/verify")
+    conn = conn |> recycle() |> post("/auth/authentication/challenge", %{})
+
+    {:ok, confirmed} =
+      build_conn()
+      |> init_test_session(get_session(conn))
+      |> assign(:current_account, account)
+      |> Auth.authenticate(account)
+
+    conn =
+      build_conn()
+      |> init_test_session(get_session(confirmed))
+      |> post("/auth/registration/challenge", %{"intent" => "add_passkey"})
+
+    assert %{"challenge" => _} = json_response(conn, 200)
+  end
+
   test "recovery confirms the same account and preserves a last-code replacement batch" do
     {conn, account} = signed()
     conn = get(conn, "/account/confirm/passkeys")
