@@ -361,6 +361,27 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
+  # The pinned player takes its width from the page script rather than from `anchor-size()`.
+  # Safari measured its container before that width was known, laid the buttons out for a
+  # narrow one and shifted them as the time changed. A width written on the panel is known from
+  # the start.
+  feature "the pinned player has its slot's width from the start", context do
+    %{session: session, entries: entries} = context
+
+    session
+    |> resize_window(500, 900)
+    |> open(item_path(entries.podcast))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
+    |> execute_script(
+      """
+      const panel = document.getElementById('player-panel')
+      return [panel.style.width, Math.round(document.getElementById('player-slot').getBoundingClientRect().width) + 'px']
+      """,
+      fn [written, slot] -> assert written == slot end
+    )
+  end
+
   # Audio needs no watching. It sits in its card and scrolls away with it.
   feature "audio plays in its card and scrolls with it", context do
     %{session: session, entries: entries} = context

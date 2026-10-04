@@ -31,12 +31,17 @@ function place() {
   const where = panel ? placement({wide: WIDE.matches, shown, playing}) : "floating"
   if (panel) panel.dataset.place = where
 
+  // A pinned panel is as wide as its slot, written here rather than taken from anchor-size():
+  // Safari measured the panel as a container before that width was known, laid the audio's
+  // buttons out for a narrow one and shifted them whenever the time changed.
+  const slot = detail?.querySelector("#player-slot")
+  if (panel) panel.style.width = where === "pinned" && slot ? `${slot.clientWidth}px` : ""
+
   const room = panel ? panel.offsetHeight : 0
   const reserve = where === "compact" ? `${room + 2 * GAP}px` : ""
   if (sidebar) sidebar.style.paddingBottom = reserve
   if (list) list.style.paddingBottom = reserve
 
-  const slot = detail?.querySelector("#player-slot")
   stick(where === "pinned" && !WIDE.matches ? slot : null, panel)
   if (slot) {
     const pinned = panel && where === "pinned"

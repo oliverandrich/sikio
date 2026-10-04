@@ -162,11 +162,12 @@
   box-shadow: none; max-height: 60vh; border: 0; border-radius: 0; background: transparent; padding: 0;
 }
 /* Pinned, the panel lies on the detail's player slot and the browser keeps it there as the column
-   scrolls. It hides while the slot is out of view. */
+   scrolls. It hides while the slot is out of view. Its width is the slot's, written by
+   assets/js/dock_place.mjs. */
 #player-slot { anchor-name: --player-slot; }
 #player-panel[data-place="pinned"] {
   position-anchor: --player-slot; position-visibility: anchors-visible;
-  top: anchor(top); left: anchor(left); right: auto; bottom: auto; width: anchor-size(width);
+  top: anchor(top); left: anchor(left); right: auto; bottom: auto;
 }
 /* The now playing window floats at the bottom left, twice what fitted inside the sidebar, so a
    video can still be watched. */
