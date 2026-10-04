@@ -406,6 +406,17 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
   }
 }
 
+/* Held sideways a phone has little height. The bar names the place from the start, the large
+   heading keeps out of the way but stays for screen readers, and the list's head closes up. */
+@media (width < 64rem) and (height < 30rem) {
+  h1[data-large-title] {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  #nav-title { opacity: 1; }
+  div:has(> #library-heading) { padding-top: .25rem; padding-bottom: .25rem; }
+  #main-content { padding-top: .75rem; }
+}
+
 @media (width < 40rem) {
   #player-panel { padding: .75rem; }
   #subscriptions article { align-items: flex-start; }

@@ -129,6 +129,38 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
+  # Held sideways a phone has little height. The title stands in the bar from the start and the
+  # list's head closes up, so the list gets most of the screen. The large heading stays for
+  # screen readers.
+  @sessions [
+    [
+      capabilities:
+        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
+          deviceMetrics: %{width: 844, height: 390, pixelRatio: 1}
+        })
+    ]
+  ]
+  feature "held sideways the list gets most of the height", %{session: session} do
+    session
+    |> open("/new")
+    |> assert_has(css("#entries article", count: 2))
+    |> execute_script(
+      """
+      const top = s => document.querySelector(s).getBoundingClientRect().top
+      const heading = document.getElementById('library-heading')
+      return [Math.round(top('#entries') - document.getElementById('masthead').getBoundingClientRect().bottom),
+              getComputedStyle(document.getElementById('nav-title')).opacity,
+              heading.textContent.trim(), heading.getBoundingClientRect().height <= 1]
+      """,
+      fn [head, title, heading, hidden] ->
+        assert head <= 56, "the list's head takes #{head}px"
+        assert title == "1", "the bar names the place"
+        assert heading == "New", "the heading stays for screen readers"
+        assert hidden, "the large heading takes no room"
+      end
+    )
+  end
+
   # The Filter button looks pressed while the filters are open.
   feature "the filter button shows whether the filters are open", context do
     %{session: session, entries: entries} = context
