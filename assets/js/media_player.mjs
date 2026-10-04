@@ -124,6 +124,8 @@ let owner = null
 
 const systemSession = () => globalThis.navigator?.mediaSession
 
+const offset = (given, fallback) => (given > 0 ? given : fallback)
+
 // A browser throws on an action it does not know; the others still work.
 function handle(session, action, handler) {
   try { session.setActionHandler(action, handler) } catch { /* not offered here */ }
@@ -328,8 +330,9 @@ export const MediaPlayer = {
   },
 
   // The system's own controls for an episode: the lock screen, the control centre, headphones and
-  // media keys. They name the episode and drive it through the player's own commands, skipping
-  // as Sikio's buttons do. A video's frame has a session of its own, which Sikio cannot reach.
+  // media keys. They name the episode and drive it through the player's own commands. A skip goes
+  // as far as the system's button says, as iOS draws its own; without an offset as Sikio's do. A
+  // video's frame has a session of its own, which Sikio cannot reach.
   announce(audio) {
     const session = systemSession()
     if (!session || typeof MediaMetadata !== "function") return
@@ -339,8 +342,8 @@ export const MediaPlayer = {
     const actions = {
       play: () => { if (audio.paused) this.toggle() },
       pause: () => { if (!audio.paused) this.toggle() },
-      seekbackward: () => this.command({name: "skip", by: -15}),
-      seekforward: () => this.command({name: "skip", by: 30}),
+      seekbackward: ({seekOffset}) => this.command({name: "skip", by: -offset(seekOffset, 15)}),
+      seekforward: ({seekOffset}) => this.command({name: "skip", by: offset(seekOffset, 30)}),
       seekto: ({seekTime}) => this.seek(seekTime)
     }
     for (const [action, handler] of Object.entries(actions)) handle(session, action, handler)

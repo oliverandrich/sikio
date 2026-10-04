@@ -681,6 +681,11 @@ test("the system's controls show the episode and drive it", () => {
     assert.equal(audio.currentTime, 85)
     session.handlers.seekforward({})
     assert.equal(audio.currentTime, 115)
+    // iOS draws its skip buttons with an offset of its own and sends it along; the jump follows.
+    session.handlers.seekbackward({seekOffset: 10})
+    assert.equal(audio.currentTime, 105)
+    session.handlers.seekforward({seekOffset: 10})
+    assert.equal(audio.currentTime, 115)
     session.handlers.seekto({seekTime: 300})
     assert.equal(audio.currentTime, 300)
 
