@@ -571,7 +571,7 @@ defmodule SikioWeb.Layouts do
       class={[
         "flex min-h-9 items-center justify-between gap-2 rounded-control px-2.5 text-label",
         @active && "bg-selection font-semibold text-accent",
-        !@active && "hover:bg-surface"
+        !@active && "text-muted hover:bg-surface hover:text-ink"
       ]}
     >
       <span class="flex min-w-0 items-center gap-2.5">

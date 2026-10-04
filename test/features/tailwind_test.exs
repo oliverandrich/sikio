@@ -7,11 +7,11 @@ defmodule SikioWeb.TailwindTest do
   alias Sikio.Feeds.Parser
   alias Sikio.Library
 
-  # Sikio's own grounds, Tailwind's slate-100 and slate-950, read from the browser rather than from
+  # Sikio's own grounds, Tailwind's neutral-50 and neutral-950, read from the browser rather than from
   # the markup: a class name proves nothing about what a stylesheet finally resolves to. A palette
   # retune in Tailwind changes these values, which is worth noticing.
-  @ground "oklch(0.968 0.007 247.896)"
-  @dark_ground "oklch(0.129 0.042 264.695)"
+  @ground "oklch(0.985 0 none)"
+  @dark_ground "oklch(0.145 0 none)"
 
   feature "styles follow system changes and ignore an old stored theme", %{session: session} do
     session
