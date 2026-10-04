@@ -119,6 +119,16 @@ function loadYouTube(unavailable) {
   return youtubeAPI
 }
 
+// The player that last told the system what plays, so another one's cleanup leaves it alone.
+let owner = null
+
+const systemSession = () => globalThis.navigator?.mediaSession
+
+// A browser throws on an action it does not know; the others still work.
+function handle(session, action, handler) {
+  try { session.setActionHandler(action, handler) } catch { /* not offered here */ }
+}
+
 export const MediaPlayer = {
   mounted() {
     // Every sentence this hook can show is rendered by the server, so the player speaks the
@@ -202,6 +212,7 @@ export const MediaPlayer = {
 
   mountAudio() {
     const audio = this.audio
+    this.announce(audio)
     const restore = () => {
       if (this.ready || this.closed) return
       // A chapter chosen meanwhile is where it starts, rather than the saved place.
@@ -214,6 +225,7 @@ export const MediaPlayer = {
     this.listen(audio, "loadedmetadata", restore)
     this.listen(audio, "timeupdate", () => {
       this.show({position: audio.currentTime, duration: audio.duration})
+      this.placeOnSystem(audio)
       this.reporter.save()
     })
     this.listen(audio, "play", () => this.show({playing: true}))
@@ -307,9 +319,47 @@ export const MediaPlayer = {
   // capsule shows play or pause and a line along its foot from these.
   show({playing, position, duration}) {
     if (playing !== undefined) this.el.dataset.playing = String(playing)
+    if (playing !== undefined && this.audio && owner === this) {
+      systemSession().playbackState = playing ? "playing" : "paused"
+    }
     if (Number.isFinite(position) && duration > 0) {
       this.el.style.setProperty("--played", String(Math.min(position / duration, 1)))
     }
+  },
+
+  // The system's own controls for an episode: the lock screen, the control centre, headphones and
+  // media keys. They name the episode and drive it through the player's own commands, skipping
+  // as Sikio's buttons do. A video's frame has a session of its own, which Sikio cannot reach.
+  announce(audio) {
+    const session = systemSession()
+    if (!session || typeof MediaMetadata !== "function") return
+    const {title, source, artwork} = this.el.dataset
+    owner = this
+    session.metadata = new MediaMetadata({title, artist: source, artwork: artwork ? [{src: artwork}] : []})
+    const actions = {
+      play: () => { if (audio.paused) this.toggle() },
+      pause: () => { if (!audio.paused) this.toggle() },
+      seekbackward: () => this.command({name: "skip", by: -15}),
+      seekforward: () => this.command({name: "skip", by: 30}),
+      seekto: ({seekTime}) => this.seek(seekTime)
+    }
+    for (const [action, handler] of Object.entries(actions)) handle(session, action, handler)
+    // The next episode's player may announce itself before this one is gone. What it set stays.
+    this.cleanups.push(() => {
+      if (owner !== this) return
+      owner = null
+      for (const action of Object.keys(actions)) handle(session, action, null)
+      session.metadata = null
+      session.playbackState = "none"
+    })
+  },
+
+  // Where the episode is, for the system's scrubber. Only a known length can be shown.
+  placeOnSystem(audio) {
+    const session = systemSession()
+    if (owner !== this || !session?.setPositionState || !Number.isFinite(audio.duration)) return
+    session.setPositionState({duration: audio.duration,
+      position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate})
   },
 
   // Until a player knows itself, it is where it is about to start.

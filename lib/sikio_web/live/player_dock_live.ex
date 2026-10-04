@@ -322,6 +322,9 @@ defmodule SikioWeb.PlayerDockLive do
           phx-update="ignore"
           data-kind={@entry.feed.kind}
           data-session={@player.session_id}
+          data-title={@entry.title}
+          data-source={@entry.feed.title}
+          data-artwork={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
           data-position={@player.position}
           data-stale={gettext("Your progress changed elsewhere. Press Play to continue here.")}
           data-disconnected={

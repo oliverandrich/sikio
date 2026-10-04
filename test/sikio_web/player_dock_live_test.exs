@@ -47,6 +47,20 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, "[data-audio-speed][aria-label='Wiedergabegeschwindigkeit']")
   end
 
+  # The system's controls name the episode by these; see assets/js/media_player.mjs. The picture
+  # comes through this host, as every other picture does.
+  test "the player carries what the system shows of the episode", c do
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+
+    assert has_element?(
+             dock,
+             ~s|[phx-hook="MediaPlayer"][data-title="#{c.entry.title}"][data-source="#{c.entry.feed.title}"]|
+           )
+
+    assert has_element?(dock, ~s|[phx-hook="MediaPlayer"][data-artwork^="/pictures/"]|)
+  end
+
   test "one active player saves and closes without losing progress", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})

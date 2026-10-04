@@ -66,6 +66,30 @@ defmodule SikioWeb.PlayerTest do
     |> assert_has(css("#audio-cue", visible: false))
   end
 
+  # The browser's own media session names the episode, for the lock screen and media keys, and
+  # forgets it once the player closes.
+  feature "the system's controls name what plays", context do
+    %{session: session, entry: entry} = context
+    named = "return navigator.mediaSession.metadata && navigator.mediaSession.metadata.title"
+
+    session
+    |> open(item_path(entry))
+    |> click(css("#start-playback"))
+    |> assert_has(css("#player-panel [data-audio-face]"))
+    |> execute_script(named, fn title -> assert title == entry.title end)
+    |> execute_script(
+      "return navigator.mediaSession.metadata.artwork[0].src",
+      fn src -> assert src =~ "/pictures/" end
+    )
+    |> press("close-player")
+    |> then(fn session ->
+      assert {:ok, _} =
+               retry(fn -> holds(session, "return navigator.mediaSession.metadata === null") end)
+
+      session
+    end)
+  end
+
   feature "the player survives a dropped and restored socket", context do
     %{session: session, account: account, entry: entry} = context
 

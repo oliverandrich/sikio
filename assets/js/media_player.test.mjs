@@ -623,3 +623,102 @@ test("the player says whether it plays and how far it has come", async () => {
     globalThis.window = previous.window
   }
 })
+
+// The system's own controls for an episode: the lock screen, the control centre, headphones and
+// media keys. A stand-in session records what the player tells it.
+function mediaSession() {
+  const session = {metadata: null, playbackState: "none", handlers: {}, position: null,
+    setActionHandler(name, handler) {
+      if (handler) this.handlers[name] = handler
+      else delete this.handlers[name]
+    },
+    setPositionState(state) { this.position = state }}
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "navigator")
+  Object.defineProperty(globalThis, "navigator", {value: {mediaSession: session}, configurable: true})
+  globalThis.MediaMetadata = class { constructor(init) { Object.assign(this, init) } }
+  return {session, restore: () => {
+    Object.defineProperty(globalThis, "navigator", previous)
+    delete globalThis.MediaMetadata
+  }}
+}
+
+function episode(dataset) {
+  const calls = []
+  const audio = new EventTarget()
+  Object.assign(audio, {dataset: {}, currentTime: 0, duration: 400, readyState: 0, playbackRate: 1,
+    paused: true, muted: false,
+    play() { calls.push("play"); this.paused = false; return Promise.resolve() },
+    pause() { calls.push("pause"); this.paused = true }, load() {}, removeAttribute() {}})
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}},
+    dataset: {kind: "podcast", session: dataset.session, position: "0", ...dataset, ...STRINGS},
+    querySelector: selector => ({audio, "[data-player-message]": {textContent: ""}}[selector])}),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})}
+  return {hook, audio, calls}
+}
+
+test("the system's controls show the episode and drive it", () => {
+  const {session, restore} = mediaSession()
+  const previousDocument = globalThis.document
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false})
+  const {hook, audio, calls} = episode({session: "a", title: "One & two", source: "Small Hours",
+    artwork: "/pictures/abc"})
+  try {
+    hook.mounted()
+    assert.equal(session.metadata.title, "One & two")
+    assert.equal(session.metadata.artist, "Small Hours")
+    assert.deepEqual(session.metadata.artwork, [{src: "/pictures/abc"}])
+
+    audio.readyState = 1
+    audio.dispatchEvent(new Event("loadedmetadata"))
+    session.handlers.pause()
+    session.handlers.play()
+    assert.deepEqual(calls, ["play", "pause", "play"], "pause and play do what they say")
+    session.handlers.play()
+    assert.equal(calls.length, 3, "play while playing changes nothing")
+
+    audio.currentTime = 100
+    session.handlers.seekbackward({})
+    assert.equal(audio.currentTime, 85)
+    session.handlers.seekforward({})
+    assert.equal(audio.currentTime, 115)
+    session.handlers.seekto({seekTime: 300})
+    assert.equal(audio.currentTime, 300)
+
+    audio.dispatchEvent(new Event("play"))
+    assert.equal(session.playbackState, "playing")
+    audio.dispatchEvent(new Event("timeupdate"))
+    assert.deepEqual(session.position, {duration: 400, position: 300, playbackRate: 1})
+    audio.dispatchEvent(new Event("pause"))
+    assert.equal(session.playbackState, "paused")
+
+    hook.destroyed()
+    assert.equal(session.metadata, null)
+    assert.deepEqual(session.handlers, {})
+    assert.equal(session.playbackState, "none")
+  } finally {
+    hook.destroyed()
+    globalThis.document = previousDocument
+    restore()
+  }
+})
+
+// The next episode may announce itself before the last one's player is gone.
+test("a player clears only what it set itself", () => {
+  const {session, restore} = mediaSession()
+  const previousDocument = globalThis.document
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false})
+  const first = episode({session: "a", title: "First", source: "Small Hours"})
+  const second = episode({session: "b", title: "Second", source: "Small Hours"})
+  try {
+    first.hook.mounted()
+    second.hook.mounted()
+    first.hook.destroyed()
+    assert.equal(session.metadata.title, "Second")
+    assert.ok(session.handlers.play, "the next player keeps its controls")
+  } finally {
+    first.hook.destroyed()
+    second.hook.destroyed()
+    globalThis.document = previousDocument
+    restore()
+  }
+})
