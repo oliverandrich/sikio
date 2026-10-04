@@ -22,6 +22,7 @@ defmodule SikioWeb.Sidebar do
   alias Sikio.Library
   alias Sikio.Library.Events
   alias Sikio.Tags
+  alias SikioWeb.MediaComponents
 
   @window_ms 1000
 
@@ -45,13 +46,13 @@ defmodule SikioWeb.Sidebar do
     sources =
       account
       |> Library.subscriptions()
-      |> Enum.sort_by(&String.downcase(&1.feed.title || ""))
+      |> Enum.sort_by(&String.downcase(MediaComponents.source_name(&1) || ""))
 
     tags = Tags.list(account)
 
     # Addresses name a source or a tag by its title as well as its number.
     titles =
-      Map.new(sources, &{&1.feed_id, &1.feed.title})
+      Map.new(sources, &{&1.feed_id, MediaComponents.source_name(&1)})
       |> Map.merge(Map.new(tags, &{{:tag, &1.id}, &1.name}))
 
     assign(socket, :sidebar, %{

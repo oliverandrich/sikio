@@ -16,7 +16,8 @@ defmodule Sikio.Feeds.Refresh do
   @impl true
   def perform(%Oban.Job{args: %{"feed_id" => id}}) do
     if Library.active_feed?(id) do
-      case Feeds.refresh(id) do
+      # New entries go where each subscription sends them, in the same transaction.
+      case Feeds.refresh(id, &Library.deliver/2) do
         {:ok, _feed} -> :ok
         {:error, reason} -> {:error, reason}
       end

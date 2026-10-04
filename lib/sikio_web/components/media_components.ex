@@ -11,6 +11,14 @@ defmodule SikioWeb.MediaComponents do
   use Gettext, backend: SikioWeb.Gettext
   use SikioWeb, :verified_routes
 
+  @doc """
+  A source's name as the reader calls it: the subscription's own name, or the feed's title. An
+  entry carries the name its account gives the source.
+  """
+  def source_name(%Sikio.Library.Subscription{name: name, feed: feed}), do: name || feed.title
+  def source_name(%{source_name: name}) when is_binary(name), do: name
+  def source_name(%{feed: feed}), do: feed.title
+
   @doc "Whether this is something somebody watches. Two of the three kinds are."
   def video?(%{feed: %{kind: kind}}), do: kind in [:youtube, :peertube]
 

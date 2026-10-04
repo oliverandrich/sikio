@@ -400,9 +400,12 @@ defmodule SikioWeb.Layouts do
                   loading="lazy"
                   class="size-5 shrink-0 rounded-full bg-line object-cover"
                 />
-                <.initial :if={!source.feed.icon_url} name={source.feed.title} />
+                <.initial
+                  :if={!source.feed.icon_url}
+                  name={SikioWeb.MediaComponents.source_name(source)}
+                />
               </:mark>
-              {source.feed.title}
+              {SikioWeb.MediaComponents.source_name(source)}
             </.sidebar_link>
           </nav>
         </div>

@@ -67,6 +67,16 @@ defmodule Sikio.FeedFixtures do
   @doc "The page the podcast's episode names as its own."
   def podcast_page, do: "https://example.org/episodes/1"
 
+  @doc "The podcast as a later poll finds it, with an episode published since, titled Later."
+  def podcast_later do
+    String.replace(
+      podcast(),
+      "</channel>",
+      "<item><guid>episode-2</guid><title>Later</title><pubDate>Sat, 19 Sep 2026 09:00:00 GMT</pubDate>" <>
+        ~s(<enclosure url="https://example.org/2.mp3" type="audio/mpeg" length="1"/></item></channel>)
+    )
+  end
+
   def podcast(title \\ "Small Hours") do
     """
     <?xml version="1.0"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:content="http://purl.org/rss/1.0/modules/content/">

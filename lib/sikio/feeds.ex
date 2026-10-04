@@ -28,12 +28,23 @@ defmodule Sikio.Feeds do
   defp replaced_feed_fields(%{icon_url: url}) when is_binary(url), do: [:icon_url | @feed_fields]
   defp replaced_feed_fields(_attrs), do: @feed_fields
 
-  def store(preview) do
-    with {:ok, {feed, _written}} <- store_entries(preview), do: {:ok, feed}
+  @doc """
+  Stores a source and its entries, inserting what is new and updating what changed.
+
+  `on_new` is called with the feed's id and the ids of the entries that are new, inside the same
+  transaction, when there are any. The library sends them where its subscriptions say.
+  """
+  def store(preview, on_new \\ &ignore/2) do
+    with {:ok, {feed, _written}} <- store_entries(preview, on_new), do: {:ok, feed}
   end
 
+  defp ignore(_feed_id, _entry_ids), do: :ok
+
+  defp announce(_on_new, _feed_id, []), do: :ok
+  defp announce(on_new, feed_id, entry_ids), do: on_new.(feed_id, entry_ids)
+
   # The feed and how many of its entries were inserted or actually changed.
-  defp store_entries(preview) do
+  defp store_entries(preview, on_new) do
     Repo.transaction(fn ->
       attrs = Map.merge(preview, %{last_checked_at: DateTime.utc_now(), last_error: nil})
 
@@ -43,7 +54,8 @@ defmodule Sikio.Feeds do
              returning: true
            ) do
         {:ok, feed} ->
-          {written, _} = import_entries(feed.id, preview.entries)
+          {written, new} = import_entries(feed.id, preview.entries)
+          announce(on_new, feed.id, new)
           {feed, written}
 
         {:error, error} ->
@@ -78,13 +90,14 @@ defmodule Sikio.Feeds do
     end
   end
 
-  def refresh(id) do
+  @doc "Fetches a source again. `on_new` hears of new entries as with `store/2`."
+  def refresh(id, on_new \\ &ignore/2) do
     case Repo.get(Feed, id) do
       nil ->
         {:error, :not_found}
 
       feed ->
-        result = refresh_feed(feed)
+        result = refresh_feed(feed, on_new)
         if news?(result, feed), do: Events.feed_updated(feed.id)
 
         case result do
@@ -100,7 +113,7 @@ defmodule Sikio.Feeds do
   defp news?({:unchanged, _refreshed}, feed), do: feed.last_error != nil
   defp news?({:error, _reason}, feed), do: feed.last_error == nil
 
-  defp refresh_feed(feed) do
+  defp refresh_feed(feed, on_new) do
     headers =
       [{"if-none-match", feed.etag}, {"if-modified-since", feed.last_modified}]
       |> Enum.reject(fn {_, value} -> is_nil(value) end)
@@ -108,7 +121,7 @@ defmodule Sikio.Feeds do
     case Discovery.fetch(feed.url, headers) do
       # Keep the original stable subscription URL even when its endpoint redirects.
       {:ok, preview} ->
-        %{preview | url: feed.url} |> store_entries() |> compared_with(feed)
+        %{preview | url: feed.url} |> store_entries(on_new) |> compared_with(feed)
 
       # Nothing changed, so nobody is told. Each notification costs every open library a reload.
       :not_modified ->
@@ -164,10 +177,22 @@ defmodule Sikio.Feeds do
         |> Map.put(:search_text, SearchText.of(entry))
       end)
 
-    Repo.insert_all(Entry, rows,
-      on_conflict: keep_content(),
-      conflict_target: [:feed_id, :external_id]
-    )
+    {written, _} =
+      Repo.insert_all(Entry, rows,
+        on_conflict: keep_content(),
+        conflict_target: [:feed_id, :external_id]
+      )
+
+    # A row inserted now carries this moment; one that was there keeps its own.
+    new =
+      Repo.all(
+        from e in Entry,
+          where: e.feed_id == ^feed_id and e.inserted_at == ^now,
+          order_by: [asc: e.published_at, asc: e.id],
+          select: e.id
+      )
+
+    {written, new}
   end
 
   # What identifies and locates an episode is replaced outright, because a feed that moves its

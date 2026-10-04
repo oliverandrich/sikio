@@ -43,7 +43,9 @@ defmodule Sikio.Library do
   def subscribe(%User{id: user_id}, preview) do
     result =
       Repo.transaction(fn ->
-        with {:ok, feed} <- Feeds.store(preview),
+        # The subscription is made after the store, so what the source holds now stays in the
+        # inbox for this account, while others' subscriptions take what is new to them.
+        with {:ok, feed} <- Feeds.store(preview, &deliver/2),
              {:ok, subscription} <-
                Repo.insert(
                  Subscription.changeset(%Subscription{user_id: user_id, feed_id: feed.id}, %{}),
@@ -63,6 +65,57 @@ defmodule Sikio.Library do
 
     result
   end
+
+  @doc """
+  Changes a subscription's own settings: a name of the account's own, blank for the feed's
+  title, and where what its source publishes next goes.
+  """
+  def update_subscription(account, id, attrs) do
+    case owned(account, id) do
+      nil -> {:error, :not_found}
+      subscription -> subscription |> Subscription.settings_changeset(attrs) |> Repo.update()
+    end
+  end
+
+  @doc """
+  Sends a source's new entries where each subscription to it says: to the end of its account's
+  queue, oldest first, or to the archive. The inbox needs nothing, since an entry nobody has
+  opened is new.
+  """
+  def deliver(feed_id, entry_ids) do
+    now = DateTime.utc_now()
+
+    Repo.all(
+      from s in Subscription,
+        where: s.feed_id == ^feed_id and s.delivery != :inbox,
+        select: {s.user_id, s.delivery}
+    )
+    |> Enum.each(fn {user_id, delivery} ->
+      Repo.insert_all(State, delivered(user_id, delivery, entry_ids, now), on_conflict: :nothing)
+    end)
+  end
+
+  # One account's progress rows for new entries: queued after what its queue holds, or archived.
+  defp delivered(user_id, delivery, entry_ids, now) do
+    last =
+      Repo.one(
+        from p in State,
+          where: p.user_id == ^user_id and not is_nil(p.queue_rank),
+          select: max(p.queue_rank)
+      ) || 0.0
+
+    entry_ids
+    |> Enum.with_index(1)
+    |> Enum.map(fn {entry_id, n} ->
+      Map.merge(
+        %{user_id: user_id, entry_id: entry_id, inserted_at: now, updated_at: now},
+        landing(delivery, last + n, now)
+      )
+    end)
+  end
+
+  defp landing(:queue, rank, _now), do: %{status: :new, queue_rank: rank}
+  defp landing(:skip, _rank, now), do: %{status: :archived, completed_at: now}
 
   def subscriptions(%User{id: user_id}) do
     Repo.all(
@@ -417,7 +470,7 @@ defmodule Sikio.Library do
 
   defp entry_query(user_id) do
     from [e, s, p, f] in scoped_entries(user_id),
-      select_merge: %{playback: p},
+      select_merge: %{playback: p, source_name: coalesce(s.name, f.title)},
       # Bound to the join above. An unbound `preload: [:feed]` joins and then fetches the feeds a
       # second time, which every library page and every saved position would pay for.
       preload: [feed: f]

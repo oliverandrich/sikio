@@ -43,6 +43,15 @@ defmodule Sikio.Feeds.JobsTest do
     assert :ok = perform_job(Refresh, %{feed_id: ctx.subscription.feed_id})
   end
 
+  # The job is how new episodes arrive, so it is the one that sends them where subscriptions say.
+  test "a refresh job sends new episodes where the subscription says", ctx do
+    {:ok, _} = Library.update_subscription(ctx.user, ctx.subscription.id, %{delivery: :queue})
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast_later()) end)
+    assert :ok = perform_job(Refresh, %{feed_id: ctx.subscription.feed_id})
+    assert [%{title: "Later"}] = Library.entries(ctx.user, %{"status" => "queue"})
+  end
+
   test "a refresh job reports upstream failures for Oban retry", ctx do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "try later") end)
 

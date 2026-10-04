@@ -35,6 +35,9 @@ defmodule Sikio.Feeds.Entry do
     # Filled per account by the queries that join playback state, so a shared row never carries
     # somebody else's progress.
     field :playback, :map, virtual: true
+    # The source's name as this account calls it, its own or else the feed's. Filled per account
+    # with the progress, for the same reason.
+    field :source_name, :string, virtual: true
     timestamps(type: :utc_datetime_usec)
   end
 end

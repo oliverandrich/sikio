@@ -275,14 +275,14 @@ defmodule SikioWeb.PlayerDockLive do
           />
           <div :if={@entry} class="player-text mr-auto min-w-0">
             <p class="player-source text-meta font-semibold text-accent">
-              {@entry.feed.title}
+              {source_name(@entry)}
             </p>
             <.link
               navigate={
                 SikioWeb.Sidebar.library_path(
                   %{"source" => to_string(@entry.feed_id)},
                   @entry,
-                  %{@entry.feed_id => @entry.feed.title}
+                  %{@entry.feed_id => source_name(@entry)}
                 )
               }
               data-show-entry={@entry.id}
@@ -335,7 +335,7 @@ defmodule SikioWeb.PlayerDockLive do
           data-kind={@entry.feed.kind}
           data-session={@player.session_id}
           data-title={@entry.title}
-          data-source={@entry.feed.title}
+          data-source={source_name(@entry)}
           data-artwork={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
           data-position={@player.position}
           data-stale={gettext("Your progress changed elsewhere. Press Play to continue here.")}

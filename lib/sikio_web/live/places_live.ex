@@ -9,7 +9,7 @@ defmodule SikioWeb.PlacesLive do
   """
   use SikioWeb, :live_view
 
-  import SikioWeb.MediaComponents, only: [views: 0, view_icon: 1]
+  import SikioWeb.MediaComponents, only: [views: 0, view_icon: 1, source_name: 1]
 
   alias Sikio.Library
   alias SikioWeb.Sidebar
@@ -62,7 +62,7 @@ defmodule SikioWeb.PlacesLive do
           to={Sidebar.place_path("source", to_string(source.feed_id), @sidebar.titles)}
           count={Map.get(@counts.sources, source.feed_id, 0)}
         >
-          {source.feed.title}
+          {source_name(source)}
         </.place>
       </.places>
     </Layouts.member>

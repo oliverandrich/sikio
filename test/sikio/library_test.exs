@@ -284,6 +284,58 @@ defmodule Sikio.LibraryTest do
     assert Repo.aggregate(Entry, :count) == 1
   end
 
+  # Each subscription says where what its source publishes next goes: the inbox, the end of the
+  # queue, or straight to the archive. What the source held when somebody subscribed stays where
+  # it was, and so does what was there before a refresh.
+  test "new episodes go where each subscription sends them", ctx do
+    carol = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    {:ok, alices} = Library.subscribe(ctx.alice, ctx.preview)
+    {:ok, bobs} = Library.subscribe(ctx.bob, ctx.preview)
+    {:ok, _carols} = Library.subscribe(carol, ctx.preview)
+    {:ok, _} = Library.update_subscription(ctx.alice, alices.id, %{delivery: :queue})
+    {:ok, _} = Library.update_subscription(ctx.bob, bobs.id, %{delivery: :skip})
+
+    assert {:error, :not_found} =
+             Library.update_subscription(ctx.bob, alices.id, %{delivery: :skip})
+
+    [first] = Library.entries(ctx.alice)
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast_later()) end)
+    assert {:ok, _} = Feeds.refresh(alices.feed_id, &Library.deliver/2)
+    [%{id: second}] = Library.entries(ctx.alice, %{"q" => "Later"})
+
+    assert Sikio.Playback.queue(ctx.alice) == [second]
+
+    assert [%{id: ^second}] =
+             Library.entries(ctx.bob, %{"status" => ""})
+             |> Enum.filter(&(&1.playback && &1.playback.status == :archived))
+
+    assert Enum.map(Library.entries(carol, %{"status" => "inbox"}), & &1.id) |> Enum.sort() ==
+             Enum.sort([first.id, second])
+
+    assert Enum.map(Library.entries(ctx.alice, %{"status" => "inbox"}), & &1.id) == [first.id]
+    assert Library.entries(ctx.bob, %{"status" => "inbox"}) |> Enum.map(& &1.id) == [first.id]
+  end
+
+  # The feed is shared, so a name of one's own belongs to the subscription. Its entries carry it
+  # for the account alone, and a blank name gives the feed's back.
+  test "a subscription takes a name of its own, which its entries carry", ctx do
+    {:ok, alices} = Library.subscribe(ctx.alice, ctx.preview)
+    {:ok, _} = Library.subscribe(ctx.bob, ctx.preview)
+
+    assert {:ok, %{name: "Late Night"}} =
+             Library.update_subscription(ctx.alice, alices.id, %{name: " Late Night "})
+
+    assert [%{source_name: "Late Night"}] = Library.entries(ctx.alice)
+    assert [%{source_name: "Small Hours"}] = Library.entries(ctx.bob)
+
+    assert %{source_name: "Late Night"} =
+             Library.entry(ctx.alice, hd(Library.entries(ctx.alice)).id)
+
+    assert {:ok, %{name: nil}} = Library.update_subscription(ctx.alice, alices.id, %{name: "  "})
+    assert [%{source_name: "Small Hours"}] = Library.entries(ctx.alice)
+  end
+
   test "failed refresh keeps existing content and records the error", ctx do
     {:ok, sub} = Library.subscribe(ctx.alice, ctx.preview)
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "unavailable") end)

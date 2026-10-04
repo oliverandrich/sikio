@@ -346,7 +346,9 @@ defmodule SikioWeb.SubscriptionsLive do
                   do: gettext("Polling paused"),
                   else: gettext("Active")}
               </p>
-              <h3 class="mt-1 text-lg font-semibold">{subscription.feed.title}</h3>
+              <h3 class="mt-1 text-lg font-semibold">
+                {SikioWeb.MediaComponents.source_name(subscription)}
+              </h3>
               <p class="mt-2 text-meta break-all text-muted">
                 {subscription.feed.url}
               </p>

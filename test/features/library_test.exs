@@ -178,21 +178,21 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#entries article:not([data-status=archived])", count: 1))
   end
 
-  # A source is given a tag in a dialog that stays open while it is typed in, and the tag then
-  # stands in the sidebar as a place of its own.
+  # A source is given a tag in its own dialog, which stays open while it is typed in, and the tag
+  # then stands in the sidebar as a place of its own.
   feature "a source is given a tag from its own list", %{session: session} do
     session
     |> resize_window(1440, 900)
     |> open("/inbox")
     |> refute_has(css("#tags-heading"))
     |> click(css("#sidebar a", text: "Small Hours"))
-    |> click(css("#edit-tags"))
-    |> assert_has(css("dialog#edit-tags-confirm[open]", text: "Tags for Small Hours"))
-    |> fill_in(css("#tags-form input[name=new]"), with: "Must view")
-    |> assert_has(css("dialog#edit-tags-confirm[open]"))
-    |> click(css("#confirm-edit-tags"))
+    |> click(css("#edit-subscription"))
+    |> assert_has(css("dialog#edit-subscription-confirm[open]", text: "Small Hours"))
+    |> fill_in(css("#subscription-form input[name=new]"), with: "Must view")
+    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
+    |> click(css("#confirm-edit-subscription"))
     # refute_has fails at once while the dialog is still there; a count of none waits for it.
-    |> assert_has(css("#edit-tags-confirm", count: 0))
+    |> assert_has(css("#edit-subscription-confirm", count: 0))
     |> click(css("#sidebar a", text: "Must view"))
     |> assert_has(css("#library-heading", text: "Must view"))
     |> assert_has(css("#entries article", count: 25))
@@ -204,7 +204,7 @@ defmodule SikioWeb.LibraryTest do
     |> resize_window(1440, 900)
     |> open("/inbox")
     |> click(css("#sidebar a", text: "Small Hours"))
-    |> assert_has(css("#unsubscribe"))
+    |> assert_has(css("#edit-subscription"))
     |> execute_script(
       """
       const box = id => document.getElementById(id).getBoundingClientRect()
@@ -245,16 +245,18 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#app-header:not([data-shrunk])"))
   end
 
-  # A source is left from its own list, after a dialog that names it.
+  # A source is left from its own dialog, after a question that names it.
   feature "a source is left from its own list", %{session: session} do
     session
     |> resize_window(1440, 900)
     |> open("/inbox")
     |> click(css("#sidebar a", text: "Small Hours"))
+    |> click(css("#edit-subscription"))
     |> click(css("#unsubscribe"))
     |> assert_has(css("dialog#unsubscribe-confirm[open]", text: "Unsubscribe from Small Hours?"))
     |> send_keys([:escape])
     |> refute_has(css("#unsubscribe-confirm"))
+    |> click(css("#edit-subscription"))
     |> click(css("#unsubscribe"))
     |> click(css("#confirm-unsubscribe"))
     |> refute_has(css("#sidebar a", text: "Small Hours"))

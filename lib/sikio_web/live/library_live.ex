@@ -43,7 +43,7 @@ defmodule SikioWeb.LibraryLive do
        marking: nil,
        mark_options: nil,
        unsubscribing: nil,
-       tagging: nil,
+       editing: nil,
        renaming: nil,
        deleting: nil,
        chosen_for_width: nil,
@@ -99,7 +99,7 @@ defmodule SikioWeb.LibraryLive do
             entries: [],
             marking: nil,
             unsubscribing: nil,
-            tagging: nil,
+            editing: nil,
             renaming: nil,
             deleting: nil
           )
@@ -134,6 +134,14 @@ defmodule SikioWeb.LibraryLive do
   defp rename_error(:taken), do: gettext("Another tag is called that already.")
   defp rename_error(:blank), do: gettext("A tag needs a name.")
   defp rename_error(:not_found), do: gettext("This tag is no longer there.")
+
+  # Where a source's new episodes may go, as its dialog offers it.
+  defp deliveries,
+    do: [
+      {"inbox", gettext("The inbox")},
+      {"queue", gettext("The end of the queue")},
+      {"skip", gettext("The archive, unheard")}
+    ]
 
   # The subscription to the source the list shows, as the sidebar holds it.
   defp chosen_subscription(socket) do
@@ -472,9 +480,10 @@ defmodule SikioWeb.LibraryLive do
     {:noreply, assign(socket, :marking, nil)}
   end
 
-  # A source's tags are chosen in a dialog: the account's tags to tick, and a field for a new one.
-  # What is ticked and typed is followed as it changes, and saved when confirmed.
-  def handle_event("edit_tags", _params, socket) do
+  # A source's own dialog: a name of the reader's own, where its new episodes go, its tags to tick
+  # and a field for new ones, and the way to leave it. What is typed and ticked is followed as it
+  # changes, and saved when confirmed.
+  def handle_event("edit_subscription", _params, socket) do
     case chosen_subscription(socket) do
       nil ->
         {:noreply, socket}
@@ -484,35 +493,56 @@ defmodule SikioWeb.LibraryLive do
 
         {:noreply,
          assign(socket,
-           tagging: %{subscription: subscription, chosen: Enum.map(tags, & &1.name), new: ""}
+           editing: %{
+             subscription: subscription,
+             name: subscription.name || "",
+             delivery: Atom.to_string(subscription.delivery),
+             chosen: Enum.map(tags, & &1.name),
+             new: ""
+           }
          )}
     end
   end
 
-  def handle_event("tag_options", params, socket) do
-    tagging = %{socket.assigns.tagging | chosen: params["tags"] || [], new: params["new"] || ""}
-    {:noreply, assign(socket, :tagging, tagging)}
+  def handle_event("subscription_options", params, socket) do
+    editing = %{
+      socket.assigns.editing
+      | name: params["name"] || "",
+        delivery: params["delivery"] || socket.assigns.editing.delivery,
+        chosen: params["tags"] || [],
+        new: params["new"] || ""
+    }
+
+    {:noreply, assign(socket, :editing, editing)}
   end
 
-  # Enter in the field saves what the form holds, as the button does.
-  def handle_event("submit_edit_tags", params, socket) do
-    {:noreply, socket} = handle_event("tag_options", params, socket)
-    handle_event("confirm_edit_tags", %{}, socket)
+  # Enter in a field saves what the form holds, as the button does.
+  def handle_event("submit_edit_subscription", params, socket) do
+    {:noreply, socket} = handle_event("subscription_options", params, socket)
+    handle_event("confirm_edit_subscription", %{}, socket)
   end
 
-  def handle_event("cancel_edit_tags", _params, socket),
-    do: {:noreply, socket |> assign(:tagging, nil) |> push_event("focus", %{id: "edit-tags"})}
+  def handle_event("cancel_edit_subscription", _params, socket),
+    do:
+      {:noreply,
+       socket |> assign(:editing, nil) |> push_event("focus", %{id: "edit-subscription"})}
 
   # A second press arrives after the first has closed the dialog.
-  def handle_event("confirm_edit_tags", _params, %{assigns: %{tagging: nil}} = socket),
+  def handle_event("confirm_edit_subscription", _params, %{assigns: %{editing: nil}} = socket),
     do: {:noreply, socket}
 
   # Several new tags may be typed at once, set apart by commas.
-  def handle_event("confirm_edit_tags", _params, socket) do
-    %{subscription: subscription, chosen: chosen, new: new} = socket.assigns.tagging
-    names = chosen ++ String.split(new, ",")
-    Tags.set(socket.assigns.current_account, subscription.id, names)
-    {:noreply, assign(socket, :tagging, nil)}
+  def handle_event("confirm_edit_subscription", _params, socket) do
+    %{subscription: subscription, name: name, delivery: delivery, chosen: chosen, new: new} =
+      socket.assigns.editing
+
+    account = socket.assigns.current_account
+
+    {:ok, _} =
+      Library.update_subscription(account, subscription.id, %{name: name, delivery: delivery})
+
+    Tags.set(account, subscription.id, chosen ++ String.split(new, ","))
+    {:noreply, socket |> assign(:editing, nil) |> SikioWeb.Sidebar.refresh()}
   end
 
   # A tag is renamed in its own header. A name another tag holds is said in the dialog, which
@@ -575,14 +605,14 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("unsubscribe", _params, socket) do
     case chosen_subscription(socket) do
       nil -> {:noreply, socket}
-      subscription -> {:noreply, assign(socket, :unsubscribing, subscription)}
+      subscription -> {:noreply, assign(socket, unsubscribing: subscription, editing: nil)}
     end
   end
 
   def handle_event("cancel_unsubscribe", _params, socket),
     do:
       {:noreply,
-       socket |> assign(:unsubscribing, nil) |> push_event("focus", %{id: "unsubscribe"})}
+       socket |> assign(:unsubscribing, nil) |> push_event("focus", %{id: "edit-subscription"})}
 
   # The source's list has nothing left to show, so the page goes to what is new.
   def handle_event("confirm_unsubscribe", _params, socket) do
@@ -826,7 +856,7 @@ defmodule SikioWeb.LibraryLive do
 
   defp source_title(subscriptions, source) do
     Enum.find_value(subscriptions, gettext("Unavailable source"), fn subscription ->
-      to_string(subscription.feed_id) == source && subscription.feed.title
+      to_string(subscription.feed_id) == source && source_name(subscription)
     end)
   end
 
@@ -928,27 +958,18 @@ defmodule SikioWeb.LibraryLive do
                   >
                     <Lucideicons.trash_2 aria-hidden="true" class="size-4.5" />
                   </button>
+                  <%!-- The source's own settings: its name, where new episodes go, its tags and
+                       the way to leave it. --%>
                   <button
                     :if={@filters["source"] != ""}
-                    id="edit-tags"
+                    id="edit-subscription"
                     type="button"
-                    aria-label={gettext("Tags")}
-                    title={gettext("Tags")}
-                    phx-click="edit_tags"
+                    aria-label={gettext("Edit subscription")}
+                    title={gettext("Edit subscription")}
+                    phx-click="edit_subscription"
                     class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
                   >
-                    <Lucideicons.tag aria-hidden="true" class="size-4.5" />
-                  </button>
-                  <button
-                    :if={@filters["source"] != ""}
-                    id="unsubscribe"
-                    type="button"
-                    aria-label={gettext("Unsubscribe")}
-                    title={gettext("Unsubscribe")}
-                    phx-click="unsubscribe"
-                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
-                  >
-                    <Lucideicons.unplug aria-hidden="true" class="size-4.5" />
+                    <Lucideicons.pencil aria-hidden="true" class="size-4.5" />
                   </button>
                   <%!-- Whether the player goes on with the queue when an item ends. --%>
                   <button
@@ -1026,41 +1047,83 @@ defmodule SikioWeb.LibraryLive do
               </form>
             </.confirm_dialog>
             <.confirm_dialog
-              :if={@tagging}
-              name="edit-tags"
-              title={gettext("Tags for %{title}", title: @tagging.subscription.feed.title)}
-              confirm_label={gettext("Save tags")}
+              :if={@editing}
+              name="edit-subscription"
+              title={source_name(@editing.subscription)}
+              confirm_label={gettext("Save")}
             >
               <form
-                id="tags-form"
-                phx-change="tag_options"
-                phx-submit="submit_edit_tags"
-                class="flex flex-col gap-2"
+                id="subscription-form"
+                phx-change="subscription_options"
+                phx-submit="submit_edit_subscription"
+                class="flex flex-col gap-5"
               >
-                <input type="hidden" name="tags[]" value="" />
-                <label
-                  :for={tag <- @sidebar.tags}
-                  class="flex items-center gap-2.5 text-label text-ink"
-                >
+                <label class="flex flex-col gap-1.5 text-label font-semibold text-ink">
+                  {gettext("Name")}
                   <input
-                    type="checkbox"
-                    name="tags[]"
-                    value={tag.name}
-                    checked={tag.name in @tagging.chosen}
-                    class="size-4 accent-accent"
+                    type="text"
+                    name="name"
+                    value={@editing.name}
+                    maxlength="200"
+                    placeholder={@editing.subscription.feed.title}
+                    class="min-h-10 rounded-control border border-line bg-surface px-3 font-normal text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
                   />
-                  {tag.name}
                 </label>
-                <input
-                  type="text"
-                  name="new"
-                  value={@tagging.new}
-                  maxlength="80"
-                  placeholder={gettext("New tag, or several set apart by commas")}
-                  aria-label={gettext("New tag")}
-                  class="mt-1 min-h-10 rounded-control border border-line bg-surface px-3 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
-                />
+                <fieldset class="flex flex-col gap-2">
+                  <legend class="mb-1.5 text-label font-semibold text-ink">
+                    {gettext("New episodes go to")}
+                  </legend>
+                  <label
+                    :for={{value, label} <- deliveries()}
+                    class="flex items-center gap-2.5 text-label text-ink"
+                  >
+                    <input
+                      type="radio"
+                      name="delivery"
+                      value={value}
+                      checked={@editing.delivery == value}
+                      class="size-4 accent-accent"
+                    />
+                    {label}
+                  </label>
+                </fieldset>
+                <fieldset class="flex flex-col gap-2">
+                  <legend class="mb-1.5 text-label font-semibold text-ink">{gettext("Tags")}</legend>
+                  <input type="hidden" name="tags[]" value="" />
+                  <label
+                    :for={tag <- @sidebar.tags}
+                    class="flex items-center gap-2.5 text-label text-ink"
+                  >
+                    <input
+                      type="checkbox"
+                      name="tags[]"
+                      value={tag.name}
+                      checked={tag.name in @editing.chosen}
+                      class="size-4 accent-accent"
+                    />
+                    {tag.name}
+                  </label>
+                  <input
+                    type="text"
+                    name="new"
+                    value={@editing.new}
+                    maxlength="80"
+                    placeholder={gettext("New tag, or several set apart by commas")}
+                    aria-label={gettext("New tag")}
+                    class="mt-1 min-h-10 rounded-control border border-line bg-surface px-3 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
+                  />
+                </fieldset>
               </form>
+              <%!-- Leaving asks once more, in a question of its own. --%>
+              <button
+                id="unsubscribe"
+                type="button"
+                phx-click="unsubscribe"
+                class="mt-6 inline-flex items-center gap-2 text-label font-semibold text-danger hover:underline"
+              >
+                <Lucideicons.unplug aria-hidden="true" class="size-4" />
+                {gettext("Unsubscribe")}
+              </button>
             </.confirm_dialog>
             <.confirm_dialog
               :if={@renaming}
@@ -1096,7 +1159,7 @@ defmodule SikioWeb.LibraryLive do
             <.confirm_dialog
               :if={@unsubscribing}
               name="unsubscribe"
-              title={gettext("Unsubscribe from %{title}?", title: @unsubscribing.feed.title)}
+              title={gettext("Unsubscribe from %{title}?", title: source_name(@unsubscribing))}
               confirm_label={gettext("Unsubscribe")}
             >
               <p>
@@ -1274,7 +1337,7 @@ defmodule SikioWeb.LibraryLive do
         </span>
         <span class="flex min-w-0 grow flex-col gap-1">
           <span :if={@source_shown} data-source class="truncate text-meta font-semibold text-accent">
-            {@entry.feed.title}
+            {source_name(@entry)}
           </span>
           <span class={[
             "mb-auto line-clamp-2 text-body",
@@ -1561,10 +1624,10 @@ defmodule SikioWeb.LibraryLive do
             alt=""
             class="size-full object-cover"
           />
-          <span :if={!@entry.feed.icon_url}>{initial(@entry.feed.title)}</span>
+          <span :if={!@entry.feed.icon_url}>{initial(source_name(@entry))}</span>
         </span>
         <div class="flex min-w-0 grow flex-col">
-          <p class="truncate text-label font-semibold text-accent">{@entry.feed.title}</p>
+          <p class="truncate text-label font-semibold text-accent">{source_name(@entry)}</p>
           <p
             id="playback-status"
             aria-live="polite"

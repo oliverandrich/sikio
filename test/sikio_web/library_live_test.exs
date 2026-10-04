@@ -196,6 +196,35 @@ defmodule SikioWeb.LibraryLiveTest do
     refute has_element?(view, "#move-#{c.audio.id}")
   end
 
+  # A source's own dialog gives it a name of the reader's own and says where its new episodes go.
+  # The name stands wherever the source is named.
+  test "a source is named and told where its new episodes go in its own dialog", c do
+    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    view |> element("#edit-subscription") |> render_click()
+
+    assert has_element?(
+             view,
+             ~s|#subscription-form input[name="name"][placeholder="Small Hours"]|
+           )
+
+    assert has_element?(
+             view,
+             ~s|#subscription-form input[name="delivery"][value="inbox"][checked]|
+           )
+
+    view
+    |> form("#subscription-form", %{"name" => "Late Night", "delivery" => "queue"})
+    |> render_change()
+
+    view |> element("#confirm-edit-subscription") |> render_click()
+
+    assert [%{name: "Late Night", delivery: :queue}] =
+             Library.subscriptions(c.user) |> Enum.filter(&(&1.id == c.sub.id))
+
+    assert has_element?(view, "#library-heading", "Late Night")
+    assert has_element?(view, "#source-#{c.sub.feed_id}", "Late Night")
+  end
+
   # Within a source the statuses are a filter; elsewhere they are the place itself.
   test "a chosen source filters by status, other places do not offer it", c do
     Playback.mark(c.user, c.audio.id, :heard)
@@ -408,43 +437,62 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, ~s|#filter-status-inbox[aria-current="true"]|)
     end
 
-    # A source's header gives it tags: the account's tags to tick, and a field for a new one.
-    test "are given in a source's header", c do
+    # A source's own dialog gives it tags: the account's tags to tick, and a field for a new one.
+    test "are given in a source's own dialog", c do
       [video] = Library.subscriptions(c.user) |> Enum.filter(&(&1.feed.kind == :youtube))
       {:ok, _} = Sikio.Tags.set(c.user, video.id, ["Tech"])
 
       {:ok, view, _} = live(c.conn, ~p"/inbox")
-      refute has_element?(view, "#edit-tags")
+      refute has_element?(view, "#edit-subscription")
 
       {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
-      view |> element("#edit-tags") |> render_click()
-      assert has_element?(view, "dialog#edit-tags-confirm", "Tags for Small Hours")
-      assert has_element?(view, ~s|#tags-form input[type="checkbox"][value="Tech"]|)
-      refute has_element?(view, ~s|#tags-form input[type="checkbox"][value="Tech"][checked]|)
+      view |> element("#edit-subscription") |> render_click()
+      assert has_element?(view, "dialog#edit-subscription-confirm", "Small Hours")
+      assert has_element?(view, ~s|#subscription-form input[type="checkbox"][value="Tech"]|)
 
-      view |> form("#tags-form", %{"tags" => ["Tech"], "new" => "Must view"}) |> render_change()
-      view |> element("#confirm-edit-tags") |> render_click()
+      refute has_element?(
+               view,
+               ~s|#subscription-form input[type="checkbox"][value="Tech"][checked]|
+             )
 
-      refute has_element?(view, "#edit-tags-confirm")
+      view
+      |> form("#subscription-form", %{"tags" => ["Tech"], "new" => "Must view"})
+      |> render_change()
+
+      view |> element("#confirm-edit-subscription") |> render_click()
+
+      refute has_element?(view, "#edit-subscription-confirm")
       assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Must view", "Tech"]
       assert has_element?(view, "#tags-heading")
       assert has_element?(view, "[id^=tag-]", "Must view")
 
       # Unticked, a tag comes off again.
-      view |> element("#edit-tags") |> render_click()
-      assert has_element?(view, ~s|#tags-form input[type="checkbox"][value="Tech"][checked]|)
-      view |> form("#tags-form", %{"tags" => ["Must view"], "new" => ""}) |> render_change()
-      view |> element("#confirm-edit-tags") |> render_click()
+      view |> element("#edit-subscription") |> render_click()
+
+      assert has_element?(
+               view,
+               ~s|#subscription-form input[type="checkbox"][value="Tech"][checked]|
+             )
+
+      view
+      |> form("#subscription-form", %{"tags" => ["Must view"], "new" => ""})
+      |> render_change()
+
+      view |> element("#confirm-edit-subscription") |> render_click()
       assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Must view"]
 
       # A second press after the dialog has closed changes nothing.
-      render_hook(view, "confirm_edit_tags", %{})
+      render_hook(view, "confirm_edit_subscription", %{})
       assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Must view"]
 
       # Enter in the field saves, as the button does.
-      view |> element("#edit-tags") |> render_click()
-      view |> form("#tags-form", %{"tags" => ["Must view"], "new" => "Later"}) |> render_submit()
-      refute has_element?(view, "#edit-tags-confirm")
+      view |> element("#edit-subscription") |> render_click()
+
+      view
+      |> form("#subscription-form", %{"tags" => ["Must view"], "new" => "Later"})
+      |> render_submit()
+
+      refute has_element?(view, "#edit-subscription-confirm")
       assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Later", "Must view"]
     end
 
@@ -493,10 +541,12 @@ defmodule SikioWeb.LibraryLiveTest do
   describe "unsubscribing from a source" do
     test "is offered only within a source, and a cancel keeps it", c do
       {:ok, view, _} = live(c.conn, ~p"/inbox")
-      refute has_element?(view, "#unsubscribe")
+      refute has_element?(view, "#edit-subscription")
 
       {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+      view |> element("#edit-subscription") |> render_click()
       view |> element("#unsubscribe") |> render_click()
+      refute has_element?(view, "#edit-subscription-confirm")
       assert has_element?(view, "dialog#unsubscribe-confirm", "Unsubscribe from Small Hours?")
 
       view |> element("#cancel-unsubscribe") |> render_click()
@@ -506,6 +556,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
     test "ends the subscription and returns to what is new", c do
       {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+      view |> element("#edit-subscription") |> render_click()
       view |> element("#unsubscribe") |> render_click()
       view |> element("#confirm-unsubscribe") |> render_click()
 
