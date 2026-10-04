@@ -179,7 +179,12 @@ defmodule SikioWeb.InvitationsLive do
         {gettext("Enter your guest's email address. Their invitation link is sent there.")}
       </p>
 
-      <form id="invitation-form" phx-change="validate" phx-submit="invite" class="mt-4">
+      <form
+        id="invitation-form"
+        phx-change="validate"
+        phx-submit="invite"
+        class="mt-4 max-w-sm"
+      >
         <.input
           :if={not @email?}
           name="username"

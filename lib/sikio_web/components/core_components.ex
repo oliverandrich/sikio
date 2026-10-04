@@ -97,16 +97,19 @@ defmodule SikioWeb.CoreComponents do
   attr :variant, :string, values: ~w(primary danger)
   slot :inner_block, required: true
 
+  # A filled button that cannot be pressed yet steps back to an outline instead of a grey slab.
+  @stepped_back "disabled:border disabled:border-edge disabled:bg-surface disabled:text-muted disabled:shadow-none"
+
   def button(%{rest: rest} = assigns) do
     variants = %{
-      "primary" => "bg-accent text-on-accent hover:bg-accent/85",
-      "danger" => "bg-danger text-on-accent hover:bg-danger/85",
-      nil => "border border-edge bg-surface text-ink hover:bg-ground"
+      "primary" => ["bg-accent text-on-accent hover:bg-accent/85", @stepped_back],
+      "danger" => ["bg-danger text-on-accent hover:bg-danger/85", @stepped_back],
+      nil => "border border-edge bg-surface text-ink hover:bg-ground disabled:opacity-50"
     }
 
     assigns =
       assign(assigns, :class, [
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-semibold shadow-xs transition-colors sm:min-h-9 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-semibold shadow-xs transition-colors sm:min-h-9 cursor-pointer disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         Map.fetch!(variants, assigns[:variant]),
         assigns.class
       ])

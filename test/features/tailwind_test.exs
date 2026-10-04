@@ -266,6 +266,42 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
+  # A primary button that cannot be pressed yet steps back to an outline rather than a grey slab.
+  feature "a disabled primary button keeps the page's ground", %{session: session} do
+    signed_up(session, "ada")
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/subscriptions/import")
+    |> assert_has(css("#opml-upload-form button[disabled]"))
+    |> execute_script(
+      """
+      const probe = document.createElement('span')
+      probe.className = 'bg-surface'
+      document.body.append(probe)
+      const button = getComputedStyle(document.querySelector('#opml-upload-form button[disabled]'))
+      return [button.backgroundColor, getComputedStyle(probe).backgroundColor, button.opacity]
+      """,
+      fn [button, surface, opacity] ->
+        assert button == surface
+        assert opacity == "1"
+      end
+    )
+  end
+
+  # A username is short, so its field is too.
+  feature "the invitation's field keeps a username's width", %{session: session} do
+    signed_up(session, "ada")
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/invitations")
+    |> execute_script(
+      "return Math.round(document.querySelector('#invitation-form input[name=username]').getBoundingClientRect().width)",
+      fn width -> assert width <= 384 end
+    )
+  end
+
   # From lg the sources may run long. They scroll, while the wordmark above and the offer of the
   # source below stay where they are. Only a window too short for those two scrolls the whole
   # column. The heading over the sources leads to managing them, so the bar of links is the phone's.
