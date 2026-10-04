@@ -174,7 +174,8 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#list-empty", "You’re all caught up.")
   end
 
-  # The queue's head says whether the player goes on with it, and the reader turns that off and on.
+  # The queue's head says in words whether the player goes on with it, and a switch turns that
+  # off and on.
   # Only the queue offers it, and only the queue's rows carry a handle to move them.
   test "the queue plays on unless told not to, and its rows move", c do
     {:ok, _} = Playback.enqueue(c.user, c.audio.id, :last)
@@ -182,9 +183,9 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, _} = Playback.enqueue(c.user, video.id, :last)
 
     {:ok, view, _} = live(c.conn, ~p"/queue")
-    assert has_element?(view, ~s|#play-on[aria-pressed="true"]|)
+    assert has_element?(view, ~s|#play-on[role="switch"][aria-checked="true"]|, "Play on")
     view |> element("#play-on") |> render_click()
-    assert has_element?(view, ~s|#play-on[aria-pressed="false"]|)
+    assert has_element?(view, ~s|#play-on[role="switch"][aria-checked="false"]|)
     refute Playback.play_on?(c.user)
 
     assert has_element?(view, "#move-#{c.audio.id}")

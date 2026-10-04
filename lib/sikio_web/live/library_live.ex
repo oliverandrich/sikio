@@ -992,18 +992,22 @@ defmodule SikioWeb.LibraryLive do
                   >
                     <Lucideicons.pencil aria-hidden="true" class="size-4.5" />
                   </button>
-                  <%!-- Whether the player goes on with the queue when an item ends. --%>
+                  <%!-- Whether the player goes on with the queue when an item ends, said in words
+                       beside a switch. --%>
                   <button
                     :if={@filters["status"] == "queue"}
                     id="play-on"
                     type="button"
-                    aria-pressed={to_string(@play_on)}
-                    aria-label={gettext("Play on with the queue")}
+                    role="switch"
+                    aria-checked={to_string(@play_on)}
                     title={gettext("Play on with the queue")}
                     phx-click="play_on"
-                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-pressed:bg-selection aria-pressed:text-accent"
+                    class="group mr-1 flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full pl-1 text-label text-muted hover:text-ink aria-checked:text-ink"
                   >
-                    <Lucideicons.list_video aria-hidden="true" class="size-4.5" />
+                    {gettext("Play on")}
+                    <span class="relative h-5 w-9 rounded-full bg-track transition-colors group-aria-checked:bg-accent">
+                      <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-surface shadow-xs transition-transform group-aria-checked:translate-x-4"></span>
+                    </span>
                   </button>
                   <button
                     :if={!@empty?}
