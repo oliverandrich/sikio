@@ -67,7 +67,7 @@ defmodule Sikio.LibraryTest do
 
     Library.subscribe(ctx.alice, video)
     Library.subscribe(ctx.bob, ctx.preview)
-    Playback.mark(ctx.bob, audio.id, :completed)
+    Playback.mark(ctx.bob, audio.id, :heard)
     assert length(Library.entries(ctx.alice, %{"status" => "new"})) == 2
     assert Library.entries(ctx.alice, %{"status" => "completed"}) == []
     assert [item] = Library.entries(ctx.alice, %{"source" => to_string(sub.feed_id)})
@@ -102,7 +102,7 @@ defmodule Sikio.LibraryTest do
     assert length(newest) == 100
     assert Enum.map(newest, & &1.id) == Enum.sort(Enum.map(newest, & &1.id), :desc)
     oldest = Repo.one!(from e in Entry, order_by: [asc: e.id], limit: 1)
-    Playback.mark(ctx.alice, oldest.id, :completed)
+    Playback.mark(ctx.alice, oldest.id, :heard)
     assert [%{id: id}] = Library.entries(ctx.alice, %{"status" => "completed"})
     assert id == oldest.id
   end
@@ -141,7 +141,7 @@ defmodule Sikio.LibraryTest do
 
     for {title, minute} <- [{"Episode 3", 5}, {"Episode 1", 50}, {"Episode 2", 40}] do
       Repo.update_all(from(p in Sikio.Playback.State, where: p.entry_id == ^ids[title]),
-        set: [status: :completed, completed_at: at(minute)]
+        set: [status: :heard, completed_at: at(minute)]
       )
     end
 
@@ -298,7 +298,7 @@ defmodule Sikio.LibraryTest do
     test "every view and source is counted for this account alone", ctx do
       {:ok, _} = Library.subscribe(ctx.bob, ctx.preview)
       entries = ctx.entries
-      {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :completed)
+      {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :heard)
       {:ok, %{session_id: session}} = Playback.start(ctx.alice, entries.youtube.id)
 
       {:ok, _} =
@@ -328,7 +328,7 @@ defmodule Sikio.LibraryTest do
     # link keeps. A source without a status counts what is new.
     test "a count honours the other filters in force", ctx do
       entries = ctx.entries
-      {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :completed)
+      {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :heard)
       rows = Library.counts(ctx.alice)
 
       finished = Library.tally(rows, %{"status" => "completed"})

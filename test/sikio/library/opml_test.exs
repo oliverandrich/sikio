@@ -113,7 +113,7 @@ defmodule Sikio.Library.OPMLTest do
     {:ok, sub} = Library.subscribe(user, preview)
     Library.pause(user, sub.id, true)
     [entry] = Library.entries(user)
-    Playback.mark(user, entry.id, :completed)
+    Playback.mark(user, entry.id, :heard)
 
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
@@ -131,7 +131,7 @@ defmodule Sikio.Library.OPMLTest do
     assert Enum.map(result, & &1.status) == [:existing, :imported, :failed]
     assert length(Library.subscriptions(user)) == 2
     assert Enum.find(Library.subscriptions(user), &(&1.id == sub.id)).paused
-    assert Library.entry(user, entry.id).playback.status == :completed
+    assert Library.entry(user, entry.id).playback.status == :heard
     assert [%{status: :existing}] = OPML.import_sources(user, [Enum.at(sources, 1)])
   end
 

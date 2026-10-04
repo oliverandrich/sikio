@@ -75,7 +75,7 @@ defmodule SikioWeb.LibraryTest do
   end
 
   # The double check asks in a dialog that opens as it appears. Escape lets go of it, and the
-  # second answer marks the list.
+  # second answer archives the list: still among all items, never among what was heard.
   feature "the double check marks a list after asking", %{session: session} do
     session
     |> resize_window(1440, 900)
@@ -91,7 +91,8 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#mark-all"))
     |> click(css("#confirm-mark-all"))
     |> refute_has(css("#entries article"))
-    |> assert_has(css("#view-completed-count", text: "40"))
+    |> assert_has(css("#view-all-count", text: "40"))
+    |> assert_has(css("#view-completed-count", count: 0))
   end
 
   # The dialog offers to leave the player's item only while the player holds one. Unticked, it
@@ -111,7 +112,7 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#mark-all-playing input[name=playing][type=checkbox]"))
     |> assert_has(css("dialog#mark-all-confirm[open]", text: "39 items in this list"))
     |> click(css("#confirm-mark-all"))
-    |> assert_has(css("#view-completed-count", text: "39"))
+    |> assert_has(css("#view-new-count", text: "1"))
     |> assert_has(css("#entries article", count: 1))
   end
 

@@ -80,7 +80,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
   test "manual status changes and removed subscriptions stop the player immediately", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
-    Playback.mark(c.user, c.entry.id, :completed)
+    Playback.mark(c.user, c.entry.id, :heard)
     refute has_element?(dock, "audio")
     assert has_element?(dock, "#dock-notice", "changed")
     render_hook(dock, "start", %{id: c.entry.id})

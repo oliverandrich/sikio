@@ -29,12 +29,15 @@ defmodule SikioWeb.MediaComponents do
       :in_progress ->
         gettext("In progress")
 
-      :completed ->
+      :heard ->
         if video?(entry), do: gettext("Watched"), else: gettext("Listened")
+
+      :archived ->
+        gettext("Archived")
     end
   end
 
-  def play_label(%{playback: %{status: :completed}}), do: gettext("Play again")
+  def play_label(%{playback: %{status: :heard}}), do: gettext("Play again")
   def play_label(%{playback: %{position: position}}) when position > 0, do: gettext("Resume")
   def play_label(_entry), do: gettext("Play")
 

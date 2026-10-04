@@ -322,7 +322,7 @@ defmodule SikioWeb.LibraryDetailTest do
     view |> element("#mark-completed") |> render_click()
     refute has_element?(dock, "audio")
     render_hook(dock, "progress", Map.put(sample(3, 80), "session", session))
-    assert %{playback: %{status: :completed, position: 65.0}} = Library.entry(c.user, c.entry.id)
+    assert %{playback: %{status: :heard, position: 65.0}} = Library.entry(c.user, c.entry.id)
     view |> element("#mark-new") |> render_click()
     assert has_element?(view, "#playback-status", "New")
   end
@@ -469,7 +469,7 @@ defmodule SikioWeb.LibraryDetailTest do
       {:ok, view, _} = live(c.conn, item_path(c.entry))
 
       render_hook(view, "toggle_mark", %{})
-      assert %{playback: %{status: :completed}} = Library.entry(c.user, c.entry.id)
+      assert %{playback: %{status: :heard}} = Library.entry(c.user, c.entry.id)
 
       render_hook(view, "toggle_mark", %{})
       assert %{playback: %{status: :new}} = Library.entry(c.user, c.entry.id)

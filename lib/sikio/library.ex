@@ -185,9 +185,17 @@ defmodule Sikio.Library do
         select: {e.feed_id, p.status, count(e.id)}
     )
     |> Enum.map(fn {feed_id, status, count} ->
-      %{feed_id: feed_id, status: status || :new, count: count}
+      %{feed_id: feed_id, status: view(status || :new), count: count}
     end)
   end
+
+  # The views a list offers by status, against what is stored. The finished view shows what was
+  # heard; what was archived shows only among all items.
+  defp view(:heard), do: :completed
+  defp view(status), do: status
+
+  defp stored("completed"), do: :heard
+  defp stored(status), do: String.to_existing_atom(status)
 
   @doc """
   How many items each link in the sidebar shows, under the filters in force.
@@ -327,7 +335,7 @@ defmodule Sikio.Library do
         "" -> query
         # An entry nobody has opened has no row at all, which is the same thing as new.
         "new" -> where(query, [e, s, p], is_nil(p.id) or p.status == :new)
-        status -> where(query, [e, s, p], p.status == ^status)
+        status -> where(query, [e, s, p], p.status == ^stored(status))
       end
 
     matching(query, filters["q"])

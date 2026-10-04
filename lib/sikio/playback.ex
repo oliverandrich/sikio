@@ -65,25 +65,56 @@ defmodule Sikio.Playback do
   Where a player picks an entry up: where it was left, or the beginning of one heard to the end.
   The card shows its player there before anything plays, so both ask here.
   """
-  def resume_position(%{status: :completed}), do: 0.0
+  def resume_position(%{status: :heard}), do: 0.0
   def resume_position(%{position: position}), do: position
 
   @doc """
   Sets the status by hand, and stops whatever player holds the entry.
 
-  Clearing the session is what makes this reach other tabs: their next sample is refused as stale,
-  and the notification tells them why.
+  Heard may be set at any point, archived puts it aside unheard, and new returns it to the inbox
+  from the beginning. Each takes the entry out of the queue. Clearing the session is what makes
+  this reach other tabs: their next sample is refused as stale, and the notification tells them why.
   """
-  def mark(account, id, status) when status in [:new, :completed] do
+  def mark(account, id, status) when status in [:new, :heard, :archived] do
     change(account, id, fn state ->
       [
         status: status,
         session_id: nil,
         sequence: 0,
+        queue_rank: nil,
         position: if(status == :new, do: 0.0, else: state.position),
-        completed_at: if(status == :completed, do: DateTime.utc_now())
+        completed_at: if(status != :new, do: DateTime.utc_now())
       ]
     end)
+  end
+
+  @doc "Puts the entry into the queue, before everything in it or after it."
+  def enqueue(%User{id: user_id} = account, id, at) when at in [:first, :last] do
+    change(account, id, fn _state ->
+      ranks = from(p in State, where: p.user_id == ^user_id and not is_nil(p.queue_rank))
+
+      rank =
+        case at do
+          :first -> (Repo.one(from p in ranks, select: min(p.queue_rank)) || 1.0) - 1.0
+          :last -> (Repo.one(from p in ranks, select: max(p.queue_rank)) || 0.0) + 1.0
+        end
+
+      [queue_rank: rank]
+    end)
+  end
+
+  @doc "Takes the entry out of the queue."
+  def dequeue(account, id), do: change(account, id, fn _state -> [queue_rank: nil] end)
+
+  @doc "This account's queue as entry ids, first first."
+  def queue(%User{id: user_id} = account) do
+    Repo.all(
+      from p in State,
+        where: p.user_id == ^user_id and not is_nil(p.queue_rank),
+        where: p.entry_id in subquery(Library.visible_entry_ids(account)),
+        order_by: [asc: p.queue_rank, asc: p.id],
+        select: p.entry_id
+    )
   end
 
   @doc """
@@ -111,14 +142,16 @@ defmodule Sikio.Playback do
       Repo.rollback(:stale)
     end
 
-    status = status(state, sample)
+    duration = sample.duration || state.duration
+    status = status(state, sample, duration)
 
     persist(state,
       position: sample.position,
-      duration: sample.duration || state.duration,
+      duration: duration,
       sequence: sample.sequence,
       status: status,
-      completed_at: if(status == :completed, do: state.completed_at || DateTime.utc_now())
+      queue_rank: if(status == :heard, do: nil, else: state.queue_rank),
+      completed_at: completed_at(state, status)
     )
   end
 
@@ -130,16 +163,17 @@ defmodule Sikio.Playback do
         left_join: p in State,
         as: :state,
         on: p.entry_id == e.id and p.user_id == ^user_id,
-        where: is_nil(p.id) or p.status != :completed,
+        where: is_nil(p.id) or p.status not in [:heard, :archived],
         where: ^leaving_out(options),
         select: count()
     )
   end
 
   @doc """
-  Marks everything a list with `filters` shows as finished, and answers how many changed.
+  Archives everything a list with `filters` shows, and answers how many changed.
 
-  What is finished already stays as it was. `in_progress: false` leaves what is in progress, and
+  Putting a list aside is not hearing it, so none of it reaches the history. What is heard or
+  archived already stays as it was. `in_progress: false` leaves what is in progress, and
   `keep:` names an entry to leave, the one the reader's player holds. A player that held a marked
   entry hears its progress changed elsewhere, as after marking one by hand. An entry nobody opened
   gets its row first. The views hear of it once, as `{:playback_marked, count}`.
@@ -168,11 +202,12 @@ defmodule Sikio.Playback do
               join: e in subquery(listed),
               as: :entry,
               on: e.id == p.entry_id,
-              where: p.user_id == ^user_id and p.status != :completed,
+              where: p.user_id == ^user_id and p.status not in [:heard, :archived],
               where: ^leaving_out(options)
             ),
             set: [
-              status: :completed,
+              status: :archived,
+              queue_rank: nil,
               completed_at: now,
               session_id: nil,
               sequence: 0,
@@ -247,12 +282,24 @@ defmodule Sikio.Playback do
   defp persist(state, attrs),
     do: {state.status, state |> Ecto.Changeset.change(attrs) |> Repo.update!()}
 
-  # Completion is a floor. Only reaching the end sets it, and nothing but an explicit mark as new
-  # takes it away, so replaying an episode does not make it unfinished again.
-  defp status(%{status: :completed}, _sample), do: :completed
-  defp status(_state, %{ended: true}), do: :completed
-  defp status(_state, %{position: position}) when position > 0, do: :in_progress
-  defp status(state, _sample), do: state.status
+  # Heard is a floor. Reaching 90 % of the length or the end sets it, and nothing but an explicit
+  # mark as new takes it away, so replaying an episode does not make it unheard again. Many end on
+  # credits nobody waits for. An archived episode played after all is under way again.
+  defp status(%{status: :heard}, _sample, _duration), do: :heard
+  defp status(_state, %{ended: true}, _duration), do: :heard
+
+  defp status(_state, %{position: position}, duration)
+       when is_number(duration) and position >= 0.9 * duration,
+       do: :heard
+
+  defp status(_state, %{position: position}, _duration) when position > 0, do: :in_progress
+  defp status(state, _sample, _duration), do: state.status
+
+  # When it was heard or put aside. Hearing it again keeps the first time.
+  defp completed_at(%{status: :heard, completed_at: at}, :heard), do: at
+  defp completed_at(_state, :heard), do: DateTime.utc_now()
+  defp completed_at(state, :archived), do: state.completed_at
+  defp completed_at(_state, _status), do: nil
 
   # The sample comes from a browser, so its shape is checked before any of it is believed. The
   # bounds match the database's own constraints.

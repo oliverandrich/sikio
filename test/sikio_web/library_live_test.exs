@@ -49,7 +49,7 @@ defmodule SikioWeb.LibraryLiveTest do
     render_hook(view, "show", %{"id" => c.audio.id})
     assert_patch(view, "/new/#{c.audio.id}-one-two")
 
-    Playback.mark(c.user, c.audio.id, :completed)
+    Playback.mark(c.user, c.audio.id, :heard)
     {:ok, view, _} = live(c.conn, ~p"/new")
     render_hook(view, "show", %{"id" => c.audio.id})
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/all/#{c.audio.id}-one-two")
@@ -62,7 +62,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
   test "marking and changes from another tab keep filtered membership current", c do
     [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
-    Playback.mark(c.user, video.id, :completed)
+    Playback.mark(c.user, video.id, :heard)
     {:ok, view, _} = live(c.conn, "/new/#{c.audio.id}-one-two")
     view |> element("#mark-completed") |> render_click()
     refute has_element?(view, "#entries-#{c.audio.id}")
@@ -70,7 +70,7 @@ defmodule SikioWeb.LibraryLiveTest do
     Playback.mark(c.user, c.audio.id, :new)
     assert has_element?(view, "#entries-#{c.audio.id}")
     {:ok, old} = Playback.start(c.user, c.audio.id)
-    Playback.mark(c.user, c.audio.id, :completed)
+    Playback.mark(c.user, c.audio.id, :heard)
     send(view.pid, {:playback_changed, old})
     refute has_element?(view, "#entries-#{c.audio.id}")
   end
@@ -114,7 +114,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
     # Both halves matter. Their write has to land, or this proves only that a stranger cannot
     # write, which is a different test and one that passes for the wrong reason.
-    assert {:ok, %{status: :completed}} = Playback.mark(other, c.audio.id, :completed)
+    assert {:ok, %{status: :heard}} = Playback.mark(other, c.audio.id, :heard)
     assert has_element?(view, "#entries-#{c.audio.id}", "New")
     {:ok, reloaded, _} = live(c.conn, ~p"/new")
     assert has_element?(reloaded, "#entries-#{c.audio.id}", "New")
@@ -168,14 +168,14 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#entries article")
     refute has_element?(view, "#list-empty")
 
-    for entry <- Library.entries(c.user), do: Sikio.Playback.mark(c.user, entry.id, :completed)
+    for entry <- Library.entries(c.user), do: Sikio.Playback.mark(c.user, entry.id, :heard)
     {:ok, view, _} = live(c.conn, ~p"/new")
     assert has_element?(view, "#list-empty", "You’re all caught up.")
   end
 
   # Within a source the statuses are a filter; elsewhere they are the place itself.
   test "a chosen source filters by status, other places do not offer it", c do
-    Playback.mark(c.user, c.audio.id, :completed)
+    Playback.mark(c.user, c.audio.id, :heard)
     {:ok, view, _} = live(c.conn, ~p"/new")
     refute has_element?(view, "#filter-status-completed")
 
@@ -330,7 +330,8 @@ defmodule SikioWeb.LibraryLiveTest do
       view |> element("#confirm-mark-all") |> render_click()
       refute has_element?(view, "#mark-all-confirm")
       refute has_element?(view, "#entries article", "One & two")
-      assert has_element?(view, "#view-completed-count", "1")
+      # Put aside, not heard: none of it counts as finished.
+      assert Library.count(c.user, %{"status" => "completed"}) == 0
       assert Library.count(c.user, %{"status" => "new"}) == 1
       # An empty list has nothing left to mark.
       refute has_element?(view, "#mark-all")
@@ -516,7 +517,7 @@ defmodule SikioWeb.LibraryLiveTest do
       {:ok, _} = Playback.save(c.user, c.audio.id, c.session, sample(2, 60))
       refute has_element?(view, "#view-all-count", "3")
 
-      {:ok, _} = Playback.mark(c.user, c.audio.id, :completed)
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
       assert has_element?(view, "#view-all-count", "3")
     end
 
@@ -524,7 +525,7 @@ defmodule SikioWeb.LibraryLiveTest do
       {:ok, view, _} = live(c.conn, ~p"/all")
       unseen = sneak_in(c)
 
-      {:ok, _} = Playback.mark(c.user, c.audio.id, :completed)
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
 
       assert has_element?(view, "#entries article", unseen)
       assert has_element?(view, "#view-all-count", "3")
@@ -645,7 +646,7 @@ defmodule SikioWeb.LibraryLiveTest do
       {:ok, view, _} = live(c.conn, ~p"/subscriptions")
       refute has_element?(view, "#view-completed-count")
 
-      {:ok, _} = Playback.mark(c.user, c.audio.id, :completed)
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
 
       assert view |> element("#view-completed-count") |> render() =~ "1"
     end
@@ -876,23 +877,17 @@ defmodule SikioWeb.LibraryLiveTest do
       # Marking happens in the detail or with m, so the row carries no buttons of its own.
       refute has_element?(view, "#entries-#{c.audio.id} button")
 
-      # A feed may state a shorter runtime than the audio has. The bar stops at the end anyway.
+      # Past 90 % of its length it counts as heard, and the row says so instead of a bar.
       {:ok, _} =
         Playback.save(c.user, c.audio.id, session, %{
           "sequence" => 2,
-          "position" => 4_000,
+          "position" => 3_400,
           "duration" => nil,
           "ended" => false
         })
 
-      assert has_element?(
-               view,
-               ~s|#entries-#{c.audio.id} [role=progressbar][aria-valuenow="100"]|
-             )
-
-      view |> element("#play-#{c.audio.id}") |> render_click()
-      view |> element("#mark-completed") |> render_click()
-      assert has_element?(view, ~s|#entries-#{c.audio.id}[data-status="completed"]|)
+      assert has_element?(view, ~s|#entries-#{c.audio.id}[data-status="heard"]|)
+      refute has_element?(view, "#entries-#{c.audio.id} [role=progressbar]")
     end
   end
 

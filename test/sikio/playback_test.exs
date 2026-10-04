@@ -43,8 +43,8 @@ defmodule Sikio.PlaybackTest do
   test "a start may name the place to begin at", c do
     assert {:ok, %{position: 600.0}} = Playback.start(c.alice, c.entry.id, 600)
 
-    {:ok, _} = Playback.mark(c.alice, c.entry.id, :completed)
-    assert {:ok, %{position: 90.0, status: :completed}} = Playback.start(c.alice, c.entry.id, 90)
+    {:ok, _} = Playback.mark(c.alice, c.entry.id, :heard)
+    assert {:ok, %{position: 90.0, status: :heard}} = Playback.start(c.alice, c.entry.id, 90)
 
     assert {:ok, %{position: +0.0}} = Playback.start(c.alice, c.entry.id, -5)
     assert {:ok, %{position: +0.0}} = Playback.start(c.alice, c.entry.id, "soon")
@@ -53,7 +53,7 @@ defmodule Sikio.PlaybackTest do
   test "only subscribed accounts may read or write an entry", c do
     assert Library.entry(c.bob, c.entry.id) == nil
     assert {:error, :not_found} = Playback.start(c.bob, c.entry.id)
-    assert {:error, :not_found} = Playback.mark(c.bob, c.entry.id, :completed)
+    assert {:error, :not_found} = Playback.mark(c.bob, c.entry.id, :heard)
     assert {:error, :not_found} = Playback.start(c.alice, "bad")
     {:ok, state} = Playback.start(c.alice, c.entry.id)
     assert {:error, :stale} = Playback.save(c.bob, c.entry.id, state.session_id, sample(1, 20))
@@ -75,8 +75,8 @@ defmodule Sikio.PlaybackTest do
     assert {:ok, %{position: 10.0}} =
              Playback.save(c.alice, c.entry.id, current.session_id, sample(3, 10))
 
-    assert {:ok, %{status: :completed, completed_at: %DateTime{}}} =
-             Playback.mark(c.alice, c.entry.id, :completed)
+    assert {:ok, %{status: :heard, completed_at: %DateTime{}}} =
+             Playback.mark(c.alice, c.entry.id, :heard)
 
     assert {:error, :stale} =
              Playback.save(c.alice, c.entry.id, current.session_id, sample(4, 20))
@@ -85,27 +85,78 @@ defmodule Sikio.PlaybackTest do
              Playback.mark(c.alice, c.entry.id, :new)
   end
 
-  test "only an end event completes playback; replay does not undo completion", c do
+  # Many episodes end on credits nobody waits for, so 90 % of the length is heard. Heard is a floor:
+  # playing it again does not make it unheard.
+  test "an item played to 90 % is heard, and stays heard when played again", c do
     {:ok, state} = Playback.start(c.alice, c.entry.id)
 
     assert {:ok, %{status: :in_progress}} =
-             Playback.save(c.alice, c.entry.id, state.session_id, sample(1, 99))
+             Playback.save(c.alice, c.entry.id, state.session_id, sample(1, 89))
 
-    assert {:ok, %{status: :completed}} =
-             Playback.save(
-               c.alice,
-               c.entry.id,
-               state.session_id,
-               Map.put(sample(2, 100), "ended", true)
-             )
+    assert {:ok, %{status: :heard, completed_at: %DateTime{}}} =
+             Playback.save(c.alice, c.entry.id, state.session_id, sample(2, 90))
 
     {:ok, replay} = Playback.start(c.alice, c.entry.id)
     assert replay.position == 0
 
-    assert {:ok, %{status: :completed}} =
+    assert {:ok, %{status: :heard}} =
              Playback.save(c.alice, c.entry.id, replay.session_id, sample(1, 10))
 
-    assert %{playback: %{status: :completed}} = Library.entry(c.alice, c.entry.id)
+    assert %{playback: %{status: :heard}} = Library.entry(c.alice, c.entry.id)
+  end
+
+  # The end itself counts too, for a player that knows no length.
+  test "an item played to its end is heard without a length", c do
+    {:ok, state} = Playback.start(c.alice, c.entry.id)
+    ended = %{sample(1, 30) | "duration" => nil} |> Map.put("ended", true)
+
+    assert {:ok, %{status: :heard}} = Playback.save(c.alice, c.entry.id, state.session_id, ended)
+  end
+
+  # Heard by hand at any point, put aside unheard, or back to the inbox from the start. Each takes
+  # the item out of the queue.
+  test "an item is marked heard, archived or new by hand, and leaves the queue", c do
+    for status <- [:heard, :archived, :new] do
+      {:ok, _} = Playback.enqueue(c.alice, c.entry.id, :last)
+      {:ok, %{session_id: session}} = Playback.start(c.alice, c.entry.id)
+      {:ok, _} = Playback.save(c.alice, c.entry.id, session, sample(1, 50))
+
+      assert {:ok, marked} = Playback.mark(c.alice, c.entry.id, status)
+      assert marked.status == status
+      assert marked.queue_rank == nil
+      assert marked.position == if(status == :new, do: 0.0, else: 50.0)
+      assert marked.completed_at != nil == (status != :new)
+    end
+  end
+
+  # What was put aside and is played after all is under way again.
+  test "an archived item played again is in progress", c do
+    {:ok, _} = Playback.mark(c.alice, c.entry.id, :archived)
+    {:ok, %{session_id: session}} = Playback.start(c.alice, c.entry.id)
+
+    assert {:ok, %{status: :in_progress, completed_at: nil}} =
+             Playback.save(c.alice, c.entry.id, session, sample(1, 10))
+  end
+
+  # The queue keeps its own order: first goes before everything, last after it.
+  test "the queue takes an item first or last and lets it go", c do
+    entries =
+      for n <- 1..3, do: %{hd(c.preview.entries) | external_id: "q#{n}", title: "Queued #{n}"}
+
+    {:ok, _} = Library.subscribe(c.alice, %{c.preview | entries: entries})
+    id = &Repo.one!(from e in Entry, where: e.title == ^&1, select: e.id)
+
+    {:ok, _} = Playback.enqueue(c.alice, id.("Queued 1"), :last)
+    {:ok, _} = Playback.enqueue(c.alice, id.("Queued 2"), :last)
+    {:ok, _} = Playback.enqueue(c.alice, id.("Queued 3"), :first)
+
+    assert Playback.queue(c.alice) == [id.("Queued 3"), id.("Queued 1"), id.("Queued 2")]
+    assert Playback.queue(c.bob) == []
+
+    {:ok, %{queue_rank: nil}} = Playback.dequeue(c.alice, id.("Queued 1"))
+    assert Playback.queue(c.alice) == [id.("Queued 3"), id.("Queued 2")]
+
+    assert {:error, :not_found} = Playback.enqueue(c.bob, id.("Queued 1"), :last)
   end
 
   test "malformed or unbounded samples never alter progress", c do
@@ -159,10 +210,11 @@ defmodule Sikio.PlaybackTest do
       do: assert(lock =~ ~r/FOR UPDATE$/)
   end
 
-  # A whole list marked finished: exactly what it shows, however many pages that is, for this
-  # account alone. Two things may be left out on request: what is in progress, and the one item
-  # the reader's player holds. A session a closed tab left behind holds nothing back.
-  test "mark_all finishes what a list shows, leaving out only what it is asked to", c do
+  # A whole list put aside: exactly what it shows, however many pages that is, for this account
+  # alone. It is archived, not heard, so none of it reaches the history. Two things may be left
+  # out on request: what is in progress, and the one item the reader's player holds. A session a
+  # closed tab left behind holds nothing back.
+  test "mark_all archives what a list shows, leaving out only what it is asked to", c do
     entries =
       for n <- 1..120,
           do: %{hd(c.preview.entries) | external_id: "e#{n}", title: "Episode #{n}"}
@@ -177,7 +229,7 @@ defmodule Sikio.PlaybackTest do
     {:ok, _} = Playback.start(c.alice, id.("Episode 5"))
     {:ok, %{session_id: session}} = Playback.start(c.alice, id.("Episode 6"))
     {:ok, _} = Playback.save(c.alice, id.("Episode 6"), session, sample(1, 30))
-    {:ok, _} = Playback.mark(c.alice, id.("Episode 7"), :completed)
+    {:ok, _} = Playback.mark(c.alice, id.("Episode 7"), :heard)
     Events.subscribe(c.alice)
 
     # "episode 11" is Episode 11 and Episode 110 to 119.
@@ -199,8 +251,13 @@ defmodule Sikio.PlaybackTest do
     # Asked for everything, the session Episode 5 still carries holds nothing back.
     assert Playback.markable(c.alice, %{"status" => ""}) == 2
     assert {:ok, 2} = Playback.mark_all(c.alice, %{"status" => ""})
-    assert Library.count(c.alice, %{"status" => "completed"}) == Library.count(c.alice, %{})
-    assert Library.count(c.bob, %{"status" => "completed"}) == 0
+
+    statuses =
+      Repo.all(from p in Playback.State, where: p.user_id == ^c.alice.id, select: p.status)
+
+    assert Enum.frequencies(statuses) == %{heard: 1, archived: Library.count(c.alice, %{}) - 1}
+    assert Library.count(c.alice, %{"status" => "completed"}) == 1
+    assert Repo.aggregate(from(p in Playback.State, where: p.user_id == ^c.bob.id), :count) == 0
   end
 
   defp sample(sequence, position),

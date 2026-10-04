@@ -12,8 +12,8 @@ defmodule SikioWeb.MediaComponentsTest do
   # against YouTube, so a third kind of video would have been described as an episode.
   describe "wording for a kind that is video but not YouTube" do
     test "a finished video was watched" do
-      assert status_label(entry(:peertube, %{status: :completed})) == "Watched"
-      assert status_label(entry(:podcast, %{status: :completed})) == "Listened"
+      assert status_label(entry(:peertube, %{status: :heard})) == "Watched"
+      assert status_label(entry(:podcast, %{status: :heard})) == "Listened"
     end
 
     test "marking one uses the verb that fits what it is" do

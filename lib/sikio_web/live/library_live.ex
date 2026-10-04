@@ -422,7 +422,7 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("mark_all", _params, socket) do
     case Playback.markable(socket.assigns.current_account, socket.assigns.filters) do
       0 ->
-        {:noreply, put_flash(socket, :info, gettext("Everything here is finished already."))}
+        {:noreply, put_flash(socket, :info, gettext("Nothing here is left to archive."))}
 
       count ->
         {:noreply,
@@ -607,14 +607,14 @@ defmodule SikioWeb.LibraryLive do
         {:noreply, put_flash(socket, :error, gettext("This item is no longer in your library."))}
 
       entry ->
-        status = if status(entry) == :completed, do: "new", else: "completed"
+        status = if status(entry) in [:heard, :archived], do: "new", else: "heard"
         handle_event("mark", %{"id" => entry.id, "status" => status}, socket)
     end
   end
 
   def handle_event("mark", %{"id" => id, "status" => status}, socket)
-      when status in ["new", "completed"] do
-    status = if status == "new", do: :new, else: :completed
+      when status in ["new", "heard"] do
+    status = String.to_existing_atom(status)
 
     # The change is broadcast, and the broadcast reloads the list along with the sidebar.
     case Playback.mark(socket.assigns.current_account, id, status) do
@@ -868,8 +868,8 @@ defmodule SikioWeb.LibraryLive do
                     :if={@total > 0 and @filters["status"] != "completed"}
                     id="mark-all"
                     type="button"
-                    aria-label={gettext("Mark all as finished")}
-                    title={gettext("Mark all as finished")}
+                    aria-label={gettext("Archive all")}
+                    title={gettext("Archive all")}
                     phx-click="mark_all"
                     class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
                   >
@@ -937,13 +937,13 @@ defmodule SikioWeb.LibraryLive do
             <.confirm_dialog
               :if={@marking}
               name="mark-all"
-              title={gettext("Mark all as finished?")}
-              confirm_label={gettext("Mark finished")}
+              title={gettext("Archive everything here?")}
+              confirm_label={gettext("Archive")}
             >
               <p>
                 {ngettext(
-                  "%{count} item in this list will be marked as finished.",
-                  "%{count} items in this list will be marked as finished.",
+                  "%{count} item in this list will be archived. It stays out of your history.",
+                  "%{count} items in this list will be archived. They stay out of your history.",
                   @marking
                 )}
               </p>
@@ -1230,8 +1230,8 @@ defmodule SikioWeb.LibraryLive do
           </span>
           <span class={[
             "mb-auto line-clamp-2 text-body",
-            @status == :completed && "text-muted",
-            @status != :completed && "font-semibold text-ink"
+            @status in [:heard, :archived] && "text-muted",
+            @status not in [:heard, :archived] && "font-semibold text-ink"
           ]}>
             {@entry.title}
           </span>
@@ -1356,7 +1356,8 @@ defmodule SikioWeb.LibraryLive do
     </span>
     <span :if={@status != :in_progress} class="inline-flex items-center gap-1.5">
       <span :if={@status == :new} aria-hidden="true" class="size-1.5 rounded-full bg-signal"></span>
-      <Lucideicons.check :if={@status == :completed} aria-hidden="true" class="size-3.5" />
+      <Lucideicons.check :if={@status == :heard} aria-hidden="true" class="size-3.5" />
+      <Lucideicons.archive :if={@status == :archived} aria-hidden="true" class="size-3.5" />
       {status_label(@entry)}
     </span>
     """
@@ -1496,17 +1497,17 @@ defmodule SikioWeb.LibraryLive do
         </div>
         <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center gap-1">
           <.card_action
-            :if={@status != :completed}
+            :if={@status != :heard}
             id="mark-completed"
             label={mark_done_label(@entry)}
             phx-click="mark"
             phx-value-id={@entry.id}
-            phx-value-status="completed"
+            phx-value-status="heard"
           >
             <:icon><Lucideicons.check aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
           <.card_action
-            :if={@status == :completed}
+            :if={@status in [:heard, :archived]}
             id="mark-new"
             label={mark_new_label(@entry)}
             phx-click="mark"

@@ -364,7 +364,7 @@ defmodule SikioWeb.PlayerTest do
       |> send_keys(["m"])
       |> assert_has(css("#mark-new"))
 
-      assert Library.entry(account, entry.id).playback.status == :completed
+      assert Library.entry(account, entry.id).playback.status == :heard
     end
 
     # Before anything plays, p starts the open item as its play button does.

@@ -16,10 +16,14 @@ defmodule Sikio.Playback.State do
   schema "playback_states" do
     belongs_to :user, User
     belongs_to :entry, Entry
-    field :status, Ecto.Enum, values: [:new, :in_progress, :completed], default: :new
+    # New until played or put aside; heard at 90 % or by hand; archived when put aside unheard.
+    field :status, Ecto.Enum, values: [:new, :in_progress, :heard, :archived], default: :new
     field :position, :float, default: 0.0
     field :duration, :float
+    # When it was heard or archived, which is what the history runs by.
     field :completed_at, :utc_datetime_usec
+    # Its place in the queue, smallest first, or nil when it is not queued.
+    field :queue_rank, :float
     # The player that owns this entry right now. A second player anywhere takes it over, and the
     # sequence rises with every sample so a late message from the old one cannot win.
     field :session_id, Ecto.UUID
