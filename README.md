@@ -1,4 +1,9 @@
-# Sikio
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
+    <img alt="Sikio" src="docs/images/logo.svg" height="56">
+  </picture>
+</h1>
 
 **Your time. Your queue.**
 

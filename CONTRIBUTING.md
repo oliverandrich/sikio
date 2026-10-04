@@ -66,6 +66,10 @@ Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`; see
 | `mise run debugserver` | IEx Phoenix server |
 | `mise run release` | A production release for this OS and architecture, for `SIKIO_DATABASE` |
 | `mise run smoke` | Build a release for each database and run it against a disposable one |
+| `mise run icons` | Draw the app icons, favicon and README logo from the wordmark; needs Chrome |
+
+`scripts/icons.py` outlines the wordmark from the project's IBM Plex Sans. Edit its geometry and
+colours there, run the task and commit what it writes.
 
 `mise run check` and `mise run test` also run the player's JavaScript tests through node's
 own runner over `assets/js/*.test.mjs`. No npm package is installed for them.

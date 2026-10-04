@@ -10,7 +10,11 @@
     <meta name="theme-color" content="#f1f5f9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
     <.live_title default={gettext("Your time. Your queue.")} suffix=" · Sikio" phx-no-format>{assigns[:page_title]}</.live_title>
-    <link rel="icon" type="image/svg+xml" href={~p"/images/sikio.svg"} />
+    <%!-- The s with the dot in a browser's tab, the wordmark on a home screen and when installed. --%>
+    <link rel="icon" href={~p"/favicon.ico"} sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href={~p"/images/favicon.svg"} />
+    <link rel="apple-touch-icon" href={~p"/apple-touch-icon.png"} />
+    <link rel="manifest" href={~p"/manifest.webmanifest"} />
     <link
       rel="preload"
       href={~p"/fonts/ibm-plex-sans/ibm-plex-sans-latin-wght-normal.woff2"}

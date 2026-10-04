@@ -3,6 +3,8 @@ elixir = "1.20.4-otp-29"
 erlang = "29.1.1"
 zizmor = "1.30.1"
 node = "26"
+# Runs scripts/icons.py with the dependencies it names.
+uv = "0.12.22"
 
 [tasks.setup]
 description = "Install dependencies, create the development database and build assets"
@@ -63,6 +65,10 @@ run = "mix run --no-start -e 'Sikio.Release.setup_code!()'"
 description = "Apply pending development database migrations"
 env.MIX_ENV = "dev"
 run = "mix ecto.migrate"
+
+[tasks.icons]
+description = "Draw the app icons, favicon and README logo from the wordmark"
+run = "uv run scripts/icons.py"
 
 [tasks.beans]
 run = "beans list --no-status completed --no-status scrapped"
