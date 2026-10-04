@@ -3,8 +3,10 @@
 <html lang={assigns[:locale] || SikioWeb.Locale.default_locale()}>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <%!-- The whole screen, so iOS reports its safe areas to the stylesheet. --%>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f1f5f9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
     <.live_title default={gettext("Your time. Your queue.")} suffix=" · Sikio" phx-no-format>{assigns[:page_title]}</.live_title>

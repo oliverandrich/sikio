@@ -46,6 +46,89 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css("#places-views"))
   end
 
+  # An iPhone keeps its status bar above the page and its home indicator beneath it. The page
+  # reads both through `--safe-top` and `--safe-bottom`, which Chrome never fills; set here to an
+  # iPhone's, the bars must clear them. The tab bar follows Apple's 49 points above the indicator.
+  feature "the bars clear an iPhone's status bar and home indicator", context do
+    %{session: session, entries: entries} = context
+
+    session
+    |> resize_window(500, 900)
+    |> open(item_path(entries.podcast))
+    |> execute_script(
+      "document.documentElement.style.cssText = '--safe-top: 47px; --safe-bottom: 34px'"
+    )
+    |> click(css("#start-playback"))
+    |> click(css("#tab-new"))
+    |> assert_has(css(~s|#player-panel[data-place="floating"]|))
+    |> execute_script(
+      """
+      const box = id => document.getElementById(id).getBoundingClientRect()
+      const labels = [...document.querySelectorAll('#main-navigation a span')]
+        .map(label => label.getBoundingClientRect().bottom)
+      return [Math.round(innerHeight - box('main-navigation').top),
+              Math.max(...labels) <= innerHeight - 34,
+              Math.round(box('masthead').top + parseFloat(getComputedStyle(document.getElementById('masthead')).paddingTop)),
+              Math.round(box('main-navigation').top - box('player-panel').bottom)]
+      """,
+      fn [bar, labels_clear, masthead_content, capsule_gap] ->
+        assert bar == 49 + 34, "the tab bar is 49 above the indicator's 34, not #{bar}"
+        assert labels_clear, "a label sits on the home indicator"
+        assert masthead_content >= 47, "the bar's content sits under the status bar"
+        assert capsule_gap == 8, "the capsule keeps its distance from the tab bar"
+      end
+    )
+  end
+
+  # Safari tints the strip behind the status bar after the page's own colour. The page names it on
+  # the root, in light and dark, rather than leaving the browser to infer it from the body.
+  feature "the page names its colour for the status bar", %{session: session} do
+    session
+    |> open("/new")
+    |> execute_script(
+      """
+      const ground = getComputedStyle(document.body).backgroundColor
+      return [getComputedStyle(document.documentElement).backgroundColor === ground,
+              document.querySelector('meta[name=color-scheme]')?.content]
+      """,
+      fn [same, scheme] ->
+        assert same, "the root's colour is not the page's"
+        assert scheme == "light dark"
+      end
+    )
+  end
+
+  # The viewport has to ask for the whole screen, or iOS reports no safe areas at all.
+  feature "the page asks for the whole screen", %{session: session} do
+    session
+    |> open("/new")
+    |> execute_script(
+      "return document.querySelector('meta[name=viewport]').content",
+      fn content -> assert content =~ "viewport-fit=cover" end
+    )
+  end
+
+  # Held sideways the notch is beside the page; the content keeps clear of it.
+  feature "the content clears the notch held sideways", context do
+    %{session: session} = context
+
+    session
+    |> resize_window(844, 390)
+    |> open("/new")
+    |> execute_script(
+      "document.documentElement.style.cssText = '--safe-left: 47px; --safe-right: 47px'"
+    )
+    |> execute_script(
+      """
+      const left = s => document.querySelector(s).getBoundingClientRect().left
+      return [left('#library-heading'), left('#masthead a'), left('#tab-new')].map(Math.round)
+      """,
+      fn lefts ->
+        assert Enum.all?(lefts, &(&1 >= 47)), "something sits under the notch: #{inspect(lefts)}"
+      end
+    )
+  end
+
   # The Filter button looks pressed while the filters are open.
   feature "the filter button shows whether the filters are open", context do
     %{session: session, entries: entries} = context

@@ -153,7 +153,7 @@
 
 /* Respect phone safe areas. Compacting hides chrome with CSS rather than removing it from the DOM:
    unmounting the audio element would stop playback, which is the opposite of what it is for. */
-#player-panel { bottom: max(1rem, env(safe-area-inset-bottom)); max-height: 85dvh; }
+#player-panel { bottom: max(1rem, var(--safe-bottom)); max-height: 85dvh; }
 
 /* From lg the panel is either pinned to the detail column or a now playing window at the bottom
    left; assets/js/dock_place.mjs decides and sets data-place. In the bar audio keeps its play
@@ -321,8 +321,18 @@
    the page's room beneath its content and the panel's lift all read the bar's height here. The
    page also needs room to scroll past the panel; from lg the panel sits in a column or the
    sidebar and covers nothing. */
-/* The top bar's height, beneath which a playing video stays. */
-:root { --nav-bar: 3.5rem; --top-bar: 3.5rem; }
+/* The top bar's height, beneath which a playing video stays. The tab bar is Apple's 49 points.
+   An iPhone's status bar, home indicator and notch come as safe areas, read once here so the
+   rules below and the browser tests share one name for each. */
+:root {
+  --nav-bar: 49px; --top-bar: 3.5rem;
+  --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* The page's colour on the root itself, in light and dark. Safari tints the strip behind the
+   status bar after it, and it changes with the system's appearance. */
+html { background-color: var(--color-ground); color-scheme: light dark; }
 
 /* From lg the page does not spring back at its ends, and so Safari offers no pull to reload. */
 @media (width >= 64rem) {
@@ -330,7 +340,11 @@
 }
 
 @media (width < 64rem) {
-  #player-panel { bottom: calc(var(--nav-bar) + 1rem + env(safe-area-inset-bottom)); max-height: 75dvh; }
+  #player-panel { bottom: calc(var(--nav-bar) + 1rem + var(--safe-bottom)); max-height: 75dvh; }
+  /* The page and its bars keep clear of the status bar above and of the notch held sideways. */
+  body { padding-inline: var(--safe-left) var(--safe-right); }
+  #masthead { padding-top: calc(.375rem + var(--safe-top)); }
+  #main-navigation { padding-inline: var(--safe-left) var(--safe-right); }
   /* A video in its item spans the screen and stays under the top bar as the notes scroll, as on
      YouTube. Audio scrolls away with its card. */
   #player-panel[data-place="pinned"]:not(:has(audio)) { position-visibility: always; }
@@ -338,9 +352,10 @@
      no taller than the room between them. Its player fits the picture inside. */
   #player-panel[data-place="pinned"] { z-index: 20; max-height: none; }
   #player-panel[data-place="pinned"] iframe {
-    min-height: 0; max-height: calc(100dvh - var(--top-bar) - var(--nav-bar) - env(safe-area-inset-bottom));
+    min-height: 0;
+    max-height: calc(100dvh - var(--top-bar) - var(--safe-top) - var(--nav-bar) - var(--safe-bottom));
   }
-  #player-panel[data-place="pinned"][data-stuck]:not(:has(audio)) { top: var(--top-bar); }
+  #player-panel[data-place="pinned"][data-stuck]:not(:has(audio)) { top: calc(var(--top-bar) + var(--safe-top)); }
   /* The account menu opens upwards into the panel's room and holds the offer of the source. */
   #main-navigation:has(#user-menu[open]) { z-index: 50; }
   body:has(#player-panel:not([data-place="pinned"])) #page-content { padding-bottom: 6rem; }
@@ -350,7 +365,8 @@
      The heading and the player give their children to the row, so nothing moves in the DOM. */
   #player-panel[data-place="floating"] {
     display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem;
-    left: .5rem; right: .5rem; width: auto; bottom: calc(var(--nav-bar) + .5rem + env(safe-area-inset-bottom));
+    left: calc(.5rem + var(--safe-left)); right: calc(.5rem + var(--safe-right)); width: auto;
+    bottom: calc(var(--nav-bar) + .5rem + var(--safe-bottom));
     max-height: none; overflow: hidden; padding: .5rem .25rem .5rem .5rem; border-radius: .875rem;
   }
   #player-panel[data-place="floating"] :is(.player-heading, [phx-hook="MediaPlayer"]) { display: contents; }

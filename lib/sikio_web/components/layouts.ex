@@ -184,7 +184,7 @@ defmodule SikioWeb.Layouts do
     assigns = assign(assigns, counts: counts, tab: tab)
 
     ~H"""
-    <div class="min-h-svh pb-[calc(var(--nav-bar)+env(safe-area-inset-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
+    <div class="min-h-svh pb-[calc(var(--nav-bar)+var(--safe-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
       <%!-- assets/js/dock_place.mjs makes room at its foot for the now playing bar. --%>
       <%!-- On a phone a slim bar that stays at the top; see assets/js/shrink_title.mjs. --%>
       <header
@@ -411,11 +411,11 @@ defmodule SikioWeb.Layouts do
           </p>
         </div>
         <%!-- A phone's tab bar, in the manner of iOS: an icon and a label for each tab, on a
-             translucent bar above the home indicator. What is in progress has a tab of its own,
-             because going on with it is what a reader most often comes for. --%>
+             translucent bar of Apple's height above the home indicator. What is in progress has
+             a tab of its own, because going on with it is what a reader most often comes for. --%>
         <nav
           id="main-navigation"
-          class="fixed inset-x-0 bottom-0 z-30 flex min-h-[var(--nav-bar)] items-stretch justify-around border-t border-line bg-ground/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+          class="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--nav-bar)+var(--safe-bottom))] items-stretch justify-around border-t border-line bg-ground/85 pb-[var(--safe-bottom)] backdrop-blur-md lg:hidden"
           aria-label={gettext("Main navigation")}
         >
           <.tab id="tab-new" to={~p"/new"} current={@tab == :new} label={gettext("New")}>
@@ -627,7 +627,7 @@ defmodule SikioWeb.Layouts do
       id={@id}
       navigate={@to}
       aria-current={@current && "page"}
-      class="flex min-w-16 flex-1 flex-col items-center justify-center gap-0.5 pt-1.5 pb-1 text-[11px] font-medium text-muted aria-[current=page]:text-accent"
+      class="flex min-w-16 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-muted aria-[current=page]:text-accent"
     >
       {render_slot(@inner_block)}
       <span>{@label}</span>
