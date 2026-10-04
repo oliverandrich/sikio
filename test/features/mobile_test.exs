@@ -9,6 +9,7 @@ defmodule SikioWeb.MobileTest do
   """
   use SikioWeb.FeatureCase
 
+  import Ecto.Query, only: [where: 2]
   import Sikio.FeedFixtures
 
   alias Sikio.Feeds.Parser
@@ -528,6 +529,34 @@ defmodule SikioWeb.MobileTest do
     |> execute_script(
       "const b = document.querySelector('#player-panel iframe').getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]",
       fn size -> assert size == [96, 54] end
+    )
+  end
+
+  # Publishers paste bare addresses as link text. A word longer than the screen breaks inside the
+  # notes rather than widening the page.
+  @sessions [
+    [
+      capabilities:
+        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
+          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
+        })
+    ]
+  ]
+  feature "a long link in the notes does not widen the page", context do
+    %{session: session, entries: entries} = context
+    url = "https://example.org/?ref=" <> String.duplicate("a1b2c3d4e5", 20)
+
+    Sikio.Repo.update_all(
+      where(Sikio.Feeds.Entry, id: ^entries.podcast.id),
+      set: [description: ~s|<p>Read <a href="#{url}">#{url}</a></p>|, description_format: :html]
+    )
+
+    session
+    |> open(item_path(entries.podcast))
+    |> assert_has(css("#item-notes a"))
+    |> execute_script(
+      "return [document.documentElement.scrollWidth, document.documentElement.clientWidth]",
+      fn [scroll, client] -> assert scroll <= client end
     )
   end
 
