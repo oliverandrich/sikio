@@ -73,12 +73,9 @@ defmodule SikioWeb.PlayerDockLive do
   # The item that played has ended. Playing on, the first in the queue follows it; the one that
   # ended has left the queue as it was heard.
   def handle_event("next", _params, socket) do
-    account = socket.assigns.current_account
-    current = socket.assigns.entry && socket.assigns.entry.id
-
-    case Playback.play_on?(account) && Enum.reject(Playback.queue(account), &(&1 == current)) do
-      [next | _] -> start_entry(socket, next, nil)
-      _ -> {:noreply, socket}
+    case next_in_queue(socket) do
+      nil -> {:noreply, socket}
+      next -> start_entry(socket, next, nil)
     end
   end
 
@@ -102,17 +99,9 @@ defmodule SikioWeb.PlayerDockLive do
       when event in [:playback_changed, :playback_progressed] do
     entry = socket.assigns.entry
 
-    if entry && entry.id == state.entry_id && Playback.newer?(entry, state) do
-      player = socket.assigns.player
-
-      if player && player.session_id != state.session_id do
-        {:noreply, socket |> assign_progress(state) |> interrupted()}
-      else
-        {:noreply, assign_progress(socket, state)}
-      end
-    else
-      {:noreply, socket}
-    end
+    if entry && entry.id == state.entry_id && Playback.newer?(entry, state),
+      do: follow(socket, socket.assigns.player, state),
+      else: {:noreply, socket}
   end
 
   # A whole list marked finished leaves out what a player holds, so the dock has nothing to do.
@@ -135,6 +124,35 @@ defmodule SikioWeb.PlayerDockLive do
       {:noreply, socket}
     end
   end
+
+  # A change to what this dock holds. Its own session saved it, or nothing plays here.
+  defp follow(socket, player, state) when is_nil(player) or player.session_id == state.session_id,
+    do: {:noreply, assign_progress(socket, state)}
+
+  # Marked by hand, which clears the session: done with, as if it had ended.
+  defp follow(socket, _player, %{session_id: nil, status: status})
+       when status in [:heard, :archived],
+       do: done_with(socket, next_in_queue(socket))
+
+  defp follow(socket, _player, %{session_id: nil, status: :new}), do: done_with(socket, nil)
+
+  # Another player took the item over.
+  defp follow(socket, _player, state),
+    do: {:noreply, socket |> assign_progress(state) |> interrupted()}
+
+  # The first in the queue besides what plays, while the account plays on.
+  defp next_in_queue(socket) do
+    account = socket.assigns.current_account
+    current = socket.assigns.entry && socket.assigns.entry.id
+
+    if Playback.play_on?(account),
+      do: Enum.find(Playback.queue(account), &(&1 != current))
+  end
+
+  defp done_with(socket, nil),
+    do: {:noreply, assign(socket, entry: nil, player: nil, notice: nil)}
+
+  defp done_with(socket, next), do: start_entry(socket, next, nil)
 
   defp start_entry(socket, id, at) do
     account = socket.assigns.current_account
@@ -194,9 +212,7 @@ defmodule SikioWeb.PlayerDockLive do
       assign(socket,
         player: nil,
         notice:
-          gettext(
-            "Your progress changed in another player or was marked manually. Open the episode to continue here."
-          )
+          gettext("Your progress changed in another player. Open the episode to continue here.")
       )
 
   defp assign_progress(socket, progress),

@@ -83,7 +83,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
     render_hook(dock, "start", %{id: c.entry.id})
     Playback.mark(c.user, c.entry.id, :heard)
     refute has_element?(dock, "audio")
-    assert has_element?(dock, "#dock-notice", "changed")
+    refute has_element?(dock, "#dock-notice")
     render_hook(dock, "start", %{id: c.entry.id})
     assert has_element?(dock, "audio")
     Library.unsubscribe(c.user, c.sub.id)
@@ -191,6 +191,39 @@ defmodule SikioWeb.PlayerDockLiveTest do
     render_hook(dock, "progress", %{sample(session, 1, 100) | "ended" => true})
     render_hook(dock, "next", %{})
     assert has_element?(dock, ~s|[phx-hook="MediaPlayer"][data-title="#{following.title}"]|)
+  end
+
+  # Marked heard or archived by hand while it plays, an item is done with as if it had ended:
+  # playing on, the queue follows; otherwise the dock closes. Back in the inbox it only closes.
+  # None of this is news to the one who did it. Another player taking over still is.
+  test "an item marked by hand while it plays is done with quietly", c do
+    {:ok, preview} = Parser.parse(FeedFixtures.podcast("Next"), FeedFixtures.feed_url("next"))
+    {:ok, _} = Library.subscribe(c.user, preview)
+
+    [following] =
+      Library.entries(c.user, %{"status" => "inbox"}) |> Enum.reject(&(&1.id == c.entry.id))
+
+    {:ok, _} = Playback.enqueue(c.user, following.id, :last)
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+
+    render_hook(dock, "start", %{id: c.entry.id})
+    {:ok, _} = Playback.mark(c.user, c.entry.id, :archived)
+    assert has_element?(dock, ~s|[phx-hook="MediaPlayer"][data-title="#{following.title}"]|)
+    refute has_element?(dock, "#dock-notice")
+
+    {:ok, _} = Playback.play_on(c.user, false)
+    {:ok, _} = Playback.mark(c.user, following.id, :heard)
+    refute has_element?(dock, "#player-panel")
+
+    {:ok, _} = Playback.play_on(c.user, true)
+    {:ok, _} = Playback.enqueue(c.user, following.id, :last)
+    render_hook(dock, "start", %{id: c.entry.id})
+    {:ok, _} = Playback.mark(c.user, c.entry.id, :new)
+    refute has_element?(dock, "#player-panel")
+
+    render_hook(dock, "start", %{id: c.entry.id})
+    {:ok, _} = Playback.start(c.user, c.entry.id)
+    assert has_element?(dock, "#dock-notice", "changed")
   end
 
   test "playing on is the account's own setting, on until turned off", c do
