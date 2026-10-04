@@ -382,8 +382,34 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # Audio needs no watching. It sits in its card and scrolls away with it.
-  feature "audio plays in its card and scrolls with it", context do
+  # Before anything plays the card shows the player's likeness, which stays under the bar just as
+  # the player does once started, so starting it changes nothing about where it is.
+  feature "an item's player stays under the bar before it plays", context do
+    %{session: session, entries: entries} = context
+
+    session
+    |> resize_window(390, 844)
+    |> open(item_path(entries.podcast))
+    |> assert_has(css("#player-slot #audio-cue"))
+    |> execute_script("""
+    document.getElementById('item-detail').style.paddingBottom = '2000px'
+    const slot = document.getElementById('player-slot').getBoundingClientRect().top
+    window.scrollTo(0, scrollY + slot - document.getElementById('masthead').getBoundingClientRect().bottom + 60)
+    """)
+    |> then(fn session ->
+      script = """
+      return Math.round(document.getElementById('player-slot').getBoundingClientRect().top) ===
+             Math.round(document.getElementById('masthead').getBoundingClientRect().bottom)
+      """
+
+      assert {:ok, _} = retry(fn -> holds(session, script) end), "the card's player stays"
+      session
+    end)
+  end
+
+  # An episode's controls sit in its card and, like a video, stay under the bar as the notes
+  # scroll, rather than passing half under it.
+  feature "audio stays under the bar as its notes scroll", context do
     %{session: session, entries: entries} = context
 
     session
@@ -392,6 +418,22 @@ defmodule SikioWeb.MobileTest do
     |> click(css("#start-playback"))
     |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
     |> execute_script(edges(), fn [_left, _width, top] -> assert top == "slot" end)
+    |> execute_script("""
+    document.getElementById('item-detail').style.paddingBottom = '2000px'
+    const slot = document.getElementById('player-slot').getBoundingClientRect().top
+    window.scrollTo(0, scrollY + slot - document.getElementById('masthead').getBoundingClientRect().bottom + 60)
+    """)
+    |> then(fn session ->
+      script = """
+      const panel = document.getElementById('player-panel')
+      return Math.round(panel.getBoundingClientRect().top) ===
+               Math.round(document.getElementById('masthead').getBoundingClientRect().bottom) &&
+             getComputedStyle(panel).visibility === 'visible'
+      """
+
+      assert {:ok, _} = retry(fn -> holds(session, script) end), "the controls stay under the bar"
+      session
+    end)
   end
 
   # Away from its item the player is a capsule above the tab bar: what plays, play or pause, and

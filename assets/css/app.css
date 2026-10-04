@@ -346,9 +346,14 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
   body { padding-inline: var(--safe-left) var(--safe-right); }
   #masthead { padding-top: calc(.375rem + var(--safe-top)); }
   #main-navigation { padding-inline: var(--safe-left) var(--safe-right); }
-  /* A video in its item spans the screen and stays under the top bar as the notes scroll, as on
-     YouTube. Audio scrolls away with its card. */
-  #player-panel[data-place="pinned"]:not(:has(audio)) { position-visibility: always; }
+  /* The player in its item stays under the top bar as the notes scroll, as on YouTube. A video
+     spans the screen; an episode's controls keep the card's margins, so while stuck the page's
+     ground reaches the edges beside them and no text shows through. */
+  #player-panel[data-place="pinned"] { position-visibility: always; }
+  #player-panel[data-place="pinned"][data-stuck]:has(audio) {
+    background: var(--color-ground);
+    box-shadow: 0 0 0 100vmax var(--color-ground); clip-path: inset(0 -100vmax);
+  }
   /* Pinned, the panel is part of the page: it passes under the bars, and held sideways a video is
      no taller than the room between them. Its player fits the picture inside. */
   #player-panel[data-place="pinned"] { z-index: 20; max-height: none; }
@@ -356,7 +361,14 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
     min-height: 0;
     max-height: calc(100dvh - var(--top-bar) - var(--safe-top) - var(--nav-bar) - var(--safe-bottom));
   }
-  #player-panel[data-place="pinned"][data-stuck]:not(:has(audio)) { top: calc(var(--top-bar) + var(--safe-top)); }
+  #player-panel[data-place="pinned"][data-stuck] { top: calc(var(--top-bar) + var(--safe-top)); }
+  /* Before anything plays the slot shows the player's likeness and stays under the bar itself,
+     so starting the player changes nothing about where it is. */
+  #player-slot:not([data-pinned]) {
+    position: sticky; top: calc(var(--top-bar) + var(--safe-top)); z-index: 10;
+    background: var(--color-ground);
+    box-shadow: 0 0 0 100vmax var(--color-ground); clip-path: inset(0 -100vmax);
+  }
   /* The account menu opens upwards into the panel's room and holds the offer of the source. */
   #main-navigation:has(#user-menu[open]) { z-index: 50; }
   body:has(#player-panel:not([data-place="pinned"])) #page-content { padding-bottom: 6rem; }
