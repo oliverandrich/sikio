@@ -199,6 +199,70 @@ defmodule SikioWeb.TailwindTest do
     end)
   end
 
+  # A dialog keeps to quiet sizes from sm: a short title, buttons of 36px and its answers in a band
+  # of their own at the foot.
+  feature "a dialog keeps quiet sizes beside a mouse", %{session: session} do
+    feed = subscribed(session)
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/feeds/#{feed}")
+    |> click(css("#edit-subscription"))
+    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
+    |> execute_script(
+      """
+      const probe = document.createElement('span')
+      probe.className = 'bg-ground'
+      document.body.append(probe)
+      const style = id => getComputedStyle(document.getElementById(id))
+      return [Math.round(document.getElementById('confirm-edit-subscription').getBoundingClientRect().height),
+              style('edit-subscription-heading').fontSize, style('edit-subscription-actions').backgroundColor,
+              getComputedStyle(probe).backgroundColor]
+      """,
+      fn [height, title, band, ground] ->
+        assert height == 36
+        assert title == "17px"
+        assert band == ground
+      end
+    )
+  end
+
+  # On a phone the answers stand one above the other across the dialog, at a finger's height, the
+  # one that confirms on top.
+  @sessions [
+    [
+      capabilities:
+        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
+          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
+        })
+    ]
+  ]
+  feature "a dialog's answers stack at a finger's height on a phone", %{session: session} do
+    feed = subscribed(session)
+
+    session
+    |> open("/feeds/#{feed}")
+    |> click(css("#edit-subscription"))
+    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
+    |> execute_script(
+      """
+      const box = id => document.getElementById(id).getBoundingClientRect()
+      const save = box('confirm-edit-subscription'), cancel = box('cancel-edit-subscription')
+      const band = document.getElementById('edit-subscription-actions')
+      const inner = band.clientWidth - parseFloat(getComputedStyle(band).paddingLeft) -
+        parseFloat(getComputedStyle(band).paddingRight)
+      return [Math.round(save.height), Math.round(save.width) == Math.round(inner),
+              save.bottom <= cancel.top, box('unsubscribe').top >= cancel.bottom]
+      """,
+      fn [height, across, save_first, leave_last] ->
+        assert height == 44
+        assert across, "the answer spans the dialog"
+        assert save_first, "saving stands above cancelling"
+        assert leave_last, "leaving stands at the foot"
+      end
+    )
+  end
+
   # From lg the sources may run long. They scroll, while the wordmark above and the offer of the
   # source below stay where they are. Only a window too short for those two scrolls the whole
   # column. The heading over the sources leads to managing them, so the bar of links is the phone's.
@@ -252,6 +316,13 @@ defmodule SikioWeb.TailwindTest do
         assert left_inset == right_inset, "the digits sit as far from the edge as the icon"
       end
     )
+  end
+
+  defp subscribed(session) do
+    account = signed_up(session, "ada")
+    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
+    {:ok, _} = Library.subscribe(account, preview)
+    hd(Library.entries(account)).feed_id
   end
 
   defp wordmark do

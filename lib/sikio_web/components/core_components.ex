@@ -106,7 +106,7 @@ defmodule SikioWeb.CoreComponents do
 
     assigns =
       assign(assigns, :class, [
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 py-2 text-label font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-3 py-2 text-sm font-semibold shadow-xs transition-colors sm:min-h-9 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         Map.fetch!(variants, assigns[:variant]),
         assigns.class
       ])

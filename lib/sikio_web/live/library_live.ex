@@ -201,17 +201,20 @@ defmodule SikioWeb.LibraryLive do
       phx-window-keydown={"cancel_#{@event}"}
       phx-key="Escape"
       class={[
-        "m-auto rounded-xl border border-line bg-surface p-6 text-ink shadow-2xl outline-none backdrop:bg-black/30",
-        if(@wide, do: "w-[min(34rem,calc(100vw-2rem))]", else: "w-[min(26rem,calc(100vw-2rem))]")
+        "m-auto rounded-lg border border-line bg-surface text-ink shadow-2xl outline-none backdrop:bg-black/30",
+        if(@wide, do: "w-[min(34rem,calc(100vw-2rem))]", else: "w-[min(28rem,calc(100vw-2rem))]")
       ]}
     >
-      <h2 id={"#{@name}-heading"} class="text-title font-semibold">{@title}</h2>
-      <div class="mt-2 text-body text-muted">{render_slot(@inner_block)}</div>
-      <div class="mt-6 flex flex-wrap items-center justify-end gap-2">
-        <div :if={@aside != []} class="mr-auto">{render_slot(@aside)}</div>
-        <.button id={"cancel-#{@name}"} type="button" phx-click={"cancel_#{@event}"}>
-          {gettext("Cancel")}
-        </.button>
+      <div class="p-5 sm:p-6">
+        <h2 id={"#{@name}-heading"} class="text-[17px] leading-6 font-semibold">{@title}</h2>
+        <div class="mt-2 text-sm text-muted">{render_slot(@inner_block)}</div>
+      </div>
+      <%!-- The answers in a band of their own. On a phone they stack, the confirming one on top;
+      from sm they stand in a row from the right, another way out at the far left. --%>
+      <div
+        id={"#{@name}-actions"}
+        class="flex flex-col gap-2 rounded-b-lg border-t border-line bg-ground px-5 py-4 sm:flex-row-reverse sm:items-center sm:gap-3 sm:px-6"
+      >
         <.button
           id={"confirm-#{@name}"}
           type="button"
@@ -220,10 +223,19 @@ defmodule SikioWeb.LibraryLive do
         >
           {@confirm_label}
         </.button>
+        <.button id={"cancel-#{@name}"} type="button" phx-click={"cancel_#{@event}"}>
+          {gettext("Cancel")}
+        </.button>
+        <div :if={@aside != []} class="flex justify-center sm:mr-auto">{render_slot(@aside)}</div>
       </div>
     </dialog>
     """
   end
+
+  # A text field inside a dialog, at a finger's height on a phone and a button's beside a mouse.
+  defp dialog_field,
+    do:
+      "min-h-11 rounded-control border border-edge bg-surface px-3 text-sm text-ink placeholder:text-muted sm:min-h-9 focus-visible:outline-2 focus-visible:outline-accent"
 
   defp row_id({:heading, {year, month}, _label}), do: "group-#{year}-#{month}"
   defp row_id({:heading, key, _label}), do: "group-#{key}"
@@ -1074,7 +1086,7 @@ defmodule SikioWeb.LibraryLive do
                     value={@editing.name}
                     maxlength="200"
                     placeholder={@editing.subscription.feed.title}
-                    class="min-h-10 rounded-control border border-line bg-surface px-3 font-normal text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
+                    class={[dialog_field(), "font-normal"]}
                   />
                 </label>
                 <fieldset class="flex flex-col gap-2">
@@ -1118,7 +1130,7 @@ defmodule SikioWeb.LibraryLive do
                     maxlength="80"
                     placeholder={gettext("New tag, or several set apart by commas")}
                     aria-label={gettext("New tag")}
-                    class="mt-1 min-h-10 rounded-control border border-edge bg-surface px-3 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
+                    class={[dialog_field(), "mt-1"]}
                   />
                 </fieldset>
               </form>
@@ -1128,7 +1140,7 @@ defmodule SikioWeb.LibraryLive do
                   id="unsubscribe"
                   type="button"
                   phx-click="unsubscribe"
-                  class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-label font-semibold text-danger hover:underline"
+                  class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-danger hover:underline sm:min-h-9"
                 >
                   <Lucideicons.unplug aria-hidden="true" class="size-4" />
                   {gettext("Unsubscribe")}
@@ -1153,7 +1165,7 @@ defmodule SikioWeb.LibraryLive do
                   value={@renaming.name}
                   maxlength="40"
                   aria-label={gettext("Name")}
-                  class="min-h-10 rounded-control border border-edge bg-surface px-3 text-label text-ink focus-visible:outline-2 focus-visible:outline-accent"
+                  class={dialog_field()}
                 />
                 <p :if={@renaming.error} class="text-label text-danger">{@renaming.error}</p>
               </form>
