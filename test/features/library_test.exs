@@ -9,6 +9,8 @@ defmodule SikioWeb.LibraryTest do
   """
   use SikioWeb.FeatureCase
 
+  import Ecto.Query
+
   import Sikio.FeedFixtures
 
   alias Sikio.Feeds.Parser
@@ -23,7 +25,66 @@ defmodule SikioWeb.LibraryTest do
           do: %{hd(preview.entries) | external_id: "episode-#{n}", title: "Episode #{n}"}
 
     {:ok, _} = Library.subscribe(account, %{preview | entries: entries})
-    :ok
+    %{account: account}
+  end
+
+  # The queue's rows move by their handles: dragged, or a place at a time with the arrow keys.
+  feature "the queue is put in order by dragging and by keys", %{
+    session: session,
+    account: account
+  } do
+    ids =
+      for title <- ["Episode 1", "Episode 2", "Episode 3"] do
+        id = Sikio.Repo.one!(from e in Sikio.Feeds.Entry, where: e.title == ^title, select: e.id)
+        {:ok, _} = Sikio.Playback.enqueue(account, id, :last)
+        id
+      end
+
+    [one, two, three] = ids
+
+    order =
+      "return [...document.querySelectorAll('#entries article')].map(row => row.querySelector('[data-move]').dataset.move)"
+
+    session
+    |> resize_window(1280, 900)
+    |> open("/queue")
+    |> assert_has(css("#entries article", count: 3))
+    # Episode 3 dragged above the first row.
+    |> execute_script("""
+    const handle = document.getElementById('move-#{three}')
+    const top = document.getElementById('move-#{one}').getBoundingClientRect().top
+    const at = (type, y) => handle.dispatchEvent(new PointerEvent(type, {bubbles: true, clientY: y, pointerId: 1, button: 0}))
+    const start = handle.getBoundingClientRect().top + 10
+    window.sikioTop = top + 5
+    at('pointerdown', start); at('pointermove', top + 5)
+    """)
+    # While it is held, the row it would push aside has made room already.
+    |> execute_script(
+      "return getComputedStyle(document.getElementById('move-#{one}').closest('article')).transform",
+      fn transform -> assert transform =~ "matrix", "the first row stays put while held over" end
+    )
+    |> execute_script("""
+    const handle = document.getElementById('move-#{three}')
+    handle.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientY: window.sikioTop, pointerId: 1, button: 0}))
+    """)
+    |> then(fn session ->
+      wanted = Enum.map([three, one, two], &to_string/1)
+      assert {:ok, _} = retry(fn -> in_order(session, order, wanted) end)
+      session
+    end)
+    # Episode 3 a place down by its handle's arrow key.
+    |> execute_script("document.getElementById('move-#{three}').focus()")
+    |> send_keys([:down_arrow])
+    |> then(fn session ->
+      wanted = Enum.map([one, three, two], &to_string/1)
+      assert {:ok, _} = retry(fn -> in_order(session, order, wanted) end)
+      session
+    end)
+  end
+
+  defp in_order(session, script, wanted) do
+    execute_script(session, script, fn got -> Process.put(:order, got) end)
+    if Process.delete(:order) == wanted, do: {:ok, session}, else: {:error, :not_yet}
   end
 
   # Every key in one place: ? opens the overview from anywhere outside a field, the account menu

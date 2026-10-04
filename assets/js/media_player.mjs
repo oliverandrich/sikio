@@ -164,6 +164,10 @@ export const MediaPlayer = {
       send: (sample, reply) => this.pushEvent("progress", sample, reply),
       stop: this.stop, message: this.message, strings: this.strings})
     this.listen(this.el, "sikio:flush", event => this.reporter.finish(event.detail.done))
+    // The end, said once to the page: the dock may go on with the queue.
+    this.ended = () => {
+      if (!this.closed) globalThis.window?.dispatchEvent?.(new CustomEvent("sikio:ended"))
+    }
     // A chapter moves the player. Each player is moved its own way; the save follows as for a
     // seek by hand.
     this.listen(this.el, "sikio:seek", event => this.seek(event.detail.position))
@@ -205,7 +209,10 @@ export const MediaPlayer = {
         const jump = moved && jumped(this.lastPosition, status.position)
         this.lastState = state
         if (typeof status === "object") this.lastPosition = status.position
-        if (state === "ended" && changed) this.reporter.save(true, true)
+        if (state === "ended" && changed) {
+          this.reporter.save(true, true)
+          this.ended()
+        }
         else if (state === "paused" && (changed || moved)) this.reporter.save(false, true)
         else if (state === "playing") this.reporter.save(false, jump)
       }
@@ -235,7 +242,10 @@ export const MediaPlayer = {
     for (const event of ["pause", "seeked"]) {
       this.listen(audio, event, () => this.reporter.save(false, true))
     }
-    this.listen(audio, "ended", () => this.reporter.save(true, true))
+    this.listen(audio, "ended", () => {
+      this.reporter.save(true, true)
+      this.ended()
+    })
     this.listen(audio, "error", () => this.message(this.strings.audioFailed))
     // Sikio's own controls over the audio; see assets/js/audio_face.mjs.
     const face = this.el.querySelector("[data-audio-face]")
@@ -269,7 +279,10 @@ export const MediaPlayer = {
         onStateChange: event => {
           if (!this.ready || this.closed) return
           this.show({playing: event.data === YT.PlayerState.PLAYING})
-          if (event.data === YT.PlayerState.ENDED) this.reporter.save(true, true)
+          if (event.data === YT.PlayerState.ENDED) {
+            this.reporter.save(true, true)
+            this.ended()
+          }
           else if (event.data === YT.PlayerState.PAUSED) this.reporter.save(false, true)
         },
         onError: event => {

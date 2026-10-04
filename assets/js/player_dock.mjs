@@ -31,6 +31,8 @@ export const PlayerDock = {
       this.change("start", {id, position})
     }
     this.close = () => this.change("close", {})
+    // What played has ended. Once its place is saved the server may start the next in the queue.
+    this.next = () => this.change("next", {})
     // The page keeps the keyboard on every page and hands the player's keys to whichever player
     // plays. Without one, p starts the open item as its play button does; the rest are the page's.
     this.onKey = event => {
@@ -56,6 +58,7 @@ export const PlayerDock = {
     }, 0)
     window.addEventListener("sikio:play", this.play)
     window.addEventListener("sikio:close-player", this.close)
+    window.addEventListener("sikio:ended", this.next)
     window.addEventListener("keydown", this.onKey)
     window.addEventListener("blur", this.onBlur)
     window.addEventListener("pointerdown", this.onPointer)
@@ -77,6 +80,7 @@ export const PlayerDock = {
     this.closed = true
     window.removeEventListener("sikio:play", this.play)
     window.removeEventListener("sikio:close-player", this.close)
+    window.removeEventListener("sikio:ended", this.next)
     window.removeEventListener("keydown", this.onKey)
     window.removeEventListener("blur", this.onBlur)
     window.removeEventListener("pointerdown", this.onPointer)

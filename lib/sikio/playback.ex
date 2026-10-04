@@ -15,6 +15,7 @@ defmodule Sikio.Playback do
   alias Sikio.Accounts.User
   alias Sikio.Library
   alias Sikio.Library.Events
+  alias Sikio.Playback.Preference
   alias Sikio.Playback.State
   alias Sikio.Repo
 
@@ -102,6 +103,49 @@ defmodule Sikio.Playback do
       :first -> (Repo.one(from p in ranks, select: min(p.queue_rank)) || 1.0) - 1.0
       :last -> (Repo.one(from p in ranks, select: max(p.queue_rank)) || 0.0) + 1.0
     end
+  end
+
+  @doc """
+  Moves a queued entry to `index` in the queue, counted from 0. Its rank falls between its new
+  neighbours, so nothing else moves. An index past the end is the end.
+  """
+  def move(%User{id: user_id} = account, id, index) when is_integer(index) and index >= 0 do
+    change(account, id, fn state ->
+      if is_nil(state.queue_rank), do: Repo.rollback(:not_queued)
+
+      others =
+        Repo.all(
+          from p in State,
+            where: p.user_id == ^user_id and not is_nil(p.queue_rank) and p.id != ^state.id,
+            where: p.entry_id in subquery(Library.visible_entry_ids(account)),
+            order_by: [asc: p.queue_rank, asc: p.id],
+            select: p.queue_rank
+        )
+
+      before = if index > 0, do: Enum.at(others, index - 1, List.last(others))
+      [queue_rank: between(before, Enum.at(others, index))]
+    end)
+  end
+
+  defp between(nil, nil), do: 0.0
+  defp between(nil, next), do: next - 1.0
+  defp between(before, nil), do: before + 1.0
+  defp between(before, next), do: (before + next) / 2
+
+  @doc "Whether the player goes on with the queue when an item ends, as the account last chose."
+  def play_on?(%User{id: user_id}),
+    do: Repo.one(from p in Preference, where: p.user_id == ^user_id, select: p.play_on) != false
+
+  @doc "Turns playing on with the queue on or off for the account."
+  def play_on(%User{id: user_id}, on) when is_boolean(on) do
+    now = DateTime.utc_now()
+
+    Repo.insert(
+      %Preference{user_id: user_id, play_on: on, inserted_at: now, updated_at: now},
+      on_conflict: [set: [play_on: on, updated_at: now]],
+      conflict_target: :user_id,
+      returning: true
+    )
   end
 
   @doc "Takes the entry out of the queue."
@@ -250,17 +294,18 @@ defmodule Sikio.Playback do
     broadcast(account, result)
   end
 
-  # A change that keeps the status is announced as progress. It cannot move an item between
-  # views, so a view can update the one item instead of reading its list again.
-  defp broadcast(account, {:ok, {previous_status, state}}) do
-    Events.broadcast(account, {event(state, previous_status), state})
+  # A change that keeps the status and the place in the queue is announced as progress. It cannot
+  # move an item between views or within the queue, so a view can update the one item instead of
+  # reading its list again.
+  defp broadcast(account, {:ok, {previous, state}}) do
+    Events.broadcast(account, {event(state, previous), state})
     {:ok, state}
   end
 
   defp broadcast(_account, result), do: result
 
-  defp event(%{status: status}, status), do: :playback_progressed
-  defp event(_state, _previous_status), do: :playback_changed
+  defp event(%{status: status, queue_rank: rank}, {status, rank}), do: :playback_progressed
+  defp event(_state, _previous), do: :playback_changed
 
   # Authorization is rechecked with every write, rather than trusted from the request that started
   # the player: a subscription may have been removed since. Without one there is nothing to lock.
@@ -281,7 +326,8 @@ defmodule Sikio.Playback do
   end
 
   defp persist(state, attrs),
-    do: {state.status, state |> Ecto.Changeset.change(attrs) |> Repo.update!()}
+    do:
+      {{state.status, state.queue_rank}, state |> Ecto.Changeset.change(attrs) |> Repo.update!()}
 
   # Heard is a floor. Reaching 90 % of the length or the end sets it, and nothing but an explicit
   # mark as new takes it away, so replaying an episode does not make it unheard again. Many end on

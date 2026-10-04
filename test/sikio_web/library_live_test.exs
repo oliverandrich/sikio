@@ -174,6 +174,28 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#list-empty", "You’re all caught up.")
   end
 
+  # The queue's head says whether the player goes on with it, and the reader turns that off and on.
+  # Only the queue offers it, and only the queue's rows carry a handle to move them.
+  test "the queue plays on unless told not to, and its rows move", c do
+    {:ok, _} = Playback.enqueue(c.user, c.audio.id, :last)
+    [video] = Library.entries(c.user, %{"status" => "inbox"})
+    {:ok, _} = Playback.enqueue(c.user, video.id, :last)
+
+    {:ok, view, _} = live(c.conn, ~p"/queue")
+    assert has_element?(view, ~s|#play-on[aria-pressed="true"]|)
+    view |> element("#play-on") |> render_click()
+    assert has_element?(view, ~s|#play-on[aria-pressed="false"]|)
+    refute Playback.play_on?(c.user)
+
+    assert has_element?(view, "#move-#{c.audio.id}")
+    view |> element("#entries") |> render_hook("reorder", %{"id" => video.id, "index" => 0})
+    assert Playback.queue(c.user) == [video.id, c.audio.id]
+
+    {:ok, view, _} = live(c.conn, ~p"/all")
+    refute has_element?(view, "#play-on")
+    refute has_element?(view, "#move-#{c.audio.id}")
+  end
+
   # Within a source the statuses are a filter; elsewhere they are the place itself.
   test "a chosen source filters by status, other places do not offer it", c do
     Playback.mark(c.user, c.audio.id, :heard)

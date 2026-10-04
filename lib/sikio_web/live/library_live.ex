@@ -48,7 +48,8 @@ defmodule SikioWeb.LibraryLive do
        deleting: nil,
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket)),
-       tab: :inbox
+       tab: :inbox,
+       play_on: Playback.play_on?(socket.assigns.current_account)
      )}
   end
 
@@ -244,6 +245,7 @@ defmodule SikioWeb.LibraryLive do
       to={SikioWeb.Sidebar.library_path(@filters, @entry, @titles)}
       selected={@selected == @entry.id}
       source_shown={@filters["source"] == ""}
+      movable={@filters["status"] == "queue"}
     />
     """
   end
@@ -622,6 +624,17 @@ defmodule SikioWeb.LibraryLive do
         Playback.enqueue(socket.assigns.current_account, id, String.to_existing_atom(at))
       )
 
+  def handle_event("play_on", _params, socket) do
+    {:ok, preference} =
+      Playback.play_on(socket.assigns.current_account, !socket.assigns.play_on)
+
+    {:noreply, assign(socket, :play_on, preference.play_on)}
+  end
+
+  # A row dropped or moved by a key; the broadcast reads the queue again in its new order.
+  def handle_event("reorder", %{"id" => id, "index" => index}, socket) when is_integer(index),
+    do: changed(socket, Playback.move(socket.assigns.current_account, id, index))
+
   def handle_event("dequeue", %{"id" => id}, socket),
     do: changed(socket, Playback.dequeue(socket.assigns.current_account, id))
 
@@ -937,6 +950,19 @@ defmodule SikioWeb.LibraryLive do
                   >
                     <Lucideicons.unplug aria-hidden="true" class="size-4.5" />
                   </button>
+                  <%!-- Whether the player goes on with the queue when an item ends. --%>
+                  <button
+                    :if={@filters["status"] == "queue"}
+                    id="play-on"
+                    type="button"
+                    aria-pressed={to_string(@play_on)}
+                    aria-label={gettext("Play on with the queue")}
+                    title={gettext("Play on with the queue")}
+                    phx-click="play_on"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-pressed:bg-selection aria-pressed:text-accent"
+                  >
+                    <Lucideicons.list_video aria-hidden="true" class="size-4.5" />
+                  </button>
                   <button
                     :if={!@empty?}
                     id="toggle-search"
@@ -1158,6 +1184,7 @@ defmodule SikioWeb.LibraryLive do
           <div
             :if={!@empty?}
             id="entries"
+            phx-hook="QueueSort"
             phx-viewport-bottom={@more? && "load_more"}
             class="border-t border-line bg-surface empty:hidden lg:border-t-0"
           >
@@ -1203,6 +1230,7 @@ defmodule SikioWeb.LibraryLive do
   attr :to, :string, required: true
   attr :selected, :boolean, required: true
   attr :source_shown, :boolean, default: true, doc: "false within the source's own list"
+  attr :movable, :boolean, default: false, doc: "whether the row carries a handle, in the queue"
 
   defp entry_row(assigns) do
     assigns =
@@ -1214,6 +1242,7 @@ defmodule SikioWeb.LibraryLive do
       data-status={@status}
       class={[
         "border-b border-line last:border-b-0 lg:last:border-b",
+        @movable && "flex items-stretch",
         @selected && "bg-selection shadow-[inset_3px_0_0_var(--color-accent)]"
       ]}
     >
@@ -1222,7 +1251,8 @@ defmodule SikioWeb.LibraryLive do
         patch={@to}
         aria-current={@selected && "true"}
         class={[
-          "flex min-w-0 gap-3 px-6 py-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-12 lg:px-4",
+          "flex min-w-0 grow gap-3 px-6 py-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-12 lg:px-4",
+          @movable && "pr-0 sm:pr-0 lg:pr-0",
           !@selected && "hover:bg-ground/50"
         ]}
       >
@@ -1264,6 +1294,18 @@ defmodule SikioWeb.LibraryLive do
           </span>
         </span>
       </.link>
+      <%!-- Dragged, or moved a place with the arrow keys; see assets/js/queue_sort.mjs. --%>
+      <button
+        :if={@movable}
+        id={"move-#{@entry.id}"}
+        type="button"
+        data-move={@entry.id}
+        aria-label={gettext("Move %{title} in the queue", title: @entry.title)}
+        title={gettext("Drag, or use the arrow keys")}
+        class="flex w-11 shrink-0 cursor-grab touch-none items-center justify-center text-muted hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:w-14"
+      >
+        <Lucideicons.grip_vertical aria-hidden="true" class="size-5" />
+      </button>
     </article>
     """
   end

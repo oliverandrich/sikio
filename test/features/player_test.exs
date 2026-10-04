@@ -90,6 +90,25 @@ defmodule SikioWeb.PlayerTest do
     end)
   end
 
+  # An item that ends hands on to the next in the queue, as long as playing on is on. Nothing is
+  # served to play here, so the audio's own end event is what the test sends.
+  feature "an ended item plays on with the queue", context do
+    %{session: session, account: account, entry: entry} = context
+    {:ok, preview} = Parser.parse(podcast("Next up"), feed_url("next"))
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [following] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+    {:ok, _} = Sikio.Playback.enqueue(account, following.id, :last)
+
+    session
+    |> open(item_path(entry))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
+    |> execute_script(
+      "document.querySelector('#player-panel audio').dispatchEvent(new Event('ended'))"
+    )
+    |> assert_has(css(~s|#player-control[data-entry-id="#{following.id}"]|))
+  end
+
   feature "the player survives a dropped and restored socket", context do
     %{session: session, account: account, entry: entry} = context
 

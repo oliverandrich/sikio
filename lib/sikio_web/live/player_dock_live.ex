@@ -70,6 +70,18 @@ defmodule SikioWeb.PlayerDockLive do
     end
   end
 
+  # The item that played has ended. Playing on, the first in the queue follows it; the one that
+  # ended has left the queue as it was heard.
+  def handle_event("next", _params, socket) do
+    account = socket.assigns.current_account
+    current = socket.assigns.entry && socket.assigns.entry.id
+
+    case Playback.play_on?(account) && Enum.reject(Playback.queue(account), &(&1 == current)) do
+      [next | _] -> start_entry(socket, next, nil)
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_event("close", _params, socket) do
     stop_current(socket)
     {:reply, %{closed: true}, assign(socket, entry: nil, player: nil, notice: nil)}

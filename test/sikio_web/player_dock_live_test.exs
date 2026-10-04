@@ -7,6 +7,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
   import Sikio.FeedFixtures
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
+  alias Sikio.FeedFixtures
   alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Playback
@@ -165,6 +166,40 @@ defmodule SikioWeb.PlayerDockLiveTest do
 
   defp rejoining(conn, id, session),
     do: put_connect_params(conn, %{"player_entry" => to_string(id), "player_session" => session})
+
+  # An ended item is heard and leaves the queue. Playing on, the dock starts what is first in it
+  # then; with playing on turned off, it starts nothing.
+  test "the dock plays on with the queue when an item ends, unless told not to", c do
+    {:ok, preview} = Parser.parse(FeedFixtures.podcast("Next"), FeedFixtures.feed_url("next"))
+    {:ok, _} = Library.subscribe(c.user, preview)
+
+    [following] =
+      Library.entries(c.user, %{"status" => "inbox"}) |> Enum.reject(&(&1.id == c.entry.id))
+
+    {:ok, _} = Playback.enqueue(c.user, following.id, :last)
+
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+    session = Library.entry(c.user, c.entry.id).playback.session_id
+    render_hook(dock, "progress", %{sample(session, 1, 100) | "ended" => true})
+
+    render_hook(dock, "next", %{})
+    assert has_element?(dock, "#player-panel", following.title)
+
+    {:ok, _} = Playback.play_on(c.user, false)
+    session = Library.entry(c.user, following.id).playback.session_id
+    render_hook(dock, "progress", %{sample(session, 1, 100) | "ended" => true})
+    render_hook(dock, "next", %{})
+    assert has_element?(dock, ~s|[phx-hook="MediaPlayer"][data-title="#{following.title}"]|)
+  end
+
+  test "playing on is the account's own setting, on until turned off", c do
+    assert Playback.play_on?(c.user)
+    assert {:ok, %{play_on: false}} = Playback.play_on(c.user, false)
+    refute Playback.play_on?(c.user)
+    assert {:ok, %{play_on: true}} = Playback.play_on(c.user, true)
+    assert Playback.play_on?(c.user)
+  end
 
   defp sample(session, sequence, position),
     do: %{

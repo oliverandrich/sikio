@@ -169,3 +169,15 @@ test("a rejoin names the player the dock still holds, and nothing without one", 
   assert.deepEqual(rejoinParams({querySelector: () => null}), {})
   assert.deepEqual(rejoinParams(undefined), {}, "the socket also asks without a view")
 })
+
+// An item that ends hands on to the queue: the dock asks for the next once the last place is
+// saved. Whether to play on is the server's to say.
+test("an ended item asks for the next once its place is saved", () => {
+  const f = fixture()
+  try {
+    window.dispatchEvent(new CustomEvent("sikio:ended"))
+    assert.deepEqual(f.calls, [])
+    f.finish(true)
+    assert.deepEqual(f.calls, [{event: "next", params: {}}])
+  } finally {f.cleanup()}
+})

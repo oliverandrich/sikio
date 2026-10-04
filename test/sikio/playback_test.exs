@@ -129,6 +129,44 @@ defmodule Sikio.PlaybackTest do
     end
   end
 
+  # Dragged to a place in the queue, an item lands between its new neighbours and nothing else
+  # moves. A place past the end is the end.
+  test "an item moves to a place in the queue", c do
+    entries =
+      for n <- 1..4, do: %{hd(c.preview.entries) | external_id: "m#{n}", title: "Moved #{n}"}
+
+    {:ok, _} = Library.subscribe(c.alice, %{c.preview | entries: entries})
+    id = &Repo.one!(from e in Entry, where: e.title == ^"Moved #{&1}", select: e.id)
+    for n <- 1..4, do: {:ok, _} = Playback.enqueue(c.alice, id.(n), :last)
+
+    {:ok, _} = Playback.move(c.alice, id.(4), 1)
+    assert Playback.queue(c.alice) == [id.(1), id.(4), id.(2), id.(3)]
+
+    {:ok, _} = Playback.move(c.alice, id.(1), 2)
+    assert Playback.queue(c.alice) == [id.(4), id.(2), id.(1), id.(3)]
+
+    {:ok, _} = Playback.move(c.alice, id.(3), 0)
+    assert Playback.queue(c.alice) == [id.(3), id.(4), id.(2), id.(1)]
+
+    {:ok, _} = Playback.move(c.alice, id.(3), 99)
+    assert Playback.queue(c.alice) == [id.(4), id.(2), id.(1), id.(3)]
+
+    assert {:error, :not_queued} = Playback.move(c.alice, c.entry.id, 0)
+    assert {:error, :not_found} = Playback.move(c.bob, id.(1), 0)
+  end
+
+  # A list shows the queue, so moving an item in or out of it or within it changes what lists
+  # show, as a new status does. Progress alone does not.
+  test "a change to the queue is announced as a change, not as progress", c do
+    Events.subscribe(c.alice)
+    {:ok, _} = Playback.enqueue(c.alice, c.entry.id, :last)
+    assert_received {:playback_changed, %{queue_rank: rank}} when is_number(rank)
+    {:ok, _} = Playback.move(c.alice, c.entry.id, 0)
+    assert_received {:playback_changed, _}
+    {:ok, _} = Playback.dequeue(c.alice, c.entry.id)
+    assert_received {:playback_changed, %{queue_rank: nil}}
+  end
+
   # As in Castro, playing an item puts it at the head of the queue unless it stands there already.
   test "playing an item queues it first, and leaves a queued one where it is", c do
     entries =

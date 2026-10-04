@@ -727,3 +727,25 @@ test("a player clears only what it set itself", () => {
     restore()
   }
 })
+
+// The dock plays on with the queue when an item ends; the player says so.
+test("an ended episode tells the page", () => {
+  const previous = {document: globalThis.document, window: globalThis.window}
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false})
+  globalThis.window = new EventTarget()
+  const ended = []
+  window.addEventListener("sikio:ended", () => ended.push(true))
+  const {hook, audio} = episode({session: "e", title: "E", source: "S"})
+  try {
+    hook.mounted()
+    audio.readyState = 1
+    audio.dispatchEvent(new Event("loadedmetadata"))
+    audio.currentTime = 400
+    audio.dispatchEvent(new Event("ended"))
+    assert.deepEqual(ended, [true])
+  } finally {
+    hook.destroyed()
+    globalThis.document = previous.document
+    globalThis.window = previous.window
+  }
+})
