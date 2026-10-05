@@ -94,22 +94,27 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert html =~ "Subscribed to Late Night."
   end
 
-  test "Apple search results can be previewed and subscribed", %{conn: conn} do
+  # A search result subscribes in one click. The other results stay while its feed loads.
+  test "a search result subscribes in one click", %{conn: conn, user: user} do
+    test = self()
+
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
         "/search" ->
           Req.Test.json(conn, %{
             results: [
-              %{
-                collectionName: "Small Hours",
-                artistName: "Ada",
-                feedUrl: feed_url()
-              }
+              %{collectionName: "Small Hours", artistName: "Ada", feedUrl: feed_url()},
+              %{collectionName: "Other Show", artistName: "Bo", feedUrl: feed_url()}
             ]
           })
 
+        # The feed responds after the test sees the disabled row.
         "/rss" ->
-          Plug.Conn.send_resp(conn, 200, podcast())
+          send(test, {:fetching, self()})
+
+          receive do
+            :answer -> Plug.Conn.send_resp(conn, 200, podcast())
+          end
       end
     end)
 
@@ -118,9 +123,78 @@ defmodule SikioWeb.AddSourceLiveTest do
     render_async(view)
     assert has_element?(view, "#results-heading", "Apple Podcasts")
     assert has_element?(view, "#source-0", "Ada")
-    view |> element("#source-0 button", "Preview") |> render_click()
+    refute has_element?(view, "#source-0 button", "Preview")
+
+    view |> element("#source-0 button", "Subscribe") |> render_click()
+    assert_receive {:fetching, fetcher}
+    assert has_element?(view, "#source-0 button[disabled]", "Subscribing")
+    assert has_element?(view, "#source-1", "Other Show")
+    send(fetcher, :answer)
+
+    assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+    assert [%{feed: %{title: "Small Hours"}}] = Library.subscriptions(user)
+  end
+
+  # A new search abandons a subscription still loading, so the page stays with the new results.
+  test "a new search abandons a subscription still loading", %{conn: conn, user: user} do
+    test = self()
+
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/search" ->
+          Req.Test.json(conn, %{
+            results: [%{collectionName: "Small Hours", artistName: "Ada", feedUrl: feed_url()}]
+          })
+
+        "/rss" ->
+          send(test, {:fetching, self()})
+
+          receive do
+            :answer -> Plug.Conn.send_resp(conn, 200, podcast())
+          end
+      end
+    end)
+
+    {:ok, view, _} = live(conn, ~p"/add")
+    view |> form("#add-form", %{q: "small hours"}) |> render_submit()
     render_async(view)
-    assert has_element?(view, "#source-0 button", "Subscribe")
+    view |> element("#source-0 button", "Subscribe") |> render_click()
+    assert_receive {:fetching, fetcher}
+
+    view |> form("#add-form", %{q: "other"}) |> render_submit()
+    send(fetcher, :answer)
+    render_async(view)
+
+    assert Library.subscriptions(user) == []
+    assert has_element?(view, "#source-0 button:not([disabled])", "Subscribe")
+  end
+
+  # A feed that cannot be read shows its error on its own row. The other results stay usable.
+  test "a search result whose feed fails says so on its row", %{conn: conn, user: user} do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/search" ->
+          Req.Test.json(conn, %{
+            results: [
+              %{collectionName: "Gone Show", artistName: "Ada", feedUrl: feed_url()},
+              %{collectionName: "Other Show", artistName: "Bo", feedUrl: feed_url()}
+            ]
+          })
+
+        _ ->
+          Plug.Conn.send_resp(conn, 503, "down")
+      end
+    end)
+
+    {:ok, view, _} = live(conn, ~p"/add")
+    view |> form("#add-form", %{q: "gone"}) |> render_submit()
+    render_async(view)
+    view |> element("#source-0 button", "Subscribe") |> render_click()
+    render_async(view)
+
+    assert has_element?(view, "#source-0 [role=alert]")
+    assert has_element?(view, "#source-1 button:not([disabled])", "Subscribe")
+    assert Library.subscriptions(user) == []
   end
 
   test "discovery failures are visible and forged result IDs do not subscribe", %{

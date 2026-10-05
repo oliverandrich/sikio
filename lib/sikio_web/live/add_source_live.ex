@@ -2,11 +2,11 @@
 
 defmodule SikioWeb.AddSourceLive do
   @moduledoc """
-  Turns a pasted link or a search into a source to preview before subscribing.
+  Turns a pasted link or a search into a source to subscribe to.
 
-  Nothing subscribes straight from an address. Discovery runs in the background. The preview shows
-  the title and the number of items before any button appears. Candidates stay on the server
-  under generated ids, so a forged id selects nothing.
+  A pasted link is previewed first, with its title and the number of its items. A search result
+  subscribes in one click, which fetches and reads its feed. Discovery runs in the background.
+  Candidates stay on the server under generated ids, so a forged id selects nothing.
 
   Subscribing leads to the source's page. A new PeerTube instance must enter the content security
   policy, which a page load writes. Such a subscription loads the page instead of navigating to it.
@@ -29,6 +29,8 @@ defmodule SikioWeb.AddSourceLive do
        mode: nil,
        fallback: nil,
        candidates: %{},
+       subscribing: nil,
+       row_errors: %{},
        busy: false,
        error: nil,
        searched: false
@@ -41,6 +43,9 @@ defmodule SikioWeb.AddSourceLive do
   def handle_event(event, _params, %{assigns: %{busy: true}} = socket)
       when event in ["add", "search_instead", "select"],
       do: {:noreply, socket}
+
+  def handle_event("select", _params, %{assigns: %{subscribing: id}} = socket) when id != nil,
+    do: {:noreply, socket}
 
   # The change handler exists so a reconnecting browser can be given back what was typed.
   def handle_event("validate", %{"q" => q}, socket),
@@ -73,9 +78,19 @@ defmodule SikioWeb.AddSourceLive do
 
   def handle_event("select", %{"id" => id}, socket) do
     case socket.assigns.candidates[id] do
-      nil -> {:noreply, socket}
-      %{entries: _} = preview -> subscribe(socket, preview)
-      %{url: url} -> {:noreply, discover(socket, url)}
+      nil ->
+        {:noreply, socket}
+
+      %{entries: _} = preview ->
+        subscribe(socket, preview)
+
+      # A search result is fetched, read and subscribed in one click. The list stays meanwhile.
+      %{url: url} ->
+        {:noreply,
+         socket
+         |> assign(subscribing: id, row_errors: Map.delete(socket.assigns.row_errors, id))
+         |> show_candidates()
+         |> start_async(:subscribe, fn -> Discovery.discover(url) end)}
     end
   end
 
@@ -92,10 +107,32 @@ defmodule SikioWeb.AddSourceLive do
      |> stream(:sources, sources, reset: true)}
   end
 
+  def handle_async(:subscribe, {:ok, {:ok, [preview | _]}}, socket),
+    do: socket |> assign(subscribing: nil) |> subscribe(preview)
+
+  def handle_async(:subscribe, {:ok, {:error, reason}}, socket), do: row_failed(socket, reason)
+  def handle_async(:subscribe, _result, socket), do: row_failed(socket, :unavailable)
+
   def handle_async(:sources, {:ok, {:error, reason}}, socket), do: failed(socket, reason)
   def handle_async(:sources, {:exit, _reason}, socket), do: failed(socket, :unavailable)
 
   defp failed(socket, reason), do: {:noreply, assign(socket, busy: false, error: message(reason))}
+
+  defp row_failed(socket, reason) do
+    errors = Map.put(socket.assigns.row_errors, socket.assigns.subscribing, message(reason))
+    {:noreply, socket |> assign(subscribing: nil, row_errors: errors) |> show_candidates()}
+  end
+
+  # A stream renders a row again only when it is inserted again.
+  # Inserting all results anew, in their order, shows each row's state.
+  defp show_candidates(socket) do
+    candidates =
+      socket.assigns.candidates
+      |> Map.values()
+      |> Enum.sort_by(&String.to_integer(&1.id))
+
+    stream(socket, :sources, candidates, reset: true)
+  end
 
   defp discover(socket, url),
     do:
@@ -106,9 +143,20 @@ defmodule SikioWeb.AddSourceLive do
   defp search(socket, term),
     do: socket |> searching(:search) |> start_async(:sources, fn -> Discovery.search(term) end)
 
+  # A new lookup abandons a subscription still loading.
   defp searching(socket, mode) do
     socket
-    |> assign(busy: true, error: nil, searched: false, candidates: %{}, mode: mode, fallback: nil)
+    |> cancel_async(:subscribe)
+    |> assign(
+      busy: true,
+      error: nil,
+      searched: false,
+      candidates: %{},
+      mode: mode,
+      fallback: nil,
+      subscribing: nil,
+      row_errors: %{}
+    )
     |> stream(:sources, [], reset: true)
   end
 
@@ -128,13 +176,12 @@ defmodule SikioWeb.AddSourceLive do
           do: {:noreply, push_navigate(socket, to: to)},
           else: {:noreply, redirect(socket, to: to)}
 
+      # The rows render again, so none stays waiting on a subscription that failed.
       {:error, _} ->
         {:noreply,
-         put_flash(
-           socket,
-           :error,
-           gettext("Could not save this subscription. Please try again.")
-         )}
+         socket
+         |> put_flash(:error, gettext("Could not save this subscription. Please try again."))
+         |> show_candidates()}
     end
   end
 
@@ -302,15 +349,17 @@ defmodule SikioWeb.AddSourceLive do
               </p>
             </div>
             <.button
-              variant={if Map.has_key?(source, :entries), do: "primary"}
               phx-click="select"
               phx-value-id={source.id}
-              disabled={@busy}
+              disabled={@busy or @subscribing != nil}
             >
-              {if Map.has_key?(source, :entries),
-                do: gettext("Subscribe"),
-                else: gettext("Preview feed")}
+              {if @subscribing == source.id,
+                do: gettext("Subscribing…"),
+                else: gettext("Subscribe")}
             </.button>
+            <p :if={@row_errors[source.id]} role="alert" class="w-full text-label text-danger">
+              {@row_errors[source.id]}
+            </p>
           </article>
         </div>
         <p class="mt-10 text-center text-label text-muted">
