@@ -44,6 +44,12 @@ defmodule SikioWeb.PlacesLiveTest do
     assert_redirect(view, "/feeds/#{c.sub.feed_id}-small-hours")
   end
 
+  # On a phone the sources are managed from the head of their group.
+  test "leads from the subscriptions' heading to managing them", c do
+    {:ok, view, _} = live(c.conn, ~p"/library")
+    assert has_element?(view, ~s|#places-sources #places-manage[href="/subscriptions"]|, "Manage")
+  end
+
   test "has no tags section without tags", c do
     {:ok, view, _} = live(c.conn, ~p"/library")
     refute has_element?(view, "#places-tags")

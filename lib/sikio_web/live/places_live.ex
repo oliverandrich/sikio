@@ -57,6 +57,11 @@ defmodule SikioWeb.PlacesLive do
         </.place>
       </.places>
       <.places :if={@sidebar.sources != []} id="places-sources" heading={gettext("Subscriptions")}>
+        <:action>
+          <.link id="places-manage" navigate={~p"/subscriptions"} class="text-link">
+            {gettext("Manage")}
+          </.link>
+        </:action>
         <.place
           :for={source <- @sidebar.sources}
           to={Sidebar.place_path("source", to_string(source.feed_id), @sidebar.titles)}
@@ -71,18 +76,17 @@ defmodule SikioWeb.PlacesLive do
 
   attr :id, :string, required: true
   attr :heading, :string, default: nil
+  slot :action, doc: "a link beside the heading"
   slot :inner_block, required: true
 
   # A group of places, set apart as an iPhone sets apart a group of settings.
   defp places(assigns) do
     ~H"""
     <section id={@id} class="mb-6" aria-label={@heading}>
-      <h2
-        :if={@heading}
-        class="mb-2 px-4 text-meta font-semibold tracking-wider text-muted uppercase"
-      >
-        {@heading}
-      </h2>
+      <div :if={@heading} class="mb-2 flex items-baseline justify-between gap-3 px-4">
+        <h2 class="text-meta font-semibold tracking-wider text-muted uppercase">{@heading}</h2>
+        <span :if={@action != []} class="text-label">{render_slot(@action)}</span>
+      </div>
       <nav class="flex flex-col divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line">
         {render_slot(@inner_block)}
       </nav>

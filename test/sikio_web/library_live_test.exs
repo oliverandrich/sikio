@@ -731,7 +731,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
       assert has_element?(view, "#sidebar #source-#{c.sub.feed_id}", "Small Hours")
       assert has_element?(view, ~s|#view-inbox[href="/inbox"]|)
-      refute has_element?(view, "#sidebar [aria-current]:not(#subscriptions-heading)")
+      refute has_element?(view, "#sidebar [aria-current]:not(#manage-subscriptions)")
       assert has_element?(view, ~s|#tab-library[aria-current="page"]|)
       refute has_element?(view, ~s|#tab-inbox[aria-current="page"]|)
     end
@@ -750,7 +750,7 @@ defmodule SikioWeb.LibraryLiveTest do
             {"/feeds/#{c.sub.feed_id}-small-hours", "Small Hours", true}
           ] do
         {:ok, view, _} = live(c.conn, path)
-        assert has_element?(view, ~s|#add-source[href="/subscriptions"]|), path
+        assert has_element?(view, ~s|#add-source[href="/add"]|), path
         assert has_element?(view, "#nav-title", title), path
         assert has_element?(view, ~s|#nav-back[href="/library"]|) == back?, path
         refute has_element?(view, "#library-chips"), path
@@ -804,16 +804,23 @@ defmodule SikioWeb.LibraryLiveTest do
       end
     end
 
-    # The heading over the sources is where they are managed, so it leads there and says when
-    # the reader is there.
-    test "names the sources as subscriptions and leads to managing them", c do
+    # Adding has its own button under the wordmark. The heading over the sources is plain text.
+    # A pencil beside it leads to managing them and marks that page.
+    test "adds a source from its own button and manages the sources from a pencil", c do
       {:ok, view, _} = live(c.conn, ~p"/subscriptions")
+
+      assert has_element?(view, ~s|#add-button[href="/add"]|)
+      assert has_element?(view, "#sources-heading", "Subscriptions")
+      refute has_element?(view, "#sources-heading a")
+      refute has_element?(view, ~s|nav[aria-labelledby="sources-heading"] a[href="/add"]|)
 
       assert has_element?(
                view,
-               ~s|#sources-heading a#subscriptions-heading[href="/subscriptions"][aria-current="page"]|,
-               "Subscriptions"
+               ~s|#manage-subscriptions[href="/subscriptions"][aria-current="page"]|
              )
+
+      {:ok, view, _} = live(c.conn, ~p"/inbox")
+      refute has_element?(view, ~s|#manage-subscriptions[aria-current]|)
     end
 
     # Inviting is done now and then, so it sits in the account's menu rather than among the

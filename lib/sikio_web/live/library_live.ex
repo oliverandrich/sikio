@@ -1270,7 +1270,7 @@ defmodule SikioWeb.LibraryLive do
                 "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
               )}
             </p>
-            <.button class="mt-5" variant="primary" navigate={~p"/subscriptions"}>
+            <.button class="mt-5" variant="primary" navigate={~p"/add"}>
               {gettext("Find your first source →")}
             </.button>
           </section>

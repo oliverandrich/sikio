@@ -116,6 +116,7 @@ defmodule SikioWeb.Router do
       live "/library", PlacesLive
       live "/search", LibraryLive, :index
       live "/invitations", InvitationsLive
+      live "/add", AddSourceLive
       live "/subscriptions", SubscriptionsLive
       live "/subscriptions/import", OPMLLive
       live "/account/verify", VerifyIdentityLive

@@ -42,7 +42,7 @@ defmodule SikioWeb.PlayerTest do
     |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> mark_player()
-    |> click(css("#subscriptions-heading"))
+    |> click(css("#add-button"))
     |> assert_has(css("h1", text: "Make room"))
     # From lg the panel folds into the sidebar's bar there, which keeps the audio mounted but
     # out of sight. What this asks is that it is the same element.
@@ -583,7 +583,7 @@ defmodule SikioWeb.PlayerTest do
           assert room, "the list keeps room to scroll out from under the player"
         end
       )
-      |> click(css("#subscriptions-heading"))
+      |> click(css("#add-button"))
       |> assert_has(css(~s|#player-panel[data-place="compact"]|))
       |> assert_same_player()
       # Nothing is served to play here, so the audio's own play event is what the test sends.

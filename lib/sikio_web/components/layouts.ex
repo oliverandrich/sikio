@@ -150,7 +150,7 @@ defmodule SikioWeb.Layouts do
 
   attr :section, :atom,
     default: nil,
-    values: [nil, :library, :places, :subscriptions, :invitations, :account],
+    values: [nil, :library, :places, :add, :subscriptions, :invitations, :account],
     doc: "where the reader is, to mark it in the navigation"
 
   attr :tab, :atom,
@@ -180,7 +180,7 @@ defmodule SikioWeb.Layouts do
         (assigns.sidebar &&
            Sikio.Library.tally(assigns.sidebar.counts, %{}, assigns.sidebar.tag_feeds))
 
-    tab = assigns.tab || if(assigns.section in [:places, :subscriptions], do: :library)
+    tab = assigns.tab || if(assigns.section in [:places, :add, :subscriptions], do: :library)
     assigns = assign(assigns, counts: counts, tab: tab)
 
     ~H"""
@@ -230,7 +230,7 @@ defmodule SikioWeb.Layouts do
           <div class="flex items-center gap-1">
             <.link
               id="add-source"
-              navigate={~p"/subscriptions"}
+              navigate={~p"/add"}
               aria-label={gettext("Add a source")}
               title={gettext("Add a source")}
               class="flex size-11 items-center justify-center rounded-control text-muted hover:text-ink lg:hidden"
@@ -312,6 +312,15 @@ defmodule SikioWeb.Layouts do
           id="sidebar"
           class="hidden flex-col gap-5 lg:-mx-3 lg:flex lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-3 lg:py-1"
         >
+          <.link
+            id="add-button"
+            navigate={~p"/add"}
+            aria-current={@section == :add && "page"}
+            class="flex min-h-9 items-center justify-center gap-2 rounded-control border border-edge bg-surface text-label font-semibold text-ink hover:bg-ground aria-[current=page]:bg-selection"
+          >
+            <Lucideicons.plus aria-hidden="true" class="size-4" />
+            {gettext("Add")}
+          </.link>
           <nav aria-label={gettext("Views")} class="flex flex-col gap-0.5">
             <.sidebar_link
               :for={{status, key, label} <- SikioWeb.MediaComponents.views()}
@@ -355,22 +364,21 @@ defmodule SikioWeb.Layouts do
           </nav>
           <nav aria-labelledby="sources-heading" class="flex flex-col gap-0.5">
             <div class="flex items-center justify-between pb-1">
-              <h2 id="sources-heading" class="text-meta">
-                <.link
-                  id="subscriptions-heading"
-                  navigate={~p"/subscriptions"}
-                  aria-current={@section == :subscriptions && "page"}
-                  class="flex min-h-7 items-center rounded-control px-2.5 font-semibold tracking-wider text-muted uppercase hover:text-ink aria-[current=page]:text-accent"
-                >
-                  {gettext("Subscriptions")}
-                </.link>
+              <h2
+                id="sources-heading"
+                class="flex min-h-7 items-center px-2.5 text-meta font-semibold tracking-wider text-muted uppercase"
+              >
+                {gettext("Subscriptions")}
               </h2>
               <.link
+                id="manage-subscriptions"
                 navigate={~p"/subscriptions"}
-                aria-label={gettext("Add a source")}
-                class="flex size-7 items-center justify-center rounded-control text-muted hover:bg-surface"
+                aria-current={@section == :subscriptions && "page"}
+                aria-label={gettext("Manage subscriptions")}
+                title={gettext("Manage subscriptions")}
+                class="flex size-7 items-center justify-center rounded-control text-muted hover:bg-surface hover:text-ink aria-[current=page]:bg-selection aria-[current=page]:text-accent"
               >
-                <Lucideicons.plus aria-hidden="true" class="size-4" />
+                <Lucideicons.pencil aria-hidden="true" class="size-3.5" />
               </.link>
             </div>
             <.sidebar_link

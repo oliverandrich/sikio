@@ -160,7 +160,7 @@ defmodule SikioWeb.OPMLLive do
       sidebar={@sidebar}
       section={:subscriptions}
       title={gettext("Import OPML")}
-      back={%{to: ~p"/subscriptions", label: gettext("Add a source")}}
+      back={%{to: ~p"/subscriptions", label: gettext("Subscriptions")}}
     >
       <%!-- A phone's bar leads back instead. --%>
       <.link

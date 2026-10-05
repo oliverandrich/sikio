@@ -23,8 +23,9 @@ defmodule SikioWeb.SettingsBarTest do
           {"/invitations", "Invitations", "/library", "Library"},
           {"/account/passkeys", "Passkeys", "/library", "Library"},
           {"/account/recovery-codes", "Recovery codes", "/library", "Library"},
-          {"/subscriptions", "Add a source", "/library", "Library"},
-          {"/subscriptions/import", "Import OPML", "/subscriptions", "Add a source"}
+          {"/add", "Add a source", "/library", "Library"},
+          {"/subscriptions", "Subscriptions", "/library", "Library"},
+          {"/subscriptions/import", "Import OPML", "/subscriptions", "Subscriptions"}
         ] do
       {:ok, view, _} = live(c.conn, path)
       assert has_element?(view, "#nav-title", title), path

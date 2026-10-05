@@ -4,21 +4,28 @@ Phoenix LiveView, PostgreSQL and Ithibati passkeys with recovery codes and invit
 first visitor claims the instance; everybody after that arrives on an invitation link. There is
 no administrator role and no mail delivery, so links are passed on by hand.
 
-Under **Subscriptions** you can:
+Under **Add**, the button below the wordmark or the plus on a phone, you can:
 
 - Paste YouTube channel URLs, handles, video, Shorts and live URLs. Sikio resolves the channel
   behind them and shows its feed before you subscribe.
+- Paste a PeerTube instance, channel, account or video URL. A video leads to its channel.
 - Paste a podcast RSS feed or a podcast website. Several feeds found on one page are offered for
   choice, for example an MP3 and an Opus version of the same show.
 - Search Apple Podcasts, or paste an Apple Podcasts link. A preview checks the actual RSS feed
   before subscribing.
-- Manage your subscriptions, pause their polling and remove them.
+
+Subscribing imports the current episodes and opens the new source.
+
+Under **Subscriptions**, the pencil beside the heading or **Manage** in the phone's library, you
+can:
+
+- Pause the polling of a subscription or remove it.
 - Import an OPML file with up to 50 unique sources and 1 MB, as a preview first. Existing
-  subscriptions stay untouched and failures are reported per source. The export carries sources,
-  not playback positions or polling settings. Format:
+  subscriptions stay untouched and failures are reported per source. **Add** offers the import
+  too. The export carries sources, not playback positions or polling settings. Format:
   [OPML 2.0](https://2005.opml.org/spec2.html).
 
-Subscribing imports the current episodes. Oban refreshes active sources every 15 minutes, with
+New episodes arrive by polling. Oban refreshes active sources every 15 minutes, with
 conditional HTTP requests and bounded retries. The library shows up to 100 matching items from
 your sources, newest first. Filters by source, media type and status combine, and they live in
 the URL, so a reload and the browser's back button keep them. New episodes, status changes and
