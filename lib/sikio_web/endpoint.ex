@@ -3,6 +3,8 @@
 defmodule SikioWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :sikio
 
+  alias Ithibati.Identity.Sessions
+
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
@@ -63,6 +65,13 @@ defmodule SikioWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
-  plug Plug.Session, @session_options
+  plug :session
   plug SikioWeb.Router
+
+  # The cookie's max age equals the session's validity.
+  # The plug reads it per request, so runtime configuration may set it.
+  defp session(conn, _opts) do
+    options = Keyword.put(@session_options, :max_age, Sessions.max_age())
+    Plug.Session.call(conn, Plug.Session.init(options))
+  end
 end

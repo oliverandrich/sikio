@@ -1,6 +1,6 @@
 # Authentication
 
-Ithibati is pinned to 0.6.0. On an empty database the first account asks for a code
+Ithibati is pinned to 0.7.0. On an empty database the first account asks for a code
 the operator issues on the host with `bin/setup-code`, and only then for a username
 and passkey. The code is stored as a digest, buys a proof that lasts ten minutes,
 and is spent by the account it makes; issuing another code voids the previous one
@@ -29,7 +29,8 @@ that fails is reported and the link stays shareable by hand. See
 [Operations](operations.md) for the variables.
 
 Sessions are revocable and cookies are encrypted because they temporarily carry
-recovery codes. Recovery codes are displayed once after registration. Adapt the
+recovery codes. A session lasts sixty days from sign-in. Its cookie carries that age, so it
+survives closing the browser. Recovery codes are displayed once after registration. Adapt the
 account policy to the application.
 
 The public auth screens are `/login` (passkey), `/recover` (recovery code), and
