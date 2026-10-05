@@ -353,6 +353,10 @@
 /* The page's colour on the root itself, in light and dark. Safari tints the strip behind the
    status bar after it, and it changes with the system's appearance. */
 html { background-color: var(--color-ground); color-scheme: light dark; }
+/* Tailwind 4 leaves buttons with the arrow. Whatever can be pressed shows the hand, as a link does. */
+@layer base {
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary { cursor: pointer; }
+}
 
 /* From lg the page does not spring back at its ends, and so Safari offers no pull to reload. */
 @media (width >= 64rem) {

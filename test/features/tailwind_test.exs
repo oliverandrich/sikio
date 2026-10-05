@@ -3,6 +3,8 @@
 defmodule SikioWeb.TailwindTest do
   use SikioWeb.FeatureCase
 
+  import Ecto.Query, only: [where: 2]
+
   alias Sikio.FeedFixtures
   alias Sikio.Feeds.Parser
   alias Sikio.Library
@@ -330,6 +332,28 @@ defmodule SikioWeb.TailwindTest do
     |> execute_script(
       "return Math.round(document.querySelector('#invitation-form input[name=username]').getBoundingClientRect().width)",
       fn width -> assert width <= 384 end
+    )
+  end
+
+  # Whatever can be pressed shows the hand, a chapter's button as much as a link.
+  feature "a chapter shows the pointer", %{session: session} do
+    account = signed_up(session, "ada")
+    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
+    {:ok, _} = Library.subscribe(account, preview)
+    [entry] = Library.entries(account)
+    notes = "<p>Worum es geht.</p><p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>"
+
+    Sikio.Repo.update_all(where(Sikio.Feeds.Entry, id: ^entry.id),
+      set: [description: notes, description_format: :html, chapters: nil]
+    )
+
+    session
+    |> resize_window(1440, 900)
+    |> open(item_path(entry))
+    |> assert_has(css("#item-chapters button", count: 3))
+    |> execute_script(
+      "return getComputedStyle(document.querySelector('#item-chapters button')).cursor",
+      fn cursor -> assert cursor == "pointer" end
     )
   end
 
