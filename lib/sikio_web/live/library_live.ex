@@ -1759,7 +1759,7 @@ defmodule SikioWeb.LibraryLive do
                 href={elem(@original, 0)}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="underline decoration-signal decoration-[1.5px] underline-offset-3 hover:text-ink hover:decoration-current"
+                class="underline decoration-signal decoration-[1.5px] underline-offset-3 [text-decoration-skip-ink:none] hover:text-ink hover:decoration-current"
               >
                 {medium_label(@entry)}
               </a>

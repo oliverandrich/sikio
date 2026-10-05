@@ -154,12 +154,13 @@ defmodule SikioWeb.TailwindTest do
       document.body.append(probe)
       const link = getComputedStyle(document.getElementById('opml-import-link'))
       return [link.textDecorationLine, link.textDecorationColor, getComputedStyle(probe).backgroundColor,
-              link.textDecorationThickness]
+              link.textDecorationThickness, link.textDecorationSkipInk]
       """,
-      fn [line, color, signal, thickness] ->
+      fn [line, color, signal, thickness, skip] ->
         assert line == "underline"
         assert color == signal
         assert thickness == "1.5px"
+        assert skip == "none", "the line runs through descenders rather than breaking"
       end
     )
   end
