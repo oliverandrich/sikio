@@ -140,15 +140,45 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
-  # Black text alone does not read as a link, so links in running text are underlined.
+  # Black text alone does not read as a link, so links in running text are underlined in the
+  # signal's amber.
   feature "a link in running text is underlined", %{session: session} do
     signed_up(session, "ada")
 
     session
     |> open("/subscriptions")
     |> execute_script(
-      "return getComputedStyle(document.getElementById('opml-import-link')).textDecorationLine",
-      fn line -> assert line == "underline" end
+      """
+      const probe = document.createElement('span')
+      probe.className = 'bg-signal'
+      document.body.append(probe)
+      const link = getComputedStyle(document.getElementById('opml-import-link'))
+      return [link.textDecorationLine, link.textDecorationColor, getComputedStyle(probe).backgroundColor,
+              link.textDecorationThickness]
+      """,
+      fn [line, color, signal, thickness] ->
+        assert line == "underline"
+        assert color == signal
+        assert thickness == "1.5px"
+      end
+    )
+  end
+
+  # In the notes a link is set a little heavier than the text around it, so it holds its own
+  # beside the amber line.
+  feature "a link in the notes is set a little heavier", %{session: session} do
+    feed = subscribed(session)
+
+    session
+    |> open("/feeds/#{feed}")
+    |> click(css("#entries article a", count: :any, at: 0))
+    |> assert_has(css("#item-notes a"))
+    |> execute_script(
+      "return [getComputedStyle(document.querySelector('#item-notes a')).fontWeight, getComputedStyle(document.getElementById('item-notes')).fontWeight]",
+      fn [link, text] ->
+        assert link == "500"
+        assert text == "400"
+      end
     )
   end
 

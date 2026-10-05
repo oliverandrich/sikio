@@ -140,13 +140,14 @@
   }
 }
 
-/* Black text alone does not read as a link, so a link in running text carries a quiet underline
-   that darkens under the pointer. */
+/* Black text alone does not read as a link, so a link in running text carries an underline in the
+   signal's amber that turns to ink under the pointer. */
 @utility text-link {
   color: var(--color-accent);
   text-decoration-line: underline;
-  text-decoration-color: var(--color-track);
-  text-underline-offset: 4px;
+  text-decoration-color: var(--color-signal);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
   &:hover { text-decoration-color: currentColor; }
 }
 
@@ -158,7 +159,8 @@
   & ul { list-style: disc; padding-left: 1.25rem; }
   & ol { list-style: decimal; padding-left: 1.25rem; }
   & li { margin-bottom: 0.25rem; }
-  & a { @apply text-link; }
+  /* A little heavier than the text, so a link holds its own beside the amber line. */
+  & a { @apply text-link font-medium; }
   & :where(h1, h2, h3) { font-weight: 600; }
   & img { margin-block: 0.75rem; max-width: 100%; border-radius: var(--radius-control); }
 }
