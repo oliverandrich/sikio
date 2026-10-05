@@ -267,6 +267,24 @@ defmodule SikioWeb.LibraryTest do
     )
   end
 
+  # Typing offers a way to clear the field, which leaves the focus there for the next search.
+  feature "the field to add a source clears and keeps the focus", %{session: session} do
+    session
+    |> open("/add")
+    |> refute_has(css("#clear-search"))
+    |> fill_in(css("#add-q"), with: "small hours")
+    |> assert_has(css("#clear-search"))
+    |> click(css("#clear-search"))
+    |> refute_has(css("#clear-search"))
+    |> execute_script(
+      "return [document.getElementById('add-q').value, document.activeElement.id]",
+      fn [value, focused] ->
+        assert value == ""
+        assert focused == "add-q"
+      end
+    )
+  end
+
   # A source is given a tag in its own dialog, which stays open while it is typed in, and the tag
   # then stands in the sidebar as a place of its own.
   feature "a source is given a tag from its own list", %{session: session} do

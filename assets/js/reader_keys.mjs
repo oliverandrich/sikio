@@ -85,8 +85,6 @@ export const ReaderKeys = {
     this.shown = this.el.dataset.selected
     if (this.shown) follow(this.shown)
     this.chooseFirst()
-    // The page names what takes the focus once it has rendered the field it opened or closed.
-    this.handleEvent("focus", ({id}) => document.getElementById(id)?.focus())
   },
   // A new place or filter may leave nothing chosen, so the page asks again after every patch.
   updated() {

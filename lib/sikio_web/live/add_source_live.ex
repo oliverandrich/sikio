@@ -69,6 +69,26 @@ defmodule SikioWeb.AddSourceLive do
     end
   end
 
+  # The field, its results and any subscription still loading are cleared together.
+  def handle_event("clear", _params, socket) do
+    {:noreply,
+     socket
+     |> cancel_async(:subscribe)
+     |> assign(
+       form: to_form(%{"q" => ""}),
+       busy: false,
+       error: nil,
+       searched: false,
+       candidates: %{},
+       mode: nil,
+       fallback: nil,
+       subscribing: nil,
+       row_errors: %{}
+     )
+     |> stream(:sources, [], reset: true)
+     |> push_event("focus", %{id: "add-q"})}
+  end
+
   # A word with a dot read as an address and led nowhere; the same words are searched instead.
   def handle_event("search_instead", _params, %{assigns: %{fallback: nil}} = socket),
     do: {:noreply, socket}
@@ -253,18 +273,31 @@ defmodule SikioWeb.AddSourceLive do
             {gettext("Link or search")}
           </label>
           <fieldset disabled={@busy} class="mt-1.5 flex flex-col gap-2 sm:flex-row">
-            <input
-              id="add-q"
-              type="text"
-              name="q"
-              value={@form[:q].value}
-              required
-              maxlength="2048"
-              autocomplete="off"
-              aria-describedby="add-hint"
-              placeholder={gettext("A link or a show's name")}
-              class={[field_class(), "min-h-11 min-w-0 flex-1 py-0 sm:min-h-9"]}
-            />
+            <div class="relative flex-1">
+              <input
+                id="add-q"
+                type="text"
+                name="q"
+                value={@form[:q].value}
+                required
+                maxlength="2048"
+                autocomplete="off"
+                aria-describedby="add-hint"
+                placeholder={gettext("A link or a show's name")}
+                class={[field_class(), "min-h-11 min-w-0 py-0 pr-11 sm:min-h-9 sm:pr-9"]}
+              />
+              <button
+                :if={@form[:q].value not in [nil, ""]}
+                id="clear-search"
+                type="button"
+                phx-click="clear"
+                aria-label={gettext("Clear search")}
+                title={gettext("Clear search")}
+                class="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted hover:text-ink sm:w-9"
+              >
+                <Lucideicons.x aria-hidden="true" class="size-4" />
+              </button>
+            </div>
             <.button variant="primary">
               {gettext("Find")}
               <Lucideicons.arrow_right aria-hidden="true" class="size-4" />

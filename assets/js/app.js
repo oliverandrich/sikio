@@ -63,6 +63,8 @@ window.addEventListener("sikio:show", event => {
   dialog.showModal()
   if (dialog.hasAttribute("autofocus")) dialog.focus()
 })
+// A page names what takes the focus once it has rendered the field it opened, closed or cleared.
+window.addEventListener("phx:focus", ({detail: {id}}) => document.getElementById(id)?.focus())
 // Before the browser follows a link, a link away from Sikio is given a tab of its own.
 document.addEventListener("click", event => openAway(event, window.location.origin), true)
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))

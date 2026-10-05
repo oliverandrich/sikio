@@ -135,6 +135,28 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert [%{feed: %{title: "Small Hours"}}] = Library.subscriptions(user)
   end
 
+  # The field clears with its results, for the next search.
+  test "the search is cleared with its results", %{conn: conn} do
+    Req.Test.stub(HTTP, fn conn ->
+      Req.Test.json(conn, %{
+        results: [%{collectionName: "Small Hours", artistName: "Ada", feedUrl: feed_url()}]
+      })
+    end)
+
+    {:ok, view, _} = live(conn, ~p"/add")
+    refute has_element?(view, "#clear-search")
+
+    view |> form("#add-form", %{q: "small hours"}) |> render_submit()
+    render_async(view)
+    assert has_element?(view, "#source-0")
+
+    view |> element("#clear-search") |> render_click()
+    refute has_element?(view, "#source-0")
+    refute has_element?(view, "#results-heading")
+    assert has_element?(view, ~s|#add-q[value=""]|)
+    refute has_element?(view, "#clear-search")
+  end
+
   # A new search abandons a subscription still loading, so the page stays with the new results.
   test "a new search abandons a subscription still loading", %{conn: conn, user: user} do
     test = self()
