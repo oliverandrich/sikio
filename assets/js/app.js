@@ -38,6 +38,7 @@ import {ListHead} from "./list_head.mjs"
 import {PlayingEntry} from "./playing_entry.mjs"
 import {ShrinkTitle} from "./shrink_title.mjs"
 import {QueueSort} from "./queue_sort.mjs"
+import {openAway} from "./external_links.mjs"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
@@ -62,6 +63,8 @@ window.addEventListener("sikio:show", event => {
   dialog.showModal()
   if (dialog.hasAttribute("autofocus")) dialog.focus()
 })
+// Before the browser follows a link, a link away from Sikio is given a tab of its own.
+document.addEventListener("click", event => openAway(event, window.location.origin), true)
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 

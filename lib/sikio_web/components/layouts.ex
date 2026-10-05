@@ -62,7 +62,12 @@ defmodule SikioWeb.Layouts do
 
   def source_offer(assigns) do
     ~H"""
-    <a href={Application.get_env(:sikio, :source_url)} class={@class}>
+    <a
+      href={Application.get_env(:sikio, :source_url)}
+      target="_blank"
+      rel="noopener noreferrer"
+      class={@class}
+    >
       {gettext("Source code")}
     </a>
     """

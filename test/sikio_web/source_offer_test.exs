@@ -42,6 +42,19 @@ defmodule SikioWeb.SourceOfferTest do
     refute html =~ "<footer"
   end
 
+  # The source lives elsewhere, so it opens outside the app, as every other link away does.
+  test "the offer opens in a tab of its own", %{conn: conn} do
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    conn = conn |> init_test_session(%{}) |> Gate.log_in(user)
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(
+             view,
+             ~s|#colophon a[href="#{@configured}"][target="_blank"][rel="noopener noreferrer"]|
+           )
+  end
+
   # Somebody who has not signed in is still interacting with the application over a network, and
   # on a fresh instance the first thing they meet is the setup page.
   test "so is a visitor who has not signed in", %{conn: conn} do

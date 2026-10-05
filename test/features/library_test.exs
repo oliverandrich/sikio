@@ -224,6 +224,23 @@ defmodule SikioWeb.LibraryTest do
     end)
   end
 
+  # A link away from Sikio that names no target is still sent to a tab of its own, so an installed
+  # app never loads a stranger's page in its own window.
+  feature "a link away without a target opens in a tab of its own", %{session: session} do
+    session
+    |> open("/inbox")
+    |> execute_script("""
+    const link = document.createElement('a')
+    link.id = 'away'
+    link.href = 'https://example.org/elsewhere'
+    link.textContent = 'away'
+    document.body.append(link)
+    link.addEventListener('click', event => { window.awayTarget = link.target; event.preventDefault() })
+    """)
+    |> click(css("#away"))
+    |> execute_script("return window.awayTarget", fn target -> assert target == "_blank" end)
+  end
+
   # A source is given a tag in its own dialog, which stays open while it is typed in, and the tag
   # then stands in the sidebar as a place of its own.
   feature "a source is given a tag from its own list", %{session: session} do
