@@ -84,6 +84,81 @@ defmodule SikioWeb.CoreComponents do
   end
 
   @doc """
+  Renders a question before something that changes much at once.
+
+  It is rendered only while it asks and opens as it appears; see assets/js/app.js. It takes the
+  focus itself, so no button shows a ring before anybody tabs. A patch keeps it open, since the
+  server never renders `open`. Its buttons and Escape send `cancel_<name>` and `confirm_<name>`,
+  to `target` when one is given.
+  """
+  attr :name, :string, required: true
+  attr :title, :string, required: true
+  attr :confirm_label, :string, required: true
+  attr :variant, :string, default: "primary", doc: "danger when the answer cannot be undone"
+  attr :wide, :boolean, default: false, doc: "room for a form rather than a question"
+  attr :target, :any, default: nil, doc: "the component that answers, rather than the view"
+  slot :inner_block, required: true
+  slot :aside, doc: "another way out, at the left of the buttons"
+
+  def confirm_dialog(assigns) do
+    assigns = assign(assigns, :event, String.replace(assigns.name, "-", "_"))
+
+    ~H"""
+    <dialog
+      id={"#{@name}-confirm"}
+      tabindex="-1"
+      autofocus
+      aria-labelledby={"#{@name}-heading"}
+      phx-mounted={JS.ignore_attributes(["open"]) |> JS.dispatch("sikio:show")}
+      phx-window-keydown={"cancel_#{@event}"}
+      phx-key="Escape"
+      phx-target={@target}
+      class={[
+        "m-auto rounded-lg border border-line bg-surface text-ink shadow-2xl outline-none backdrop:bg-black/30",
+        if(@wide, do: "w-[min(34rem,calc(100vw-2rem))]", else: "w-[min(28rem,calc(100vw-2rem))]")
+      ]}
+    >
+      <div class="p-5 sm:p-6">
+        <h2 id={"#{@name}-heading"} class="text-[17px] leading-6 font-semibold">{@title}</h2>
+        <div class={["text-sm text-muted", if(@wide, do: "mt-5", else: "mt-2")]}>
+          {render_slot(@inner_block)}
+        </div>
+      </div>
+      <%!-- The answers in a band of their own. On a phone they stack, the confirming one on top;
+      from sm they stand in a row from the right, another way out at the far left. --%>
+      <div
+        id={"#{@name}-actions"}
+        class="flex flex-col gap-2 rounded-b-lg border-t border-line bg-ground px-5 py-4 sm:flex-row-reverse sm:items-center sm:gap-3 sm:px-6"
+      >
+        <.button
+          id={"confirm-#{@name}"}
+          type="button"
+          variant={@variant}
+          phx-click={"confirm_#{@event}"}
+          phx-target={@target}
+        >
+          {@confirm_label}
+        </.button>
+        <.button
+          id={"cancel-#{@name}"}
+          type="button"
+          phx-click={"cancel_#{@event}"}
+          phx-target={@target}
+        >
+          {gettext("Cancel")}
+        </.button>
+        <div :if={@aside != []} class="flex justify-center sm:mr-auto">{render_slot(@aside)}</div>
+      </div>
+    </dialog>
+    """
+  end
+
+  @doc "A text field's classes inside a dialog: a finger's height on a phone, a button's beside a mouse."
+  def dialog_field,
+    do:
+      "min-h-11 rounded-control border border-edge bg-surface px-3 text-sm text-ink placeholder:text-muted sm:min-h-9 focus-visible:outline-2 focus-visible:outline-accent"
+
+  @doc """
   Renders a button with navigation support.
 
   ## Examples

@@ -103,11 +103,7 @@ defmodule SikioWeb.AddSourceLive do
       {:ok, subscription} ->
         # An earlier subscription keeps the name its member gave it.
         name = source_name(subscription)
-
-        to =
-          Sidebar.place_path("source", to_string(subscription.feed_id), %{
-            subscription.feed_id => name
-          })
+        to = Sidebar.source_path(subscription)
 
         socket = put_flash(socket, :info, gettext("Subscribed to %{title}.", title: name))
 

@@ -46,18 +46,115 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert render(view) =~ ~r/\b1 source\s*</
   end
 
-  test "pausing and unsubscribing act only on our own rows", %{conn: conn, user: user} do
+  # Each row pauses or resumes its polling from an icon and states which it is in.
+  test "a row pauses and resumes its polling", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    row = "#subscription-#{subscription.id}"
+
+    view |> element(~s|#{row} button[aria-label="Pause polling"]|) |> render_click()
+    assert [%{paused: true}] = Library.subscriptions(user)
+    assert has_element?(view, row, "Polling paused")
+
+    view |> element(~s|#{row} button[aria-label="Resume polling"]|) |> render_click()
+    assert [%{paused: false}] = Library.subscriptions(user)
+  end
+
+  # A row names its source and, behind the name, the address it is polled at.
+  test "a row links its name to the source and shows the feed's address behind it", %{
+    conn: conn,
+    user: user
+  } do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    address = String.replace_prefix(subscription.feed.url, "https://", "")
+
+    assert has_element?(view, "#subscription-#{subscription.id}", "Small Hours")
+
+    assert has_element?(
+             view,
+             ~s|#subscription-#{subscription.id} [title="#{subscription.feed.url}"]|,
+             address
+           )
+
+    # The name leads to the source's own page in Sikio.
+    assert has_element?(
+             view,
+             ~s|#subscription-#{subscription.id} a[href="/feeds/#{subscription.feed_id}-small-hours"]|,
+             "Small Hours"
+           )
+  end
+
+  # The pencil opens the source's own dialog, and what it saves shows in the list at once.
+  test "a row edits its subscription in the source's dialog", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
     {:ok, view, _} = live(conn, ~p"/subscriptions")
 
-    view |> element("#subscription-#{subscription.id} button", "Pause") |> render_click()
-    assert [%{paused: true}] = Library.subscriptions(user)
+    view |> element("#edit-subscription-#{subscription.id}") |> render_click()
+    assert has_element?(view, "dialog#edit-subscription-confirm", "Small Hours")
 
-    view |> element("#subscription-#{subscription.id} button", "Resume") |> render_click()
-    assert [%{paused: false}] = Library.subscriptions(user)
+    view |> form("#subscription-form", %{"name" => "Late Night"}) |> render_change()
+    view |> element("#confirm-edit-subscription") |> render_click()
 
-    view |> element("#subscription-#{subscription.id} button", "Unsubscribe") |> render_click()
+    refute has_element?(view, "#edit-subscription-confirm")
+    assert [%{name: "Late Night"}] = Library.subscriptions(user)
+    assert has_element?(view, "#subscription-#{subscription.id}", "Late Night")
+  end
+
+  # Escape closes the dialog and hands the focus back to the button that opened it.
+  test "Escape closes the dialog and gives the focus back to its row", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#edit-subscription-#{subscription.id}") |> render_click()
+    view |> element("#edit-subscription-confirm") |> render_keydown(%{"key" => "Escape"})
+
+    refute has_element?(view, "#edit-subscription-confirm")
+    assert_push_event(view, "focus", %{id: "edit-subscription-" <> _})
+  end
+
+  # A second press on leaving arrives after the first has closed the dialog, and changes nothing.
+  test "a second press on leaving from the dialog is harmless", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#edit-subscription-#{subscription.id}") |> render_click()
+    view |> element("#unsubscribe") |> render_click()
+    view |> with_target("#subscription-settings") |> render_hook("unsubscribe", %{})
+
+    assert has_element?(view, "dialog#unsubscribe-confirm")
+  end
+
+  # Another tab may have left the subscription while this one edits it.
+  test "saving a subscription left elsewhere says so", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#edit-subscription-#{subscription.id}") |> render_click()
+    {:ok, _} = Library.unsubscribe(user, subscription.id)
+    view |> element("#confirm-edit-subscription") |> render_click()
+
+    refute has_element?(view, "#edit-subscription-confirm")
+    assert render(view) =~ "Subscription not found."
+  end
+
+  # Leaving from the list asks first, as leaving from the library does.
+  test "a row leaves its subscription after asking", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#leave-subscription-#{subscription.id}") |> render_click()
+    assert has_element?(view, "dialog#unsubscribe-confirm", "Small Hours")
+    assert [_] = Library.subscriptions(user)
+
+    view |> element("#confirm-unsubscribe") |> render_click()
     assert Library.subscriptions(user) == []
     assert has_element?(view, "#subscriptions-empty")
   end

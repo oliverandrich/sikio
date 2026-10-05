@@ -204,6 +204,15 @@ defmodule SikioWeb.Sidebar do
     end
   end
 
+  @doc "A subscription's page in the library, named as its member named it."
+  def source_path(subscription) do
+    feed_id = subscription.feed_id
+
+    place_path("source", to_string(feed_id), %{
+      feed_id => MediaComponents.source_name(subscription)
+    })
+  end
+
   @doc """
   The library's address for one place: a view by its status, a source or a tag.
 

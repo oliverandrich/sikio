@@ -560,6 +560,34 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
+  # On a phone a subscription's actions sit below its text, so the name and its details keep the
+  # row's width.
+  @sessions [
+    [
+      capabilities:
+        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
+          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
+        })
+    ]
+  ]
+  feature "a subscription's actions sit below its text on a phone", context do
+    %{session: session, account: account} = context
+    [subscription | _] = Library.subscriptions(account)
+
+    session
+    |> open("/subscriptions")
+    |> assert_has(css("#edit-subscription-#{subscription.id}"))
+    |> execute_script(
+      """
+      const row = document.getElementById('subscription-#{subscription.id}')
+      const text = row.querySelector('.meta-dots').getBoundingClientRect()
+      const edit = document.getElementById('edit-subscription-#{subscription.id}').getBoundingClientRect()
+      return [Math.round(edit.top - text.bottom)]
+      """,
+      fn [gap] -> assert gap >= 0, "the actions overlap the text's line" end
+    )
+  end
+
   # The panel's left edge, how much narrower than the screen it is, and whether its top is the
   # slot's.
   defp edges do

@@ -24,6 +24,7 @@ defmodule SikioWeb.LibraryLive do
   alias SikioWeb.DateGroups
   alias SikioWeb.Notes
   alias SikioWeb.Pictures
+  alias SikioWeb.SubscriptionSettings
 
   @impl true
   # Enough rows for the tallest screen, so the next batch is asked for before the list runs out.
@@ -42,8 +43,6 @@ defmodule SikioWeb.LibraryLive do
        search_open?: false,
        marking: nil,
        mark_options: nil,
-       unsubscribing: nil,
-       editing: nil,
        renaming: nil,
        deleting: nil,
        chosen_for_width: nil,
@@ -98,11 +97,10 @@ defmodule SikioWeb.LibraryLive do
             filters: filters,
             entries: [],
             marking: nil,
-            unsubscribing: nil,
-            editing: nil,
             renaming: nil,
             deleting: nil
           )
+          |> close_settings()
           |> reload()
 
     case select(socket, item) do
@@ -135,13 +133,13 @@ defmodule SikioWeb.LibraryLive do
   defp rename_error(:blank), do: gettext("A tag needs a name.")
   defp rename_error(:not_found), do: gettext("This tag is no longer there.")
 
-  # Where a source's new episodes may go, as its dialog offers it.
-  defp deliveries,
-    do: [
-      {"inbox", gettext("The inbox")},
-      {"queue", gettext("The end of the queue")},
-      {"skip", gettext("The archive, unheard")}
-    ]
+  # A source's dialog belongs to the place it was opened on.
+  defp close_settings(socket) do
+    if connected?(socket),
+      do: send_update(SubscriptionSettings, id: "subscription-settings", open: :close)
+
+    socket
+  end
 
   # The subscription to the source the list shows, as the sidebar holds it.
   defp chosen_subscription(socket) do
@@ -175,69 +173,6 @@ defmodule SikioWeb.LibraryLive do
       [{:heading, key, label} | Enum.map(chunk, &{:entry, &1})]
     end)
   end
-
-  # A question before something that changes much at once. Rendered only while it asks and
-  # opened as it appears, see assets/js/app.js; it takes the focus itself, so no button shows a
-  # ring before anybody tabs. A patch keeps it open, since the server never renders `open`. Its
-  # buttons and Escape send `cancel_<name>` and `confirm_<name>`.
-  attr :name, :string, required: true
-  attr :title, :string, required: true
-  attr :confirm_label, :string, required: true
-  attr :variant, :string, default: "primary", doc: "danger when the answer cannot be undone"
-  attr :wide, :boolean, default: false, doc: "room for a form rather than a question"
-  slot :inner_block, required: true
-  slot :aside, doc: "another way out, at the left of the buttons"
-
-  defp confirm_dialog(assigns) do
-    assigns = assign(assigns, :event, String.replace(assigns.name, "-", "_"))
-
-    ~H"""
-    <dialog
-      id={"#{@name}-confirm"}
-      tabindex="-1"
-      autofocus
-      aria-labelledby={"#{@name}-heading"}
-      phx-mounted={JS.ignore_attributes(["open"]) |> JS.dispatch("sikio:show")}
-      phx-window-keydown={"cancel_#{@event}"}
-      phx-key="Escape"
-      class={[
-        "m-auto rounded-lg border border-line bg-surface text-ink shadow-2xl outline-none backdrop:bg-black/30",
-        if(@wide, do: "w-[min(34rem,calc(100vw-2rem))]", else: "w-[min(28rem,calc(100vw-2rem))]")
-      ]}
-    >
-      <div class="p-5 sm:p-6">
-        <h2 id={"#{@name}-heading"} class="text-[17px] leading-6 font-semibold">{@title}</h2>
-        <div class={["text-sm text-muted", if(@wide, do: "mt-5", else: "mt-2")]}>
-          {render_slot(@inner_block)}
-        </div>
-      </div>
-      <%!-- The answers in a band of their own. On a phone they stack, the confirming one on top;
-      from sm they stand in a row from the right, another way out at the far left. --%>
-      <div
-        id={"#{@name}-actions"}
-        class="flex flex-col gap-2 rounded-b-lg border-t border-line bg-ground px-5 py-4 sm:flex-row-reverse sm:items-center sm:gap-3 sm:px-6"
-      >
-        <.button
-          id={"confirm-#{@name}"}
-          type="button"
-          variant={@variant}
-          phx-click={"confirm_#{@event}"}
-        >
-          {@confirm_label}
-        </.button>
-        <.button id={"cancel-#{@name}"} type="button" phx-click={"cancel_#{@event}"}>
-          {gettext("Cancel")}
-        </.button>
-        <div :if={@aside != []} class="flex justify-center sm:mr-auto">{render_slot(@aside)}</div>
-      </div>
-    </dialog>
-    """
-  end
-
-  # A text field inside a dialog, at a finger's height on a phone and a button's beside a mouse.
-  defp dialog_field,
-    do:
-      "min-h-11 rounded-control border border-edge bg-surface px-3 text-sm text-ink placeholder:text-muted sm:min-h-9 focus-visible:outline-2 focus-visible:outline-accent"
 
   defp row_id({:heading, {year, month}, _label}), do: "group-#{year}-#{month}"
   defp row_id({:heading, key, _label}), do: "group-#{key}"
@@ -501,69 +436,16 @@ defmodule SikioWeb.LibraryLive do
     {:noreply, assign(socket, :marking, nil)}
   end
 
-  # A source's own dialog: a name of the reader's own, where its new episodes go, its tags to tick
-  # and a field for new ones, and the way to leave it. What is typed and ticked is followed as it
-  # changes, and saved when confirmed.
+  # The pencil opens the source's dialog, see SikioWeb.SubscriptionSettings.
   def handle_event("edit_subscription", _params, socket) do
-    case chosen_subscription(socket) do
-      nil ->
-        {:noreply, socket}
-
-      subscription ->
-        tags = Tags.of(socket.assigns.current_account, subscription.id)
-
-        {:noreply,
-         assign(socket,
-           editing: %{
-             subscription: subscription,
-             name: subscription.name || "",
-             delivery: Atom.to_string(subscription.delivery),
-             chosen: Enum.map(tags, & &1.name),
-             new: ""
-           }
-         )}
+    if subscription = chosen_subscription(socket) do
+      send_update(SubscriptionSettings,
+        id: "subscription-settings",
+        open: {:edit, subscription, "edit-subscription"}
+      )
     end
-  end
 
-  def handle_event("subscription_options", params, socket) do
-    editing = %{
-      socket.assigns.editing
-      | name: params["name"] || "",
-        delivery: params["delivery"] || socket.assigns.editing.delivery,
-        chosen: params["tags"] || [],
-        new: params["new"] || ""
-    }
-
-    {:noreply, assign(socket, :editing, editing)}
-  end
-
-  # Enter in a field saves what the form holds, as the button does.
-  def handle_event("submit_edit_subscription", params, socket) do
-    {:noreply, socket} = handle_event("subscription_options", params, socket)
-    handle_event("confirm_edit_subscription", %{}, socket)
-  end
-
-  def handle_event("cancel_edit_subscription", _params, socket),
-    do:
-      {:noreply,
-       socket |> assign(:editing, nil) |> push_event("focus", %{id: "edit-subscription"})}
-
-  # A second press arrives after the first has closed the dialog.
-  def handle_event("confirm_edit_subscription", _params, %{assigns: %{editing: nil}} = socket),
-    do: {:noreply, socket}
-
-  # Several new tags may be typed at once, set apart by commas.
-  def handle_event("confirm_edit_subscription", _params, socket) do
-    %{subscription: subscription, name: name, delivery: delivery, chosen: chosen, new: new} =
-      socket.assigns.editing
-
-    account = socket.assigns.current_account
-
-    {:ok, _} =
-      Library.update_subscription(account, subscription.id, %{name: name, delivery: delivery})
-
-    Tags.set(account, subscription.id, chosen ++ String.split(new, ","))
-    {:noreply, socket |> assign(:editing, nil) |> SikioWeb.Sidebar.refresh()}
+    {:noreply, socket}
   end
 
   # A tag is renamed in its own header. A name another tag holds is said in the dialog, which
@@ -620,36 +502,6 @@ defmodule SikioWeb.LibraryLive do
      socket
      |> assign(:deleting, nil)
      |> push_patch(to: SikioWeb.Sidebar.place_path("status", "inbox"))}
-  end
-
-  # A source is left after a question that names it, from the subscription the sidebar holds.
-  def handle_event("unsubscribe", _params, socket) do
-    case chosen_subscription(socket) do
-      nil -> {:noreply, socket}
-      subscription -> {:noreply, assign(socket, unsubscribing: subscription, editing: nil)}
-    end
-  end
-
-  def handle_event("cancel_unsubscribe", _params, socket),
-    do:
-      {:noreply,
-       socket |> assign(:unsubscribing, nil) |> push_event("focus", %{id: "edit-subscription"})}
-
-  # The source's list has nothing left to show, so the page goes to what is new.
-  def handle_event("confirm_unsubscribe", _params, socket) do
-    case Library.unsubscribe(socket.assigns.current_account, socket.assigns.unsubscribing.id) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> assign(:unsubscribing, nil)
-         |> push_patch(to: SikioWeb.Sidebar.place_path("status", "inbox"))}
-
-      _ ->
-        {:noreply,
-         socket
-         |> assign(:unsubscribing, nil)
-         |> put_flash(:error, gettext("Subscription not found."))}
-    end
   end
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
@@ -793,6 +645,17 @@ defmodule SikioWeb.LibraryLive do
   end
 
   defp fetch_chapters(socket, _entry), do: socket
+
+  @impl true
+  def handle_info({SubscriptionSettings, :saved}, socket),
+    do: {:noreply, SikioWeb.Sidebar.refresh(socket)}
+
+  # The source's list has nothing left to show, so the page goes to what is new.
+  def handle_info({SubscriptionSettings, :left}, socket),
+    do: {:noreply, push_patch(socket, to: SikioWeb.Sidebar.place_path("status", "inbox"))}
+
+  def handle_info({SubscriptionSettings, :not_found}, socket),
+    do: {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}
 
   @impl true
   def handle_async(:chapters, {:ok, {id, {:ok, chapters}}}, socket) do
@@ -1072,88 +935,6 @@ defmodule SikioWeb.LibraryLive do
               </form>
             </.confirm_dialog>
             <.confirm_dialog
-              :if={@editing}
-              name="edit-subscription"
-              title={source_name(@editing.subscription)}
-              confirm_label={gettext("Save")}
-              wide
-            >
-              <form
-                id="subscription-form"
-                phx-change="subscription_options"
-                phx-submit="submit_edit_subscription"
-                class="flex flex-col gap-5"
-              >
-                <label class="flex flex-col gap-1.5 text-label font-semibold text-ink">
-                  {gettext("Name")}
-                  <input
-                    type="text"
-                    name="name"
-                    value={@editing.name}
-                    maxlength="200"
-                    placeholder={@editing.subscription.feed.title}
-                    class={[dialog_field(), "font-normal"]}
-                  />
-                </label>
-                <fieldset class="flex flex-col gap-2">
-                  <legend class="mb-1.5 text-label font-semibold text-ink">
-                    {gettext("New episodes go to")}
-                  </legend>
-                  <label
-                    :for={{value, label} <- deliveries()}
-                    class="flex items-center gap-2.5 text-label text-ink"
-                  >
-                    <input
-                      type="radio"
-                      name="delivery"
-                      value={value}
-                      checked={@editing.delivery == value}
-                      class="size-4 accent-accent"
-                    />
-                    {label}
-                  </label>
-                </fieldset>
-                <fieldset class="flex flex-col gap-2">
-                  <legend class="mb-1.5 text-label font-semibold text-ink">{gettext("Tags")}</legend>
-                  <input type="hidden" name="tags[]" value="" />
-                  <label
-                    :for={tag <- @sidebar.tags}
-                    class="flex items-center gap-2.5 text-label text-ink"
-                  >
-                    <input
-                      type="checkbox"
-                      name="tags[]"
-                      value={tag.name}
-                      checked={tag.name in @editing.chosen}
-                      class="size-4 accent-accent"
-                    />
-                    {tag.name}
-                  </label>
-                  <input
-                    type="text"
-                    name="new"
-                    value={@editing.new}
-                    maxlength="80"
-                    placeholder={gettext("New tag, or several set apart by commas")}
-                    aria-label={gettext("New tag")}
-                    class={[dialog_field(), "mt-1"]}
-                  />
-                </fieldset>
-              </form>
-              <%!-- Leaving asks once more, in a question of its own. --%>
-              <:aside>
-                <button
-                  id="unsubscribe"
-                  type="button"
-                  phx-click="unsubscribe"
-                  class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-danger hover:underline sm:min-h-9"
-                >
-                  <Lucideicons.unplug aria-hidden="true" class="size-4" />
-                  {gettext("Unsubscribe")}
-                </button>
-              </:aside>
-            </.confirm_dialog>
-            <.confirm_dialog
               :if={@renaming}
               name="rename-tag"
               title={gettext("Rename %{name}", name: @renaming.tag.name)}
@@ -1185,19 +966,12 @@ defmodule SikioWeb.LibraryLive do
             >
               <p>{gettext("The subscriptions stay; only the tag goes.")}</p>
             </.confirm_dialog>
-            <.confirm_dialog
-              :if={@unsubscribing}
-              name="unsubscribe"
-              title={gettext("Unsubscribe from %{title}?", title: source_name(@unsubscribing))}
-              confirm_label={gettext("Unsubscribe")}
-              variant="danger"
-            >
-              <p>
-                {gettext(
-                  "Its items leave your library. Your progress stays, should you subscribe again."
-                )}
-              </p>
-            </.confirm_dialog>
+            <.live_component
+              module={SubscriptionSettings}
+              id="subscription-settings"
+              current_account={@current_account}
+              tags={@sidebar.tags}
+            />
             <form
               :if={!@empty?}
               id="search-form"

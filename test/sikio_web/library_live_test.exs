@@ -197,6 +197,16 @@ defmodule SikioWeb.LibraryLiveTest do
     refute has_element?(view, "#move-#{c.audio.id}")
   end
 
+  # A dialog belongs to the source it was opened on. Going elsewhere closes it.
+  test "moving to another place closes a source's dialog", c do
+    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    view |> element("#edit-subscription") |> render_click()
+    assert has_element?(view, "#edit-subscription-confirm")
+
+    render_patch(view, "/inbox")
+    refute has_element?(view, "#edit-subscription-confirm")
+  end
+
   # A source's own dialog gives it a name of the reader's own and says where its new episodes go.
   # The name stands wherever the source is named.
   test "a source is named and told where its new episodes go in its own dialog", c do
@@ -347,11 +357,11 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
 
-    {:ok, _view, html} = live(conn, ~p"/subscriptions")
+    {:ok, view, _html} = live(conn, ~p"/subscriptions")
 
     # The account also follows a podcast, so both words have to be there, each on its own source.
-    assert html =~ "PeerTube ·"
-    assert html =~ "Podcast ·"
+    assert has_element?(view, "#subscriptions article .meta-dots", "PeerTube")
+    assert has_element?(view, "#subscriptions article .meta-dots", "Podcast")
   end
 
   # A playing item saves its place every few seconds. Rereading the library each time would cost
@@ -483,7 +493,10 @@ defmodule SikioWeb.LibraryLiveTest do
       assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Must view"]
 
       # A second press after the dialog has closed changes nothing.
-      render_hook(view, "confirm_edit_subscription", %{})
+      view
+      |> with_target("#subscription-settings")
+      |> render_hook("confirm_edit_subscription", %{})
+
       assert Enum.map(Sikio.Tags.of(c.user, c.sub.id), & &1.name) == ["Must view"]
 
       # Enter in the field saves, as the button does.

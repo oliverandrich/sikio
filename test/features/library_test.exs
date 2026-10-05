@@ -205,6 +205,25 @@ defmodule SikioWeb.LibraryTest do
     )
   end
 
+  # Closed with Escape, a subscription's dialog hands the focus back to the row that opened it.
+  feature "the subscriptions page gives the focus back after its dialog", %{
+    session: session,
+    account: account
+  } do
+    [subscription] = Library.subscriptions(account)
+
+    session
+    |> resize_window(1440, 900)
+    |> open("/subscriptions")
+    |> click(css("#edit-subscription-#{subscription.id}"))
+    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
+    |> send_keys([:escape])
+    |> refute_has(css("#edit-subscription-confirm"))
+    |> execute_script("return document.activeElement.id", fn id ->
+      assert id == "edit-subscription-#{subscription.id}"
+    end)
+  end
+
   # A source is given a tag in its own dialog, which stays open while it is typed in, and the tag
   # then stands in the sidebar as a place of its own.
   feature "a source is given a tag from its own list", %{session: session} do

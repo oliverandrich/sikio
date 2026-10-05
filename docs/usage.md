@@ -19,7 +19,9 @@ Subscribing imports the current episodes and opens the new source.
 Under **Subscriptions**, the pencil beside the heading or **Manage** in the phone's library, you
 can:
 
-- Pause the polling of a subscription or remove it.
+- Pause the polling of a subscription or resume it.
+- Edit its name, where its new episodes go and its tags, as from the pencil on its own page.
+- Leave it, after a question that names it.
 - Import an OPML file with up to 50 unique sources and 1 MB, as a preview first. Existing
   subscriptions stay untouched and failures are reported per source. **Add** offers the import
   too. The export carries sources, not playback positions or polling settings. Format:
