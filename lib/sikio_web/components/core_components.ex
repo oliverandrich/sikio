@@ -577,7 +577,8 @@ defmodule SikioWeb.CoreComponents do
   end
 
   # Shared by the text, select and textarea inputs.
-  defp field_class,
+  @doc "A text field's classes outside a dialog, for a field the input component cannot lay out."
+  def field_class,
     do:
       "block w-full rounded-control border border-edge bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-accent focus:outline-2 focus:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
 end

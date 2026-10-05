@@ -15,6 +15,23 @@ defmodule Sikio.Feeds.Discovery do
   @channel ~r/\AUC[a-zA-Z0-9_-]{22}\z/
   @video ~r/\A[a-zA-Z0-9_-]{11}\z/
 
+  @doc """
+  Reads one line of input as `{:link, address}`, `{:search, term}` or `:empty`.
+
+  An address carries `://`, or is a single word with a dot before letters, as a bare host is.
+  Everything else is a search term.
+  """
+  def intent(input) when is_binary(input) do
+    input = String.trim(input)
+
+    cond do
+      input == "" -> :empty
+      String.contains?(input, "://") -> {:link, input}
+      Regex.match?(~r/\A[^\s\/]+\.[a-z]{2,}(?:[\/?#:]\S*)?\z/i, input) -> {:link, input}
+      true -> {:search, input}
+    end
+  end
+
   def discover(url) do
     with {:ok, uri} <- HTTP.normalize(url) do
       cond do

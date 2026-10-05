@@ -241,6 +241,32 @@ defmodule SikioWeb.LibraryTest do
     |> execute_script("return window.awayTarget", fn target -> assert target == "_blank" end)
   end
 
+  # The page to add a source centres its one field, as a search page does.
+  feature "the field to add a source stands in the middle of the page", %{session: session} do
+    session
+    |> resize_window(1440, 900)
+    |> open("/add")
+    |> execute_script(
+      """
+      const box = el => el.getBoundingClientRect()
+      const form = box(document.getElementById('add-form'))
+      const main = box(document.getElementById('add-form').closest('main'))
+      const middle = main.left + main.width / 2
+      const centre = el => Math.round(el.left + el.width / 2 - middle)
+      const range = document.createRange()
+      range.selectNodeContents(document.getElementById('add-subtitle'))
+      const hint = [...document.querySelectorAll('#add-hint > *')].map(line => line.getClientRects().length)
+      return [centre(form), Math.round(form.width), Math.round(main.width), centre(range.getBoundingClientRect()), hint]
+      """,
+      fn [offset, form, main, subtitle, hint] ->
+        assert abs(offset) <= 2, "the field sits #{offset}px off the middle"
+        assert form < main
+        assert abs(subtitle) <= 2, "the subtitle sits #{subtitle}px off the middle"
+        assert hint == [1, 1], "each sentence of the hint keeps a line of its own"
+      end
+    )
+  end
+
   # A source is given a tag in its own dialog, which stays open while it is typed in, and the tag
   # then stands in the sidebar as a place of its own.
   feature "a source is given a tag from its own list", %{session: session} do

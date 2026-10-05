@@ -43,7 +43,7 @@ defmodule SikioWeb.PlayerTest do
     |> assert_has(css("#player-panel [data-audio-face]"))
     |> mark_player()
     |> click(css("#add-button"))
-    |> assert_has(css("h1", text: "Make room"))
+    |> assert_has(css("h1", text: "Add a source"))
     # From lg the panel folds into the sidebar's bar there, which keeps the audio mounted but
     # out of sight. What this asks is that it is the same element.
     |> assert_has(css("#player-panel audio", visible: false))

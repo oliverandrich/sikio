@@ -21,20 +21,30 @@ defmodule SikioWeb.AddSourceLiveTest do
     %{conn: conn, user: user}
   end
 
-  # The page names what its field takes, so nobody has to sort a link before pasting it.
-  test "the field names the kinds of links it takes", %{conn: conn} do
-    {:ok, view, _} = live(conn, ~p"/add")
-    assert has_element?(view, "#discover-hint", "PeerTube")
-    assert has_element?(view, "#search-form")
+  # One field takes a link or a search, and says which links it knows.
+  test "one field takes a link or a search", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/add")
+    assert has_element?(view, "#add-form input[name=q]")
+    assert has_element?(view, "#add-hint", "PeerTube")
+    # Words that are not a link go to Apple, and the page says so before anything is sent.
+    assert has_element?(view, "#add-hint", "searched for in Apple Podcasts")
+    assert has_element?(view, ~s|#add-q[aria-describedby="add-hint"]|)
+    refute has_element?(view, "#discover-form")
+    refute has_element?(view, "#search-form")
     refute has_element?(view, "#subscriptions")
+    refute html =~ "Curated by you"
     assert has_element?(view, ~s|#add-button[aria-current="page"]|)
     assert has_element?(view, ~s|#tab-library[aria-current="page"]|)
   end
 
   # A collection from another app comes in from here too, since a new member has no other way in.
-  test "offers the OPML import beside the search", %{conn: conn} do
-    {:ok, view, _} = live(conn, ~p"/add")
+  # It is the rarer way, so it comes after the field.
+  test "offers the OPML import after the field", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/add")
     assert has_element?(view, ~s|#add-opml[href="/subscriptions/import"]|)
+    {form, _} = :binary.match(html, ~s|id="add-form"|)
+    {opml, _} = :binary.match(html, ~s|id="add-opml"|)
+    assert form < opml
   end
 
   # A source is previewed before anything is subscribed. Subscribing leads to the new source's
@@ -45,7 +55,7 @@ defmodule SikioWeb.AddSourceLiveTest do
   } do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
     {:ok, view, _} = live(conn, ~p"/add")
-    view |> form("#discover-form", %{url: feed_url()}) |> render_submit()
+    view |> form("#add-form", %{q: feed_url()}) |> render_submit()
     render_async(view)
     assert has_element?(view, "#source-0", "Small Hours")
     assert Library.subscriptions(user) == []
@@ -67,7 +77,7 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     subscribe = fn ->
       {:ok, view, _} = live(conn, ~p"/add")
-      view |> form("#discover-form", %{url: url}) |> render_submit()
+      view |> form("#add-form", %{q: url}) |> render_submit()
       render_async(view)
       view |> element("#source-0 button", "Subscribe") |> render_click()
     end
@@ -104,8 +114,9 @@ defmodule SikioWeb.AddSourceLiveTest do
     end)
 
     {:ok, view, _} = live(conn, ~p"/add")
-    view |> form("#search-form", %{term: "small hours"}) |> render_submit()
+    view |> form("#add-form", %{q: "small hours"}) |> render_submit()
     render_async(view)
+    assert has_element?(view, "#results-heading", "Apple Podcasts")
     assert has_element?(view, "#source-0", "Ada")
     view |> element("#source-0 button", "Preview") |> render_click()
     render_async(view)
@@ -118,23 +129,58 @@ defmodule SikioWeb.AddSourceLiveTest do
   } do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "down") end)
     {:ok, view, _} = live(conn, ~p"/add")
-    view |> form("#discover-form", %{url: feed_url()}) |> render_submit()
+    view |> form("#add-form", %{q: feed_url()}) |> render_submit()
     render_async(view)
     assert has_element?(view, "#discovery-error")
     render_hook(view, "select", %{id: "999"})
     assert Library.subscriptions(user) == []
   end
 
-  # Both forms carry a phx-change handler, which is what lets a reconnecting browser put back what
+  # The form carries a phx-change handler, which is what lets a reconnecting browser put back what
   # somebody had typed. Without it the text is silently replaced by the template's empty value.
   test "what was typed survives a reconnect", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/add")
-    view |> form("#discover-form", %{url: "https://example.org/rs"}) |> render_change()
-    view |> form("#search-form", %{term: "small ho"}) |> render_change()
+    view |> form("#add-form", %{q: "https://example.org/rs"}) |> render_change()
+    assert render(view) =~ "https://example.org/rs"
+  end
 
-    html = render(view)
-    assert html =~ "https://example.org/rs"
-    assert html =~ "small ho"
+  # A word with a dot reads as an address. When it leads nowhere, the same words can be searched.
+  test "a link that finds nothing offers to search for it instead", %{conn: conn} do
+    test = self()
+
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/search" ->
+          send(test, {:search_term, Plug.Conn.fetch_query_params(conn).query_params["term"]})
+          Req.Test.json(conn, %{results: []})
+
+        _ ->
+          Plug.Conn.send_resp(conn, 404, "")
+      end
+    end)
+
+    {:ok, view, _} = live(conn, ~p"/add")
+    view |> form("#add-form", %{q: "mr.robot"}) |> render_submit()
+    render_async(view)
+    assert has_element?(view, "#discovery-error")
+
+    # Edited in the meantime, the field does not change what failed as a link.
+    view |> form("#add-form", %{q: "something else"}) |> render_change()
+    view |> element("#search-instead") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#no-results")
+    assert_received {:search_term, "mr.robot"}
+  end
+
+  # An address written out with its scheme was meant as one, so its failure offers no search.
+  test "a written-out address that fails offers no search", %{conn: conn} do
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 404, "") end)
+    {:ok, view, _} = live(conn, ~p"/add")
+    view |> form("#add-form", %{q: "https://example.org/nothing"}) |> render_submit()
+    render_async(view)
+
+    assert has_element?(view, "#discovery-error")
+    refute has_element?(view, "#search-instead")
   end
 
   # The policy is written on a document, and moving inside a LiveView writes no document. A
@@ -167,7 +213,7 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/add")
 
-    view |> form("#discover-form", %{url: "https://video.example.org"}) |> render_submit()
+    view |> form("#add-form", %{q: "https://video.example.org"}) |> render_submit()
     render_async(view)
 
     assert has_element?(view, "#source-0", "Good Instance Videos")

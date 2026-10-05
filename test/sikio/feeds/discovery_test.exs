@@ -20,6 +20,40 @@ defmodule Sikio.Feeds.DiscoveryTest do
     """
   end
 
+  # One field takes a link or a search. What reads as an address is looked up; everything else is
+  # searched for. A bare host counts as an address, since that is how people paste one.
+  describe "intent/1" do
+    test "an address with a scheme or a bare host is a link" do
+      for input <- [
+            "https://www.youtube.com/@kurzgesagt",
+            "http://example.org/feed.xml",
+            "youtube.com/@kurzgesagt",
+            "radiolab.org",
+            "  feeds.transistor.fm/metacheles  ",
+            "podcasts.apple.com/de/podcast/id123"
+          ] do
+        assert Discovery.intent(input) == {:link, String.trim(input)}, input
+      end
+    end
+
+    test "words, names and a title with a full stop are a search" do
+      for input <- [
+            "Logbuch Netzpolitik",
+            "Mr. Robot",
+            "radiolab",
+            "99% Invisible",
+            " Lage der Nation "
+          ] do
+        assert Discovery.intent(input) == {:search, String.trim(input)}, input
+      end
+    end
+
+    test "nothing is nothing" do
+      assert Discovery.intent("") == :empty
+      assert Discovery.intent("   ") == :empty
+    end
+  end
+
   test "a direct channel URL resolves straight to its Atom feed" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do

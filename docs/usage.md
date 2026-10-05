@@ -4,14 +4,17 @@ Phoenix LiveView, PostgreSQL and Ithibati passkeys with recovery codes and invit
 first visitor claims the instance; everybody after that arrives on an invitation link. There is
 no administrator role and no mail delivery, so links are passed on by hand.
 
-Under **Add**, the button below the wordmark or the plus on a phone, you can:
+Under **Add**, the button below the wordmark or the plus on a phone, one field takes a link or a
+search. An address with `://`, or a single word with a dot such as `radiolab.org`, is looked up;
+anything else is searched for in Apple Podcasts. A guessed address that leads nowhere offers to
+search for the same words. You can:
 
 - Paste YouTube channel URLs, handles, video, Shorts and live URLs. Sikio resolves the channel
   behind them and shows its feed before you subscribe.
 - Paste a PeerTube instance, channel, account or video URL. A video leads to its channel.
 - Paste a podcast RSS feed or a podcast website. Several feeds found on one page are offered for
   choice, for example an MP3 and an Opus version of the same show.
-- Search Apple Podcasts, or paste an Apple Podcasts link. A preview checks the actual RSS feed
+- Search Apple Podcasts by a show's name, or paste an Apple Podcasts link. A preview checks the actual RSS feed
   before subscribing.
 
 Subscribing imports the current episodes and opens the new source.
