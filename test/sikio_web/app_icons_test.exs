@@ -35,6 +35,19 @@ defmodule SikioWeb.AppIconsTest do
       served(conn, src, "image/png")
     end
 
-    assert length(icons) == 2
+    # The wordmark stays inside the circle Android keeps, so the same picture may be cropped.
+    assert Enum.any?(icons, &(&1["purpose"] == "maskable"))
+  end
+
+  # An installed app knows itself by a stable id and keeps every page of Sikio inside its window.
+  # Its shortcuts lead to the places opened most.
+  test "the manifest names the app, its scope and its shortcuts", %{conn: conn} do
+    manifest = served(conn, "/manifest.webmanifest", "application/manifest+json")
+
+    assert %{"id" => "/", "scope" => "/", "shortcuts" => shortcuts} =
+             Jason.decode!(manifest.resp_body)
+
+    assert Enum.map(shortcuts, & &1["url"]) == ["/inbox", "/queue", "/add"]
+    assert Enum.all?(shortcuts, &(&1["name"] != nil))
   end
 end
