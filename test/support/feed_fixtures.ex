@@ -77,10 +77,13 @@ defmodule Sikio.FeedFixtures do
     )
   end
 
+  @doc "The website the podcast's channel names."
+  def podcast_site, do: "https://example.org/show"
+
   def podcast(title \\ "Small Hours") do
     """
     <?xml version="1.0"?><rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-    <channel><title>#{title}</title><description>A thoughtful podcast</description>
+    <channel><title>#{title}</title><link>#{podcast_site()}</link><description>A thoughtful podcast</description>
     <itunes:image href="https://img.example.org/show.jpg" />
     <item><guid>episode-1</guid><title>One &amp; two</title><link>#{podcast_page()}</link><pubDate>Fri, 18 Sep 2026 09:00:00 GMT</pubDate>
     <itunes:image href="https://img.example.org/1.jpg" />
@@ -94,6 +97,7 @@ defmodule Sikio.FeedFixtures do
   @doc "The same show, published by somebody who names no artwork, runtime, notes or page."
   def thin_podcast do
     podcast()
+    |> String.replace("<link>#{podcast_site()}</link>", "")
     |> String.replace("<link>#{podcast_page()}</link>", "")
     |> String.replace(~r|<itunes:image href="https://img.example.org/1.jpg" />|, "")
     |> String.replace(~r|<itunes:duration>[^<]*</itunes:duration>|, "")

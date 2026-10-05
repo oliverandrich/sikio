@@ -21,12 +21,12 @@ defmodule Sikio.Feeds do
 
   @feed_fields [:title, :etag, :last_modified, :last_checked_at, :last_error, :updated_at]
 
-  # Everything the source just said replaces what was stored, except the picture. A YouTube
-  # refresh reads the Atom feed alone, which names no artwork, and an empty value there is the
-  # absence of a statement rather than a statement that the channel has no picture. One row is
-  # written here, so leaving the column out of the list says exactly that.
-  defp replaced_feed_fields(%{icon_url: url}) when is_binary(url), do: [:icon_url | @feed_fields]
-  defp replaced_feed_fields(_attrs), do: @feed_fields
+  # Everything the source just said replaces what was stored, except the picture and the website.
+  # An absent value is no statement that the source has none. YouTube's Atom feed names no
+  # artwork, and a podcast may leave out its link once. A dropped website stays until another
+  # replaces it. One row is written here, so leaving a column out of the list says exactly that.
+  defp replaced_feed_fields(attrs),
+    do: Enum.filter([:icon_url, :page_url], &is_binary(attrs[&1])) ++ @feed_fields
 
   @doc """
   Stores a source and its entries, inserting what is new and updating what changed.
@@ -143,9 +143,10 @@ defmodule Sikio.Feeds do
   end
 
   # A document that repeats what is stored notifies nobody, like a 304. What a reader sees of the
-  # source itself, its name and picture, counts as much as its entries.
+  # source itself, its name, picture and website, counts as much as its entries.
   defp compared_with({:ok, {stored, 0}}, feed)
-       when stored.title == feed.title and stored.icon_url == feed.icon_url,
+       when stored.title == feed.title and stored.icon_url == feed.icon_url and
+              stored.page_url == feed.page_url,
        do: {:unchanged, stored}
 
   defp compared_with({:ok, {stored, _written}}, _feed), do: {:ok, stored}

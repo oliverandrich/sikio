@@ -62,6 +62,8 @@ defmodule Sikio.Feeds.Parser do
          title: value(root, "title"),
          kind: :youtube,
          icon_url: nil,
+         # Built from the id checked above rather than read from a stranger's link.
+         page_url: "https://www.youtube.com/channel/" <> channel_id,
          entries: Enum.take(entries, 500)
        }}
     else
@@ -80,6 +82,7 @@ defmodule Sikio.Feeds.Parser do
       title: value(channel, "title"),
       kind: kind,
       icon_url: image_url(channel, url),
+      page_url: rss_page(channel, url),
       entries: Enum.take(entries, 500)
     }
   end
@@ -207,9 +210,9 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # An item's own page, where the publisher shows it. RSS names it as text, and it is not cut the
-  # way a title is: a shortened address leads somewhere else. It is a stranger's address bound for
-  # a link, so it passes the check artwork passes.
+  # An item's own page, or a channel's, where the publisher shows it. RSS names it as text, and it
+  # is not cut the way a title is: a shortened address leads somewhere else. It is a stranger's
+  # address bound for a link, so it passes the check artwork passes.
   defp rss_page(item, feed_url),
     do: item |> child("link") |> text() |> String.trim() |> HTTP.resolve(feed_url)
 

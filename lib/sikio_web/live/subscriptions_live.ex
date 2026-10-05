@@ -195,6 +195,18 @@ defmodule SikioWeb.SubscriptionsLive do
               >
                 <Lucideicons.pencil aria-hidden="true" class="size-4" />
               </button>
+              <.link
+                :if={subscription.feed.page_url}
+                id={"open-website-#{subscription.id}"}
+                href={subscription.feed.page_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={gettext("Open website")}
+                title={gettext("Open website")}
+                class={row_action()}
+              >
+                <Lucideicons.external_link aria-hidden="true" class="size-4" />
+              </.link>
               <button
                 id={"leave-subscription-#{subscription.id}"}
                 type="button"

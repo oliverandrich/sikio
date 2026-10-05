@@ -132,6 +132,29 @@ defmodule Sikio.FeedsTest do
     refute_receive :library_changed, 100
   end
 
+  # A new website is what a reader sees of the source, so it counts like a new name.
+  test "a poll that only moves the website notifies the subscribers" do
+    {:ok, stored} = Feeds.store(preview())
+    Events.subscribe_updates(%User{id: subscriber(stored.id)})
+    body = String.replace(podcast(), podcast_site(), "https://example.org/moved")
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, body) end)
+
+    assert {:ok, %{page_url: "https://example.org/moved"}} = Feeds.refresh(stored.id)
+    assert_receive :library_changed
+  end
+
+  # A poll that names no website keeps the stored one, and keeping it is no change to announce.
+  test "a poll without the website notifies nobody" do
+    {:ok, stored} = Feeds.store(preview())
+    Events.subscribe_updates(%User{id: subscriber(stored.id)})
+    body = String.replace(podcast(), "<link>#{podcast_site()}</link>", "")
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, body) end)
+
+    assert {:ok, feed} = Feeds.refresh(stored.id)
+    assert feed.page_url == podcast_site()
+    refute_receive :library_changed, 100
+  end
+
   # A source without working cache validators answers in full on every poll. Rewriting rows it
   # did not change costs a new row version, write ahead log and a dead tuple per entry, and a
   # notification that makes every open library reload. Every write sets `updated_at`.
@@ -238,6 +261,7 @@ defmodule Sikio.FeedsTest do
   test "artwork, runtime and notes reach the stored rows" do
     assert {:ok, feed} = Feeds.store(preview())
     assert feed.icon_url == "https://img.example.org/show.jpg"
+    assert feed.page_url == podcast_site()
 
     entry = Repo.one(Entry)
     assert entry.image_url == "https://img.example.org/1.jpg"
@@ -251,12 +275,13 @@ defmodule Sikio.FeedsTest do
   test "a later poll fills in what an earlier import could not store" do
     {:ok, feed} = Feeds.store(preview())
     Repo.update_all(Entry, set: [image_url: nil, duration: nil, description: nil, excerpt: nil])
-    Repo.update_all(Feed, set: [icon_url: nil])
+    Repo.update_all(Feed, set: [icon_url: nil, page_url: nil])
 
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
     assert {:ok, refreshed} = Feeds.refresh(feed.id)
 
     assert refreshed.icon_url == "https://img.example.org/show.jpg"
+    assert refreshed.page_url == podcast_site()
     assert Repo.one(Entry).duration == 3723
   end
 
@@ -281,7 +306,8 @@ defmodule Sikio.FeedsTest do
   test "a poll that omits artwork, notes and the page keeps what was stored" do
     {:ok, _feed} = Feeds.store(preview())
 
-    assert {:ok, _feed} = Feeds.store(preview(thin_podcast()))
+    assert {:ok, feed} = Feeds.store(preview(thin_podcast()))
+    assert feed.page_url == podcast_site()
 
     entry = Repo.one(Entry)
     assert entry.image_url == "https://img.example.org/1.jpg"

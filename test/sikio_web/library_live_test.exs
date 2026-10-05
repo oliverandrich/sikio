@@ -197,6 +197,19 @@ defmodule SikioWeb.LibraryLiveTest do
     refute has_element?(view, "#move-#{c.audio.id}")
   end
 
+  # A source's page leads to its website beside the pencil.
+  test "a source's page opens its website", c do
+    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+
+    assert has_element?(
+             view,
+             ~s|#open-website[href="#{podcast_site()}"][target="_blank"][rel~="noopener"]|
+           )
+
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
+    refute has_element?(view, "#open-website")
+  end
+
   # A dialog belongs to the source it was opened on. Going elsewhere closes it.
   test "moving to another place closes a source's dialog", c do
     {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")

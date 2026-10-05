@@ -11,6 +11,7 @@ defmodule Sikio.Feeds.Feed do
     field :title, :string
     field :kind, Ecto.Enum, values: [:youtube, :podcast, :peertube]
     field :icon_url, :string
+    field :page_url, :string
     field :etag, :string
     field :last_modified, :string
     field :last_checked_at, :utc_datetime_usec
@@ -25,6 +26,7 @@ defmodule Sikio.Feeds.Feed do
       :title,
       :kind,
       :icon_url,
+      :page_url,
       :etag,
       :last_modified,
       :last_checked_at,

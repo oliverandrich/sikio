@@ -87,6 +87,22 @@ defmodule SikioWeb.SubscriptionsLiveTest do
            )
   end
 
+  # The source's own website opens in a new tab, after the pencil and before leaving.
+  test "a row opens the source's website, when it has one", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    assert has_element?(
+             view,
+             ~s|#open-website-#{subscription.id}[href="#{podcast_site()}"][target="_blank"][rel~="noopener"]|
+           )
+
+    Repo.update_all(Feed, set: [page_url: nil])
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    refute has_element?(view, "#open-website-#{subscription.id}")
+  end
+
   # The pencil opens the source's own dialog, and what it saves shows in the list at once.
   test "a row edits its subscription in the source's dialog", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())

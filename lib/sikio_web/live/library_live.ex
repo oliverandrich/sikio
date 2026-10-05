@@ -141,11 +141,17 @@ defmodule SikioWeb.LibraryLive do
     socket
   end
 
-  # The subscription to the source the list shows, as the sidebar holds it.
-  defp chosen_subscription(socket) do
-    source = socket.assigns.filters["source"]
-    Enum.find(socket.assigns.sidebar.sources, &(to_string(&1.feed_id) == source))
+  # The website of the source the list shows, when its feed names one.
+  defp website(sources, source) do
+    if subscription = shown_subscription(sources, source), do: subscription.feed.page_url
   end
+
+  # The subscription to the source the list shows, as the sidebar holds it.
+  defp chosen_subscription(socket),
+    do: shown_subscription(socket.assigns.sidebar.sources, socket.assigns.filters["source"])
+
+  defp shown_subscription(sources, source),
+    do: Enum.find(sources, &(to_string(&1.feed_id) == source))
 
   # The dialog's ticks as what `Playback.mark_all/3` leaves out.
   defp marking(%{in_progress: in_progress, playing: playing, playing_id: playing_id}),
@@ -855,6 +861,18 @@ defmodule SikioWeb.LibraryLive do
                   >
                     <Lucideicons.pencil aria-hidden="true" class="size-4.5" />
                   </button>
+                  <.link
+                    :if={site = website(@sidebar.sources, @filters["source"])}
+                    id="open-website"
+                    href={site}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={gettext("Open website")}
+                    title={gettext("Open website")}
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+                  >
+                    <Lucideicons.external_link aria-hidden="true" class="size-4.5" />
+                  </.link>
                   <%!-- Whether the player goes on with the queue when an item ends, said in words
                        beside a switch. --%>
                   <button

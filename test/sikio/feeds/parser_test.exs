@@ -75,6 +75,27 @@ defmodule Sikio.Feeds.ParserTest do
              )
   end
 
+  # A source's own website, where the publisher presents it, for a link beside it in the library.
+  test "keeps the website each kind of source names" do
+    assert {:ok, %{page_url: site}} = Parser.parse(podcast(), "https://example.org/rss")
+    assert site == podcast_site()
+
+    assert {:ok, %{page_url: site}} = Parser.parse(peertube(), peertube_feed_url())
+    assert site == "https://video.example.org/c/9f1b2c3d-0000-4444-8888-aaaabbbbcccc/videos"
+
+    # YouTube's address follows from the channel id the parser already checks.
+    assert {:ok, %{page_url: site}} = Parser.parse(youtube(), youtube_feed_url())
+    assert site == "https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv"
+  end
+
+  test "names no website the channel does not give, or gives as something else" do
+    without = String.replace(podcast(), "<link>#{podcast_site()}</link>", "")
+    assert {:ok, %{page_url: nil}} = Parser.parse(without, "https://example.org/rss")
+
+    script = String.replace(podcast(), podcast_site(), "javascript:alert(1)")
+    assert {:ok, %{page_url: nil}} = Parser.parse(script, "https://example.org/rss")
+  end
+
   test "keeps the artwork, runtime and notes a podcast item publishes" do
     assert {:ok, feed} = Parser.parse(podcast(), "https://example.org/rss")
     assert feed.icon_url == "https://img.example.org/show.jpg"
