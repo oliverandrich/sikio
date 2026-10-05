@@ -78,7 +78,6 @@ Keep migration history unchanged. A migration may branch for the database it run
 branch added later must leave every existing database's schema as it was. Credo scans source, tests and all migrations;
 Jump inspects inline HEEx and files reached through embed_templates. ExSlop and
 Jump rules are explicitly selected. Audit findings are separate from PR gates.
-Tidewave runs only in development on loopback at /tidewave/mcp.
 Tailwind and esbuild are Mix-managed. Node is needed only to run the player's JavaScript
 tests; no npm package is installed.
 Use Lucide components directly, for example `<Lucideicons.chevron_down class="size-4" aria-hidden="true" />`.
@@ -117,8 +116,7 @@ SIKIO_DEV_URL=https://<mac>.<tailnet>.ts.net mise run dev
 SIKIO_DEV_URL names the endpoint's host, which passkeys are bound to. Passkeys made for
 `localhost` do not work there; sign in with a recovery code and add one on the phone.
 
-Do not expose the development server through a public tunnel. Tidewave runs in it and
-trusts requests from the loopback, which a tunnel's local agent is.
+Do not expose the development server through a public tunnel. Its error pages show source code.
 
 ## Release verification
 

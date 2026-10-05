@@ -65,7 +65,6 @@ defmodule Sikio.MixProject do
       {:floki, "~> 0.38.4"},
       {:html_sanitize_ex, "~> 1.4"},
       {:saxy, "~> 1.6"},
-      {:tidewave, "~> 0.9.0", only: :dev},
       {:mix_audit, "~> 2.1.5", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.15.0", only: [:dev, :test], runtime: false},
       {:excellent_migrations, "~> 0.1.10", only: [:dev, :test], runtime: false},

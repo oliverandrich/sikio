@@ -38,10 +38,6 @@ defmodule SikioWeb.Endpoint do
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
-  if Application.compile_env(:sikio, :dev_routes, false) do
-    plug Tidewave
-  end
-
   if code_reloading? do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
