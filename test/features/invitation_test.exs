@@ -65,13 +65,12 @@ defmodule SikioWeb.InvitationTest do
 
     invitation = Repo.one(Invitation)
 
-    # The empty sentence first, then the absence. `assert_has` waits for what it is looking for;
-    # a `refute_has` on its own passes the instant it is asked, before the patch that removes the
-    # row has arrived — so it would have said nothing either way.
+    # The empty sentence first, then the absence, so the row is asked about once the patch that
+    # removes it has arrived.
     session
     |> click(css("#invitation-#{invitation.id} button"))
     |> assert_has(css("p", text: "Nothing is waiting to be accepted."))
-    |> refute_has(css("#invitation-#{invitation.id}"))
+    |> gone(css("#invitation-#{invitation.id}"))
 
     refute Repo.one(Invitation)
   end
@@ -113,14 +112,14 @@ defmodule SikioWeb.InvitationTest do
     session
     |> clear_cookies()
     |> open("/invitations")
-    |> refute_has(css("p", text: "Signed in as"))
+    |> gone(css("p", text: "Signed in as"))
 
     session
     |> open(link)
     # The page names the account it will create and offers no field to change it — the refusal
     # `Invitations.accept/2` would give is turned into an interface that cannot ask for it.
     |> assert_has(css("p", text: "The account will be called"))
-    |> refute_has(css("input[name=username]"))
+    |> gone(css("input[name=username]"))
     |> click(button("Accept with a passkey"))
     |> landed_on("/recovery-codes")
     |> assert_has(css("h1", text: "Save your recovery codes"))
@@ -164,6 +163,6 @@ defmodule SikioWeb.InvitationTest do
     session
     |> open("/invitations")
     |> assert_has(css("p", text: "Signed in as ada."))
-    |> refute_has(css("#claim-form"))
+    |> gone(css("#claim-form"))
   end
 end

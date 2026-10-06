@@ -94,7 +94,7 @@ defmodule SikioWeb.LibraryTest do
     |> resize_window(1440, 900)
     |> open("/all")
     |> assert_has(css("#entries article", count: 25))
-    |> refute_has(css("#shortcuts[open]"))
+    |> gone(css("#shortcuts[open]"))
     # Chromedriver types ? as Shift and an underscore. A keyboard sends the character itself, in
     # whichever layout puts it where, and that is what the page reads.
     |> execute_script(
@@ -112,7 +112,7 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#entries article:nth-of-type(2) a[aria-current]"))
     |> assert_has(css("#shortcuts[open]"))
     |> send_keys([:escape])
-    |> assert_has(css("#shortcuts[open]", count: 0))
+    |> gone(css("#shortcuts[open]"))
     |> click(css("#user-menu summary"))
     |> click(css("#show-shortcuts"))
     |> assert_has(css("#shortcuts[open]"))
@@ -124,15 +124,15 @@ defmodule SikioWeb.LibraryTest do
     session
     |> resize_window(1440, 900)
     |> open("/all")
-    |> refute_has(css("#about[open]"))
+    |> gone(css("#about[open]"))
     |> click(css("#user-menu summary"))
     |> click(css("#show-about"))
     |> assert_has(css("#about[open]", text: "A little more intention. A little less autoplay."))
     |> assert_has(css("#about[open]", text: "Your personal media library"))
     |> assert_has(css("#about[open] a", text: "Source code"))
-    |> refute_has(css("#user-menu[open]"))
+    |> gone(css("#user-menu[open]"))
     |> send_keys([:escape])
-    |> assert_has(css("#about[open]", count: 0))
+    |> gone(css("#about[open]"))
   end
 
   # The double check asks in a dialog that opens as it appears. Escape lets go of it, and the
@@ -148,12 +148,12 @@ defmodule SikioWeb.LibraryTest do
       assert id == "mark-all-confirm"
     end)
     |> send_keys([:escape])
-    |> refute_has(css("#mark-all-confirm"))
+    |> gone(css("#mark-all-confirm"))
     |> click(css("#mark-all"))
     |> click(css("#confirm-mark-all"))
-    |> refute_has(css("#entries article"))
+    |> gone(css("#entries article"))
     |> assert_has(css("#view-all-count", text: "40"))
-    |> assert_has(css("#view-heard-count", count: 0))
+    |> gone(css("#view-heard-count"))
   end
 
   # The dialog offers to leave the player's item only while the player holds one. Unticked, it
@@ -165,7 +165,7 @@ defmodule SikioWeb.LibraryTest do
     |> open("/all")
     |> click(css("#mark-all"))
     |> assert_has(css("dialog#mark-all-confirm[open]", text: "40 items in this list"))
-    |> refute_has(css("#mark-all-playing"))
+    |> gone(css("#mark-all-playing"))
     |> send_keys([:escape])
     |> click(css("#start-playback"))
     |> assert_has(css("#player-control[data-entry-id]"))
@@ -218,7 +218,7 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#edit-subscription-#{subscription.id}"))
     |> assert_has(css("dialog#edit-subscription-confirm[open]"))
     |> send_keys([:escape])
-    |> refute_has(css("#edit-subscription-confirm"))
+    |> gone(css("#edit-subscription-confirm"))
     |> execute_script("return document.activeElement.id", fn id ->
       assert id == "edit-subscription-#{subscription.id}"
     end)
@@ -271,11 +271,11 @@ defmodule SikioWeb.LibraryTest do
   feature "the field to add a source clears and keeps the focus", %{session: session} do
     session
     |> open("/add")
-    |> refute_has(css("#clear-search"))
+    |> gone(css("#clear-search"))
     |> fill_in(css("#add-q"), with: "small hours")
     |> assert_has(css("#clear-search"))
     |> click(css("#clear-search"))
-    |> refute_has(css("#clear-search"))
+    |> gone(css("#clear-search"))
     |> execute_script(
       "return [document.getElementById('add-q').value, document.activeElement.id]",
       fn [value, focused] ->
@@ -291,15 +291,14 @@ defmodule SikioWeb.LibraryTest do
     session
     |> resize_window(1440, 900)
     |> open("/inbox")
-    |> refute_has(css("#tags-heading"))
+    |> gone(css("#tags-heading"))
     |> click(css("#sidebar a", text: "Small Hours"))
     |> click(css("#edit-subscription"))
     |> assert_has(css("dialog#edit-subscription-confirm[open]", text: "Small Hours"))
     |> fill_in(css("#subscription-form input[name=new]"), with: "Must view")
     |> assert_has(css("dialog#edit-subscription-confirm[open]"))
     |> click(css("#confirm-edit-subscription"))
-    # refute_has fails at once while the dialog is still there; a count of none waits for it.
-    |> assert_has(css("#edit-subscription-confirm", count: 0))
+    |> gone(css("#edit-subscription-confirm"))
     |> click(css("#sidebar a", text: "Must view"))
     |> assert_has(css("#library-heading", text: "Must view"))
     |> assert_has(css("#entries article", count: 25))
@@ -333,7 +332,7 @@ defmodule SikioWeb.LibraryTest do
     |> resize_window(390, 844)
     |> open("/inbox")
     |> assert_has(css("#entries article", count: 25))
-    |> refute_has(css("#app-header[data-shrunk]"))
+    |> gone(css("#app-header[data-shrunk]"))
     |> execute_script("window.scrollTo(0, 600)")
     |> assert_has(css("#app-header[data-shrunk]"))
     # The title fades in, so the script waits up to a second for it to show in full.
@@ -362,11 +361,11 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#unsubscribe"))
     |> assert_has(css("dialog#unsubscribe-confirm[open]", text: "Unsubscribe from Small Hours?"))
     |> send_keys([:escape])
-    |> refute_has(css("#unsubscribe-confirm"))
+    |> gone(css("#unsubscribe-confirm"))
     |> click(css("#edit-subscription"))
     |> click(css("#unsubscribe"))
     |> click(css("#confirm-unsubscribe"))
-    |> refute_has(css("#sidebar a", text: "Small Hours"))
+    |> gone(css("#sidebar a", text: "Small Hours"))
     |> assert_has(css("#library-heading", text: "Inbox"))
   end
 
@@ -402,7 +401,7 @@ defmodule SikioWeb.LibraryTest do
     |> resize_window(1440, 900)
     |> open("/all")
     |> assert_has(css("#entries article", count: 25))
-    |> refute_has(css("#search-input"))
+    |> gone(css("#search-input"))
     |> click(css("#toggle-search"))
     |> assert_has(css("#search-input"))
     |> execute_script("return document.activeElement.id", fn id -> assert id == "search-input" end)
@@ -410,7 +409,7 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#entries article", count: 1))
     |> send_keys([:escape])
     |> assert_has(css("#entries article", count: 25))
-    |> refute_has(css("#search-input"))
+    |> gone(css("#search-input"))
     |> execute_script("return document.activeElement.id", fn id ->
       assert id == "toggle-search"
     end)
@@ -609,10 +608,13 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#item-detail h2", text: "Episode 40"))
     |> resize_window(500, 900)
     |> open("/all")
-    # Absent before the page connects proves nothing; the hook only asks once it has.
+    # Absent before the page connects proves nothing; the hook only asks once it has. A search
+    # opened after that answers after anything the hook asked on mounting.
     |> assert_has(css("[data-phx-main].phx-connected"))
     |> assert_has(css("#entries article", count: 25))
-    |> refute_has(css("#item-detail h2"))
+    |> send_keys(["f"])
+    |> assert_has(css("#search-input"))
+    |> gone(css("#item-detail h2"))
   end
 
   feature "the list loads the next batch when its end comes into view", %{session: session} do

@@ -42,7 +42,7 @@ defmodule SikioWeb.MobileTest do
     |> click(css("#places-sources a", text: "Small Hours"))
     |> assert_has(css("#library-heading", text: "Small Hours"))
     |> assert_has(css("#entries article", text: entries.podcast.title))
-    |> refute_has(css("#entries article", text: entries.youtube.title))
+    |> gone(css("#entries article", text: entries.youtube.title))
     |> click(css("#nav-back"))
     |> assert_has(css("#places-views"))
   end
@@ -189,7 +189,7 @@ defmodule SikioWeb.MobileTest do
     |> open("/inbox")
     |> click(css("#entries a", text: entries.podcast.title))
     |> assert_has(css("#nav-back", text: "Inbox"))
-    |> refute_has(css("#app-header[data-shrunk]"))
+    |> gone(css("#app-header[data-shrunk]"))
     |> execute_script("""
     document.getElementById('item-detail').style.paddingBottom = '2000px'
     window.scrollTo(0, 600)
@@ -197,7 +197,7 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css("#app-header[data-shrunk]"))
     |> click(css("#nav-back"))
     |> assert_has(css("#entries article", text: entries.youtube.title))
-    |> refute_has(css("#nav-back"))
+    |> gone(css("#nav-back"))
   end
 
   # On a phone the filters fold away behind a button. Once open they stay open while the reader
@@ -525,7 +525,7 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
     |> click(css("#tab-inbox"))
     |> assert_has(css(~s|#player-panel[data-place="floating"] iframe|))
-    |> refute_has(css("#capsule-art"))
+    |> gone(css("#capsule-art"))
     |> execute_script(
       "const b = document.querySelector('#player-panel iframe').getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]",
       fn size -> assert size == [96, 54] end

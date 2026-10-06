@@ -40,6 +40,15 @@ defmodule SikioWeb.FeatureCase do
     end
   end
 
+  @doc """
+  Waits until nothing on the page matches `query`, and passes at once when nothing does.
+
+  Wallaby's `refute_has/2` retries until the element appears, so it waits the whole
+  `max_wait_time` on a page without it, and fails at once on a page that has not yet removed it.
+  Where something must not appear after an action, assert first what the action does show.
+  """
+  def gone(session, query), do: Wallaby.Browser.assert_has(session, Wallaby.Query.count(query, 0))
+
   @doc "An item's address in the list of all items, as the library itself spells it."
   def item_path(entry), do: SikioWeb.ConnCase.item_path(entry)
 
@@ -61,13 +70,17 @@ defmodule SikioWeb.FeatureCase do
 
   Every test here that makes an account spends a code at the real endpoint, and a browser cannot
   be given an address of its own, so they all arrive on the loopback and share one counter. The
-  shipped budget of ten a minute would then refuse the suite rather than a guesser.
+  shipped budget of ten a minute would then refuse the suite rather than a guesser. Nearly every
+  feature signs up, and the suite does that faster than a hundred a minute.
 
   Only these tests need it. Everything else either writes the proof straight into the session or
   is the budget's own test, which sets a budget and an address of its own.
   """
-  def room_for_the_suites_own_codes,
-    do: Sikio.TestConfig.put_budget(:setup, {100, 60})
+  def room_for_the_suites_own_codes do
+    Sikio.TestConfig.put_budget(:setup, {1000, 60})
+    # Each sign-up is a passkey ceremony on the same loopback, so the same holds for those.
+    Sikio.TestConfig.put_budget(:ceremony, {1000, 60})
+  end
 
   @doc """
   Claims the instance as `username` with a virtual passkey and answers the account.

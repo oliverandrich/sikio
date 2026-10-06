@@ -58,12 +58,12 @@ defmodule SikioWeb.CardActionsTest do
     session
     |> resize_window(1440, 900)
     |> open(item_path(video))
-    |> refute_has(css("#item-more #dequeue", visible: true))
+    |> gone(css("#item-more #dequeue", visible: true))
     |> click(css("#item-more summary"))
     |> assert_has(css("#item-more[open] #dequeue", visible: true))
     |> click(css("#dequeue"))
     |> assert_has(css("#item-actions > #queue-menu"))
-    |> refute_has(css("#item-more[open]"))
+    |> gone(css("#item-more[open]"))
   end
 
   defp measure do

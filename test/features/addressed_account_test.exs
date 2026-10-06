@@ -47,8 +47,15 @@ defmodule SikioWeb.AddressedAccountTest do
     |> code_entered()
     |> fill_in(css("input[name=username]"), with: "ada")
     |> click(button("Create your passkey"))
-    |> assert_has(css("#claim-form"))
-    |> refute_has(css("[role=alert]"))
+    # The browser refuses to submit an invalid form that validates, so no answer is on its way.
+    |> execute_script(
+      """
+      const form = document.getElementById('claim-form')
+      return [form.checkValidity(), form.noValidate, form.querySelector('button').formNoValidate]
+      """,
+      fn checks -> assert checks == [false, false, false] end
+    )
+    |> gone(css("[role=alert]"))
 
     assert Repo.aggregate(User, :count) == 0
   end

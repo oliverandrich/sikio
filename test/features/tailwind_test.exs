@@ -24,7 +24,7 @@ defmodule SikioWeb.TailwindTest do
     |> execute_script("return getComputedStyle(document.body).backgroundColor", fn color ->
       assert color == @ground
     end)
-    |> refute_has(css("[data-phx-theme]"))
+    |> gone(css("[data-phx-theme]"))
     |> execute_script(
       "return getComputedStyle(document.querySelector('#setup-code-form button')).display",
       fn display ->

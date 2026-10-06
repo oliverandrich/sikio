@@ -139,11 +139,10 @@ defmodule SikioWeb.PlayerTest do
     |> execute_script(padding(), fn padding -> refute padding == "0px" end)
     |> press("close-player")
 
-    # `refute_has/2` asks once and fails on what is still on screen, so it cannot wait for the
-    # round trip that closing takes. Waiting for the value this test is named after is the wait,
-    # and the panel being gone is what puts it back to zero.
+    # Waiting for the value this test is named after is the wait for the round trip that closing
+    # takes, and the panel being gone is what puts it back to zero.
     assert {:ok, _} = retry(fn -> settled(session) end)
-    refute_has(session, css("#player-panel"))
+    gone(session, css("#player-panel"))
   end
 
   describe "from lg, the player's place" do
@@ -267,7 +266,7 @@ defmodule SikioWeb.PlayerTest do
       session
       |> resize_window(1280, 900)
       |> open(item_path(entry))
-      |> refute_has(css("#player-panel"))
+      |> gone(css("#player-panel"))
       |> execute_script(box, ["#audio-cue"], fn cue -> Process.put(:cue, cue) end)
       |> execute_script("""
       const seek = document.querySelector('#audio-cue [data-audio-seek]')
@@ -415,7 +414,7 @@ defmodule SikioWeb.PlayerTest do
       |> resize_window(1280, 900)
       |> open(item_path(entry))
       |> assert_has(css("#start-playback"))
-      |> refute_has(css("#player-control[data-entry-id]"))
+      |> gone(css("#player-control[data-entry-id]"))
       |> send_keys(["p"])
       |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
     end
@@ -549,8 +548,7 @@ defmodule SikioWeb.PlayerTest do
       |> click(css("#entries-#{hd(ids)} a"))
       |> assert_has(css(~s|#player-panel[data-place="compact"]|))
       |> click(css("#close-player"))
-      # refute_has fails at once while the panel is still there; a count of none waits for it.
-      |> assert_has(css("#player-panel", count: 0))
+      |> gone(css("#player-panel"))
     end
 
     # Playback is global and selection is not. When they disagree the notes get the room, and the
