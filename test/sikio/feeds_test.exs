@@ -390,6 +390,22 @@ defmodule Sikio.FeedsTest do
     assert entry.chapters_url == "https://example.org/c.json"
   end
 
+  # The same, when the poll changes something else and so writes the row: an omitted file is no
+  # new file.
+  test "a poll that renames an entry and names no chapters keeps the ones stored" do
+    {:ok, feed} = Feeds.store(preview())
+    stored = [%{"at" => 0, "title" => "Intro"}, %{"at" => 60, "title" => "Mitte"}]
+    Repo.update_all(Entry, set: [chapters: stored, chapters_url: "https://example.org/c.json"])
+
+    renamed = String.replace(podcast(), "One &amp; two", "One &amp; three")
+    assert {:ok, _feed} = Feeds.store(preview(renamed))
+
+    entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+    assert entry.title == "One & three"
+    assert entry.chapters == stored
+    assert entry.chapters_url == "https://example.org/c.json"
+  end
+
   # A YouTube refresh fetches the Atom feed and nothing else, so it carries no picture. Replacing
   # the stored one with that nothing would empty the sidebar on the first poll after subscribing.
   test "a refresh that carries no picture keeps the stored one" do

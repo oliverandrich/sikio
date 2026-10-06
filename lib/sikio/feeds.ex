@@ -259,10 +259,10 @@ defmodule Sikio.Feeds do
           excerpt: fragment("COALESCE(EXCLUDED.excerpt, ?)", e.excerpt),
           page_url: fragment("COALESCE(EXCLUDED.page_url, ?)", e.page_url),
           # Chapters fetched from a file belong to it: a feed linking another file has them
-          # fetched again.
+          # fetched again. A poll that names no file names no other one.
           chapters:
             fragment(
-              "CASE WHEN NULLIF(EXCLUDED.chapters, ?) IS NULL AND EXCLUDED.chapters_url IS DISTINCT FROM ? THEN NULL ELSE COALESCE(NULLIF(EXCLUDED.chapters, ?), ?) END",
+              "CASE WHEN NULLIF(EXCLUDED.chapters, ?) IS NULL AND EXCLUDED.chapters_url IS NOT NULL AND EXCLUDED.chapters_url IS DISTINCT FROM ? THEN NULL ELSE COALESCE(NULLIF(EXCLUDED.chapters, ?), ?) END",
               type(^nil, {:array, :map}),
               e.chapters_url,
               type(^nil, {:array, :map}),
