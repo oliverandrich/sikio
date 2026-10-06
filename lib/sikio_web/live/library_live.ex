@@ -1647,7 +1647,7 @@ defmodule SikioWeb.LibraryLive do
       <div
         id="player-slot"
         phx-mounted={JS.ignore_attributes(["style", "data-pinned", "data-playing"])}
-        class={video?(@entry) && "-mx-6 sm:-mx-12 lg:-mx-6"}
+        class="-mx-6 sm:-mx-12 lg:-mx-6"
       >
         <button
           :if={video?(@entry)}
