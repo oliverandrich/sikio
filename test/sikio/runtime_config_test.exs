@@ -39,6 +39,26 @@ defmodule Sikio.RuntimeConfigTest do
   defp sikio(config, key), do: get_in(config, [:sikio, key])
   defp endpoint(config), do: get_in(config, [:sikio, SikioWeb.Endpoint])
 
+  describe "FEED_POLL_MINUTES" do
+    defp interval(value),
+      do: :test |> read(%{"FEED_POLL_MINUTES" => value}) |> sikio(:feed_poll_minutes)
+
+    test "a number of minutes sets how often a feed is asked" do
+      assert interval("90") == 90
+    end
+
+    test "an unset variable leaves the default alone" do
+      assert interval("") == nil
+    end
+
+    # Five minutes is how often the scheduler looks, so a shorter interval could not be kept.
+    test "anything but a whole number of at least five minutes stops the boot" do
+      for value <- ["abc", "0", "4", "1.5", "-60"] do
+        assert_raise RuntimeError, ~r/FEED_POLL_MINUTES/, fn -> interval(value) end
+      end
+    end
+  end
+
   describe "TRUSTED_PROXIES" do
     defp configured(value),
       do: :test |> read(%{"TRUSTED_PROXIES" => value}) |> sikio(:trusted_proxies)

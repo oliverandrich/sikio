@@ -8,7 +8,16 @@ defmodule Sikio.Feeds.Refresh do
   or unsubscribed in the minutes a job spends in the queue. Failures are returned so Oban retries
   them; a source that is down for an hour is not a source that is gone.
   """
-  use Oban.Worker, queue: :feeds, max_attempts: 3, unique: [period: 300, keys: [:feed_id]]
+  # Unique while it waits or runs, however long a full queue keeps it, rather than for a period
+  # the scheduler's own five minutes could outlast.
+  use Oban.Worker,
+    queue: :feeds,
+    max_attempts: 3,
+    unique: [
+      period: :infinity,
+      keys: [:feed_id],
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   alias Sikio.Feeds
   alias Sikio.Library

@@ -55,7 +55,8 @@ config :sikio, Oban,
   queues: [feeds: 3, maintenance: 1],
   cron: [
     crontab: [
-      {"*/15 * * * *", Sikio.Feeds.Scheduler},
+      # Each run asks only the feeds whose interval has passed.
+      {"*/5 * * * *", Sikio.Feeds.Scheduler},
       {"*/15 * * * *", Sikio.Accounts.Cleanup},
       {"17 3 * * *", Sikio.Pictures.Cleanup}
     ]

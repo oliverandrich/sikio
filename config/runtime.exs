@@ -53,6 +53,25 @@ case "TRUSTED_PROXIES" |> System.get_env("") |> String.trim() do
            end)
 end
 
+# How often a feed is asked, in minutes. The scheduler looks every five minutes, so that is the
+# shortest interval it can keep. See docs/operations.md.
+case "FEED_POLL_MINUTES" |> System.get_env("") |> String.trim() do
+  "" ->
+    :ok
+
+  minutes ->
+    case Integer.parse(minutes) do
+      {minutes, ""} when minutes >= 5 ->
+        config :sikio, :feed_poll_minutes, minutes
+
+      _ ->
+        raise """
+        environment variable FEED_POLL_MINUTES is not a whole number of at least 5 minutes: #{inspect(minutes)}
+        For example: FEED_POLL_MINUTES=60
+        """
+    end
+end
+
 # Mail is opt-in and an instance that addresses its accounts requires it, which `Sikio.Identity`
 # checks where the instance starts. Enabling it here means a working SMTP submission
 # configuration: a missing value stops the boot rather than failing at the first invitation.

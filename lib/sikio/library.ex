@@ -528,8 +528,24 @@ defmodule Sikio.Library do
     end
   end
 
-  def active_feed_ids do
-    Repo.all(from s in Subscription, where: not s.paused, select: s.feed_id, distinct: true)
+  @doc """
+  The feeds somebody wants refreshed whose interval has passed since they were last asked.
+
+  A feed never asked is due at once. A failed request counts as asked, so a broken feed is tried
+  again an interval later rather than on every run of the scheduler. The time stamp is written a
+  moment after the feed was queued, so a minute of leeway keeps it from waiting one run more.
+  """
+  def due_feed_ids(minutes \\ Feeds.poll_minutes()) do
+    since = DateTime.add(DateTime.utc_now(), 1 - minutes, :minute)
+
+    Repo.all(
+      from s in Subscription,
+        join: f in assoc(s, :feed),
+        where: not s.paused,
+        where: is_nil(f.last_checked_at) or f.last_checked_at <= ^since,
+        select: s.feed_id,
+        distinct: true
+    )
   end
 
   def active_feed?(id),

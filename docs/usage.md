@@ -32,8 +32,9 @@ can:
   too. The export carries sources, not playback positions or polling settings. Format:
   [OPML 2.0](https://2005.opml.org/spec2.html).
 
-New episodes arrive by polling. Oban refreshes active sources every 15 minutes, with
-conditional HTTP requests and bounded retries. Each subscription decides where its new episodes
+New episodes arrive by polling. Oban refreshes each active source once an hour by default, with
+conditional HTTP requests and bounded retries. The operator sets the interval, and the
+subscriptions page names it. Each subscription decides where its new episodes
 go: the inbox, the end of the queue, or the archive unheard.
 
 The library has four places. **Inbox** holds what is new and not queued. **Queue** holds what you

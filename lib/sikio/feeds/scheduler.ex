@@ -2,10 +2,11 @@
 
 defmodule Sikio.Feeds.Scheduler do
   @moduledoc """
-  Schedules one refresh per active feed, regardless of subscriber count.
+  Schedules one refresh per due feed, regardless of subscriber count.
 
   A feed is stored once, so it is polled once. Ten people subscribed to the same show is still one
-  request to that show's server every quarter of an hour.
+  request to that show's server per interval. The scheduler runs every five minutes, and each feed
+  falls due on its own, so the requests spread over the interval.
   """
   use Oban.Worker, queue: :feeds, max_attempts: 1, unique: [period: 60]
 
@@ -14,7 +15,7 @@ defmodule Sikio.Feeds.Scheduler do
 
   @impl true
   def perform(_job) do
-    Library.active_feed_ids()
+    Library.due_feed_ids()
     |> Enum.each(fn id -> %{feed_id: id} |> Refresh.new() |> Oban.insert!() end)
   end
 end

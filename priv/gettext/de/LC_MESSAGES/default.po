@@ -549,11 +549,6 @@ msgstr "%{imported} importiert · %{existing} bereits abonniert · %{failed} feh
 msgid "Active"
 msgstr "Aktiv"
 
-#: lib/sikio_web/live/subscriptions_live.ex:231
-#, elixir-autogen, elixir-format
-msgid "Active sources refresh every 15 minutes. A shared feed may still update for other subscribers while your polling is paused."
-msgstr "Aktive Quellen werden alle 15 Minuten aktualisiert. Ein gemeinsamer Feed kann für andere weiter aktualisiert werden, während deine Abfrage pausiert."
-
 #: lib/sikio_web/live/opml_live.ex:139
 #, elixir-autogen, elixir-format
 msgid "Already subscribed, unchanged"
@@ -1986,3 +1981,22 @@ msgstr "OPML-Datei wählen"
 #, elixir-autogen, elixir-format
 msgid "or drop it here"
 msgstr "oder hierher ziehen"
+
+#: lib/sikio_web/live/subscriptions_live.ex:243
+#, elixir-autogen, elixir-format
+msgid "A shared feed may still update for other subscribers while your polling is paused."
+msgstr "Ein gemeinsamer Feed kann für andere weiter aktualisiert werden, während deine Abfrage pausiert."
+
+#: lib/sikio_web/live/subscriptions_live.ex:250
+#, elixir-autogen, elixir-format
+msgid "Active sources refresh every hour."
+msgid_plural "Active sources refresh every %{count} hours."
+msgstr[0] "Aktive Quellen werden jede Stunde aktualisiert."
+msgstr[1] "Aktive Quellen werden alle %{count} Stunden aktualisiert."
+
+#: lib/sikio_web/live/subscriptions_live.ex:258
+#, elixir-autogen, elixir-format
+msgid "Active sources refresh every minute."
+msgid_plural "Active sources refresh every %{count} minutes."
+msgstr[0] "Aktive Quellen werden jede Minute aktualisiert."
+msgstr[1] "Aktive Quellen werden alle %{count} Minuten aktualisiert."

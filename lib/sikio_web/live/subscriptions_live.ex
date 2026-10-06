@@ -227,13 +227,37 @@ defmodule SikioWeb.SubscriptionsLive do
           current_account={@current_account}
           tags={@sidebar.tags}
         />
-        <p class="mt-5 text-meta text-muted">
-          {gettext(
-            "Active sources refresh every 15 minutes. A shared feed may still update for other subscribers while your polling is paused."
-          )}
-        </p>
+        <.polling_interval minutes={Sikio.Feeds.poll_minutes()} />
       </section>
     </Layouts.member>
     """
   end
+
+  @doc "How often active sources are asked, in hours when the interval is whole hours."
+  attr :minutes, :integer, required: true
+
+  def polling_interval(assigns) do
+    ~H"""
+    <p id="polling-interval" class="mt-5 text-meta text-muted">
+      {interval_sentence(@minutes)}
+      {gettext("A shared feed may still update for other subscribers while your polling is paused.")}
+    </p>
+    """
+  end
+
+  defp interval_sentence(minutes) when rem(minutes, 60) == 0,
+    do:
+      ngettext(
+        "Active sources refresh every hour.",
+        "Active sources refresh every %{count} hours.",
+        div(minutes, 60)
+      )
+
+  defp interval_sentence(minutes),
+    do:
+      ngettext(
+        "Active sources refresh every minute.",
+        "Active sources refresh every %{count} minutes.",
+        minutes
+      )
 end

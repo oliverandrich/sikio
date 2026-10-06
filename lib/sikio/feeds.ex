@@ -28,6 +28,9 @@ defmodule Sikio.Feeds do
   defp replaced_feed_fields(attrs),
     do: Enum.filter([:icon_url, :page_url], &is_binary(attrs[&1])) ++ @feed_fields
 
+  @doc "How often a feed is asked, in minutes: an hour unless the operator sets `FEED_POLL_MINUTES`."
+  def poll_minutes, do: Application.get_env(:sikio, :feed_poll_minutes, 60)
+
   @doc """
   Stores a source and its entries, inserting what is new and updating what changed.
 

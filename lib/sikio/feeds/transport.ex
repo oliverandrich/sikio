@@ -11,7 +11,7 @@ defmodule Sikio.Feeds.Transport do
   twenty supervision trees and a hundred and ninety atoms, and nothing gives either back. The
   atom table is capped, and running out of it kills the machine.
 
-  A feed is polled every fifteen minutes, so there is nothing for a pool to reuse in between.
+  A feed is asked once per interval, an hour by default, so a pool would have nothing to reuse.
   Opening a connection for the one request and closing it is both cheaper and bounded.
 
   Only HTTP/1 is spoken. A feed is one document, and the second protocol buys nothing here that

@@ -31,6 +31,25 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     refute has_element?(view, "#search-form")
   end
 
+  # How often a source is asked is the operator's choice, so the page says what it is.
+  test "the page names how often its sources are asked", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, _} = Library.subscribe(user, preview)
+
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    assert has_element?(view, "#polling-interval", "Active sources refresh every hour.")
+  end
+
+  test "an interval of whole hours reads in hours, any other in minutes" do
+    interval = fn minutes ->
+      render_component(&SikioWeb.SubscriptionsLive.polling_interval/1, minutes: minutes)
+    end
+
+    assert interval.(60) =~ "every hour."
+    assert interval.(120) =~ "every 2 hours."
+    assert interval.(90) =~ "every 90 minutes."
+  end
+
   # The sidebar's mark says it only on hover. Here the reason is written out, for keyboards and
   # touch screens too.
   test "a source whose last refresh failed says why", %{conn: conn, user: user} do
