@@ -259,7 +259,21 @@ defmodule SikioWeb.PlayerDockLiveTest do
 
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{"id" => entry.id})
-    assert has_element?(dock, ~s|[phx-hook='MediaPlayer'][data-chapters="[0,118,291]"]|)
+
+    chapters =
+      dock
+      |> element("[phx-hook='MediaPlayer']")
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("[phx-hook='MediaPlayer']")
+      |> LazyHTML.attribute("data-chapters")
+
+    assert [~s|[{"at":0,"title":"Intro"},{"at":118,"title":"Akkus"},{"at":291,"title":"Solar"}]|] ==
+             chapters
+
+    # The face marks them on its bar, and names the one that plays.
+    assert has_element?(dock, ~s|[data-audio-face] [data-audio-mark][data-at="118"]|)
+    assert has_element?(dock, "[data-audio-face] [data-audio-chapter]", "Intro")
   end
 
   # A podcast's chapters file is fetched when somebody first wants it. A player started before
@@ -282,7 +296,9 @@ defmodule SikioWeb.PlayerDockLiveTest do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{"id" => entry.id})
     render_async(dock)
-    assert has_element?(dock, ~s|[phx-hook='MediaPlayer'][data-chapters="[0,90]"]|)
+
+    assert render(dock) =~
+             ~s|data-chapters="[{&quot;at&quot;:0,&quot;title&quot;:&quot;A&quot;},{&quot;at&quot;:90,&quot;title&quot;:&quot;B&quot;}]"|
   end
 
   # The card's player starts where it was dragged to.

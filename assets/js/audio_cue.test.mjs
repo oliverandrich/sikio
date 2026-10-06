@@ -9,15 +9,19 @@ function fixture({value = "42", max = "3723", length = max} = {}) {
     dataset: {}, textContent: "", style: {setProperty(name, v) { this[name] = v }},
     attributes: {}, setAttribute(name, v) { this.attributes[name] = v }, ...attrs})
   const parts = {
-    play: element(), seek: element({value, max, dataset: {length}}), elapsed: element(), left: element(),
-    back: element({dataset: {audioSkip: "-15"}}), forward: element({dataset: {audioSkip: "30"}})
+    play: element(), seek: element({value, max, dataset: {length}, clientWidth: 416}), elapsed: element(), left: element(),
+    back: element({dataset: {audioSkip: "-15"}}), forward: element({dataset: {audioSkip: "30"}}),
+    mark: element({dataset: {at: "900", title: "Interview"}}), chapter: element()
   }
   const face = Object.assign(element(), {
     querySelector: selector => ({
       "[data-audio-play]": parts.play, "[data-audio-seek]": parts.seek,
-      "[data-audio-elapsed]": parts.elapsed, "[data-audio-left]": parts.left
+      "[data-audio-elapsed]": parts.elapsed, "[data-audio-left]": parts.left,
+      "[data-audio-chapter]": parts.chapter
     })[selector],
-    querySelectorAll: selector => selector === "[data-audio-skip]" ? [parts.back, parts.forward] : []
+    querySelectorAll: selector => ({
+      "[data-audio-skip]": [parts.back, parts.forward], "[data-audio-mark]": [parts.mark]
+    })[selector] ?? []
   })
   const starts = []
   const cleanup = bindCue(face, {start: position => starts.push(position), positionOf: "{position} of {duration}"})
@@ -59,5 +63,15 @@ test("without a known length a skip still starts from the saved place", () => {
   f.parts.back.dispatchEvent(new Event("click"))
   f.parts.forward.dispatchEvent(new Event("click"))
   assert.deepEqual(f.starts, [585, 630])
+  f.cleanup()
+})
+
+// The card's bar names the chapter under the pointer too, before anything plays.
+test("hovering the card's bar names the chapter under the pointer", () => {
+  const f = fixture({value: "0", max: "3600"})
+  f.parts.seek.dispatchEvent(Object.assign(new Event("pointermove"), {offsetX: 6 + 404 * 0.5}))
+  assert.equal(f.parts.chapter.textContent, "Interview")
+  f.parts.seek.dispatchEvent(new Event("pointerleave"))
+  assert.equal(f.parts.chapter.textContent, "")
   f.cleanup()
 })

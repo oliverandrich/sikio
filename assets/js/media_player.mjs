@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import {bindFace} from "./audio_face.mjs"
+import {bindFace, feedLength, renderMarks} from "./audio_face.mjs"
 import {connect} from "./peertube_embed.mjs"
 
 // One request at a time; keep the newest sample while a save is in flight.
@@ -121,6 +121,9 @@ function loadYouTube(unavailable) {
 
 // The player that last told the system what plays, so another one's cleanup leaves it alone.
 let owner = null
+
+// The chapters of what plays, as the page names them now: where each begins and its title.
+const chapters = el => JSON.parse(el.dataset.chapters || "[]")
 
 const systemSession = () => globalThis.navigator?.mediaSession
 
@@ -323,7 +326,7 @@ export const MediaPlayer = {
     else if (name === "skip") this.seek(Math.max(this.place() + by, 0))
     else if (name === "chapter") {
       // Read at each press: the page may learn the chapters after the player started.
-      const starts = JSON.parse(this.el.dataset.chapters || "[]")
+      const starts = chapters(this.el).map(chapter => chapter.at)
       const at = chapterTarget(starts, this.place(), direction)
       if (at !== null) this.seek(at)
     } else if (name === "mute") this.mute()
@@ -418,6 +421,15 @@ export const MediaPlayer = {
 
   disconnected() { this.reporter.disconnect() },
   reconnected() { this.reporter.reconnect() },
+  // The face is rendered once and left alone, so chapters the page learns later are drawn here.
+  updated() {
+    const face = this.el.querySelector("[data-audio-face]")
+    if (!face || !this.audio || this.el.dataset.chapters === this.drawnChapters) return
+    this.drawnChapters = this.el.dataset.chapters
+    const duration = this.audio.duration > 0 ? this.audio.duration : feedLength(face)
+    renderMarks(face, chapters(this.el), duration)
+  },
+
   destroyed() {
     if (this.closed) return
     this.closed = true

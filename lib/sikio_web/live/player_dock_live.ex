@@ -35,7 +35,7 @@ defmodule SikioWeb.PlayerDockLive do
     if connected?(socket), do: Events.subscribe(socket.assigns.current_account)
 
     socket =
-      assign(socket, entry: nil, player: nil, notice: nil, chapters: {nil, "[]"})
+      assign(socket, entry: nil, player: nil, notice: nil, chapters: {nil, []})
 
     {:ok, rejoin(socket, get_connect_params(socket)), layout: false}
   end
@@ -250,9 +250,10 @@ defmodule SikioWeb.PlayerDockLive do
     "https://www.youtube-nocookie.com/embed/#{entry.video_id}?#{query}"
   end
 
-  # Where the chapters of what plays begin, for the keys that move between them. The same rule as
-  # the detail's list; the length a player measured counts here as there. Progress replaces the
-  # entry every few seconds, so the notes are read again only when what they depend on changed.
+  # The chapters of what plays, for the keys that move between them and the face's marks. The
+  # same rule as the detail's list; the length a player measured counts here as there. Progress
+  # replaces the entry every few seconds, so the notes are read again only when what they depend
+  # on changed.
   defp assign_chapters(%{assigns: %{entry: entry, chapters: {read, _starts}}} = socket) do
     length = (entry.playback && entry.playback.duration) || entry.duration
     key = {entry.id, entry.description, length, entry.chapters}
@@ -261,7 +262,7 @@ defmodule SikioWeb.PlayerDockLive do
       socket
     else
       {chapters, _notes} = Chapters.of(entry, length)
-      assign(socket, :chapters, {key, chapters |> Enum.map(& &1.at) |> Jason.encode!()})
+      assign(socket, :chapters, {key, chapters})
     end
   end
 
@@ -382,7 +383,7 @@ defmodule SikioWeb.PlayerDockLive do
               "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
             )
           }
-          data-chapters={elem(@chapters, 1)}
+          data-chapters={@chapters |> elem(1) |> Jason.encode!()}
           data-label-play={gettext("Play")}
           data-label-pause={gettext("Pause")}
           data-position-of={
@@ -405,6 +406,7 @@ defmodule SikioWeb.PlayerDockLive do
             :if={@entry.feed.kind == :podcast}
             length={@entry.duration}
             position={@player.position}
+            chapters={elem(@chapters, 1)}
           />
           <iframe
             :if={@entry.feed.kind == :peertube}

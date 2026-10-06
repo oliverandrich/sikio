@@ -1679,6 +1679,7 @@ defmodule SikioWeb.LibraryLive do
           cue={@entry}
           length={length_of(@entry)}
           position={cue_position(@entry)}
+          chapters={@chapters}
           data-entry-id={@entry.id}
           data-position-of={
             gettext("%{position} of %{duration}", position: "{position}", duration: "{duration}")

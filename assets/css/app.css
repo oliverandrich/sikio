@@ -90,6 +90,9 @@
   --color-line: var(--color-neutral-200);
   /* The unplayed part of a seek bar. */
   --color-track: var(--color-neutral-300);
+  /* A chapter's mark on the seek bar, on its played part and on the rest: 3:1 on either. */
+  --color-mark-played: var(--color-ink);
+  --color-mark: var(--color-ink);
   /* The edge of a field or a quiet button, firmer than a line between rows. */
   --color-edge: var(--color-neutral-300);
   --color-control: var(--color-neutral-500);
@@ -126,6 +129,8 @@
     --color-muted: var(--color-neutral-400);
     --color-line: var(--color-neutral-800);
     --color-track: var(--color-neutral-700);
+    --color-mark-played: var(--color-neutral-900);
+    --color-mark: var(--color-ink);
     --color-edge: var(--color-neutral-700);
     --color-control: var(--color-neutral-500);
     --color-accent: var(--color-neutral-100);
@@ -242,10 +247,16 @@
 .audio-face[data-playing] .audio-icon-pause { display: block; }
 .audio-track { grid-area: track; display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
 .audio-times {
-  display: flex; justify-content: space-between;
+  display: flex; justify-content: space-between; gap: .75rem;
   font-family: var(--font-mono); font-size: var(--text-meta); font-variant-numeric: tabular-nums;
   color: var(--color-muted);
 }
+/* The chapter that plays, between the two times, cut short rather than pushing them apart. */
+.audio-chapter {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: center; font-family: var(--font-sans);
+}
+
 .audio-back { grid-area: back; }
 .audio-forward { grid-area: forward; }
 .audio-skip {
@@ -261,25 +272,40 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The seek bar, drawn alike by every engine: the played part in the signal colour up to the
-   thumb, which assets/js/audio_face.mjs keeps in --progress. */
+/* The seek bar in three layers. The rail behind draws the track, the played part in the signal
+   colour up to the thumb's centre, which assets/js/audio_face.mjs keeps in --share (0 to 1).
+   The chapter marks lie on it, and the range input above shows only its thumb, so the thumb
+   covers a mark rather than the other way round. The thumb's centre moves between 6px from
+   either end, and the rail's colours and the marks follow it there. */
+.audio-bar { --share: 0; position: relative; }
+.audio-bar::before {
+  content: ""; position: absolute; inset: 50% 0 auto; height: 6px; transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--color-signal) var(--played), var(--color-track) var(--played));
+  --played: calc(6px + var(--share) * (100% - 12px));
+}
+.audio-mark {
+  position: absolute; top: 50%; left: calc(6px + var(--at, 0) * (100% - 12px));
+  width: 6px; height: 6px; transform: translate(-50%, -50%); pointer-events: none;
+  border-radius: 999px; background: var(--color-mark);
+}
+.audio-mark[hidden] { display: none; }
+.audio-mark[data-played] { background: var(--color-mark-played); }
 .audio-seek {
-  --progress: 0%;
-  --seek-track: linear-gradient(to right, var(--color-signal) var(--progress), var(--color-track) var(--progress));
-  --seek-ring: 0 0 0 4px var(--color-signal);
-  appearance: none; -webkit-appearance: none; display: block;
+  --seek-ring: 0 0 0 3px var(--color-signal);
+  position: relative; z-index: 1; appearance: none; -webkit-appearance: none; display: block;
   width: 100%; height: 1rem; margin: 0; background: transparent; cursor: pointer;
 }
-.audio-seek:focus-visible { outline: none; --seek-ring: 0 0 0 4px var(--color-signal), 0 0 0 7px var(--color-accent); }
+.audio-seek:focus-visible { outline: none; --seek-ring: 0 0 0 3px var(--color-signal), 0 0 0 6px var(--color-accent); }
 /* Pseudo-elements of two engines cannot share a rule, so they share the values above. */
-.audio-seek::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: var(--seek-track); }
-.audio-seek::-moz-range-track { height: 6px; border-radius: 999px; background: var(--seek-track); }
+.audio-seek::-webkit-slider-runnable-track { height: 6px; background: transparent; }
+.audio-seek::-moz-range-track { height: 6px; background: transparent; }
 .audio-seek::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -5px;
+  -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-top: -3px;
   border: 0; border-radius: 999px; background: var(--color-surface); box-shadow: var(--seek-ring);
 }
 .audio-seek::-moz-range-thumb {
-  width: 16px; height: 16px; border: 0; border-radius: 999px; background: var(--color-surface);
+  width: 12px; height: 12px; border: 0; border-radius: 999px; background: var(--color-surface);
   box-shadow: var(--seek-ring);
 }
 

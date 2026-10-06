@@ -49,18 +49,80 @@ export function listener() {
   }
 }
 
-// Writes a place into a face: the times, what a screen reader says, and how far the bar is filled.
-// The audio reports its time several times a second while the clock moves once; text is only
-// written when it changes.
+// The chapter marks a face carries, each with where its chapter begins and its title.
+const marks = face => [...face.querySelectorAll("[data-audio-mark]")]
+
+// The title of the chapter that a place lies in, or nothing before the first or without any.
+export function chapterAt(face, position) {
+  return marks(face).filter(mark => Number(mark.dataset.at) <= position).at(-1)?.dataset.title ?? ""
+}
+
+// Moves the marks to the length the player knows. The start needs none, and past the end has none.
+export function placeMarks(face, duration, list = marks(face)) {
+  if (!(duration > 0)) return
+  for (const mark of list) {
+    const at = Number(mark.dataset.at)
+    mark.style.setProperty("--at", String(at / duration))
+    mark.hidden = !(at > 0 && at < duration)
+  }
+}
+
+// Draws the marks anew, for a face the page does not render again, such as the dock's.
+export function renderMarks(face, chapters, duration, doc = document) {
+  for (const mark of marks(face)) mark.remove()
+  const drawn = chapters.map(({at, title}) => {
+    const mark = doc.createElement("span")
+    mark.dataset.audioMark = ""
+    mark.dataset.at = String(at)
+    mark.dataset.title = title
+    mark.setAttribute("aria-hidden", "true")
+    mark.className = "audio-mark"
+    mark.hidden = true
+    return mark
+  })
+  part(face, "bar").append(...drawn)
+  placeMarks(face, duration, drawn)
+}
+
+// The bar names the chapter under the pointer while it hovers, and the one that plays after.
+// The thumb's centre runs from 6px in to 6px short of the end, and the place with it.
+export function namesHovered(face, listen) {
+  const seek = part(face, "seek"), label = part(face, "chapter")
+  if (!label) return
+  listen(seek, "pointermove", event => {
+    label.dataset.hovered = ""
+    const share = (event.offsetX - 6) / Math.max(seek.clientWidth - 12, 1)
+    label.textContent = chapterAt(face, Math.min(Math.max(share, 0), 1) * Number(seek.max))
+  })
+  listen(seek, "pointerleave", () => {
+    delete label.dataset.hovered
+    label.textContent = chapterAt(face, Number(seek.value))
+  })
+}
+
+// Writes a place into a face: the times, the chapter, what a screen reader says, and how far the
+// bar is filled. The audio reports its time several times a second while the clock moves once;
+// text is only written when it changes.
 export function paint(face, position, duration, positionOf) {
-  const write = (element, text) => { if (element.textContent !== text) element.textContent = text }
+  const write = (element, text) => { if (element && element.textContent !== text) element.textContent = text }
   const seek = part(face, "seek")
+  const chapter = chapterAt(face, position)
   write(part(face, "elapsed"), clock(position))
+  // The pointer's chapter stands while it hovers the bar; see namesHovered.
+  const label = part(face, "chapter")
+  if (!label || !("hovered" in label.dataset)) write(label, chapter)
   write(part(face, "left"), left(position, duration))
-  seek.setAttribute("aria-valuetext",
-    positionOf.replace("{position}", clock(position)).replace("{duration}", clock(duration)))
-  const share = duration > 0 ? Math.min(position / duration, 1) * 100 : 0
-  seek.style.setProperty("--progress", `${share}%`)
+  for (const mark of marks(face)) {
+    const played = Number(mark.dataset.at) <= position
+    if (played !== ("played" in mark.dataset)) {
+      if (played) mark.dataset.played = ""
+      else delete mark.dataset.played
+    }
+  }
+  const where = positionOf.replace("{position}", clock(position)).replace("{duration}", clock(duration))
+  seek.setAttribute("aria-valuetext", chapter ? `${where}, ${chapter}` : where)
+  const share = duration > 0 ? Math.min(position / duration, 1) : 0
+  ;(part(face, "bar") ?? seek).style.setProperty("--share", String(share))
 }
 
 export function bindFace(audio, face, strings) {
@@ -111,6 +173,10 @@ export function bindFace(audio, face, strings) {
     })
   }
 
+  namesHovered(face, listen)
+  // The marks move only when the length does, not with every tick of the clock.
+  for (const event of ["loadedmetadata", "durationchange"]) listen(audio, event, () => placeMarks(face, length()))
+
   listen(speed, "click", () => {
     audio.playbackRate = nextSpeed(audio.playbackRate)
     speed.textContent = `${rate.format(audio.playbackRate)}×`
@@ -118,6 +184,9 @@ export function bindFace(audio, face, strings) {
 
   state()
   // Before its metadata the audio answers zero for its place. The server showed the saved one.
-  if (audio.readyState >= 1) follow()
+  if (audio.readyState >= 1) {
+    placeMarks(face, length())
+    follow()
+  }
   return cleanup
 }

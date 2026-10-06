@@ -137,7 +137,7 @@ test("audio follows the player's keys", () => {
   const previousDocument = globalThis.document
   globalThis.document = Object.assign(new EventTarget(), {hidden: false})
   const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, 
-    dataset: {kind: "podcast", session: "abc", position: "0", chapters: "[0,118,291]", ...STRINGS},
+    dataset: {kind: "podcast", session: "abc", position: "0", chapters: JSON.stringify([{at: 0, title: "A"}, {at: 118, title: "B"}, {at: 291, title: "C"}]), ...STRINGS},
     querySelector: selector => ({audio, "[data-player-message]": {textContent: ""}}[selector])}),
     pushEvent: (_event, _sample, reply) => reply({saved: true})}
   const command = detail => hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail}))
@@ -170,7 +170,7 @@ test("audio follows the player's keys", () => {
     command({name: "mute"})
     assert.equal(audio.muted, false)
     // The page may learn the chapters later, from a file or a measured length.
-    hook.el.dataset.chapters = "[0,50]"
+    hook.el.dataset.chapters = JSON.stringify([{at: 0, title: "A"}, {at: 50, title: "B"}])
     audio.currentTime = 10
     command({name: "chapter", direction: 1})
     assert.equal(audio.currentTime, 50, "the chapters the page names now")
@@ -747,5 +747,25 @@ test("an ended episode tells the page", () => {
     hook.destroyed()
     globalThis.document = previous.document
     globalThis.window = previous.window
+  }
+})
+
+// The dock's face is rendered once. Chapters the page learns later, from a file or a measured
+// length, reach its bar here, and the same chapters are not drawn twice.
+test("chapters learned later are drawn on the dock's bar", () => {
+  const previousDocument = globalThis.document
+  globalThis.document = {createElement: () => ({dataset: {}, style: {setProperty() {}}, setAttribute() {}})}
+  const bar = {appended: [], append(...els) { this.appended.push(...els) }}
+  const face = {querySelector: s => s === "[data-audio-bar]" ? bar : null, querySelectorAll: () => []}
+  const hook = {...MediaPlayer, audio: {duration: 360},
+    el: {dataset: {chapters: JSON.stringify([{at: 0, title: "A"}, {at: 90, title: "B"}])},
+      querySelector: s => s === "[data-audio-face]" ? face : null}}
+  try {
+    hook.updated()
+    assert.deepEqual(bar.appended.map(mark => mark.dataset.title), ["A", "B"])
+    hook.updated()
+    assert.equal(bar.appended.length, 2, "the same chapters are drawn once")
+  } finally {
+    globalThis.document = previousDocument
   }
 })

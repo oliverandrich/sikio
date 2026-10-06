@@ -17,6 +17,7 @@ defmodule SikioWeb.AudioFace do
   attr :length, :integer, default: nil, doc: "the episode's length in seconds, when known"
   attr :position, :any, required: true, doc: "the place in seconds"
   attr :cue, :map, default: nil, doc: "the entry, when this is the card's cue"
+  attr :chapters, :list, default: [], doc: "the chapters as `%{at: seconds, title: text}`"
   attr :rest, :global
 
   def audio_face(assigns) do
@@ -26,7 +27,8 @@ defmodule SikioWeb.AudioFace do
     assigns =
       assign(assigns,
         position: position,
-        progress: if(length && length > 0, do: min(position / length * 100, 100), else: 0)
+        share: if(length && length > 0, do: min(position / length, 1), else: 0),
+        playing: chapter_at(assigns.chapters, position)
       )
 
     ~H"""
@@ -42,21 +44,36 @@ defmodule SikioWeb.AudioFace do
         <Lucideicons.pause aria-hidden="true" class="audio-icon-pause size-5 fill-current" />
       </button>
       <div class="audio-track">
-        <input
-          type="range"
-          data-audio-seek
-          aria-label={gettext("Position")}
-          min="0"
-          max={@length || @position}
-          data-length={@length}
-          disabled={@cue != nil && is_nil(@length)}
-          step="1"
-          value={@position}
-          style={"--progress: #{@progress}%"}
-          class="audio-seek"
-        />
+        <div data-audio-bar class="audio-bar" style={"--share: #{@share}"}>
+          <input
+            type="range"
+            data-audio-seek
+            aria-label={gettext("Position")}
+            min="0"
+            max={@length || @position}
+            data-length={@length}
+            disabled={@cue != nil && is_nil(@length)}
+            step="1"
+            value={@position}
+            class="audio-seek"
+          />
+          <%!-- Where each chapter begins, as decoration: the bar under it takes every press and
+        drag. assets/js/audio_face.mjs moves the marks once the player knows the length. --%>
+          <span
+            :for={chapter <- @chapters}
+            data-audio-mark
+            data-at={chapter.at}
+            data-title={chapter.title}
+            data-played={chapter.at <= @position}
+            aria-hidden="true"
+            hidden={!marked?(chapter, @length)}
+            style={@length && @length > 0 && "--at: #{chapter.at / @length}"}
+            class="audio-mark"
+          ></span>
+        </div>
         <div class="audio-times">
           <span data-audio-elapsed>{runtime(@position) || "0:00"}</span>
+          <span data-audio-chapter class="audio-chapter">{@playing}</span>
           <span data-audio-left>{@length && "−" <> runtime(max(@length - @position, 0))}</span>
         </div>
       </div>
@@ -90,5 +107,12 @@ defmodule SikioWeb.AudioFace do
       </button>
     </div>
     """
+  end
+
+  # The bar begins at the start, so a chapter there needs no mark; one past the end has no place.
+  defp marked?(%{at: at}, length), do: is_number(length) and at > 0 and at < length
+
+  defp chapter_at(chapters, position) do
+    chapters |> Enum.filter(&(&1.at <= position)) |> List.last() |> then(&(&1 && &1.title))
   end
 end

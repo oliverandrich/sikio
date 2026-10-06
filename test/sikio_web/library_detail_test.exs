@@ -203,6 +203,11 @@ defmodule SikioWeb.LibraryDetailTest do
     assert play =~ "sikio:play"
     assert play =~ "&quot;position&quot;:118"
     refute has_element?(view, "#item-chapters [aria-current]")
+    # The card's player marks them on its bar before anything plays.
+    assert has_element?(
+             view,
+             ~s|#audio-cue span[data-audio-mark][data-at="118"][data-title="Akkus"]|
+           )
 
     {:ok, state} = Playback.start(c.user, entry.id)
 

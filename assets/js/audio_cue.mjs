@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import {feedLength, listener, paint, part, skipped} from "./audio_face.mjs"
+import {feedLength, listener, namesHovered, paint, part, skipped} from "./audio_face.mjs"
 
 // The card's player before anything plays. It looks like the dock's and loads nothing: pressing
 // play, letting go of the bar or skipping asks the dock to start, at the place chosen. The dock's
@@ -16,6 +16,7 @@ export function bindCue(face, {start, positionOf}) {
     listen(button, "click", () =>
       start(skipped(Number(seek.value), Number(button.dataset.audioSkip), feedLength(face))))
   }
+  namesHovered(face, listen)
   return cleanup
 }
 
