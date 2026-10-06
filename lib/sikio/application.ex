@@ -14,21 +14,29 @@ defmodule Sikio.Application do
     Sikio.Claim.verify!()
     Sikio.Identity.verify!(Sikio.Mailer.configured?())
 
-    children = [
+    # See https://elixir.hexdocs.pm/Supervisor.html
+    # for other strategies and supported options
+    opts = [strategy: :one_for_one, name: Sikio.Supervisor]
+    Supervisor.start_link(children(), opts)
+  end
+
+  @doc false
+  def children do
+    [
       Sikio.AuthRateLimiter,
       SikioWeb.Telemetry,
       Sikio.Repo,
+      # A release migrates here, before the queue whose tables it may create and before the
+      # endpoint serves anything; see config/runtime.exs. Elsewhere it is skipped.
+      {Ecto.Migrator,
+       repos: Application.fetch_env!(:sikio, :ecto_repos),
+       skip: !Application.get_env(:sikio, :migrate_on_start, false)},
       {DNSCluster, query: Application.get_env(:sikio, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Sikio.PubSub},
       {Oban, Application.fetch_env!(:sikio, Oban)},
       # Start to serve requests, typically the last entry
       SikioWeb.Endpoint
     ]
-
-    # See https://elixir.hexdocs.pm/Supervisor.html
-    # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Sikio.Supervisor]
-    Supervisor.start_link(children, opts)
   end
 
   # Tell Phoenix to update the endpoint configuration

@@ -26,11 +26,34 @@ defmodule Sikio.ReleaseSmoke do
       Smoke.with_database(source, env, fn -> check(release, env) end)
     end)
 
-    IO.puts("#{Smoke.database()}: release migration, repeat migration and HTTP startup passed.")
+    # An operator who migrates by hand: the opt-out, bin/migrate first, then the server.
+    Support.temporary(fn directory ->
+      pictures = Path.join(directory, "pictures")
+      File.mkdir!(pictures)
+      source = source <> "_by_hand"
+
+      env =
+        source
+        |> Smoke.database_env(directory)
+        |> Map.merge(%{"PICTURE_CACHE_DIR" => pictures, "SIKIO_MIGRATE_ON_START" => "false"})
+
+      Smoke.with_database(source, env, fn -> check_by_hand(release, env) end)
+    end)
+
+    IO.puts(
+      "#{Smoke.database()}: migration on start, repeat migration and migration by hand passed."
+    )
   end
 
+  # The server starts on an empty database and migrates it itself; bin/migrate afterwards finds
+  # nothing left to do, which is what makes running it by hand safe.
   defp check(release, env) do
-    Smoke.run([Path.join(release, "migrate")], env)
+    env = Map.put(env, "PORT", Smoke.free_port())
+
+    Smoke.with_server(Path.join(release, "server"), env, fn ->
+      assert Smoke.await_landing("127.0.0.1", env["PORT"], "release HTTP startup") =~ "Sikio"
+      check_https(env)
+    end)
 
     # The newest table the library asks for, which is what makes this a check on the schema
     # rather than on one migration that happened to run. A release whose migrations lag the
@@ -38,12 +61,15 @@ defmodule Sikio.ReleaseSmoke do
     assert Smoke.table?("ithibati_setup_codes", env)
 
     Smoke.run([Path.join(release, "migrate")], env)
+  end
 
+  defp check_by_hand(release, env) do
+    Smoke.run([Path.join(release, "migrate")], env)
+    assert Smoke.table?("ithibati_setup_codes", env)
     env = Map.put(env, "PORT", Smoke.free_port())
 
     Smoke.with_server(Path.join(release, "server"), env, fn ->
-      assert Smoke.await_landing("127.0.0.1", env["PORT"], "release HTTP startup") =~ "Sikio"
-      check_https(env)
+      assert Smoke.await_landing("127.0.0.1", env["PORT"], "release after bin/migrate") =~ "Sikio"
     end)
   end
 

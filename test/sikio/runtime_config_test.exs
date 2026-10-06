@@ -39,6 +39,31 @@ defmodule Sikio.RuntimeConfigTest do
   defp sikio(config, key), do: get_in(config, [:sikio, key])
   defp endpoint(config), do: get_in(config, [:sikio, SikioWeb.Endpoint])
 
+  describe "SIKIO_MIGRATE_ON_START" do
+    defp migrates(value),
+      do: %{"SIKIO_MIGRATE_ON_START" => value} |> prod() |> sikio(:migrate_on_start)
+
+    # A release brings its schema up to date as it starts, unless its operator migrates by hand.
+    test "a release migrates on start unless told not to" do
+      assert migrates(nil) == true
+      assert migrates("") == true
+      assert migrates("true") == true
+      assert migrates("false") == false
+    end
+
+    test "anything but true or false stops the boot" do
+      assert_raise RuntimeError, ~r/SIKIO_MIGRATE_ON_START/, fn -> migrates("no") end
+    end
+
+    # Development data is migrated by hand, never by starting the server.
+    test "development and tests never migrate on start" do
+      for env <- [:dev, :test] do
+        config = read(env, %{"SIKIO_MIGRATE_ON_START" => "true"})
+        assert sikio(config, :migrate_on_start) == nil
+      end
+    end
+  end
+
   describe "FEED_POLL_MINUTES" do
     defp interval(value),
       do: :test |> read(%{"FEED_POLL_MINUTES" => value}) |> sikio(:feed_poll_minutes)

@@ -175,6 +175,24 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
+  # A release brings its schema up to date as it starts. An operator who migrates by hand, with
+  # bin/migrate, turns that off. Development data is never migrated by starting a server.
+  migrate_on_start =
+    case "SIKIO_MIGRATE_ON_START" |> System.get_env("") |> String.trim() do
+      value when value in ["", "true"] ->
+        true
+
+      "false" ->
+        false
+
+      other ->
+        raise """
+        environment variable SIKIO_MIGRATE_ON_START is neither true nor false: #{inspect(other)}
+        """
+    end
+
+  config :sikio, :migrate_on_start, migrate_on_start
+
   # Pictures fetched from publishers are written here. It lies outside the release, so an upgrade
   # replaces the release without throwing the cache away.
   picture_cache_dir =

@@ -60,17 +60,23 @@ to `AGENTS.md` and do not maintain another set of rules.
 
 ## Deployment scope
 
-Ship the application as a Mix release with its runtime: unpack, configure, run.
-Keep explicit database migration commands and runtime configuration. Persistent
-application data and secrets belong outside the release directory.
+Ship two forms, each for SQLite and PostgreSQL, on Linux x86_64 and arm64: a
+Docker image and a Mix release tarball with its runtime. Persistent application
+data and secrets belong outside the release directory or image.
+
+A release migrates its database on start unless `SIKIO_MIGRATE_ON_START=false`.
+`bin/migrate` and the rollback command remain for explicit runs. Versions follow
+SemVer; a migration or configuration change raises the minor version.
 
 Database provisioning, process supervision, TLS, database dumps and OS-level
-file backups are the operator's responsibility. Do not add Dockerfiles, Compose
-stacks, deployment installers, self-updaters, or application-owned backup/restore
-commands, retention, remote copies or schedules unless explicitly requested.
-Database migration rollback and restoring user content are application concerns,
-not infrastructure backup automation. CI service containers are unaffected.
-Build and test for specific OS versions and architectures before claiming support.
+file backups are the operator's responsibility. The documentation may show an
+example systemd unit and compose file; Sikio installs neither. An installer may
+only download and verify a release, changing nothing outside its own directory.
+Do not add self-updaters or application-owned backup/restore commands,
+retention, remote copies or schedules unless explicitly requested. Database
+migration rollback and restoring user content are application concerns, not
+infrastructure backup automation. CI service containers are unaffected. Build
+and test for specific OS versions and architectures before claiming support.
 
 ## Common commands
 
@@ -85,8 +91,8 @@ with Ithibati Starter:
   database, including migrations and seeds. Run only when explicitly requested.
 - `migrate`: explicit development migrations.
 - `release`: compile assets and build a production release for the build platform.
-- In the unpacked release, `bin/migrate` applies migrations and `bin/server`
-  starts the HTTP server. Startup never runs migrations automatically.
+- In the unpacked release, `bin/server` migrates the database and starts the
+  HTTP server; `bin/migrate` applies migrations on their own.
 
 Application-specific asset builds and quality checks remain in Mix aliases.
 

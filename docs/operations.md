@@ -28,9 +28,9 @@ persistent data outside that directory.
 ## Configure and start
 
 For a SQLite release, choose an absolute path for the database file outside the release, in a
-directory the service can write to. `bin/migrate` creates the file. SQLite keeps a write-ahead
+directory the service can write to. Migration creates the file. SQLite keeps a write-ahead
 log beside it, `-wal` and `-shm`, which belong to the database. For a PostgreSQL release,
-provide PostgreSQL 18 and an existing database with a dedicated owner. `bin/migrate` creates the
+provide PostgreSQL 18 and an existing database with a dedicated owner. Migration creates the
 `pg_trgm` extension for the library's search index; since PostgreSQL 13 the database's owner
 may do that without further rights.
 
@@ -48,6 +48,7 @@ Export these variables in the environment used for both migration and startup:
 | `ECTO_IPV6` | PostgreSQL release: `true` to reach the database over IPv6 |
 | `DNS_CLUSTER_QUERY` | DNS name that lists other nodes to cluster with; unset for a single node |
 | `PICTURE_CACHE_DIR` | Absolute path for pictures fetched from publishers; outside the release, writable by the service |
+| `SIKIO_MIGRATE_ON_START` | `false` to migrate by hand with `bin/migrate`; the release migrates on start by default |
 | `FEED_POLL_MINUTES` | How often a source is asked at most, in whole minutes; 60 by default, at least 5 |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
 | `TRUSTED_PROXIES` | Addresses that may forward a visitor's own; only needed for a proxy on another host |
@@ -77,13 +78,16 @@ and a writer that waits up to five seconds for another. These are compiled into 
 From the unpacked release directory:
 
 ```sh
-bin/migrate
 bin/server
 ```
 
-Migration does not create the database or start the HTTP server. Repeating it is
-safe once all migrations are applied. Startup never migrates automatically.
-`bin/server` enables Phoenix; when using `bin/sikio start`, set `PHX_SERVER=true`.
+The release migrates its database as it starts, before it serves anything. A
+migration that fails stops the start and is logged; a supervisor that restarts the
+service tries it again each time. Set `SIKIO_MIGRATE_ON_START=false`
+to migrate by hand instead, with `bin/migrate` before `bin/server`. Repeating a
+migration is safe once all are applied. Migration does not create a PostgreSQL
+database. `bin/server` enables Phoenix; when using `bin/sikio start`, set
+`PHX_SERVER=true`.
 
 The host manages process supervision and HTTPS. Caddy on the same machine is the
 tested shape: it terminates TLS, proxies to `PORT` on the loopback, and forwards
@@ -130,8 +134,8 @@ to addresses would leave every identifier it holds failing the new format.
 ## Claim the instance
 
 An instance answers on the network before anybody has claimed it, so the first
-account asks for a code only the operator has. Issue one on the host, after
-`bin/migrate` and once the public hostname is final:
+account asks for a code only the operator has. Issue one on the host, once the
+release has started and migrated and the public hostname is final:
 
 ```sh
 bin/setup-code
@@ -159,11 +163,13 @@ configuration and secrets. For SQLite, copy a running database with `sqlite3 DAT
 still holds. For PostgreSQL, use `pg_dump`. Sikio has no backup or restore commands, retention
 scheduler, remote backup service or self-updater.
 
-For an update, prepare a compatible new release and a database backup, stop the
-old application, run the new release's `bin/migrate` with the existing environment,
-then start its `bin/server`. Check `/health` and application access. Keep the old
+For an update, back up the database first: the new release migrates it as it
+starts. Then stop the old application and start the new release's `bin/server`
+with the existing environment. Check `/health` and application access. Keep the old
 release until the update is verified. Returning to it is safe only if it supports
 the resulting database schema; replacing application files does not undo migrations.
+To go back, stop the new release so a restart cannot migrate again, undo its migrations with
+its rollback command, then start the old release.
 
 
 ## Migration rollback
