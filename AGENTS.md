@@ -127,7 +127,8 @@ Migrations and schemas use `:utc_datetime_usec`. Never reset a database that hol
 development data.
 
 A build serves SQLite, the default, or PostgreSQL, chosen with `SIKIO_DATABASE` at compile time.
-Every query and migration runs on both, and `mise run check` tests both. Write portable Ecto
+Every query and migration runs on both, and `mise run check` tests both; the browser features
+run on SQLite alone, since the interface behaves alike on both. Write portable Ecto
 queries; where the databases differ, branch on the build's database in one named place, as
 `Sikio.Repo.for_update/1` does.
 
@@ -164,5 +165,6 @@ every feed request through `Req.Test`, so a test that forgets its stub fails ins
 asking a stranger's server.
 
 The player's browser half is covered by node's own test runner over
-`assets/js/*.test.mjs`, and by Wallaby features for what only a browser can show. After
-changing JavaScript or CSS, check it in a browser with freshly built assets.
+`assets/js/*.test.mjs`, and by Wallaby features for what only a browser can show. A feature
+starts signed in with `signed_in/2` unless signing in is what it tests. After changing
+JavaScript or CSS, check it in a browser with freshly built assets.

@@ -54,7 +54,7 @@ Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`; see
 
 | Command | Purpose |
 | --- | --- |
-| `mise run check` | Workflow audit, compilation, format check, Credo, xref, Sobelow, assets, tests; the database-dependent ones for both databases |
+| `mise run check` | Workflow audit, compilation, format check, Credo, xref, Sobelow, assets, tests; the database-dependent ones for both databases, the browser features on SQLite |
 | `mise run test` | Tests against SQLite and PostgreSQL, with their test-database setup |
 | `mise run format` | Explicit formatting |
 | `mise run credo` | Compile then strict Credo |
@@ -99,7 +99,8 @@ CHROMEWEBDRIVER points at the runner's driver directory. Locally configure a mat
 versions after browser updates. `mise run check` builds assets before browser tests;
 for direct `mise run test`, build them with `mix assets.build` first. Tests start
 an endpoint on port 4102; override PORT to isolate concurrent suites. Missing browser
-infrastructure fails instead of silently skipping coverage.
+infrastructure fails instead of silently skipping coverage. The browser features run against
+SQLite only; `SIKIO_DATABASE=postgres mix test --include feature` runs them against PostgreSQL.
 
 `mix ithibati.doctor` is part of the test-environment gate after schema setup.
 
