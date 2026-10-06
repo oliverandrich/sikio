@@ -24,12 +24,20 @@ defmodule SikioWeb.FeatureCase do
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
   alias Sikio.Repo
+  alias SikioWeb.BrowserPool
   alias SikioWeb.Endpoint
+  alias Wallaby.Feature.Utils
   alias Wallaby.Query
 
   using do
     quote do
-      use Wallaby.Feature
+      # Wallaby.Feature without its setup, which starts a new Chrome for every feature; see
+      # sessions/1 below.
+      ExUnit.Case.register_attribute(__MODULE__, :sessions)
+      use Wallaby.DSL
+      import Wallaby.Feature
+
+      setup context, do: SikioWeb.FeatureCase.sessions(context)
 
       setup %{session: session} do
         SikioWeb.FeatureCase.language(session, "en")
@@ -53,6 +61,37 @@ defmodule SikioWeb.FeatureCase do
   Where something must not appear after an action, assert first what the action does show.
   """
   def gone(session, query), do: Wallaby.Browser.assert_has(session, Wallaby.Query.count(query, 0))
+
+  @doc """
+  The browser for a feature: the shared session of `SikioWeb.BrowserPool`, reset, or sessions of
+  their own for a feature whose `@sessions` asks for other capabilities, such as a phone.
+  """
+  def sessions(context) do
+    metadata = Utils.maybe_checkout_repos(context[:async])
+
+    case get_in(context, [:registered, :sessions]) do
+      nil ->
+        session = BrowserPool.checkout()
+        listed_for_screenshots(session)
+        %{session: session}
+
+      sessions ->
+        sessions
+        |> Utils.sessions_iterable()
+        |> Enum.map(&Utils.start_session(&1, metadata: metadata))
+        |> Utils.build_setup_return()
+    end
+  end
+
+  # Wallaby screenshots a failed feature's sessions, found in its session store by the test's
+  # process. Registering the pooled one the usual way would have Wallaby end it with the test, so
+  # it is listed in that public table directly and taken out again afterwards. This leans on
+  # Wallaby.SessionStore's table name and key shape.
+  defp listed_for_screenshots(session) do
+    key = {make_ref(), session.id, self()}
+    :ets.insert(:session_store, {key, session})
+    on_exit(fn -> :ets.delete(:session_store, key) end)
+  end
 
   @doc "An item's address in the list of all items, as the library itself spells it."
   def item_path(entry), do: SikioWeb.ConnCase.item_path(entry)
