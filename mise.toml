@@ -23,18 +23,27 @@ raw = true
 run = "iex -S mix phx.server"
 
 [tasks.check]
-env.MIX_ENV = "test"
 description = "Check workflows, compile, format, lint, security, assets and tests"
+# CI runs the same three parts as jobs side by side.
+run = [{ task = "check:lint" }, { task = "check:sqlite" }, { task = "check:postgres" }]
+
 # The player's browser half is plain modules with no framework, so node's own runner covers it.
 # No npm package is needed for it, and none is installed.
-# SQLite is the default build and gets every check; Postgres repeats what depends on the database.
-run = [
-  "zizmor .github/",
-  "mise run license",
-  "SIKIO_DATABASE=sqlite mix precommit",
-  "SIKIO_DATABASE=postgres mix check.database",
-  "node --test assets/js/*.test.mjs",
-]
+[tasks."check:lint"]
+description = "Check workflows, license markers and the player's browser modules"
+run = ["zizmor .github/", "mise run license", "node --test assets/js/*.test.mjs"]
+
+# SQLite is the default build and gets every check, the browser features included.
+[tasks."check:sqlite"]
+description = "Compile, format, lint, security, assets and tests on SQLite"
+env.MIX_ENV = "test"
+run = "SIKIO_DATABASE=sqlite mix precommit"
+
+# Postgres repeats what depends on the database.
+[tasks."check:postgres"]
+description = "Compile and the database-dependent tests on PostgreSQL"
+env.MIX_ENV = "test"
+run = "SIKIO_DATABASE=postgres mix check.database"
 
 [tasks.test]
 description = "Run the tests against SQLite and Postgres, and the browser modules"

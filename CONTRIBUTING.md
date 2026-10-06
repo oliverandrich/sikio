@@ -55,6 +55,7 @@ Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`; see
 | Command | Purpose |
 | --- | --- |
 | `mise run check` | Workflow audit, compilation, format check, Credo, xref, Sobelow, assets, tests; the database-dependent ones for both databases, the browser features on SQLite |
+| `mise run check:lint`, `check:sqlite`, `check:postgres` | The three parts of `mise run check`, which CI runs as separate jobs |
 | `mise run test` | Tests against SQLite and PostgreSQL, with their test-database setup |
 | `mise run format` | Explicit formatting |
 | `mise run credo` | Compile then strict Credo |
@@ -128,7 +129,7 @@ mise run smoke
 ```
 
 `mise run smoke` builds a release for SQLite and one for PostgreSQL, and checks each. CI runs
-it after `mise run check`.
+it beside the check.
 
 The smoke test checks that the package contains no backup operations. It starts the
 release on its own randomly named disposable database, which the release migrates as it
@@ -146,6 +147,18 @@ Record each user-visible change in `CHANGELOG.md` under **Unreleased**, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) sections. A change that asks
 something of the operator also goes under **Upgrading**: a migration, a new or changed
 setting, a step before or after the update. Such a change raises the minor version.
+
+## Cutting a version
+
+1. Move the **Unreleased** entries in `CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD`.
+2. Set the same version in `mix.exs` and commit both as `chore(release): X.Y.Z`.
+3. Tag it with `git tag -a vX.Y.Z -m vX.Y.Z` and push `main` and the tag.
+
+The tag starts `.github/workflows/release.yml`. It runs the checks of CI on the tagged commit.
+It builds the SQLite and PostgreSQL releases for Linux x86_64 and arm64 on Ubuntu 22.04 and
+smoke-tests each. Once all of that passes, it publishes them with `SHA256SUMS` and the changelog
+section as notes. Run it by hand from the Actions tab to build
+and test the version in `mix.exs` without publishing anything.
 
 ## Local Beans tracking
 

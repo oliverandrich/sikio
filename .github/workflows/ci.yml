@@ -1,15 +1,64 @@
 name: CI
+# The three parts of `mise run check` as jobs side by side, and the release smoke test.
+# The release workflow calls it too, so nothing is published that these reject.
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_call:
+    inputs:
+      # The release builds and smoke-tests its own, on the systems it ships for.
+      smoke:
+        type: boolean
+        default: true
 permissions:
   contents: read
+# A task installs only what the job asked mise-action for.
+env:
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  check:
+  # Workflows, licences and the player's browser modules: no build and no database.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Only what the part needs, not Erlang and Elixir.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: zizmor node
+      - run: mise run check:lint
+
+  # The default build gets every check, the browser features included.
+  sqlite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: erlang elixir
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-test-sqlite-${{ hashFiles('mise.toml', 'mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-test-sqlite-
+      - run: mix deps.get --check-locked
+      - run: mise run check:sqlite
+
+  # What depends on the database, again for PostgreSQL. The browser features stay with SQLite.
+  postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -31,17 +80,57 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: erlang elixir
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ env.MIX_ENV }}-${{ hashFiles('mise.toml', 'mix.lock') }}
+          key: ${{ runner.os }}-mix-test-postgres-${{ hashFiles('mise.toml', 'mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-test-postgres-
       - run: mix deps.get --check-locked
-      - run: mise run check
-      # The release reads config/runtime.exs at boot, which no test above runs end to end.
+      - run: mise run check:postgres
+
+  # The release reads config/runtime.exs at boot, which no test above runs end to end.
+  smoke:
+    # Not an input on push or pull_request, where it reads as empty.
+    if: inputs.smoke != false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: erlang elixir
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-prod-${{ hashFiles('mise.toml', 'mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-prod-
       - run: mise run smoke
