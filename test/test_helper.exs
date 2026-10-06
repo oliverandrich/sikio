@@ -12,6 +12,10 @@ if Application.fetch_env!(:sikio, :database) == :sqlite,
 Ecto.Adapters.SQL.Sandbox.mode(Sikio.Repo, :manual)
 
 Application.put_env(:wallaby, :chromedriver, path: SikioWeb.BrowserDriver.path(), headless: true)
+
+# Pictures fetched in an earlier run would answer from the cache, so each run starts without one.
+File.rm_rf!(Sikio.Pictures.cache_dir())
+
 Application.put_env(:wallaby, :base_url, SikioWeb.Endpoint.url())
 {:ok, _} = Application.ensure_all_started(:wallaby)
 {:ok, _} = SikioWeb.BrowserPool.start_link()

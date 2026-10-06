@@ -45,6 +45,8 @@ defmodule SikioWeb.FeatureCase do
         :ok
       end
 
+      setup context, do: SikioWeb.FeatureCase.nobody_answers(context)
+
       import SikioWeb.FeatureCase
       import Wallaby.Query
 
@@ -124,6 +126,22 @@ defmodule SikioWeb.FeatureCase do
     Sikio.TestConfig.put_budget(:setup, {1000, 60})
     # Each sign-up is a passkey ceremony on the same loopback, so the same holds for those.
     Sikio.TestConfig.put_budget(:ceremony, {1000, 60})
+  end
+
+  @doc """
+  Answers every outgoing request of the server with a 404, until a test stubs its own.
+
+  The browser asks the server for a source's picture, and the server fetches it in a request
+  process of its own. That process is no test's, so a private stub never reaches it and the
+  request raises. Features run one at a time, so the stub is shared for the length of one. An
+  async feature would share it with every test running beside it, so it is refused.
+  """
+  def nobody_answers(context) do
+    if context[:async], do: raise(ArgumentError, "a browser feature cannot run async")
+    Req.Test.set_req_test_to_shared()
+    on_exit(fn -> Req.Test.set_req_test_to_private() end)
+    Req.Test.stub(Sikio.Feeds.HTTP, &Plug.Conn.send_resp(&1, 404, ""))
+    :ok
   end
 
   @doc """
