@@ -181,7 +181,10 @@ bin/sikio eval 'Sikio.Release.rollback(Sikio.Repo, 20260918000000)'
 Oban runs on the application's own database, so no separate broker is needed. The `feeds`
 queue refreshes each source when its next check has come. That is a tenth of its newest entry's
 age after the last request, at least `FEED_POLL_MINUTES` and at most a day; a failed request is
-tried again after `FEED_POLL_MINUTES`. The scheduler looks every five minutes, so the requests
+tried again after `FEED_POLL_MINUTES`. A server's `Retry-After` and `Cache-Control: max-age`
+can only lengthen that wait, up to the same day or `FEED_POLL_MINUTES` if longer. A feed's
+`<ttl>` does the same after an answer with content; a `304` carries none. A server that names
+its wait is not retried before it. The scheduler looks every five minutes, so the requests
 spread over the interval. `maintenance` runs
 `Sikio.AuthCleanup` every 15 minutes, which expires sessions, abandoned challenges and
 unaccepted invitations.

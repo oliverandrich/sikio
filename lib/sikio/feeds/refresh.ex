@@ -28,6 +28,8 @@ defmodule Sikio.Feeds.Refresh do
       # New entries go where each subscription sends them, in the same transaction.
       case Feeds.refresh(id, &Library.deliver/2) do
         {:ok, _feed} -> :ok
+        # The server named when to come back, and the feed's next check says so already.
+        {:error, :busy} -> :ok
         {:error, reason} -> {:error, reason}
       end
     else

@@ -88,6 +88,17 @@ defmodule Sikio.Feeds.ParserTest do
     assert site == "https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv"
   end
 
+  # A channel may say how many minutes it may be cached. Anything but a whole number says nothing.
+  test "reads how long a channel says it may be cached" do
+    with_ttl = &String.replace(podcast(), "</channel>", "<ttl>#{&1}</ttl></channel>")
+
+    assert {:ok, %{ttl: 90}} = Parser.parse(with_ttl.("90"), "https://example.org/rss")
+    assert {:ok, %{ttl: nil}} = Parser.parse(with_ttl.("soon"), "https://example.org/rss")
+    assert {:ok, %{ttl: nil}} = Parser.parse(with_ttl.("-5"), "https://example.org/rss")
+    assert {:ok, %{ttl: nil}} = Parser.parse(podcast(), "https://example.org/rss")
+    assert {:ok, %{ttl: nil}} = Parser.parse(youtube(), youtube_feed_url())
+  end
+
   test "names no website the channel does not give, or gives as something else" do
     without = String.replace(podcast(), "<link>#{podcast_site()}</link>", "")
     assert {:ok, %{page_url: nil}} = Parser.parse(without, "https://example.org/rss")

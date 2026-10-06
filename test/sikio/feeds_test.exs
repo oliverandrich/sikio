@@ -69,6 +69,19 @@ defmodule Sikio.FeedsTest do
     assert_next_check(stored.id, hours: 1)
   end
 
+  # A busy server says when to come back, and that is when it is asked next.
+  test "a server that asks to be left alone is asked again when it said" do
+    {:ok, stored} = Feeds.store(preview())
+
+    Req.Test.stub(HTTP, fn conn ->
+      conn |> Plug.Conn.put_resp_header("retry-after", "7200") |> Plug.Conn.send_resp(503, "")
+    end)
+
+    assert {:error, :busy} = Feeds.refresh(stored.id)
+    assert Repo.get(Feed, stored.id).last_error == "unavailable"
+    assert_next_check(stored.id, hours: 2)
+  end
+
   # A gone feed is not one that is down for a while. The reader is told which it is.
   test "a source that is gone records that it is gone" do
     {:ok, stored} = Feeds.store(preview())

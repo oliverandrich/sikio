@@ -8,11 +8,11 @@ defmodule Sikio.Feeds.ScheduleTest do
 
   @now ~U[2026-10-06 12:00:00.000000Z]
 
-  defp after_hours(newest_hours_ago, base_minutes \\ 60) do
+  defp after_hours(newest_hours_ago, base_minutes \\ 60, wait \\ nil) do
     newest = newest_hours_ago && DateTime.add(@now, round(-newest_hours_ago * 3600), :second)
 
     @now
-    |> Schedule.next_check(newest, base_minutes)
+    |> Schedule.next_check(newest, base_minutes, wait)
     |> DateTime.diff(@now, :minute)
     |> Kernel./(60)
   end
@@ -41,5 +41,13 @@ defmodule Sikio.Feeds.ScheduleTest do
   test "a feed without a usable date is asked at the base interval" do
     assert after_hours(nil) == 1.0
     assert after_hours(-48) == 1.0
+  end
+
+  # What the server asks for, in seconds, only ever makes the wait longer, and never past the cap.
+  test "the server may ask for a longer wait, not a shorter one" do
+    assert after_hours(10, 60, 3 * 3600) == 3.0
+    assert after_hours(4 * 24, 60, 60) == 9.6
+    assert after_hours(10, 60, 7 * 24 * 3600) == 24.0
+    assert after_hours(10, 48 * 60, 7 * 24 * 3600) == 48.0
   end
 end

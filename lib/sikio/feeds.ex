@@ -48,8 +48,8 @@ defmodule Sikio.Feeds do
   defp announce(on_new, feed_id, entry_ids), do: on_new.(feed_id, entry_ids)
 
   # When the feed is asked next, by the age of its newest entry as stored now.
-  defp schedule_next(feed_id, now) do
-    next = Schedule.next_check(now, newest(feed_id), poll_minutes())
+  defp schedule_next(feed_id, now, wait) do
+    next = Schedule.next_check(now, newest(feed_id), poll_minutes(), wait)
     Repo.update_all(from(f in Feed, where: f.id == ^feed_id), set: [next_check_at: next])
     next
   end
@@ -58,7 +58,7 @@ defmodule Sikio.Feeds do
     do: Repo.one(from e in Entry, where: e.feed_id == ^feed_id, select: max(e.published_at))
 
   # The feed and how many of its entries were inserted or actually changed.
-  defp store_entries(preview, on_new) do
+  defp store_entries(preview, on_new, wait \\ nil) do
     Repo.transaction(fn ->
       attrs = Map.merge(preview, %{last_checked_at: DateTime.utc_now(), last_error: nil})
 
@@ -70,7 +70,7 @@ defmodule Sikio.Feeds do
         {:ok, feed} ->
           {written, new} = import_entries(feed.id, preview.entries)
           announce(on_new, feed.id, new)
-          {%{feed | next_check_at: schedule_next(feed.id, attrs.last_checked_at)}, written}
+          {%{feed | next_check_at: schedule_next(feed.id, attrs.last_checked_at, wait)}, written}
 
         {:error, error} ->
           Repo.rollback(error)
@@ -104,7 +104,12 @@ defmodule Sikio.Feeds do
     end
   end
 
-  @doc "Fetches a source again. `on_new` hears of new entries as with `store/2`."
+  @doc """
+  Fetches a source again. `on_new` hears of new entries as with `store/2`.
+
+  A server that failed and named when to come back answers `{:error, :busy}`, so the caller does
+  not retry before the feed's next check.
+  """
   def refresh(id, on_new \\ &ignore/2) do
     case Repo.get(Feed, id) do
       nil ->
@@ -132,20 +137,21 @@ defmodule Sikio.Feeds do
       [{"if-none-match", feed.etag}, {"if-modified-since", feed.last_modified}]
       |> Enum.reject(fn {_, value} -> is_nil(value) end)
 
-    case Discovery.fetch(feed.url, headers) do
+    # The server's wait, in seconds or nil, only ever postpones the next request.
+    case Discovery.poll(feed.url, headers) do
       # Keep the original stable subscription URL even when its endpoint redirects.
-      {:ok, preview} ->
-        %{preview | url: feed.url} |> store_entries(on_new) |> compared_with(feed)
+      {{:ok, preview}, wait} ->
+        %{preview | url: feed.url} |> store_entries(on_new, wait) |> compared_with(feed)
 
       # Nothing changed, so nobody is told. Each notification costs every open library a reload.
-      :not_modified ->
+      {:not_modified, wait} ->
         now = DateTime.utc_now()
 
         feed
         |> Ecto.Changeset.change(
           last_checked_at: now,
           last_error: nil,
-          next_check_at: Schedule.next_check(now, newest(feed.id), poll_minutes())
+          next_check_at: Schedule.next_check(now, newest(feed.id), poll_minutes(), wait)
         )
         |> Repo.update()
         |> case do
@@ -153,19 +159,21 @@ defmodule Sikio.Feeds do
           other -> other
         end
 
-      # A failure says nothing about the feed's pace, so it is asked again at the base interval.
-      {:error, reason} ->
+      # A failure says nothing about the feed's pace, so it is asked again at the base interval,
+      # or later when the server said so.
+      {{:error, reason}, wait} ->
         now = DateTime.utc_now()
 
         Repo.update_all(from(f in Feed, where: f.id == ^feed.id),
           set: [
             last_checked_at: now,
             last_error: to_string(reason),
-            next_check_at: DateTime.add(now, poll_minutes(), :minute)
+            next_check_at: Schedule.next_check(now, nil, poll_minutes(), wait)
           ]
         )
 
-        {:error, reason}
+        # A server that named its wait is asked again then, so the job is not retried before.
+        if wait, do: {:error, :busy}, else: {:error, reason}
     end
   end
 

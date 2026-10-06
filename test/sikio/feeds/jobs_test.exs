@@ -98,6 +98,15 @@ defmodule Sikio.Feeds.JobsTest do
     assert [%{title: "Later"}] = Library.entries(ctx.user, %{"status" => "queue"})
   end
 
+  # A server that names its wait is asked again then, by the schedule, not by Oban a minute later.
+  test "a refresh job leaves a server alone that asked to wait", ctx do
+    Req.Test.stub(HTTP, fn conn ->
+      conn |> Plug.Conn.put_resp_header("retry-after", "3600") |> Plug.Conn.send_resp(429, "")
+    end)
+
+    assert :ok = perform_job(Refresh, %{feed_id: ctx.subscription.feed_id})
+  end
+
   test "a refresh job reports upstream failures for Oban retry", ctx do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "try later") end)
 

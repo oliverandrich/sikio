@@ -20,6 +20,53 @@ defmodule Sikio.Feeds.DiscoveryTest do
     """
   end
 
+  # How long the server asks to be left alone, in seconds, beside what the request brought.
+  describe "poll/2" do
+    defp answer(status, headers, body \\ "") do
+      # Prepended rather than put, so a header named twice is sent twice.
+      Req.Test.stub(HTTP, fn conn ->
+        conn |> Plug.Conn.prepend_resp_headers(headers) |> Plug.Conn.send_resp(status, body)
+      end)
+
+      Discovery.poll(feed_url(), [])
+    end
+
+    test "a feed may be cached for its max-age or its ttl, whichever is longer" do
+      ttl = String.replace(podcast(), "</channel>", "<ttl>90</ttl></channel>")
+
+      assert {{:ok, _}, 7200} = answer(200, [{"cache-control", "public, max-age=7200"}], ttl)
+      assert {{:ok, _}, 5400} = answer(200, [{"cache-control", "max-age=60"}], ttl)
+      assert {{:ok, _}, nil} = answer(200, [], podcast())
+    end
+
+    test "an unchanged feed may be cached for its max-age" do
+      assert {:not_modified, 600} = answer(304, [{"cache-control", "max-age=600"}])
+      assert {:not_modified, nil} = answer(304, [{"cache-control", "no-cache"}])
+      # Directive names are not case-sensitive.
+      assert {:not_modified, 600} = answer(304, [{"cache-control", "Max-Age=600"}])
+    end
+
+    test "a server that is busy or down says when to come back, in seconds or as a date" do
+      assert {{:error, :unavailable}, 120} = answer(503, [{"retry-after", "120"}])
+      assert {{:error, :unavailable}, 3600} = answer(429, [{"retry-after", "3600"}])
+
+      later =
+        DateTime.utc_now()
+        |> DateTime.add(1800, :second)
+        |> Calendar.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+      assert {{:error, :unavailable}, wait} = answer(503, [{"retry-after", later}])
+      assert wait in 1790..1800
+
+      assert {{:error, :unavailable}, nil} = answer(503, [{"retry-after", "whenever"}])
+      # Sent twice, the first one counts.
+      assert {{:error, :unavailable}, 120} =
+               answer(503, [{"retry-after", "120"}, {"retry-after", "240"}])
+
+      assert {{:error, :unavailable}, nil} = answer(503, [])
+    end
+  end
+
   # One field takes a link or a search. What reads as an address is looked up; everything else is
   # searched for. A bare host counts as an address, since that is how people paste one.
   describe "intent/1" do

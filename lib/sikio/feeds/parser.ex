@@ -62,6 +62,7 @@ defmodule Sikio.Feeds.Parser do
          title: value(root, "title"),
          kind: :youtube,
          icon_url: nil,
+         ttl: nil,
          # Built from the id checked above rather than read from a stranger's link.
          page_url: "https://www.youtube.com/channel/" <> channel_id,
          entries: Enum.take(entries, 500)
@@ -83,8 +84,17 @@ defmodule Sikio.Feeds.Parser do
       kind: kind,
       icon_url: image_url(channel, url),
       page_url: rss_page(channel, url),
+      ttl: ttl(channel),
       entries: Enum.take(entries, 500)
     }
+  end
+
+  # How many minutes the channel says it may be cached. Anything but a whole number says nothing.
+  defp ttl(channel) do
+    case Integer.parse(value(channel, "ttl")) do
+      {minutes, ""} when minutes > 0 -> minutes
+      _ -> nil
+    end
   end
 
   # What generated the document decides, because it is the one statement about the whole of it.

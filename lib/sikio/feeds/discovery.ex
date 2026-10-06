@@ -70,17 +70,83 @@ defmodule Sikio.Feeds.Discovery do
 
   @doc "Fetches one known feed URL and parses it, carrying its cache validators along."
   def fetch(url, headers \\ []) do
-    with {:ok, %{status: 200} = response} <- HTTP.get(url, headers: headers),
-         {:ok, feed} <- Parser.parse(response.body, response.url) do
-      {:ok, Map.merge(feed, validators(response))}
-    else
-      {:ok, %{status: 304}} -> :not_modified
-      # Gone for good, rather than down for a while.
-      {:ok, %{status: status}} when status in [404, 410] -> {:error, :gone}
-      {:error, reason} -> {:error, reason}
-      _ -> {:error, :unavailable}
+    case poll(url, headers) do
+      {:not_modified, _wait} -> :not_modified
+      {result, _wait} -> result
     end
   end
+
+  @doc """
+  Fetches a feed as `fetch/2` does, beside how long its server asks to be left alone.
+
+  The wait is in seconds, or nil when the server says nothing: a feed's `Cache-Control: max-age`
+  or `<ttl>`, whichever is longer, and a busy or failing server's `Retry-After`.
+  """
+  def poll(url, headers), do: url |> HTTP.get(headers: headers) |> answered()
+
+  defp answered({:ok, %{status: 200} = response}) do
+    case Parser.parse(response.body, response.url) do
+      {:ok, feed} ->
+        ttl = feed.ttl && feed.ttl * 60
+        {{:ok, Map.merge(feed, validators(response))}, longest(max_age(response), ttl)}
+
+      error ->
+        {error, nil}
+    end
+  end
+
+  defp answered({:ok, %{status: 304} = response}), do: {:not_modified, max_age(response)}
+
+  # Gone for good, rather than down for a while.
+  defp answered({:ok, %{status: status}}) when status in [404, 410], do: {{:error, :gone}, nil}
+
+  defp answered({:ok, %{status: status} = response}) when status in [429, 503],
+    do: {{:error, :unavailable}, retry_after(response)}
+
+  defp answered({:error, reason}), do: {{:error, reason}, nil}
+  defp answered(_other), do: {{:error, :unavailable}, nil}
+
+  defp longest(nil, other), do: other
+  defp longest(one, nil), do: one
+  defp longest(one, other), do: max(one, other)
+
+  defp max_age(response) do
+    case Regex.run(~r/(?:^|[,\s])max-age=(\d+)/i, joined_header(response, "cache-control")) do
+      [_, seconds] -> positive(String.to_integer(seconds))
+      nil -> nil
+    end
+  end
+
+  # Zero asks for no cache, which lengthens nothing.
+  defp positive(0), do: nil
+  defp positive(seconds), do: seconds
+
+  # Seconds to wait, or the moment to come back as an HTTP date. Sent twice, the first counts.
+  defp retry_after(response) do
+    value = response.headers |> Map.get("retry-after", [""]) |> hd() |> String.trim()
+
+    case Integer.parse(value) do
+      {seconds, ""} when seconds >= 0 -> seconds
+      _ -> seconds_until(value)
+    end
+  end
+
+  @months ~w(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
+
+  defp seconds_until(date) do
+    with [_, day, month, year, hour, minute, second] <-
+           Regex.run(~r/\A\w{3}, (\d{2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT\z/, date),
+         index when is_integer(index) <- Enum.find_index(@months, &(&1 == month)),
+         [day, year, hour, minute, second] =
+           Enum.map([day, year, hour, minute, second], &String.to_integer/1),
+         {:ok, at} <- NaiveDateTime.new(year, index + 1, day, hour, minute, second) do
+      at |> DateTime.from_naive!("Etc/UTC") |> DateTime.diff(DateTime.utc_now()) |> max(0)
+    else
+      _ -> nil
+    end
+  end
+
+  defp joined_header(response, name), do: response.headers |> Map.get(name, []) |> Enum.join(",")
 
   def validators(response) do
     %{
