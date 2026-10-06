@@ -167,36 +167,49 @@ defmodule SikioWeb.OPMLLive do
         navigate={~p"/subscriptions"}
         class="hidden text-label font-semibold text-accent lg:inline"
       >{gettext("← Your subscriptions")}</.link>
-      <div class="lg:mt-8">
-        <.header>
+      <%!-- Centred as /add is, so the two ways to bring sources in look alike. --%>
+      <header class="mx-auto max-w-2xl pt-4 pb-4 text-center sm:pt-10">
+        <h1 data-large-title class="text-title font-semibold">
           {gettext("Bring your favourites.")}
-          <:subtitle>
-            {gettext("Import podcast and YouTube feed subscriptions from an OPML file.")}
-          </:subtitle>
-        </.header>
-      </div>
-      <section class="mt-8 rounded-control border border-line bg-surface p-5 sm:p-8">
+        </h1>
+        <p class="mt-2 text-muted">
+          {gettext("Import podcast and YouTube feed subscriptions from an OPML file.")}
+        </p>
+      </header>
+      <section class="mx-auto mt-8 max-w-2xl">
         <.form for={@form} id="opml-upload-form" phx-change="validate" phx-submit="preview">
           <fieldset disabled={@busy} class="min-w-0">
-            <label for={@uploads.opml.ref} class="mb-3 block font-semibold">
-              {gettext("OPML file")}
+            <%!-- The label is the field: the native input stays reachable but out of sight.
+                 The ring follows the keyboard only, since a click also focuses the input. --%>
+            <label
+              id="opml-drop"
+              for={@uploads.opml.ref}
+              phx-drop-target={@uploads.opml.ref}
+              class="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-control border-2 border-dashed border-edge p-6 text-center hover:border-ink has-focus-visible:border-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent [&.phx-drop-target-active]:border-signal"
+            >
+              <Lucideicons.upload aria-hidden="true" class="size-5 text-muted" />
+              <span class="font-semibold text-link">{gettext("Choose an OPML file")}</span>
+              <span class="text-label text-muted">{gettext("or drop it here")}</span>
+              <.live_file_input upload={@uploads.opml} class="sr-only" />
             </label>
-            <.live_file_input
-              upload={@uploads.opml}
-              class="block w-full min-w-0 rounded-control border border-control bg-surface p-3 text-label text-ink"
-            />
-            <div :for={entry <- @uploads.opml.entries} class="mt-3">
-              <p class="text-label break-all">{entry.client_name} · {entry.progress}%</p>
-              <button
-                type="button"
-                phx-click="cancel-upload"
-                phx-value-ref={entry.ref}
-                class="min-h-11 cursor-pointer text-label text-link"
-              >{gettext("Remove file")}</button>
+            <div :for={entry <- @uploads.opml.entries} id={"opml-file-#{entry.ref}"} class="mt-3">
+              <div class="flex items-center gap-3">
+                <Lucideicons.file_text aria-hidden="true" class="size-4 shrink-0 text-muted" />
+                <p class="min-w-0 flex-1 text-label break-all">
+                  {entry.client_name}
+                  <span class="text-muted">· {file_size(entry.client_size)}</span>
+                </p>
+                <button
+                  type="button"
+                  phx-click="cancel-upload"
+                  phx-value-ref={entry.ref}
+                  class="min-h-11 cursor-pointer text-label text-link"
+                >{gettext("Remove file")}</button>
+              </div>
               <p
                 :for={error <- upload_errors(@uploads.opml, entry)}
                 role="alert"
-                class="text-label text-danger"
+                class="mt-2 text-label text-danger"
               >
                 {upload_error(error)}
               </p>
@@ -208,19 +221,19 @@ defmodule SikioWeb.OPMLLive do
             >
               {upload_error(error)}
             </p>
+            <p class="mt-3 text-meta leading-relaxed text-muted">
+              {gettext(
+                "Up to 50 unique feeds and 1 MB per file. Folders are flattened. Existing subscriptions stay unchanged. OPML transfers sources, not playback history or polling settings."
+              )}
+            </p>
             <.button class="mt-5" variant="primary" disabled={@uploads.opml.entries == []}>
               {gettext("Preview sources")}
             </.button>
           </fieldset>
         </.form>
-        <p class="mt-5 text-label leading-relaxed text-muted">
-          {gettext(
-            "Up to 50 unique feeds and 1 MB per file. Folders are flattened. Existing subscriptions stay unchanged. OPML transfers sources, not playback history or polling settings."
-          )}
-        </p>
         <.link
           href={~p"/subscriptions.opml"}
-          class="mt-4 inline-flex min-h-11 items-center gap-1 font-semibold text-link"
+          class="mt-6 inline-flex min-h-11 items-center gap-1 font-semibold text-link"
         >
           {gettext("Export my subscriptions")}
           <Lucideicons.download aria-hidden="true" class="size-4" />
@@ -266,4 +279,8 @@ defmodule SikioWeb.OPMLLive do
     </Layouts.member>
     """
   end
+
+  # The upload is capped at 1 MB, so whole kilobytes say enough.
+  defp file_size(bytes) when bytes < 1000, do: "#{bytes} B"
+  defp file_size(bytes), do: "#{round(bytes / 1000)} KB"
 end

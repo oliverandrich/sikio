@@ -66,6 +66,40 @@ defmodule SikioWeb.OPMLTest do
     assert [%{feed: %{title: "Small Hours"}}] = Library.subscriptions(c.user)
   end
 
+  test "the file field is a drop zone that names the chosen file", c do
+    {:ok, view, _} = live(c.conn, "/subscriptions/import")
+
+    upload =
+      file_input(view, "#opml-upload-form", :opml, [%{name: "mine.opml", content: "<opml/>"}])
+
+    # A drop lands on the input whose upload ref the zone names.
+    zone = view |> element("#opml-drop") |> render()
+    [ref] = Regex.run(~r/data-phx-upload-ref="([^"]+)"/, zone, capture: :all_but_first)
+    assert zone =~ ~s(phx-drop-target="#{ref}")
+    refute has_element?(view, "[id^='opml-file-']")
+
+    render_upload(upload, "mine.opml")
+    assert has_element?(view, "[id^='opml-file-']", "mine.opml")
+    assert has_element?(view, "[id^='opml-file-']", "7 B")
+
+    view |> element("[id^='opml-file-'] button", "Remove file") |> render_click()
+    refute has_element?(view, "[id^='opml-file-']")
+  end
+
+  # The input takes one file, but a drop of two reaches the server as two entries.
+  test "two dropped files are refused, each on a row of its own", c do
+    {:ok, view, _} = live(c.conn, "/subscriptions/import")
+
+    files = for name <- ["a.opml", "b.opml"], do: %{name: name, content: "<opml/>"}
+    view |> file_input("#opml-upload-form", :opml, files) |> render_upload("a.opml")
+
+    html = render(view)
+    ids = Regex.scan(~r/id="(opml-file-[^"]*)"/, html, capture: :all_but_first)
+    assert length(ids) == 2
+    assert ids == Enum.uniq(ids)
+    assert html =~ "one file"
+  end
+
   test "invalid uploads never offer an import action", c do
     {:ok, view, _} = live(c.conn, "/subscriptions/import")
 

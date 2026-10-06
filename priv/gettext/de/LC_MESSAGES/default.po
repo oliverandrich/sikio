@@ -564,12 +564,12 @@ msgstr "Bereits abonniert, unverändert"
 msgid "Apple Podcasts search is unavailable right now. You can still paste a feed or webpage URL."
 msgstr "Die Apple-Podcasts-Suche ist gerade nicht erreichbar. Du kannst weiterhin eine Feed- oder Webseiten-URL einfügen."
 
-#: lib/sikio_web/live/opml_live.ex:172
+#: lib/sikio_web/live/opml_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Bring your favourites."
 msgstr "Bring deine Favoriten mit."
 
-#: lib/sikio_web/live/opml_live.ex:250
+#: lib/sikio_web/live/opml_live.ex:263
 #, elixir-autogen, elixir-format
 msgid "Checking feeds and importing… Keep this page open. Leaving stops the remaining import; completed subscriptions are kept."
 msgstr "Feeds werden geprüft und importiert… Lass diese Seite offen. Beim Verlassen stoppt der restliche Import; fertige Abos bleiben erhalten."
@@ -619,7 +619,7 @@ msgstr "Gib 2 bis 120 Zeichen ein, um Apple Podcasts zu durchsuchen."
 msgid "Export OPML"
 msgstr "OPML exportieren"
 
-#: lib/sikio_web/live/opml_live.ex:225
+#: lib/sikio_web/live/opml_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "Export my subscriptions"
 msgstr "Meine Abos exportieren"
@@ -629,7 +629,7 @@ msgstr "Meine Abos exportieren"
 msgid "File exceeds 1 MB."
 msgstr "Die Datei ist größer als 1 MB."
 
-#: lib/sikio_web/live/opml_live.ex:247
+#: lib/sikio_web/live/opml_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Import %{count} sources"
 msgstr "%{count} Quellen importieren"
@@ -641,7 +641,7 @@ msgstr "%{count} Quellen importieren"
 msgid "Import OPML"
 msgstr "OPML importieren"
 
-#: lib/sikio_web/live/opml_live.ex:174
+#: lib/sikio_web/live/opml_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Import podcast and YouTube feed subscriptions from an OPML file."
 msgstr "Importiere Podcast- und YouTube-Abos aus einer OPML-Datei."
@@ -676,11 +676,6 @@ msgstr "Suche nach deinem nächsten guten Fund…"
 msgid "No podcasts found. Try another name or paste the show's website."
 msgstr "Keine Podcasts gefunden. Versuche einen anderen Namen oder füge die Webseite der Sendung ein."
 
-#: lib/sikio_web/live/opml_live.ex:182
-#, elixir-autogen, elixir-format
-msgid "OPML file"
-msgstr "OPML-Datei"
-
 #: lib/sikio_web/live/opml_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Only public HTTP(S) feed URLs are supported."
@@ -707,7 +702,7 @@ msgstr "Podcast"
 msgid "Polling paused"
 msgstr "Abfrage pausiert"
 
-#: lib/sikio_web/live/opml_live.ex:212
+#: lib/sikio_web/live/opml_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Preview sources"
 msgstr "Quellen ansehen"
@@ -717,7 +712,7 @@ msgstr "Quellen ansehen"
 msgid "Ready to check"
 msgstr "Bereit zur Prüfung"
 
-#: lib/sikio_web/live/opml_live.ex:195
+#: lib/sikio_web/live/opml_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "Remove file"
 msgstr "Datei entfernen"
@@ -781,7 +776,7 @@ msgstr "Diese Seite oder dieser Feed ist zu groß für den Import. Versuche eine
 msgid "Unsubscribe"
 msgstr "Abo entfernen"
 
-#: lib/sikio_web/live/opml_live.ex:217
+#: lib/sikio_web/live/opml_live.ex:225
 #, elixir-autogen, elixir-format
 msgid "Up to 50 unique feeds and 1 MB per file. Folders are flattened. Existing subscriptions stay unchanged. OPML transfers sources, not playback history or polling settings."
 msgstr "Bis zu 50 eindeutige Feeds und 1 MB pro Datei. Ordner werden aufgelöst. Bestehende Abos bleiben unverändert. OPML überträgt Quellen, keine Abspielstände und keine Abfrageeinstellungen."
@@ -1981,3 +1976,13 @@ msgstr "Abonniere …"
 #, elixir-autogen, elixir-format
 msgid "Clear search"
 msgstr "Suche zurücksetzen"
+
+#: lib/sikio_web/live/opml_live.ex:191
+#, elixir-autogen, elixir-format
+msgid "Choose an OPML file"
+msgstr "OPML-Datei wählen"
+
+#: lib/sikio_web/live/opml_live.ex:192
+#, elixir-autogen, elixir-format
+msgid "or drop it here"
+msgstr "oder hierher ziehen"
