@@ -412,6 +412,59 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
+  # The dark ground, oklch(0.145 0 0), as sRGB.
+  @dark_page {10, 10, 10}
+
+  # A source whose picture cannot be had shows a mark of its kind instead. It comes as an image,
+  # out of reach of the page's colours, so it carries a dark scheme of its own. The mark has to
+  # stand 3:1 against its ground, the least a graphic needs, laid over the page's dark ground.
+  feature "a source's fallback picture stands out in the dark", %{session: session} do
+    for path <- ["/images/kind-audio.svg", "/images/kind-video.svg"] do
+      session
+      |> system_scheme("dark")
+      |> visit(path)
+      |> execute_script(
+        """
+        const ground = getComputedStyle(document.querySelector('rect'));
+        const mark = getComputedStyle(document.querySelector('rect + *'));
+        const [paint, opacity] = mark.fill !== 'none'
+          ? [mark.fill, mark.fillOpacity] : [mark.stroke, mark.strokeOpacity];
+        return [ground.fill, ground.fillOpacity, paint, opacity];
+        """,
+        fn [ground, ground_opacity, mark, mark_opacity] ->
+          ground = over(rgb(ground), ground_opacity, @dark_page)
+          assert contrast(over(rgb(mark), mark_opacity, ground), ground) >= 3, path
+        end
+      )
+    end
+  end
+
+  defp rgb(color) do
+    [r, g, b] = Regex.scan(~r/\d+/, color) |> Enum.take(3) |> Enum.map(&String.to_integer(hd(&1)))
+    {r, g, b}
+  end
+
+  defp over({r, g, b}, opacity, {br, bg, bb}) do
+    {a, ""} = Float.parse(opacity)
+    {r * a + br * (1 - a), g * a + bg * (1 - a), b * a + bb * (1 - a)}
+  end
+
+  # WCAG 2 relative luminance and contrast ratio.
+  defp contrast(a, b) do
+    [high, low] = Enum.sort([luminance(a), luminance(b)], :desc)
+    (high + 0.05) / (low + 0.05)
+  end
+
+  defp luminance({r, g, b}) do
+    [r, g, b] =
+      for c <- [r, g, b] do
+        c = c / 255
+        if c <= 0.03928, do: c / 12.92, else: :math.pow((c + 0.055) / 1.055, 2.4)
+      end
+
+    0.2126 * r + 0.7152 * g + 0.0722 * b
+  end
+
   defp subscribed(session) do
     account = signed_up(session, "ada")
     {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
