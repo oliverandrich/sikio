@@ -43,6 +43,12 @@ defmodule SikioWeb.AuthNavigationTest do
     assert conn |> get("/setup") |> redirected_to() == "/login"
   end
 
+  # Every page asks for the whole screen, or iOS reports no safe areas for the bars to clear.
+  test "a page asks for the whole screen", %{conn: conn} do
+    html = conn |> get("/setup") |> html_response(200)
+    assert html =~ ~r/<meta name="viewport" content="[^"]*viewport-fit=cover/
+  end
+
   test "members land on the library and do not see login again" do
     conn = build_conn() |> Plug.Test.init_test_session(get_session(claim()))
     library = conn |> get("/") |> html_response(200)

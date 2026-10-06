@@ -29,9 +29,7 @@ defmodule SikioWeb.InvitationTest do
   # link exists nowhere else.
   feature "a member runs out of invitations and keeps the last link", %{session: session} do
     Sikio.TestConfig.put_budget(:invite, {1, 86_400})
-
-    virtual_authenticator(session)
-    claim(session, "ada")
+    signed_in(session, "ada")
 
     session
     |> open("/invitations")
@@ -53,8 +51,7 @@ defmodule SikioWeb.InvitationTest do
   feature "a member sees what is outstanding, who made it, and takes one back", %{
     session: session
   } do
-    virtual_authenticator(session)
-    claim(session, "ada")
+    signed_in(session, "ada")
 
     session
     |> open("/invitations")
@@ -153,16 +150,5 @@ defmodule SikioWeb.InvitationTest do
     # Word for word, because anything else is a signal.
     assert spent == invented
     assert spent =~ "has been used already, or it has expired"
-  end
-
-  feature "the instance can be claimed once, and the form does not come back", %{session: session} do
-    virtual_authenticator(session)
-
-    claim(session, "ada")
-
-    session
-    |> open("/invitations")
-    |> assert_has(css("p", text: "Signed in as ada."))
-    |> gone(css("#claim-form"))
   end
 end

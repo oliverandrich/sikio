@@ -99,16 +99,6 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # The viewport has to ask for the whole screen, or iOS reports no safe areas at all.
-  feature "the page asks for the whole screen", %{session: session} do
-    session
-    |> open("/inbox")
-    |> execute_script(
-      "return document.querySelector('meta[name=viewport]').content",
-      fn content -> assert content =~ "viewport-fit=cover" end
-    )
-  end
-
   # Held sideways the notch is beside the page; the content keeps clear of it.
   feature "the content clears the notch held sideways", context do
     %{session: session} = context
