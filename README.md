@@ -53,6 +53,7 @@ describes both.
 - [Operations](docs/operations.md): configuration, releases and migrations.
 - [Authentication](docs/authentication.md): accounts, invitations and security.
 - [Localization](docs/localization.md): language selection and translations.
+- [Changelog](CHANGELOG.md): what changed in each version, and what an update asks for.
 
 ## License
 

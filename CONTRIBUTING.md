@@ -129,13 +129,22 @@ mise run smoke
 `mise run smoke` builds a release for SQLite and one for PostgreSQL, and checks each. CI runs
 it after `mise run check`.
 
-The smoke test checks that the package contains no backup operations, applies
-migrations twice to its own randomly named disposable database, checks the schema,
-and starts the release over HTTP on a free loopback port. It asks for a host outside
+The smoke test checks that the package contains no backup operations. It starts the
+release on its own randomly named disposable database, which the release migrates as it
+starts, checks the schema and serves HTTP on a free loopback port. It then repeats
+`bin/migrate`, and on a second disposable database migrates by hand with
+`SIKIO_MIGRATE_ON_START=false` before starting. It asks for a host outside
 the `force_ssl` exclude list: plain HTTP must redirect, and `x-forwarded-proto: https`
 must be served with HSTS. It removes only that database and a temporary directory afterward.
 It needs the build machine's Elixir, the `sqlite3` client and the PostgreSQL client tools;
 these test tools are not runtime dependencies of the application.
+
+## Changelog
+
+Record each user-visible change in `CHANGELOG.md` under **Unreleased**, in the
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) sections. A change that asks
+something of the operator also goes under **Upgrading**: a migration, a new or changed
+setting, a step before or after the update. Such a change raises the minor version.
 
 ## Local Beans tracking
 
