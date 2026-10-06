@@ -66,7 +66,7 @@ defmodule SikioWeb.TailwindTest do
   # Durations, dates and counts are set in the mono, which a browser only loads once something
   # asks for it. A family that never loaded falls back to a system face without an error.
   feature "metadata is set in IBM Plex Mono, and the face is loaded", %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
 
     {:ok, preview} =
       Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
@@ -92,7 +92,7 @@ defmodule SikioWeb.TailwindTest do
   # The entry the reader is on reads as the accent, with its count as a tinted pill. A tint on its
   # own all but vanishes against the light ground.
   feature "the active navigation entry carries the accent", %{session: session} do
-    signed_up(session, "ada")
+    signed_in(session, "ada")
 
     session
     |> resize_window(1440, 900)
@@ -116,7 +116,7 @@ defmodule SikioWeb.TailwindTest do
   # Ink marks actions and the current place. A source's name is neither, so it reads muted, and the
   # chosen item stands out by its ground alone.
   feature "a source's name reads muted and the chosen item has no edge", %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
     {:ok, _} = Library.subscribe(account, preview)
     [entry] = Library.entries(account)
@@ -145,7 +145,7 @@ defmodule SikioWeb.TailwindTest do
   # Black text alone does not read as a link, so links in running text are underlined in the
   # signal's amber.
   feature "a link in running text is underlined", %{session: session} do
-    signed_up(session, "ada")
+    signed_in(session, "ada")
 
     session
     |> open("/subscriptions")
@@ -188,7 +188,7 @@ defmodule SikioWeb.TailwindTest do
   # The current segment is filled with ink. A dialog stands on a hairline edge, and the question
   # before leaving a source answers in the danger colour.
   feature "segments, dialogs and a destructive answer carry their colours", %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
     {:ok, _} = Library.subscribe(account, preview)
 
@@ -301,7 +301,7 @@ defmodule SikioWeb.TailwindTest do
 
   # A primary button that cannot be pressed yet steps back to an outline rather than a grey slab.
   feature "a disabled primary button keeps the page's ground", %{session: session} do
-    signed_up(session, "ada")
+    signed_in(session, "ada")
 
     session
     |> resize_window(1440, 900)
@@ -324,7 +324,7 @@ defmodule SikioWeb.TailwindTest do
 
   # A username is short, so its field is too.
   feature "the invitation's field keeps a username's width", %{session: session} do
-    signed_up(session, "ada")
+    signed_in(session, "ada")
 
     session
     |> resize_window(1440, 900)
@@ -337,7 +337,7 @@ defmodule SikioWeb.TailwindTest do
 
   # Whatever can be pressed shows the hand, a chapter's button as much as a link.
   feature "a chapter shows the pointer", %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
     {:ok, _} = Library.subscribe(account, preview)
     [entry] = Library.entries(account)
@@ -361,7 +361,7 @@ defmodule SikioWeb.TailwindTest do
   # source below stay where they are. Only a window too short for those two scrolls the whole
   # column. A pencil beside the sources leads to managing them, so the bar of links is the phone's.
   feature "the sidebar scrolls between a standing wordmark and its foot", %{session: session} do
-    signed_up(session, "ada")
+    signed_in(session, "ada")
 
     session
     |> resize_window(1440, 900)
@@ -383,7 +383,7 @@ defmodule SikioWeb.TailwindTest do
   # The active count is tinted, not moved: its digits end where every other count's do, as far
   # from the right edge as the name starts from the left.
   feature "an active count lines up with the others", %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
     {:ok, _} = Library.subscribe(account, preview)
 
@@ -466,7 +466,7 @@ defmodule SikioWeb.TailwindTest do
   end
 
   defp subscribed(session) do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
     {:ok, _} = Library.subscribe(account, preview)
     hd(Library.entries(account)).feed_id

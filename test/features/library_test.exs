@@ -17,7 +17,7 @@ defmodule SikioWeb.LibraryTest do
   alias Sikio.Library
 
   setup %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
 
     entries =

@@ -17,7 +17,7 @@ defmodule SikioWeb.CardActionsTest do
 
   # Started, a video stands in the queue, so its head offers marking it as watched.
   setup %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, _} = Library.subscribe(account, preview)
     [video | _] = Library.entries(account)

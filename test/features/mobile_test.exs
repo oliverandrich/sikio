@@ -16,7 +16,7 @@ defmodule SikioWeb.MobileTest do
   alias Sikio.Library
 
   setup %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
 
     for {document, url} <- [
           {podcast(), "https://example.org/rss"},

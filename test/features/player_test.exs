@@ -23,7 +23,7 @@ defmodule SikioWeb.PlayerTest do
   @notes "#item-notes, #item-no-notes"
 
   setup %{session: session} do
-    account = signed_up(session, "ada")
+    account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
     {:ok, _subscription} = Library.subscribe(account, preview)
     [entry] = Library.entries(account)

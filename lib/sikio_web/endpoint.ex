@@ -68,6 +68,9 @@ defmodule SikioWeb.Endpoint do
   plug :session
   plug SikioWeb.Router
 
+  @doc "How the session cookie is written, for a test that writes one itself."
+  def session_options, do: @session_options
+
   # The cookie's max age equals the session's validity.
   # The plug reads it per request, so runtime configuration may set it.
   defp session(conn, _opts) do

@@ -20,6 +20,11 @@ defmodule SikioWeb.FeatureCase do
   import Wallaby.Browser
 
   alias Ithibati.Identity.Instance
+  alias Ithibati.Identity.Sessions
+  alias Ithibati.Web.Gate
+  alias Sikio.Accounts.User
+  alias Sikio.Repo
+  alias SikioWeb.Endpoint
   alias Wallaby.Query
 
   using do
@@ -70,8 +75,8 @@ defmodule SikioWeb.FeatureCase do
 
   Every test here that makes an account spends a code at the real endpoint, and a browser cannot
   be given an address of its own, so they all arrive on the loopback and share one counter. The
-  shipped budget of ten a minute would then refuse the suite rather than a guesser. Nearly every
-  feature signs up, and the suite does that faster than a hundred a minute.
+  shipped budget of ten a minute would then refuse the suite rather than a guesser, and the
+  features about signing in run faster than a hundred ceremonies a minute.
 
   Only these tests need it. Everything else either writes the proof straight into the session or
   is the budget's own test, which sets a budget and an address of its own.
@@ -83,22 +88,33 @@ defmodule SikioWeb.FeatureCase do
   end
 
   @doc """
-  Claims the instance as `username` with a virtual passkey and answers the account.
+  Signs the browser in as a new account named `username`, by a session cookie, and answers it.
 
-  Most browser tests begin with an account and are about what comes after. The ceremony is the
-  real one, so a broken sign-up still fails them.
+  The passkey ceremony costs about as much as the rest of a typical test. Tests about
+  signing in walk the ceremony themselves; the others are about what comes after, and start here. The cookie is the
+  one the endpoint writes, holding a session Ithibati issued, so the page and its socket both
+  find the account as they would after a real sign-in.
   """
-  def signed_up(session, username) do
-    virtual_authenticator(session)
+  def signed_in(session, username) do
+    account = Repo.insert!(User.changeset(%User{}, %{username: username}))
 
+    token = Sessions.generate_session_token(account)
+    options = Endpoint.session_options()
+
+    conn =
+      Plug.Test.conn(:get, "/")
+      |> Map.put(:secret_key_base, Endpoint.config(:secret_key_base))
+      |> Plug.Session.call(Plug.Session.init(options))
+      |> Plug.Conn.fetch_session()
+      |> Plug.Conn.put_session(Gate.session_key(), token)
+      |> Plug.Conn.send_resp(200, "")
+
+    # A cookie belongs to a page of its host, so the browser stands on one, the smallest.
     session
-    |> open("/")
-    |> code_entered()
-    |> fill_in(Query.css("input[name=username]"), with: username)
-    |> click(Query.button("Create your passkey"))
-    |> landed_on("/recovery-codes")
+    |> visit("/robots.txt")
+    |> set_cookie(options[:key], conn.resp_cookies[options[:key]].value)
 
-    Sikio.Repo.get_by!(Sikio.Accounts.User, username: username)
+    account
   end
 
   @doc """
