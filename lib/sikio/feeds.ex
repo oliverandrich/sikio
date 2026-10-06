@@ -153,6 +153,8 @@ defmodule Sikio.Feeds do
   defp compared_with(other, _feed), do: other
 
   @replaced_entry_fields [:title, :media_url, :video_id, :embed_url, :published_at]
+  # The kept fields that the searched text is made of.
+  @text_fields [:description, :description_format, :excerpt]
   @kept_entry_fields [
     :image_url,
     :duration,
@@ -166,16 +168,16 @@ defmodule Sikio.Feeds do
 
   defp import_entries(feed_id, entries) do
     now = DateTime.utc_now()
+    entries = Enum.uniq_by(entries, & &1.external_id)
+    kept = kept_text(feed_id, entries)
 
     rows =
-      entries
-      |> Enum.uniq_by(& &1.external_id)
-      |> Enum.map(fn entry ->
+      Enum.map(entries, fn entry ->
         entry
         |> Map.take([:external_id | @replaced_entry_fields ++ @kept_entry_fields])
         |> Map.merge(%{feed_id: feed_id, inserted_at: now, updated_at: now})
         |> Map.update(:published_at, nil, &microseconds/1)
-        |> Map.put(:search_text, SearchText.of(entry))
+        |> Map.put(:search_text, SearchText.of(with_kept_text(entry, kept)))
       end)
 
     {written, _} =
@@ -194,6 +196,29 @@ defmodule Sikio.Feeds do
       )
 
     {written, new}
+  end
+
+  # The text searched has to be the one the row ends up with. Notes and an excerpt a poll left
+  # out stay stored, so they are read back for exactly those entries. The feed's upsert before
+  # this holds its row, so a second refresh of the feed cannot write between read and upsert.
+  defp kept_text(feed_id, entries) do
+    case for(e <- entries, Enum.any?(@text_fields, &is_nil(e[&1])), do: e.external_id) do
+      [] ->
+        %{}
+
+      ids ->
+        Repo.all(
+          from e in Entry,
+            where: e.feed_id == ^feed_id and e.external_id in ^ids,
+            select: {e.external_id, map(e, ^@text_fields)}
+        )
+        |> Map.new()
+    end
+  end
+
+  # The same COALESCE the upsert applies, so the text follows the row.
+  defp with_kept_text(entry, kept) do
+    Map.merge(entry, Map.get(kept, entry.external_id, %{}), fn _field, new, old -> new || old end)
   end
 
   # What identifies and locates an episode is replaced outright, because a feed that moves its
@@ -269,13 +294,8 @@ defmodule Sikio.Feeds do
               e.chapters
             ),
           chapters_url: fragment("COALESCE(EXCLUDED.chapters_url, ?)", e.chapters_url),
-          # Derived from the columns above, so the guard need not compare it. Notes a poll left
-          # out are kept, and so is the text searched in them.
-          search_text:
-            fragment(
-              "CASE WHEN EXCLUDED.description IS NULL THEN ? ELSE EXCLUDED.search_text END",
-              e.search_text
-            ),
+          # Derived from the columns above, notes kept included, so the guard need not compare it.
+          search_text: fragment("EXCLUDED.search_text"),
           updated_at: fragment("EXCLUDED.updated_at")
         ]
       ]

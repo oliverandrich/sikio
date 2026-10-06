@@ -316,6 +316,20 @@ defmodule Sikio.FeedsTest do
     assert entry.page_url == podcast_page()
   end
 
+  # The search reads one stored text. A poll without notes keeps the notes, so the text has to
+  # take the new title from the poll and the notes from the row.
+  test "a poll that renames an entry and omits its notes is found by the new title" do
+    {:ok, _feed} = Feeds.store(preview())
+
+    renamed = String.replace(thin_podcast(), "One &amp; two", "One &amp; three")
+    assert {:ok, _feed} = Feeds.store(preview(renamed))
+
+    entry = Repo.one(Entry)
+    assert entry.search_text =~ "one & three"
+    refute entry.search_text =~ "one & two"
+    assert entry.search_text =~ "notes with a link"
+  end
+
   # A podcast's chapters file is fetched once, the first time somebody opens the item, through
   # the same guarded client as feeds. What it holds is stored; a failure is tried again later.
   describe "chapters/1" do
