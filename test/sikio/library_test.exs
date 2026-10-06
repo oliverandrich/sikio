@@ -390,6 +390,21 @@ defmodule Sikio.LibraryTest do
       assert heard.sources[entries.youtube.feed_id] == 0
     end
 
+    # Heard stays heard when it is queued again, so the history lists it and counts it, and the
+    # queue does too. All items holds it once.
+    test "a heard item queued again counts in the history and the queue", ctx do
+      entries = ctx.entries
+      {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :heard)
+      {:ok, _} = Playback.enqueue(ctx.alice, entries.podcast.id, :last)
+
+      counts = ctx.alice |> Library.counts() |> Library.tally(%{})
+      assert Map.take(counts, [:all, :queue, :heard]) == %{all: 3, queue: 1, heard: 1}
+
+      history = Library.entries(ctx.alice, %{"status" => "heard"})
+      assert Enum.map(history, & &1.id) == [entries.podcast.id]
+      assert length(history) == counts.heard
+    end
+
     test "an account without sources counts nothing", ctx do
       assert ctx.bob |> Library.counts() |> Library.tally(%{}) ==
                %{

@@ -265,17 +265,18 @@ defmodule Sikio.Library do
         select: {e.feed_id, p.status, is_nil(p.queue_rank), count(e.id)}
     )
     |> Enum.map(fn {feed_id, status, unqueued, count} ->
-      %{feed_id: feed_id, status: view(status, unqueued), count: count}
+      %{feed_id: feed_id, views: views(status, unqueued), count: count}
     end)
   end
 
-  # The list an entry shows in besides all items: the queue holds whatever stands in it, the inbox
-  # what is new beside it, the history what was heard. What is archived, or under way outside the
-  # queue, shows only among all items.
-  defp view(_status, false), do: :queue
-  defp view(status, true) when status in [nil, :new], do: :inbox
-  defp view(:heard, true), do: :heard
-  defp view(_status, true), do: :elsewhere
+  # The lists an entry shows in besides all items, as their queries choose them: the queue holds
+  # whatever stands in it, the inbox what is new beside it, the history what was heard, queued
+  # again or not. What is archived, or under way outside the queue, shows only among all items.
+  defp views(:heard, true), do: [:heard]
+  defp views(:heard, false), do: [:queue, :heard]
+  defp views(_status, false), do: [:queue]
+  defp views(status, true) when status in [nil, :new], do: [:inbox]
+  defp views(_status, true), do: []
 
   @doc """
   How many items each link in the sidebar shows, under the filters in force.
@@ -296,13 +297,16 @@ defmodule Sikio.Library do
 
     # A source and a tag are places of their own, so each counts beside whichever is chosen.
     new_or_chosen =
-      beside.([:source, :tag]) |> Enum.filter(&(filters["status"] != "" or &1.status == :inbox))
+      beside.([:source, :tag]) |> Enum.filter(&(filters["status"] != "" or :inbox in &1.views))
 
     by_feed = sum_by(new_or_chosen, :feed_id)
+    listed = beside.([:status])
 
-    %{all: 0, inbox: 0, queue: 0, heard: 0}
-    |> Map.merge(Map.take(sum_by(beside.([:status]), :status), [:inbox, :queue, :heard]))
-    |> Map.update!(:all, fn _ -> beside.([:status]) |> Enum.map(& &1.count) |> Enum.sum() end)
+    # An entry may stand in two lists, so each counts its own and all items counts it once.
+    Map.new([:inbox, :queue, :heard], fn view ->
+      {view, listed |> Enum.filter(&(view in &1.views)) |> Enum.sum_by(& &1.count)}
+    end)
+    |> Map.put(:all, Enum.sum_by(listed, & &1.count))
     |> Map.put(:sources, Map.merge(sources, by_feed))
     |> Map.put(
       :tags,
@@ -362,7 +366,7 @@ defmodule Sikio.Library do
     Enum.all?([:source, :tag, :status] -- own, fn
       :source -> filters["source"] in ["", to_string(row.feed_id)]
       :tag -> filters["tag"] == "" or row.feed_id in tagged
-      :status -> filters["status"] in ["", Atom.to_string(row.status)]
+      :status -> filters["status"] in ["" | Enum.map(row.views, &to_string/1)]
     end)
   end
 
