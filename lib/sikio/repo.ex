@@ -12,15 +12,20 @@ defmodule Sikio.Repo do
          :postgres -> Ecto.Adapters.Postgres
        end)
 
+  import Ecto.Query, only: [lock: 2]
+
+  @postgres Application.compile_env!(:sikio, :database) == :postgres
+
   @doc """
   Locks the rows `query` selects until the transaction ends. Postgres locks the rows. A SQLite
   transaction already holds the database's only write lock from its start, so it needs none.
   """
-  if Application.compile_env!(:sikio, :database) == :sqlite do
-    def for_update(query), do: query
-  else
-    import Ecto.Query, only: [lock: 2]
+  def for_update(query), do: if(@postgres, do: lock(query, "FOR UPDATE"), else: query)
 
-    def for_update(query), do: lock(query, "FOR UPDATE")
-  end
+  @doc """
+  Locks the rows `query` selects against each other, as `for_update/1` does, without stopping an
+  insert that refers to them. Postgres checks such a reference with a lock this one allows.
+  """
+  def for_no_key_update(query),
+    do: if(@postgres, do: lock(query, "FOR NO KEY UPDATE"), else: query)
 end

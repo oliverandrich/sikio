@@ -49,7 +49,7 @@ defmodule Sikio.Playback do
   checked like a sample, and one that is not a place in an episode starts at the beginning.
   """
   def start(%User{id: user_id} = account, id, at \\ nil) do
-    change(account, id, fn state ->
+    reorder(account, id, fn state ->
       [
         session_id: Ecto.UUID.generate(),
         sequence: 0,
@@ -93,11 +93,23 @@ defmodule Sikio.Playback do
 
   @doc "Puts the entry into the queue, before everything in it or after it."
   def enqueue(%User{id: user_id} = account, id, at) when at in [:first, :last],
-    do: change(account, id, fn _state -> [queue_rank: rank(user_id, at)] end)
+    do: reorder(account, id, fn _state -> [queue_rank: rank(user_id, at)] end)
+
+  # The account's queued items, visible or not.
+  defp queued(user_id),
+    do: from(p in State, where: p.user_id == ^user_id and not is_nil(p.queue_rank))
+
+  # The same, as far as the account may still see them, in the order the queue is played and
+  # shown. The entry breaks a tie, as in the list that shows the queue.
+  defp visible_queue(account) do
+    from p in queued(account.id),
+      where: p.entry_id in subquery(Library.visible_entry_ids(account)),
+      order_by: [asc: p.queue_rank, asc: p.entry_id]
+  end
 
   # A rank before everything in the account's queue, or after it.
   defp rank(user_id, at) do
-    ranks = from(p in State, where: p.user_id == ^user_id and not is_nil(p.queue_rank))
+    ranks = queued(user_id)
 
     case at do
       :first -> (Repo.one(from p in ranks, select: min(p.queue_rank)) || 1.0) - 1.0
@@ -110,20 +122,41 @@ defmodule Sikio.Playback do
   neighbours, so nothing else moves. An index past the end is the end.
   """
   def move(%User{id: user_id} = account, id, index) when is_integer(index) and index >= 0 do
-    change(account, id, fn state ->
+    reorder(account, id, fn state ->
       if is_nil(state.queue_rank), do: Repo.rollback(:not_queued)
 
-      others =
-        Repo.all(
-          from p in State,
-            where: p.user_id == ^user_id and not is_nil(p.queue_rank) and p.id != ^state.id,
-            where: p.entry_id in subquery(Library.visible_entry_ids(account)),
-            order_by: [asc: p.queue_rank, asc: p.id],
-            select: p.queue_rank
-        )
+      # No float is left between the neighbours, so the queue is numbered afresh first.
+      rank =
+        with :none <- place(others(account, state), index) do
+          renumber(user_id)
+          place(others(account, state), index)
+        end
 
-      before = if index > 0, do: Enum.at(others, index - 1, List.last(others))
-      [queue_rank: between(before, Enum.at(others, index))]
+      [queue_rank: rank]
+    end)
+  end
+
+  # The rank between the item's new neighbours, or :none when the floats between them ran out.
+  defp place(others, index) do
+    before = if index > 0, do: Enum.at(others, index - 1, List.last(others))
+    next = Enum.at(others, index)
+    rank = between(before, next)
+
+    if (is_nil(before) or rank > before) and (is_nil(next) or rank < next), do: rank, else: :none
+  end
+
+  # The ranks of the account's other queued items.
+  defp others(account, state),
+    do: Repo.all(from p in visible_queue(account), where: p.id != ^state.id, select: p.queue_rank)
+
+  # Whole numbers in the present order. Items of a source left since keep their places among them.
+  defp renumber(user_id) do
+    Repo.all(
+      from p in queued(user_id), order_by: [asc: p.queue_rank, asc: p.entry_id], select: p.id
+    )
+    |> Enum.with_index(1)
+    |> Enum.each(fn {id, rank} ->
+      Repo.update_all(from(p in State, where: p.id == ^id), set: [queue_rank: rank / 1])
     end)
   end
 
@@ -152,15 +185,8 @@ defmodule Sikio.Playback do
   def dequeue(account, id), do: change(account, id, fn _state -> [queue_rank: nil] end)
 
   @doc "This account's queue as entry ids, first first."
-  def queue(%User{id: user_id} = account) do
-    Repo.all(
-      from p in State,
-        where: p.user_id == ^user_id and not is_nil(p.queue_rank),
-        where: p.entry_id in subquery(Library.visible_entry_ids(account)),
-        order_by: [asc: p.queue_rank, asc: p.id],
-        select: p.entry_id
-    )
-  end
+  def queue(%User{} = account),
+    do: Repo.all(from p in visible_queue(account), select: p.entry_id)
 
   @doc """
   Whether a notification says something newer than the progress already on screen.
@@ -229,6 +255,9 @@ defmodule Sikio.Playback do
 
     {:ok, count} =
       Repo.transaction(fn ->
+        # It takes items out of the queue, so it waits for a renumbering that holds them.
+        Library.lock_queue(user_id)
+
         # SQLite reads `ON CONFLICT` after a `SELECT` without `WHERE` as a join's `ON`, and Ecto
         # drops a `WHERE true`, so the condition is one that always holds but stays.
         Repo.insert_all(
@@ -281,9 +310,14 @@ defmodule Sikio.Playback do
     end
   end
 
-  defp change(%User{id: user_id} = account, id, changes) do
+  # A change that computes a rank holds the queue first, before the item's row, so every path
+  # takes the two locks in one order.
+  defp reorder(account, id, changes), do: change(account, id, changes, queue: true)
+
+  defp change(%User{id: user_id} = account, id, changes, opts \\ []) do
     result =
       Repo.transaction(fn ->
+        if opts[:queue], do: Library.lock_queue(user_id)
         entry_id = Library.visible_entry_id(account, id) || Repo.rollback(:not_found)
         Repo.insert!(%State{user_id: user_id, entry_id: entry_id}, on_conflict: :nothing)
         # An unsubscribe may commit between the check above and this lock.

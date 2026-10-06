@@ -80,7 +80,7 @@ defmodule Sikio.Library do
   @doc """
   Sends a source's new entries where each subscription to it says: to the end of its account's
   queue, oldest first, or to the archive. The inbox needs nothing, since an entry nobody has
-  opened is new.
+  opened is new. Runs inside the transaction that stores the entries.
   """
   def deliver(feed_id, entry_ids) do
     now = DateTime.utc_now()
@@ -88,11 +88,25 @@ defmodule Sikio.Library do
     Repo.all(
       from s in Subscription,
         where: s.feed_id == ^feed_id and s.delivery != :inbox,
+        # The refresh's transaction holds every queue until it commits, so two refreshes take
+        # them in one order.
+        order_by: s.user_id,
         select: {s.user_id, s.delivery}
     )
     |> Enum.each(fn {user_id, delivery} ->
+      lock_queue(user_id)
       Repo.insert_all(State, delivered(user_id, delivery, entry_ids, now), on_conflict: :nothing)
     end)
+  end
+
+  @doc """
+  Holds the account's queue until the transaction ends. Every change that computes a rank takes
+  it first, so two changes cannot give two items one place.
+  """
+  def lock_queue(user_id) do
+    from(u in User, where: u.id == ^user_id, select: u.id)
+    |> Repo.for_no_key_update()
+    |> Repo.one()
   end
 
   # One account's progress rows for new entries: queued after what its queue holds, or archived.

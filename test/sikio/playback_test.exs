@@ -155,6 +155,39 @@ defmodule Sikio.PlaybackTest do
     assert {:error, :not_found} = Playback.move(c.bob, id.(1), 0)
   end
 
+  # The player goes on in the order the list shows, so both break a tie the same way.
+  test "the queue plays in the order it is shown when two ranks are equal", c do
+    entries =
+      for n <- 1..2, do: %{hd(c.preview.entries) | external_id: "t#{n}", title: "Tie #{n}"}
+
+    {:ok, _} = Library.subscribe(c.alice, %{c.preview | entries: entries})
+    id = &Repo.one!(from e in Entry, where: e.title == ^"Tie #{&1}", select: e.id)
+
+    # Queued in reverse, so the playback rows run against the entries.
+    for n <- [2, 1], do: {:ok, _} = Playback.enqueue(c.alice, id.(n), :last)
+    Repo.update_all(Playback.State, set: [queue_rank: 1.0])
+
+    shown = Enum.map(Library.entries(c.alice, %{"status" => "queue"}), & &1.id)
+    assert Playback.queue(c.alice) == shown
+  end
+
+  # Each move to the same place halves the gap it lands in, until a float has no value left
+  # between the two neighbours.
+  test "an item moved into the same place again and again keeps its place", c do
+    entries =
+      for n <- 1..3, do: %{hd(c.preview.entries) | external_id: "h#{n}", title: "Half #{n}"}
+
+    {:ok, _} = Library.subscribe(c.alice, %{c.preview | entries: entries})
+    id = &Repo.one!(from e in Entry, where: e.title == ^"Half #{&1}", select: e.id)
+    for n <- 1..3, do: {:ok, _} = Playback.enqueue(c.alice, id.(n), :last)
+
+    for _ <- 1..60 do
+      [first, _second, last] = Playback.queue(c.alice)
+      {:ok, _} = Playback.move(c.alice, last, 1)
+      assert [^first, ^last, _] = Playback.queue(c.alice)
+    end
+  end
+
   # A list shows the queue, so moving an item in or out of it or within it changes what lists
   # show, as a new status does. Progress alone does not.
   test "a change to the queue is announced as a change, not as progress", c do
