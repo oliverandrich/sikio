@@ -6,6 +6,12 @@ import {playerKey} from "./player_keys.mjs"
 
 const press = (key, extra = {}) => ({key, target: {tagName: "BODY"}, ...extra})
 
+// A button inside a dialog, open or closed, answering closest() as an element would.
+const inDialog = open => ({
+  tagName: "BUTTON",
+  closest: selector => selector === "dialog" || (open && selector === "dialog[open]") ? {} : null
+})
+
 test("the player's keys name what the player does", () => {
   assert.deepEqual(playerKey(press("p")), {name: "toggle"})
   assert.equal(playerKey(press(" ")), null, "Space stays the page's: Safari presses a focused button with it")
@@ -32,9 +38,14 @@ test("a field or a browser shortcut keeps its keys", () => {
     assert.equal(playerKey(press("p", {target: {tagName}})), null)
   }
   assert.equal(playerKey(press("p", {target: {tagName: "DIV", isContentEditable: true}})), null)
-  assert.equal(playerKey(press("p", {target: {tagName: "BUTTON", closest: selector => selector === "dialog" ? {} : null}})), null, "an open dialog keeps the page's keys")
+  assert.equal(playerKey(press("p", {target: inDialog(true)})), null, "an open dialog keeps the page's keys")
   assert.equal(playerKey(press("ArrowLeft", {metaKey: true})), null)
   assert.equal(playerKey(press("ArrowLeft", {ctrlKey: true})), null)
   assert.equal(playerKey(press("ArrowLeft", {altKey: true})), null)
   assert.deepEqual(playerKey(press("p", {target: {tagName: "BUTTON"}})), {name: "toggle"})
+})
+
+// Escape closes a dialog, and the focus may stay on a button inside it. The keys are the page's again.
+test("a closed dialog gives the keys back to the page", () => {
+  assert.deepEqual(playerKey(press("p", {target: inDialog(false)})), {name: "toggle"})
 })

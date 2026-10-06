@@ -24,5 +24,5 @@ export function playerKey(event) {
 export function elsewhere(event) {
   const target = event.target
   return event.metaKey || event.ctrlKey || event.altKey || target?.isContentEditable ||
-    ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName) || Boolean(target?.closest?.("dialog"))
+    ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName) || Boolean(target?.closest?.("dialog[open]"))
 }

@@ -55,7 +55,7 @@ test("a key typed into a form control stays there", () => {
   for (const tagName of ["INPUT", "SELECT", "TEXTAREA"])
     assert.equal(readerKey(press("j", {target: {tagName}})), null, tagName)
   assert.equal(readerKey(press("j", {target: {tagName: "DIV", isContentEditable: true}})), null)
-  assert.equal(readerKey(press("j", {target: {tagName: "BUTTON", closest: selector => selector === "dialog" ? {} : null}})), null, "an open dialog keeps the page's keys")
+  assert.equal(readerKey(press("j", {target: {tagName: "BUTTON", closest: selector => ["dialog", "dialog[open]"].includes(selector) ? {} : null}})), null, "an open dialog keeps the page's keys")
 })
 
 // The list's head stands over the top of the pane, so a row is only in view beneath it.
