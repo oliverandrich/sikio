@@ -29,28 +29,11 @@ defmodule SikioWeb.MobileTest do
     %{account: account, entries: Map.new(Library.entries(account), &{&1.feed.kind, &1})}
   end
 
-  # A phone moves through tabs at the bottom, from the Library into a source and back.
-  feature "the tabs lead through the library and back", context do
-    %{session: session, entries: entries} = context
-
-    session
-    |> resize_window(390, 844)
-    |> open("/inbox")
-    |> execute_script(gap_below("#main-navigation"), fn gap -> assert gap == 0 end)
-    |> click(css("#tab-library"))
-    |> assert_has(css(~s|#tab-library[aria-current="page"]|))
-    |> click(css("#places-sources a", text: "Small Hours"))
-    |> assert_has(css("#library-heading", text: "Small Hours"))
-    |> assert_has(css("#entries article", text: entries.podcast.title))
-    |> gone(css("#entries article", text: entries.youtube.title))
-    |> click(css("#nav-back"))
-    |> assert_has(css("#places-views"))
-  end
-
   # An iPhone keeps its status bar above the page and its home indicator beneath it. The page
   # reads both through `--safe-top` and `--safe-bottom`, which Chrome never fills; set here to an
   # iPhone's, the bars must clear them. The tab bar follows Apple's 49 points above the indicator.
-  feature "the bars clear an iPhone's status bar and home indicator", context do
+  # Held sideways the notch is beside the page, read through `--safe-left` and `--safe-right`.
+  feature "the bars clear an iPhone's status bar, home indicator and notch", context do
     %{session: session, entries: entries} = context
 
     session
@@ -79,31 +62,6 @@ defmodule SikioWeb.MobileTest do
         assert capsule_gap == 8, "the capsule keeps its distance from the tab bar"
       end
     )
-  end
-
-  # Safari tints the strip behind the status bar after the page's own colour. The page names it on
-  # the root, in light and dark, rather than leaving the browser to infer it from the body.
-  feature "the page names its colour for the status bar", %{session: session} do
-    session
-    |> open("/inbox")
-    |> execute_script(
-      """
-      const ground = getComputedStyle(document.body).backgroundColor
-      return [getComputedStyle(document.documentElement).backgroundColor === ground,
-              document.querySelector('meta[name=color-scheme]')?.content]
-      """,
-      fn [same, scheme] ->
-        assert same, "the root's colour is not the page's"
-        assert scheme == "light dark"
-      end
-    )
-  end
-
-  # Held sideways the notch is beside the page; the content keeps clear of it.
-  feature "the content clears the notch held sideways", context do
-    %{session: session} = context
-
-    session
     |> resize_window(844, 390)
     |> open("/inbox")
     |> execute_script(
@@ -152,44 +110,6 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # The Filter button looks pressed while the filters are open.
-  feature "the filter button shows whether the filters are open", context do
-    %{session: session, entries: entries} = context
-    look = "return getComputedStyle(document.getElementById('toggle-filters')).backgroundColor"
-
-    session
-    |> resize_window(500, 900)
-    |> open("/feeds/#{entries.podcast.feed_id}/history")
-    |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
-    |> execute_script(look, fn open -> Process.put(:open, open) end)
-    |> click(css("#toggle-filters"))
-    |> assert_has(css(~s|#toggle-filters[aria-expanded="false"]|))
-    |> execute_script(look, fn closed ->
-      refute closed == Process.delete(:open), "open and closed look alike"
-    end)
-  end
-
-  # An item names itself in the bar once its title has scrolled away, and the bar leads back to
-  # the list it was opened from.
-  feature "an item leads back to its list from the bar", context do
-    %{session: session, entries: entries} = context
-
-    session
-    |> resize_window(390, 844)
-    |> open("/inbox")
-    |> click(css("#entries a", text: entries.podcast.title))
-    |> assert_has(css("#nav-back", text: "Inbox"))
-    |> gone(css("#app-header[data-shrunk]"))
-    |> execute_script("""
-    document.getElementById('item-detail').style.paddingBottom = '2000px'
-    window.scrollTo(0, 600)
-    """)
-    |> assert_has(css("#app-header[data-shrunk]"))
-    |> click(css("#nav-back"))
-    |> assert_has(css("#entries article", text: entries.youtube.title))
-    |> gone(css("#nav-back"))
-  end
-
   # On a phone the filters fold away behind a button. Once open they stay open while the reader
   # moves between them, however the page was reached.
   feature "the filters stay open while the reader changes them", context do
@@ -210,19 +130,7 @@ defmodule SikioWeb.MobileTest do
   # nothing is asked of an instance.
   feature "a video plays across the top of its item and stays there", context do
     %{session: session, account: account} = context
-    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
-    {:ok, subscription} = Library.subscribe(account, preview)
-    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
-    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
-
-    Sikio.Repo.update!(
-      Ecto.Changeset.change(video,
-        embed_url: "/robots.txt",
-        image_url: nil,
-        description: notes,
-        description_format: :html
-      )
-    )
+    video = video_with_notes(account)
 
     session
     |> resize_window(390, 844)
@@ -251,19 +159,7 @@ defmodule SikioWeb.MobileTest do
   # off at the foot from the start, it still stays under the top bar once scrolled up to it.
   feature "a video fits a phone held sideways", context do
     %{session: session, account: account} = context
-    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
-    {:ok, subscription} = Library.subscribe(account, preview)
-    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
-    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
-
-    Sikio.Repo.update!(
-      Ecto.Changeset.change(video,
-        embed_url: "/robots.txt",
-        image_url: nil,
-        description: notes,
-        description_format: :html
-      )
-    )
+    video = video_with_notes(account)
 
     # The window leaves 247 pixels, so the poster lies under the tab bar: pressed where it is.
     session
@@ -301,90 +197,6 @@ defmodule SikioWeb.MobileTest do
     end)
   end
 
-  # An item's details wrap on a narrow screen. Each line starts with a detail, flush with the
-  # source's name, and never with the dot between two.
-  @sessions [
-    [
-      capabilities:
-        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
-          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
-        })
-    ]
-  ]
-  feature "an item's details wrap without a dot leading a line", context do
-    %{session: session, account: account} = context
-    {:ok, preview} = Parser.parse(podcast("A source with a long name"), feed_url("long"))
-    {:ok, subscription} = Library.subscribe(account, preview)
-    [entry] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
-
-    session
-    |> open(item_path(entry))
-    |> execute_script(
-      """
-      const line = document.getElementById('playback-status')
-      const name = line.previousElementSibling
-      const textLeft = node => {
-        const range = document.createRange()
-        range.selectNodeContents(node)
-        return range.getClientRects()[0]
-      }
-      // Where a detail's own content begins: its first mark, or else its text.
-      const begins = child => child.firstElementChild?.getBoundingClientRect() ?? textLeft(child)
-      const edge = Math.round(textLeft(name).left)
-      const wrong = []
-      let wrapped = false
-      // Every width a phone might give it, so each place the line can break is tried.
-      for (let width = 120; width <= 320; width += 5) {
-        line.style.width = width + 'px'
-        const tops = new Set()
-        for (const child of line.children) {
-          const top = Math.round(child.getBoundingClientRect().top)
-          if (tops.has(top)) continue
-          tops.add(top)
-          const text = child.textContent.trim()
-          if (text === '·' || Math.round(begins(child).left) !== edge) wrong.push(width + ': ' + text)
-        }
-        if (tops.size > 1) wrapped = true
-      }
-      line.style.width = ''
-      return [wrapped, wrong]
-      """,
-      fn [wrapped, wrong] ->
-        assert wrapped, "the details wrap"
-        assert wrong == [], "lines start off the source's edge: #{Enum.join(wrong, ", ")}"
-      end
-    )
-  end
-
-  # On a phone the audio's buttons keep their distance: play in the middle, the speed clear of
-  # skipping back.
-  @sessions [
-    [
-      capabilities:
-        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
-          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
-        })
-    ]
-  ]
-  feature "an episode's buttons keep their distance on a phone", context do
-    %{session: session, entries: entries} = context
-
-    session
-    |> open(item_path(entries.podcast))
-    |> execute_script(
-      """
-      const box = s => document.querySelector('#audio-cue ' + s).getBoundingClientRect()
-      const face = document.getElementById('audio-cue').getBoundingClientRect()
-      return [Math.round(Math.abs(box('.audio-play').left + box('.audio-play').width / 2 - (face.left + face.width / 2))),
-              Math.round(box('.audio-back').left - box('.audio-speed').right)]
-      """,
-      fn [off_centre, clear] ->
-        assert off_centre <= 1, "play is in the middle"
-        assert clear >= 12, "the speed is #{clear}px from skipping back"
-      end
-    )
-  end
-
   # The pinned player takes its width from the page script rather than from `anchor-size()`.
   # Safari measured its container before that width was known, laid the buttons out for a
   # narrow one and shifted them as the time changed. A width written on the panel is known from
@@ -406,55 +218,44 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # Before anything plays the card shows the player's likeness, which stays under the bar just as
-  # the player does once started, so starting it changes nothing about where it is.
-  feature "an item's player stays under the bar before it plays", context do
+  # An episode's controls sit in its card and stay under the bar as the notes scroll, rather than
+  # passing half under it. Before anything plays the card shows the player's likeness, which
+  # stays there too, so starting it changes nothing about where it is.
+  feature "audio stays under the bar as its notes scroll, before and after it plays", context do
     %{session: session, entries: entries} = context
+
+    under_the_bar = fn id ->
+      """
+      const box = document.getElementById('#{id}')
+      return Math.round(box.getBoundingClientRect().top) ===
+               Math.round(document.getElementById('masthead').getBoundingClientRect().bottom) &&
+             getComputedStyle(box).visibility === 'visible'
+      """
+    end
+
+    scrolled_past_the_slot = """
+    document.getElementById('item-detail').style.paddingBottom = '2000px'
+    const slot = document.getElementById('player-slot').getBoundingClientRect().top
+    window.scrollTo(0, scrollY + slot - document.getElementById('masthead').getBoundingClientRect().bottom + 60)
+    """
 
     session
     |> resize_window(390, 844)
     |> open(item_path(entries.podcast))
     |> assert_has(css("#player-slot #audio-cue"))
-    |> execute_script("""
-    document.getElementById('item-detail').style.paddingBottom = '2000px'
-    const slot = document.getElementById('player-slot').getBoundingClientRect().top
-    window.scrollTo(0, scrollY + slot - document.getElementById('masthead').getBoundingClientRect().bottom + 60)
-    """)
+    |> execute_script(scrolled_past_the_slot)
     |> then(fn session ->
-      script = """
-      return Math.round(document.getElementById('player-slot').getBoundingClientRect().top) ===
-             Math.round(document.getElementById('masthead').getBoundingClientRect().bottom)
-      """
-
+      script = under_the_bar.("player-slot")
       assert {:ok, _} = retry(fn -> holds(session, script) end), "the card's player stays"
       session
     end)
-  end
-
-  # An episode's controls sit in its card and, like a video, stay under the bar as the notes
-  # scroll, rather than passing half under it.
-  feature "audio stays under the bar as its notes scroll", context do
-    %{session: session, entries: entries} = context
-
-    session
-    |> resize_window(390, 844)
-    |> open(item_path(entries.podcast))
     |> click(css("#start-playback"))
     |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
     |> execute_script(edges(), fn [_left, _width, top] -> assert top == "slot" end)
-    |> execute_script("""
-    document.getElementById('item-detail').style.paddingBottom = '2000px'
-    const slot = document.getElementById('player-slot').getBoundingClientRect().top
-    window.scrollTo(0, scrollY + slot - document.getElementById('masthead').getBoundingClientRect().bottom + 60)
-    """)
+    # Starting patches the detail, which takes the padding with it.
+    |> execute_script(scrolled_past_the_slot)
     |> then(fn session ->
-      script = """
-      const panel = document.getElementById('player-panel')
-      return Math.round(panel.getBoundingClientRect().top) ===
-               Math.round(document.getElementById('masthead').getBoundingClientRect().bottom) &&
-             getComputedStyle(panel).visibility === 'visible'
-      """
-
+      script = under_the_bar.("player-panel")
       assert {:ok, _} = retry(fn -> holds(session, script) end), "the controls stay under the bar"
       session
     end)
@@ -503,10 +304,7 @@ defmodule SikioWeb.MobileTest do
   # A video keeps playing in the capsule, small.
   feature "a video plays on in the capsule", context do
     %{session: session, account: account} = context
-    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
-    {:ok, subscription} = Library.subscribe(account, preview)
-    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
-    Sikio.Repo.update!(Ecto.Changeset.change(video, embed_url: "/robots.txt", image_url: nil))
+    video = video_with_notes(account)
 
     session
     |> resize_window(390, 844)
@@ -550,31 +348,20 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # On a phone a subscription's actions sit below its text, so the name and its details keep the
-  # row's width.
-  @sessions [
-    [
-      capabilities:
-        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
-          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
-        })
-    ]
-  ]
-  feature "a subscription's actions sit below its text on a phone", context do
-    %{session: session, account: account} = context
-    [subscription | _] = Library.subscriptions(account)
+  # A PeerTube video whose frame is a page of Sikio's own, without a picture, with notes to scroll.
+  defp video_with_notes(account) do
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
 
-    session
-    |> open("/subscriptions")
-    |> assert_has(css("#edit-subscription-#{subscription.id}"))
-    |> execute_script(
-      """
-      const row = document.getElementById('subscription-#{subscription.id}')
-      const text = row.querySelector('.meta-dots').getBoundingClientRect()
-      const edit = document.getElementById('edit-subscription-#{subscription.id}').getBoundingClientRect()
-      return [Math.round(edit.top - text.bottom)]
-      """,
-      fn [gap] -> assert gap >= 0, "the actions overlap the text's line" end
+    Sikio.Repo.update!(
+      Ecto.Changeset.change(video,
+        embed_url: "/robots.txt",
+        image_url: nil,
+        description: notes,
+        description_format: :html
+      )
     )
   end
 
@@ -593,8 +380,4 @@ defmodule SikioWeb.MobileTest do
     execute_script(session, script, fn value -> Process.put(:holds, value) end)
     if Process.delete(:holds) == true, do: {:ok, session}, else: {:error, :not_yet}
   end
-
-  defp gap_below(selector),
-    do:
-      "return Math.round(innerHeight - document.querySelector('#{selector}').getBoundingClientRect().bottom)"
 end

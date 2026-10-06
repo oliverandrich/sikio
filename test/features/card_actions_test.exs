@@ -25,7 +25,9 @@ defmodule SikioWeb.CardActionsTest do
     %{video: video}
   end
 
-  feature "a narrow card shows its actions as icons", context do
+  # A narrow card shows its actions as icons, a wide one names them, and neither lets them run past
+  # its edge.
+  feature "a card names its actions where they fit and shows icons where not", context do
     %{session: session, video: video} = context
 
     session
@@ -33,20 +35,13 @@ defmodule SikioWeb.CardActionsTest do
     |> open(item_path(video))
     |> assert_has(css("#item-actions > #mark-completed"))
     |> execute_script(measure(), fn [card_right, actions_right, label] ->
-      assert actions_right <= card_right, "the actions stay inside the card"
+      assert actions_right <= card_right, "the actions stay inside the narrow card"
       assert label == "absolute", "the names are for screen readers only"
     end)
-  end
-
-  feature "a wide card names its actions", context do
-    %{session: session, video: video} = context
-
-    session
     |> resize_window(1920, 900)
-    |> open(item_path(video))
     |> assert_has(css("#item-actions > #mark-completed", text: "Mark as watched"))
     |> execute_script(measure(), fn [card_right, actions_right, label] ->
-      assert actions_right <= card_right
+      assert actions_right <= card_right, "the actions stay inside the wide card"
       assert label == "static"
     end)
   end

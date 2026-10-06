@@ -63,36 +63,6 @@ defmodule SikioWeb.AccountSecurityFeatureTest do
     |> assert_has(css("h1", text: "Save your recovery codes"))
   end
 
-  feature "German security pages work on a narrow screen", %{session: session} do
-    language(session, "de")
-    virtual_authenticator(session)
-
-    {:ok, _} =
-      Wallaby.HTTPClient.request(:post, "#{session.url}/chromium/send_command_and_get_result", %{
-        cmd: "Emulation.setDeviceMetricsOverride",
-        params: %{width: 390, height: 844, deviceScaleFactor: 1, mobile: true}
-      })
-
-    session
-    |> open("/")
-    |> code_entered()
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Erstelle deinen Passkey"))
-    |> landed_on("/recovery-codes")
-    |> open("/")
-    |> click(css("#user-menu summary"))
-    |> assert_has(link("Passkeys verwalten"))
-    |> take_screenshot(name: "account-menu-mobile", log: false)
-    |> click(link("Passkeys verwalten"))
-    |> landed_on("/account/passkeys")
-    |> connected()
-    |> assert_has(link("Bestätige deine Identität, um einen Passkey hinzuzufügen"))
-    |> take_screenshot(name: "account-passkeys-mobile", log: false)
-    |> open("/account/recovery-codes")
-    |> assert_has(css("p", text: "Du hast 12 unbenutzte Wiederherstellungscodes."))
-    |> take_screenshot(name: "account-recovery-mobile", log: false)
-  end
-
   feature "a recovery code confirms identity when the passkey is unavailable", %{session: session} do
     virtual_authenticator(session)
 

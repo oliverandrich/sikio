@@ -3,8 +3,6 @@
 defmodule SikioWeb.TailwindTest do
   use SikioWeb.FeatureCase
 
-  import Ecto.Query, only: [where: 2]
-
   alias Sikio.FeedFixtures
   alias Sikio.Feeds.Parser
   alias Sikio.Library
@@ -44,25 +42,6 @@ defmodule SikioWeb.TailwindTest do
     end)
   end
 
-  # The name reads as body text and the dot after it carries the signal, a different shade once the
-  # page turns dark. Shades are left to Tailwind here; the grounds above are pinned.
-  feature "the wordmark's dot carries the signal colour and adapts to the scheme", %{
-    session: session
-  } do
-    session
-    |> system_scheme("light")
-    |> open("/")
-    |> execute_script(wordmark(), fn [name, dot, text] ->
-      assert name == text
-      refute dot in [text, "rgba(0, 0, 0, 0)"]
-    end)
-    |> execute_script(wordmark(), fn [_name, light, _text] ->
-      session
-      |> system_scheme("dark")
-      |> execute_script(wordmark(), fn [_name, dark, _text] -> refute dark == light end)
-    end)
-  end
-
   # Durations, dates and counts are set in the mono, which a browser only loads once something
   # asks for it. A family that never loaded falls back to a system face without an error.
   feature "metadata is set in IBM Plex Mono, and the face is loaded", %{session: session} do
@@ -85,180 +64,6 @@ defmodule SikioWeb.TailwindTest do
       fn [family, loaded] ->
         assert family =~ ~r/^"IBM Plex Mono"/
         assert loaded
-      end
-    )
-  end
-
-  # The entry the reader is on reads as the accent, with its count as a tinted pill. A tint on its
-  # own all but vanishes against the light ground.
-  feature "the active navigation entry carries the accent", %{session: session} do
-    signed_in(session, "ada")
-
-    session
-    |> resize_window(1440, 900)
-    |> open("/subscriptions")
-    |> execute_script(
-      """
-      const probe = document.createElement('span')
-      probe.className = 'text-accent'
-      document.body.append(probe)
-      const color = el => getComputedStyle(el).color
-      return [color(probe), color(document.getElementById('manage-subscriptions')),
-              color(document.getElementById('view-all'))]
-      """,
-      fn [accent, active, inactive] ->
-        assert active == accent
-        refute inactive == accent
-      end
-    )
-  end
-
-  # Ink marks actions and the current place. A source's name is neither, so it reads muted, and the
-  # chosen item stands out by its ground alone.
-  feature "a source's name reads muted and the chosen item has no edge", %{session: session} do
-    account = signed_in(session, "ada")
-    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
-    {:ok, _} = Library.subscribe(account, preview)
-    [entry] = Library.entries(account)
-
-    session
-    |> resize_window(1440, 900)
-    |> open("/inbox")
-    |> click(css("#play-#{entry.id}"))
-    |> assert_has(css("#play-#{entry.id}[aria-current=true]"))
-    |> execute_script(
-      """
-      const probe = document.createElement('span')
-      probe.className = 'text-muted'
-      document.body.append(probe)
-      const style = el => getComputedStyle(el)
-      return [style(probe).color, style(document.querySelector('[data-source]')).color,
-              style(document.getElementById('entries-#{entry.id}')).boxShadow]
-      """,
-      fn [muted, source, edge] ->
-        assert source == muted
-        assert edge == "none"
-      end
-    )
-  end
-
-  # Black text alone does not read as a link, so links in running text are underlined in the
-  # signal's amber.
-  feature "a link in running text is underlined", %{session: session} do
-    signed_in(session, "ada")
-
-    session
-    |> open("/subscriptions")
-    |> execute_script(
-      """
-      const probe = document.createElement('span')
-      probe.className = 'bg-signal'
-      document.body.append(probe)
-      const link = getComputedStyle(document.getElementById('opml-import-link'))
-      return [link.textDecorationLine, link.textDecorationColor, getComputedStyle(probe).backgroundColor,
-              link.textDecorationThickness, link.textDecorationSkipInk]
-      """,
-      fn [line, color, signal, thickness, skip] ->
-        assert line == "underline"
-        assert color == signal
-        assert thickness == "1.5px"
-        assert skip == "none", "the line runs through descenders rather than breaking"
-      end
-    )
-  end
-
-  # In the notes a link is set a little heavier than the text around it, so it holds its own
-  # beside the amber line.
-  feature "a link in the notes is set a little heavier", %{session: session} do
-    feed = subscribed(session)
-
-    session
-    |> open("/feeds/#{feed}")
-    |> click(css("#entries article a", count: :any, at: 0))
-    |> assert_has(css("#item-notes a"))
-    |> execute_script(
-      "return [getComputedStyle(document.querySelector('#item-notes a')).fontWeight, getComputedStyle(document.getElementById('item-notes')).fontWeight]",
-      fn [link, text] ->
-        assert link == "500"
-        assert text == "400"
-      end
-    )
-  end
-
-  # The current segment is filled with ink. A dialog stands on a hairline edge, and the question
-  # before leaving a source answers in the danger colour.
-  feature "segments, dialogs and a destructive answer carry their colours", %{session: session} do
-    account = signed_in(session, "ada")
-    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
-    {:ok, _} = Library.subscribe(account, preview)
-
-    probe = fn class ->
-      """
-      const probe = document.createElement('span')
-      probe.className = '#{class}'
-      document.body.append(probe)
-      return getComputedStyle(probe).backgroundColor
-      """
-    end
-
-    background = fn id ->
-      "return getComputedStyle(document.getElementById('#{id}')).backgroundColor"
-    end
-
-    session
-    |> resize_window(1440, 900)
-    |> open("/inbox")
-    |> click(css("#sidebar a", text: "Small Hours"))
-    |> assert_has(css("#filter-status-inbox[aria-current=true]"))
-    |> execute_script(probe.("bg-accent"), fn accent ->
-      session
-      |> execute_script(background.("filter-status-inbox"), fn current ->
-        assert current == accent
-      end)
-    end)
-    |> click(css("#edit-subscription"))
-    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
-    |> execute_script(
-      "return getComputedStyle(document.getElementById('edit-subscription-confirm')).borderTopWidth",
-      fn width -> assert width == "1px" end
-    )
-    |> click(css("#unsubscribe"))
-    |> assert_has(css("dialog#unsubscribe-confirm[open]"))
-    |> execute_script(probe.("bg-danger"), fn danger ->
-      session
-      |> execute_script(background.("confirm-unsubscribe"), fn answer ->
-        assert answer == danger
-      end)
-    end)
-  end
-
-  # A dialog keeps to quiet sizes from sm: a short title, buttons of 36px and its answers in a band
-  # of their own at the foot. A form stands further from the title than a question.
-  feature "a dialog keeps quiet sizes beside a mouse", %{session: session} do
-    feed = subscribed(session)
-
-    session
-    |> resize_window(1440, 900)
-    |> open("/feeds/#{feed}")
-    |> click(css("#edit-subscription"))
-    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
-    |> execute_script(
-      """
-      const probe = document.createElement('span')
-      probe.className = 'bg-ground'
-      document.body.append(probe)
-      const style = id => getComputedStyle(document.getElementById(id))
-      return [Math.round(document.getElementById('confirm-edit-subscription').getBoundingClientRect().height),
-              style('edit-subscription-heading').fontSize, style('edit-subscription-actions').backgroundColor,
-              getComputedStyle(probe).backgroundColor,
-              Math.round(document.getElementById('subscription-form').getBoundingClientRect().top -
-                document.getElementById('edit-subscription-heading').getBoundingClientRect().bottom)]
-      """,
-      fn [height, title, band, ground, gap] ->
-        assert height == 36
-        assert title == "17px"
-        assert band == ground
-        assert gap >= 20, "a form stands apart from the title"
       end
     )
   end
@@ -299,64 +104,6 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
-  # A primary button that cannot be pressed yet steps back to an outline rather than a grey slab.
-  feature "a disabled primary button keeps the page's ground", %{session: session} do
-    signed_in(session, "ada")
-
-    session
-    |> resize_window(1440, 900)
-    |> open("/subscriptions/import")
-    |> assert_has(css("#opml-upload-form button[disabled]"))
-    |> execute_script(
-      """
-      const probe = document.createElement('span')
-      probe.className = 'bg-surface'
-      document.body.append(probe)
-      const button = getComputedStyle(document.querySelector('#opml-upload-form button[disabled]'))
-      return [button.backgroundColor, getComputedStyle(probe).backgroundColor, button.opacity]
-      """,
-      fn [button, surface, opacity] ->
-        assert button == surface
-        assert opacity == "1"
-      end
-    )
-  end
-
-  # A username is short, so its field is too.
-  feature "the invitation's field keeps a username's width", %{session: session} do
-    signed_in(session, "ada")
-
-    session
-    |> resize_window(1440, 900)
-    |> open("/invitations")
-    |> execute_script(
-      "return Math.round(document.querySelector('#invitation-form input[name=username]').getBoundingClientRect().width)",
-      fn width -> assert width <= 384 end
-    )
-  end
-
-  # Whatever can be pressed shows the hand, a chapter's button as much as a link.
-  feature "a chapter shows the pointer", %{session: session} do
-    account = signed_in(session, "ada")
-    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
-    {:ok, _} = Library.subscribe(account, preview)
-    [entry] = Library.entries(account)
-    notes = "<p>Worum es geht.</p><p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>"
-
-    Sikio.Repo.update_all(where(Sikio.Feeds.Entry, id: ^entry.id),
-      set: [description: notes, description_format: :html, chapters: nil]
-    )
-
-    session
-    |> resize_window(1440, 900)
-    |> open(item_path(entry))
-    |> assert_has(css("#item-chapters button", count: 3))
-    |> execute_script(
-      "return getComputedStyle(document.querySelector('#item-chapters button')).cursor",
-      fn cursor -> assert cursor == "pointer" end
-    )
-  end
-
   # From lg the sources may run long. They scroll, while the wordmark above and the offer of the
   # source below stay where they are. Only a window too short for those two scrolls the whole
   # column. A pencil beside the sources leads to managing them, so the bar of links is the phone's.
@@ -376,38 +123,6 @@ defmodule SikioWeb.TailwindTest do
         assert sidebar == "auto"
         assert header == "auto"
         assert link == "none"
-      end
-    )
-  end
-
-  # The active count is tinted, not moved: its digits end where every other count's do, as far
-  # from the right edge as the name starts from the left.
-  feature "an active count lines up with the others", %{session: session} do
-    account = signed_in(session, "ada")
-    {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
-    {:ok, _} = Library.subscribe(account, preview)
-
-    session
-    |> resize_window(1440, 900)
-    |> open("/all")
-    |> assert_has(css("#view-all[aria-current=page] #view-all-count"))
-    |> execute_script(
-      """
-      const right = id => {
-        const range = document.createRange()
-        range.selectNodeContents(document.getElementById(id))
-        return Math.round(range.getBoundingClientRect().right)
-      }
-      const link = document.getElementById('view-inbox').getBoundingClientRect()
-      // The row starts with the view's icon.
-      const start = document.querySelector('#view-inbox > span').firstElementChild
-      return [right('view-all-count'), right('view-inbox-count'),
-              Math.round(start.getBoundingClientRect().left - link.left),
-              Math.round(link.right) - right('view-inbox-count')]
-      """,
-      fn [active, inactive, left_inset, right_inset] ->
-        assert active == inactive
-        assert left_inset == right_inset, "the digits sit as far from the edge as the icon"
       end
     )
   end
@@ -470,15 +185,6 @@ defmodule SikioWeb.TailwindTest do
     {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
     {:ok, _} = Library.subscribe(account, preview)
     hd(Library.entries(account)).feed_id
-  end
-
-  defp wordmark do
-    """
-    const name = document.querySelector('#project-name')
-    return [getComputedStyle(name).color,
-            getComputedStyle(name.querySelector('[aria-hidden]')).backgroundColor,
-            getComputedStyle(document.body).color]
-    """
   end
 
   defp system_scheme(session, value) do

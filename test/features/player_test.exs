@@ -174,10 +174,11 @@ defmodule SikioWeb.PlayerTest do
       )
     end
 
-    # A video spans its card from edge to edge, as it spans a phone's screen. Its place is
-    # measured before it plays, so nothing is asked of YouTube.
-    feature "a video's place spans its card", context do
-      %{session: session, video: video} = context
+    # The player sits where the detail shows it: at the card's head, above the title and notes. A
+    # video spans its card from edge to edge, as it spans a phone's screen. Its place is measured
+    # before it plays, so nothing is asked of YouTube.
+    feature "is in the detail that shows what plays, above its title", context do
+      %{session: session, account: account, entry: entry, video: video} = context
 
       session
       |> resize_window(1280, 900)
@@ -186,14 +187,6 @@ defmodule SikioWeb.PlayerTest do
       |> execute_script(flush("#player-slot", "#item-detail article"), fn flush ->
         assert flush
       end)
-    end
-
-    # The player sits where the detail shows it: at the card's head, above the title and notes.
-    feature "is in the detail that shows what plays, above its title", context do
-      %{session: session, account: account, entry: entry} = context
-
-      session
-      |> resize_window(1280, 900)
       |> open(item_path(entry))
       |> click(css("#start-playback"))
       |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
@@ -372,16 +365,20 @@ defmodule SikioWeb.PlayerTest do
       )
     end
 
-    # The page keeps the keyboard and drives the player through it: p plays and pauses, the
-    # arrows skip. Space stays the page's. The library's keys stay the library's, wherever the focus is.
+    # The page keeps the keyboard and drives the player through it: p starts the open item as its
+    # play button does, then plays and pauses, the arrows skip. Space stays the page's. The
+    # library's keys stay the library's, wherever the focus is.
     feature "the page's keys drive the player", context do
       %{session: session, account: account, entry: entry} = context
 
       session
       |> resize_window(1280, 900)
       |> open(item_path(entry))
-      |> click(css("#start-playback"))
+      |> assert_has(css("#start-playback"))
+      |> gone(css("#player-control[data-entry-id]"))
+      |> send_keys(["p"])
       |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
+      |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
       |> execute_script(
         """
         window.commands = []
@@ -404,19 +401,6 @@ defmodule SikioWeb.PlayerTest do
       |> assert_has(css("#mark-new", visible: false))
 
       assert Library.entry(account, entry.id).playback.status == :heard
-    end
-
-    # Before anything plays, p starts the open item as its play button does.
-    feature "p starts the open item", context do
-      %{session: session, entry: entry} = context
-
-      session
-      |> resize_window(1280, 900)
-      |> open(item_path(entry))
-      |> assert_has(css("#start-playback"))
-      |> gone(css("#player-control[data-entry-id]"))
-      |> send_keys(["p"])
-      |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
     end
 
     # A click into a video's frame takes the keyboard where the page cannot hear it. The page takes
