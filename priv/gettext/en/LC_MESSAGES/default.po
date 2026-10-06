@@ -1992,14 +1992,14 @@ msgstr ""
 
 #: lib/sikio_web/live/subscriptions_live.ex:250
 #, elixir-autogen, elixir-format
-msgid "Active sources refresh every hour."
-msgid_plural "Active sources refresh every %{count} hours."
+msgid "Active sources refresh at most every hour, less often when they rarely publish."
+msgid_plural "Active sources refresh at most every %{count} hours, less often when they rarely publish."
 msgstr[0] ""
 msgstr[1] ""
 
 #: lib/sikio_web/live/subscriptions_live.ex:258
 #, elixir-autogen, elixir-format
-msgid "Active sources refresh every minute."
-msgid_plural "Active sources refresh every %{count} minutes."
+msgid "Active sources refresh at most every minute, less often when they rarely publish."
+msgid_plural "Active sources refresh at most every %{count} minutes, less often when they rarely publish."
 msgstr[0] ""
 msgstr[1] ""

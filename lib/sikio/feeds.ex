@@ -15,6 +15,7 @@ defmodule Sikio.Feeds do
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
+  alias Sikio.Feeds.Schedule
   alias Sikio.Feeds.SearchText
   alias Sikio.Library.Events
   alias Sikio.Repo
@@ -46,6 +47,16 @@ defmodule Sikio.Feeds do
   defp announce(_on_new, _feed_id, []), do: :ok
   defp announce(on_new, feed_id, entry_ids), do: on_new.(feed_id, entry_ids)
 
+  # When the feed is asked next, by the age of its newest entry as stored now.
+  defp schedule_next(feed_id, now) do
+    next = Schedule.next_check(now, newest(feed_id), poll_minutes())
+    Repo.update_all(from(f in Feed, where: f.id == ^feed_id), set: [next_check_at: next])
+    next
+  end
+
+  defp newest(feed_id),
+    do: Repo.one(from e in Entry, where: e.feed_id == ^feed_id, select: max(e.published_at))
+
   # The feed and how many of its entries were inserted or actually changed.
   defp store_entries(preview, on_new) do
     Repo.transaction(fn ->
@@ -59,7 +70,7 @@ defmodule Sikio.Feeds do
         {:ok, feed} ->
           {written, new} = import_entries(feed.id, preview.entries)
           announce(on_new, feed.id, new)
-          {feed, written}
+          {%{feed | next_check_at: schedule_next(feed.id, attrs.last_checked_at)}, written}
 
         {:error, error} ->
           Repo.rollback(error)
@@ -128,17 +139,30 @@ defmodule Sikio.Feeds do
 
       # Nothing changed, so nobody is told. Each notification costs every open library a reload.
       :not_modified ->
+        now = DateTime.utc_now()
+
         feed
-        |> Ecto.Changeset.change(last_checked_at: DateTime.utc_now(), last_error: nil)
+        |> Ecto.Changeset.change(
+          last_checked_at: now,
+          last_error: nil,
+          next_check_at: Schedule.next_check(now, newest(feed.id), poll_minutes())
+        )
         |> Repo.update()
         |> case do
           {:ok, feed} -> {:unchanged, feed}
           other -> other
         end
 
+      # A failure says nothing about the feed's pace, so it is asked again at the base interval.
       {:error, reason} ->
+        now = DateTime.utc_now()
+
         Repo.update_all(from(f in Feed, where: f.id == ^feed.id),
-          set: [last_checked_at: DateTime.utc_now(), last_error: to_string(reason)]
+          set: [
+            last_checked_at: now,
+            last_error: to_string(reason),
+            next_check_at: DateTime.add(now, poll_minutes(), :minute)
+          ]
         )
 
         {:error, reason}

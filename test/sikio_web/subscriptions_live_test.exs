@@ -37,7 +37,12 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     {:ok, _} = Library.subscribe(user, preview)
 
     {:ok, view, _} = live(conn, ~p"/subscriptions")
-    assert has_element?(view, "#polling-interval", "Active sources refresh every hour.")
+
+    assert has_element?(
+             view,
+             "#polling-interval",
+             "Active sources refresh at most every hour, less often when they rarely publish."
+           )
   end
 
   test "an interval of whole hours reads in hours, any other in minutes" do
@@ -45,9 +50,9 @@ defmodule SikioWeb.SubscriptionsLiveTest do
       render_component(&SikioWeb.SubscriptionsLive.polling_interval/1, minutes: minutes)
     end
 
-    assert interval.(60) =~ "every hour."
-    assert interval.(120) =~ "every 2 hours."
-    assert interval.(90) =~ "every 90 minutes."
+    assert interval.(60) =~ "at most every hour,"
+    assert interval.(120) =~ "at most every 2 hours,"
+    assert interval.(90) =~ "at most every 90 minutes,"
   end
 
   # The sidebar's mark says it only on hover. Here the reason is written out, for keyboards and

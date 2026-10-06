@@ -48,7 +48,7 @@ Export these variables in the environment used for both migration and startup:
 | `ECTO_IPV6` | PostgreSQL release: `true` to reach the database over IPv6 |
 | `DNS_CLUSTER_QUERY` | DNS name that lists other nodes to cluster with; unset for a single node |
 | `PICTURE_CACHE_DIR` | Absolute path for pictures fetched from publishers; outside the release, writable by the service |
-| `FEED_POLL_MINUTES` | How often a source is asked, in whole minutes; 60 by default, at least 5 |
+| `FEED_POLL_MINUTES` | How often a source is asked at most, in whole minutes; 60 by default, at least 5 |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
 | `TRUSTED_PROXIES` | Addresses that may forward a visitor's own; only needed for a proxy on another host |
 | `ACCOUNT_IDENTITY` | `username` (the default) or `email`; anything else stops the boot. `email` requires the mail settings below |
@@ -179,7 +179,9 @@ bin/sikio eval 'Sikio.Release.rollback(Sikio.Repo, 20260918000000)'
 ## Background work
 
 Oban runs on the application's own database, so no separate broker is needed. The `feeds`
-queue refreshes each source once `FEED_POLL_MINUTES` have passed since it was last asked. The
-scheduler looks every five minutes, so the requests spread over the interval. `maintenance` runs
+queue refreshes each source when its next check has come. That is a tenth of its newest entry's
+age after the last request, at least `FEED_POLL_MINUTES` and at most a day; a failed request is
+tried again after `FEED_POLL_MINUTES`. The scheduler looks every five minutes, so the requests
+spread over the interval. `maintenance` runs
 `Sikio.AuthCleanup` every 15 minutes, which expires sessions, abandoned challenges and
 unaccepted invitations.

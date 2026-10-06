@@ -529,20 +529,20 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  The feeds somebody wants refreshed whose interval has passed since they were last asked.
+  The feeds somebody wants refreshed whose next check has come.
 
-  A feed never asked is due at once. A failed request counts as asked, so a broken feed is tried
-  again an interval later rather than on every run of the scheduler. The time stamp is written a
-  moment after the feed was queued, so a minute of leeway keeps it from waiting one run more.
+  Every request sets that moment, see `Sikio.Feeds.Schedule`; a feed without one is due at once.
+  It is written a moment after the feed was queued, so a minute of leeway keeps the feed from
+  waiting one run of the scheduler more.
   """
-  def due_feed_ids(minutes \\ Feeds.poll_minutes()) do
-    since = DateTime.add(DateTime.utc_now(), 1 - minutes, :minute)
+  def due_feed_ids do
+    soon = DateTime.add(DateTime.utc_now(), 1, :minute)
 
     Repo.all(
       from s in Subscription,
         join: f in assoc(s, :feed),
         where: not s.paused,
-        where: is_nil(f.last_checked_at) or f.last_checked_at <= ^since,
+        where: is_nil(f.next_check_at) or f.next_check_at <= ^soon,
         select: s.feed_id,
         distinct: true
     )

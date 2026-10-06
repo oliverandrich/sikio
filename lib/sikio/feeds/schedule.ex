@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+defmodule Sikio.Feeds.Schedule do
+  @moduledoc """
+  When a feed is asked next: after a tenth of its newest entry's age.
+
+  A show that published this morning is asked at the base interval, one that last published
+  months ago once a day. The pace follows the feed without any history to keep.
+  """
+
+  @day_minutes 24 * 60
+
+  @doc """
+  The moment after `now` to ask a feed whose newest entry is dated `newest`.
+
+  The wait is a tenth of that entry's age, at most a day and at least `base_minutes`. Without a
+  date, or with one in the future, the feed is asked at the base interval.
+  """
+  def next_check(now, newest, base_minutes) do
+    age = if newest, do: max(DateTime.diff(now, newest, :minute), 0), else: 0
+    # The cap applies before the base, so an operator's interval above a day still holds.
+    wait = age |> div(10) |> min(@day_minutes) |> max(base_minutes)
+    DateTime.add(now, wait, :minute)
+  end
+end

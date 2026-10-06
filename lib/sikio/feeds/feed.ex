@@ -16,6 +16,7 @@ defmodule Sikio.Feeds.Feed do
     field :last_modified, :string
     field :last_checked_at, :utc_datetime_usec
     field :last_error, :string
+    field :next_check_at, :utc_datetime_usec
     timestamps(type: :utc_datetime_usec)
   end
 

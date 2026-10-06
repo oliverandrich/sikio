@@ -49,6 +49,26 @@ defmodule Sikio.FeedsTest do
     assert Repo.aggregate(Entry, :count) == 1
   end
 
+  # The fixture's newest episode is weeks old, so a tenth of its age is more than the day the
+  # wait is capped at. Each kind of answer sets the next request.
+  test "a stored or unchanged feed is asked next by the age of its newest entry" do
+    {:ok, stored} = Feeds.store(preview())
+    assert_next_check(stored.id, hours: 24)
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 304, "") end)
+    assert {:ok, _} = Feeds.refresh(stored.id)
+    assert_next_check(stored.id, hours: 24)
+  end
+
+  # A failure says nothing about the feed's pace, so it is tried again at the base interval.
+  test "a feed that failed is asked again after the base interval" do
+    {:ok, stored} = Feeds.store(preview())
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "try later") end)
+
+    assert {:error, :unavailable} = Feeds.refresh(stored.id)
+    assert_next_check(stored.id, hours: 1)
+  end
+
   # A gone feed is not one that is down for a while. The reader is told which it is.
   test "a source that is gone records that it is gone" do
     {:ok, stored} = Feeds.store(preview())
@@ -447,5 +467,11 @@ defmodule Sikio.FeedsTest do
     entry = Repo.one(Entry)
     assert entry.embed_url == "https://video.example.org/videos/embed/mSh0rtUu1d"
     assert entry.duration == 3600
+  end
+
+  defp assert_next_check(feed_id, hours: hours) do
+    expected = DateTime.add(DateTime.utc_now(), hours, :hour)
+    next = Repo.get!(Feed, feed_id).next_check_at
+    assert abs(DateTime.diff(next, expected, :second)) < 60
   end
 end

@@ -233,7 +233,7 @@ defmodule SikioWeb.SubscriptionsLive do
     """
   end
 
-  @doc "How often active sources are asked, in hours when the interval is whole hours."
+  @doc "How often active sources are asked at most, in hours when the interval is whole hours."
   attr :minutes, :integer, required: true
 
   def polling_interval(assigns) do
@@ -248,16 +248,16 @@ defmodule SikioWeb.SubscriptionsLive do
   defp interval_sentence(minutes) when rem(minutes, 60) == 0,
     do:
       ngettext(
-        "Active sources refresh every hour.",
-        "Active sources refresh every %{count} hours.",
+        "Active sources refresh at most every hour, less often when they rarely publish.",
+        "Active sources refresh at most every %{count} hours, less often when they rarely publish.",
         div(minutes, 60)
       )
 
   defp interval_sentence(minutes),
     do:
       ngettext(
-        "Active sources refresh every minute.",
-        "Active sources refresh every %{count} minutes.",
+        "Active sources refresh at most every minute, less often when they rarely publish.",
+        "Active sources refresh at most every %{count} minutes, less often when they rarely publish.",
         minutes
       )
 end

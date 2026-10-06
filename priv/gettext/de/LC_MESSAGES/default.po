@@ -1989,14 +1989,14 @@ msgstr "Ein gemeinsamer Feed kann für andere weiter aktualisiert werden, währe
 
 #: lib/sikio_web/live/subscriptions_live.ex:250
 #, elixir-autogen, elixir-format
-msgid "Active sources refresh every hour."
-msgid_plural "Active sources refresh every %{count} hours."
-msgstr[0] "Aktive Quellen werden jede Stunde aktualisiert."
-msgstr[1] "Aktive Quellen werden alle %{count} Stunden aktualisiert."
+msgid "Active sources refresh at most every hour, less often when they rarely publish."
+msgid_plural "Active sources refresh at most every %{count} hours, less often when they rarely publish."
+msgstr[0] "Aktive Quellen werden höchstens jede Stunde aktualisiert, seltener, wenn sie selten veröffentlichen."
+msgstr[1] "Aktive Quellen werden höchstens alle %{count} Stunden aktualisiert, seltener, wenn sie selten veröffentlichen."
 
 #: lib/sikio_web/live/subscriptions_live.ex:258
 #, elixir-autogen, elixir-format
-msgid "Active sources refresh every minute."
-msgid_plural "Active sources refresh every %{count} minutes."
-msgstr[0] "Aktive Quellen werden jede Minute aktualisiert."
-msgstr[1] "Aktive Quellen werden alle %{count} Minuten aktualisiert."
+msgid "Active sources refresh at most every minute, less often when they rarely publish."
+msgid_plural "Active sources refresh at most every %{count} minutes, less often when they rarely publish."
+msgstr[0] "Aktive Quellen werden höchstens jede Minute aktualisiert, seltener, wenn sie selten veröffentlichen."
+msgstr[1] "Aktive Quellen werden höchstens alle %{count} Minuten aktualisiert, seltener, wenn sie selten veröffentlichen."
