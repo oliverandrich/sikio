@@ -88,6 +88,7 @@ current session. Ithibati revokes stored sessions and broadcasts disconnects to
 live sockets. Passkeys remain valid for future logins.
 
 Run `mix auth.cleanup` explicitly in development when you want it to happen now.
+It runs in its own node, so it cannot disconnect a running server's LiveViews.
 For an already-running release, call:
 
 ```sh
@@ -95,7 +96,7 @@ bin/sikio rpc 'Sikio.AuthCleanup.run()'
 ```
 
 It returns deletion counts for expired sessions, abandoned challenges and expired,
-unaccepted invitations. Valid credentials, recovery codes and accepted invitations
+unaccepted invitations. It disconnects the LiveViews of each expired session. Valid credentials, recovery codes and accepted invitations
 are preserved. `Sikio.Accounts.Cleanup` runs it every fifteen minutes on Oban's
 maintenance queue, so a deployed instance needs no cron entry of its own.
 
