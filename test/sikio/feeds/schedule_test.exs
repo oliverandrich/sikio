@@ -50,4 +50,20 @@ defmodule Sikio.Feeds.ScheduleTest do
     assert after_hours(10, 60, 7 * 24 * 3600) == 24.0
     assert after_hours(10, 48 * 60, 7 * 24 * 3600) == 48.0
   end
+
+  # Feeds imported together would otherwise be asked together for good. A tenth of the wait, at
+  # most ten minutes, is added at random; it postpones and never brings a request forward.
+  test "spreading adds up to a tenth of the wait, at most ten minutes" do
+    spread = fn minutes ->
+      at = DateTime.add(@now, minutes, :minute)
+      for _ <- 1..200, do: @now |> Schedule.spread(at) |> DateTime.diff(at, :second)
+    end
+
+    hour = spread.(60)
+    assert Enum.min(hour) >= 0 and Enum.max(hour) <= 6 * 60
+    assert length(Enum.uniq(hour)) > 1
+
+    day = spread.(24 * 60)
+    assert Enum.max(day) <= 10 * 60
+  end
 end

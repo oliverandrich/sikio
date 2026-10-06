@@ -482,9 +482,10 @@ defmodule Sikio.FeedsTest do
     assert entry.duration == 3600
   end
 
+  # Spreading postpones by up to ten minutes, never less than the wait.
   defp assert_next_check(feed_id, hours: hours) do
     expected = DateTime.add(DateTime.utc_now(), hours, :hour)
     next = Repo.get!(Feed, feed_id).next_check_at
-    assert abs(DateTime.diff(next, expected, :second)) < 60
+    assert DateTime.diff(next, expected, :second) in -60..600
   end
 end

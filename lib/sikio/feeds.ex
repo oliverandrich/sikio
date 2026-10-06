@@ -49,9 +49,13 @@ defmodule Sikio.Feeds do
 
   # When the feed is asked next, by the age of its newest entry as stored now.
   defp schedule_next(feed_id, now, wait) do
-    next = Schedule.next_check(now, newest(feed_id), poll_minutes(), wait)
+    next = next_check(now, newest(feed_id), wait)
     Repo.update_all(from(f in Feed, where: f.id == ^feed_id), set: [next_check_at: next])
     next
+  end
+
+  defp next_check(now, newest, wait) do
+    Schedule.spread(now, Schedule.next_check(now, newest, poll_minutes(), wait))
   end
 
   defp newest(feed_id),
@@ -151,7 +155,7 @@ defmodule Sikio.Feeds do
         |> Ecto.Changeset.change(
           last_checked_at: now,
           last_error: nil,
-          next_check_at: Schedule.next_check(now, newest(feed.id), poll_minutes(), wait)
+          next_check_at: next_check(now, newest(feed.id), wait)
         )
         |> Repo.update()
         |> case do
@@ -168,7 +172,7 @@ defmodule Sikio.Feeds do
           set: [
             last_checked_at: now,
             last_error: to_string(reason),
-            next_check_at: Schedule.next_check(now, nil, poll_minutes(), wait)
+            next_check_at: next_check(now, nil, wait)
           ]
         )
 

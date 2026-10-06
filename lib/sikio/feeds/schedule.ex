@@ -25,4 +25,14 @@ defmodule Sikio.Feeds.Schedule do
     asked = if wait, do: div(wait + 59, 60), else: 0
     DateTime.add(now, paced |> max(asked) |> min(cap), :minute)
   end
+
+  @doc """
+  Postpones `at` by a random part of its wait from `now`: up to a tenth, at most ten minutes.
+
+  Feeds imported together would otherwise fall due together for good.
+  """
+  def spread(now, at) do
+    most = at |> DateTime.diff(now, :second) |> div(10) |> min(600)
+    if most > 0, do: DateTime.add(at, :rand.uniform(most + 1) - 1, :second), else: at
+  end
 end

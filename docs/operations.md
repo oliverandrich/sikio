@@ -184,7 +184,8 @@ age after the last request, at least `FEED_POLL_MINUTES` and at most a day; a fa
 tried again after `FEED_POLL_MINUTES`. A server's `Retry-After` and `Cache-Control: max-age`
 can only lengthen that wait, up to the same day or `FEED_POLL_MINUTES` if longer. A feed's
 `<ttl>` does the same after an answer with content; a `304` carries none. A server that names
-its wait is not retried before it. The scheduler looks every five minutes, so the requests
+its wait is not retried before it. Each next request is postponed by up to a tenth of its wait,
+at most ten minutes, so feeds imported together do not stay in step. The scheduler looks every five minutes, so the requests
 spread over the interval. `maintenance` runs
 `Sikio.AuthCleanup` every 15 minutes, which expires sessions, abandoned challenges and
 unaccepted invitations.
