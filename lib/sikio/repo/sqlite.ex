@@ -44,6 +44,22 @@ defmodule Sikio.Repo.SQLite do
       |> Keyword.put_new(:priv, "priv/repo")
       |> Keyword.put(:telemetry_prefix, [:sikio, :repo])
 
+    if type == :supervisor, do: write_ahead(config)
     {:ok, config}
+  end
+
+  # Turns a new file to WAL with one connection before the pool opens its own. Each of those turns
+  # it too as it connects, and on an empty file they collide: SQLite refuses all but one at once
+  # rather than wait, and the others log "database is locked" before they retry. A file already in
+  # WAL needs no lock to stay there. A file that cannot be opened is left for the pool to report.
+  defp write_ahead(config) do
+    with :wal <- config[:journal_mode],
+         path when is_binary(path) and path != ":memory:" <- config[:database],
+         {:ok, db} <- Exqlite.Sqlite3.open(path) do
+      Exqlite.Sqlite3.execute(db, "PRAGMA journal_mode = WAL")
+      Exqlite.Sqlite3.close(db)
+    end
+
+    :ok
   end
 end
