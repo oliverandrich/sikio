@@ -2,8 +2,9 @@
 
 defmodule Sikio.DatabaseTest do
   @moduledoc """
-  A build serves one database, chosen with SIKIO_DATABASE when it is compiled. The repository and
-  the job queue follow that choice together, and either database holds the same rules.
+  One build serves both databases, chosen with SIKIO_DATABASE when the application starts. The
+  repository and the job queue follow that choice together, and either database holds the same
+  rules.
   """
   use Sikio.DataCase, async: true
 
@@ -11,7 +12,7 @@ defmodule Sikio.DatabaseTest do
   alias Sikio.Feeds.{Entry, Feed}
   alias Sikio.Repo
 
-  test "the repository and the job queue serve the database the build was made for" do
+  test "the repository and the job queue serve the database the application started with" do
     {adapter, engine} =
       case Application.fetch_env!(:sikio, :database) do
         :sqlite -> {Ecto.Adapters.SQLite3, Oban.Engines.Lite}
@@ -20,8 +21,15 @@ defmodule Sikio.DatabaseTest do
 
     assert Repo.__adapter__() == adapter
 
-    assert Keyword.get(Application.fetch_env!(:sikio, Oban), :engine, Oban.Engines.Basic) ==
-             engine
+    assert Oban.config().engine == engine
+  end
+
+  # The repositories are started under Sikio.Repo's name and read its configuration. What is set
+  # there wins over Ecto's own defaults, such as its pool of ten.
+  test "the repository runs with the configuration set for Sikio.Repo" do
+    configured = Application.fetch_env!(:sikio, Repo)[:pool_size]
+    refute configured == 10
+    assert Repo.config()[:pool_size] == configured
   end
 
   # The checks are in the database as well as in the code, because a row can arrive by a path the

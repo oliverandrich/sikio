@@ -12,7 +12,7 @@ defmodule Sikio.ApplicationTest do
   test "the migrator starts before the queue and runs only when asked" do
     ids = Enum.map(Sikio.Application.children(), &Supervisor.child_spec(&1, []).id)
 
-    assert Enum.find_index(ids, &(&1 == Sikio.Repo)) <
+    assert Enum.find_index(ids, &(&1 == Sikio.Repo.repo())) <
              Enum.find_index(ids, &(&1 == Ecto.Migrator))
 
     assert Enum.find_index(ids, &(&1 == Ecto.Migrator)) < Enum.find_index(ids, &(&1 == Oban))

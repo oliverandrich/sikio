@@ -1,6 +1,6 @@
 name: Release
-# A tag vX.Y.Z builds a release for each database and architecture, smoke-tests each against a
-# disposable database, and publishes the tarballs with their checksums and the changelog section.
+# A tag vX.Y.Z builds a release for each architecture, smoke-tests each against a disposable
+# database of each kind, and publishes the tarballs with their checksums and the changelog section.
 # Run by hand, it builds and smoke-tests the version in mix.exs and publishes nothing.
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
       smoke: false
 
   build:
-    name: ${{ matrix.database }} on ${{ matrix.arch }}
+    name: ${{ matrix.arch }}
     # Ubuntu 22.04 rather than the newest: the release carries its runtime, which needs the glibc
     # it was built against or newer, so an older one runs on more servers.
     runs-on: ${{ matrix.runner }}
@@ -30,7 +30,6 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        database: [sqlite, postgres]
         arch: [x86_64, arm64]
         include:
           - arch: x86_64
@@ -38,15 +37,13 @@ jobs:
           - arch: arm64
             runner: ubuntu-22.04-arm
     env:
-      SIKIO_DATABASE: ${{ matrix.database }}
       PGHOST: localhost
       PGPORT: "5432"
       PGUSER: postgres
       PGPASSWORD: postgres
     services:
-      # Only the PostgreSQL builds need one; an empty image starts no container.
       postgres:
-        image: ${{ matrix.database == 'postgres' && 'postgres:18' || '' }}
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -86,23 +83,22 @@ jobs:
             exit 1
           fi
 
-      - run: mise run release
-      - run: elixir scripts/smoke_release.exs
+      # One release serves both databases, so it is checked with each.
+      - run: mise run smoke
 
       - name: Pack the release
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          DATABASE: ${{ matrix.database }}
           ARCH: ${{ matrix.arch }}
         run: |
-          name="sikio-$VERSION-$DATABASE-linux-$ARCH"
+          name="sikio-$VERSION-linux-$ARCH"
           mkdir -p dist
-          tar -czf "dist/$name.tar.gz" -C "_build/$DATABASE/prod/rel" --transform "s|^sikio|$name|" sikio
+          tar -czf "dist/$name.tar.gz" -C _build/prod/rel --transform "s|^sikio|$name|" sikio
           (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-${{ matrix.database }}-${{ matrix.arch }}
+          name: release-${{ matrix.arch }}
           path: dist/
           if-no-files-found: error
 

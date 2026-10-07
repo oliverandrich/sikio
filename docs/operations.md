@@ -7,29 +7,28 @@ toolchain is needed on the target. Platform support must be verified separately.
 
 ## Choose a database
 
-A release serves one database, chosen when it is built. SQLite is the default and needs no
-database server: the data lives in one file on the host. PostgreSQL suits an instance whose
-database runs elsewhere or is managed with other databases. Switching later means a new release
-and moving the data, which Sikio does not do for you.
+A release serves SQLite or PostgreSQL, chosen with `SIKIO_DATABASE` when it starts. SQLite is
+the default and needs no database server: the data lives in one file on the host. PostgreSQL
+suits an instance whose database runs elsewhere or is managed with other databases. Switching
+later means moving the data, which Sikio does not do for you.
 
 ## Build and unpack
 
 On the build machine, with the pinned tools installed:
 
 ```sh
-mise run release                          # SQLite
-SIKIO_DATABASE=postgres mise run release  # PostgreSQL
+mise run release
 ```
 
-The release lands in `_build/sqlite/prod/rel/sikio` or `_build/postgres/prod/rel/sikio`. Copy
+The release lands in `_build/prod/rel/sikio` and serves either database. Copy
 the complete directory, or archive and unpack it on the target. Keep configuration and
 persistent data outside that directory.
 
 ## Configure and start
 
-For a SQLite release, choose an absolute path for the database file outside the release, in a
+For SQLite, choose an absolute path for the database file outside the release, in a
 directory the service can write to. Migration creates the file. SQLite keeps a write-ahead
-log beside it, `-wal` and `-shm`, which belong to the database. For a PostgreSQL release,
+log beside it, `-wal` and `-shm`, which belong to the database. For PostgreSQL,
 provide PostgreSQL 18 and an existing database with a dedicated owner. Migration creates the
 `pg_trgm` extension for the library's search index; since PostgreSQL 13 the database's owner
 may do that without further rights.
@@ -38,14 +37,15 @@ Export these variables in the environment used for both migration and startup:
 
 | Variable | Meaning |
 | --- | --- |
-| `DATABASE_PATH` | SQLite release: absolute path of the database file; a missing or relative path stops the boot |
-| `DATABASE_URL` | PostgreSQL release: `ecto://USER:URL_ENCODED_PASSWORD@HOST/DATABASE` |
+| `SIKIO_DATABASE` | `sqlite`, the default, or `postgres`; any other value stops the boot |
+| `DATABASE_PATH` | SQLite: absolute path of the database file; a missing or relative path stops the boot |
+| `DATABASE_URL` | PostgreSQL: `ecto://USER:URL_ENCODED_PASSWORD@HOST/DATABASE` |
 | `SECRET_KEY_BASE` | Generate with `mix phx.gen.secret` on the build machine; keep permanently |
 | `PHX_HOST` | Stable public hostname without scheme or port; a missing value stops the boot |
 | `PORT` | Internal HTTP port, 4000 by default |
 | `PHX_BIND_IP` | Address the HTTP listener binds to, all interfaces by default; `127.0.0.1` behind a proxy on the same host |
 | `POOL_SIZE` | Database connections, 5 by default for SQLite and 10 for PostgreSQL |
-| `ECTO_IPV6` | PostgreSQL release: `true` to reach the database over IPv6 |
+| `ECTO_IPV6` | PostgreSQL: `true` to reach the database over IPv6 |
 | `DNS_CLUSTER_QUERY` | DNS name that lists other nodes to cluster with; unset for a single node |
 | `PICTURE_CACHE_DIR` | Absolute path for pictures fetched from publishers; outside the release, writable by the service |
 | `SIKIO_MIGRATE_ON_START` | `false` to migrate by hand with `bin/migrate`; the release migrates on start by default |
@@ -74,7 +74,8 @@ path for a remote PostgreSQL database; the current configuration does not enable
 
 SQLite runs as dj-lite sets it up for Django: a write-ahead log, `synchronous=NORMAL`, temporary
 tables in memory, a 128 MiB memory map, transactions that take the write lock when they begin,
-and a writer that waits up to five seconds for another. These are compiled into the release.
+and a writer that waits up to five seconds for another. Every release sets them; PostgreSQL
+ignores them.
 From the unpacked release directory:
 
 ```sh

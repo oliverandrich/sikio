@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Run with `mise run smoke`, which builds and checks a release for each database.
-# SIKIO_DATABASE names the release to check. A SQLite release gets a file in a temporary
+# Run with `mise run smoke`, which builds one release and checks it with each database.
+# SIKIO_DATABASE names the database to start it with. A SQLite start gets a file in a temporary
 # directory. A Postgres one uses PG* credentials with CREATEDB and creates and drops its own
 # random database.
 Code.require_file("support/smoke.exs", __DIR__)

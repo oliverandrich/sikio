@@ -52,8 +52,8 @@ jobs:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-test-sqlite-${{ hashFiles('mise.toml', 'mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-test-sqlite-
+          key: ${{ runner.os }}-mix1-test-sqlite-${{ hashFiles('mise.toml', 'mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix1-test-sqlite-
       - run: mix deps.get --check-locked
       - run: mise run check:sqlite
 
@@ -91,8 +91,8 @@ jobs:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-test-postgres-${{ hashFiles('mise.toml', 'mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-test-postgres-
+          key: ${{ runner.os }}-mix1-test-postgres-${{ hashFiles('mise.toml', 'mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix1-test-postgres-
       - run: mix deps.get --check-locked
       - run: mise run check:postgres
 
@@ -131,6 +131,6 @@ jobs:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-prod-${{ hashFiles('mise.toml', 'mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-prod-
+          key: ${{ runner.os }}-mix1-prod-${{ hashFiles('mise.toml', 'mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix1-prod-
       - run: mise run smoke

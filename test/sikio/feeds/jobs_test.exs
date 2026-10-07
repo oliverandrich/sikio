@@ -114,7 +114,7 @@ defmodule Sikio.Feeds.JobsTest do
   end
 
   test "the schedule runs the feed refresh" do
-    options = Application.fetch_env!(:sikio, Oban)
+    options = Sikio.Application.oban()
 
     assert :ok = Oban.Config.validate(options)
     assert Enum.any?(options[:cron][:crontab], &match?({_expression, Scheduler}, &1))

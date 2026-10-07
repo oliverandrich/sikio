@@ -88,12 +88,11 @@ env.MIX_ENV = "prod"
 run = ["mix deps.get --only prod", "mix assets.setup", "mix compile --warnings-as-errors", "mix assets.deploy", "mix release --overwrite"]
 
 [tasks.smoke]
-description = "Build a release for each database and run it against a disposable one"
-# `mise run release` reads SIKIO_DATABASE from the command, so each pair builds what it checks.
+description = "Build one release and run it against a disposable database of each kind"
+# One release serves both databases; SIKIO_DATABASE chooses one when it starts.
 run = [
-  "SIKIO_DATABASE=sqlite mise run release",
+  "mise run release",
   "SIKIO_DATABASE=sqlite elixir scripts/smoke_release.exs",
-  "SIKIO_DATABASE=postgres mise run release",
   "SIKIO_DATABASE=postgres elixir scripts/smoke_release.exs",
 ]
 

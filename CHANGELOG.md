@@ -27,5 +27,6 @@ group of people on one instance.
   as rarely as their servers ask.
 - Accounts with passkeys and recovery codes. The first account claims the instance with an
   operator's code; everybody after it arrives on an invitation.
-- A Mix release for SQLite or PostgreSQL that migrates its database as it starts.
+- A Mix release that serves SQLite or PostgreSQL, chosen with `SIKIO_DATABASE`, and migrates
+  its database as it starts.
 - English and German.

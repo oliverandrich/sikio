@@ -209,9 +209,19 @@ if config_env() == :prod do
 
   config :sikio, picture_cache_dir: picture_cache_dir
 
-  # The release was built for one database, which decides the variable that names it. A SQLite
-  # file is application data and lives outside the release, like the picture cache.
-  if Sikio.Repo.__adapter__() == Ecto.Adapters.SQLite3 do
+  # One release serves both databases. SIKIO_DATABASE chooses one, SQLite unless it says
+  # otherwise, and the choice decides the variable that names it. A SQLite file is application
+  # data and lives outside the release, like the picture cache.
+  database =
+    case System.get_env("SIKIO_DATABASE", "sqlite") do
+      "sqlite" -> :sqlite
+      "postgres" -> :postgres
+      other -> raise "SIKIO_DATABASE must be sqlite or postgres, not #{inspect(other)}"
+    end
+
+  config :sikio, :database, database
+
+  if database == :sqlite do
     database_path =
       case System.get_env("DATABASE_PATH", "") |> String.trim() do
         "/" <> _ = path ->

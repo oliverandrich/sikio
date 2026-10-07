@@ -21,10 +21,9 @@ code, development included, so `mise run reset` is followed by another
 
 ## Configure the database
 
-Sikio builds for SQLite or PostgreSQL, chosen with `SIKIO_DATABASE` when it is compiled. SQLite
-is the default. Each database builds into its own directory, `_build/sqlite` or
-`_build/postgres`, so switching never recompiles the other. The development and test databases
-under SQLite are `tmp/sikio_dev.db` and `tmp/sikio_test.db`.
+One build serves SQLite and PostgreSQL. `SIKIO_DATABASE` chooses one when the application
+starts, and SQLite is the default. Switching recompiles nothing. The development and test
+databases under SQLite are `tmp/sikio_dev.db` and `tmp/sikio_test.db`.
 
 To develop against PostgreSQL, set the variable in the ignored `mise.local.toml` as a default,
 so a value given on the command line still wins:
@@ -65,8 +64,8 @@ Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`; see
 | `mise run dev` | Start the development server in the foreground |
 | `mise run reset` | Drop and recreate the development database, migrate and seed |
 | `mise run debugserver` | IEx Phoenix server |
-| `mise run release` | A production release for this OS and architecture, for `SIKIO_DATABASE` |
-| `mise run smoke` | Build a release for each database and run it against a disposable one |
+| `mise run release` | A production release for this OS and architecture, for both databases |
+| `mise run smoke` | Build one release and run it against a disposable database of each kind |
 | `mise run icons` | Draw the app icons, favicon and README logo from the wordmark; needs Chrome |
 
 `scripts/icons.py` outlines the wordmark from the project's IBM Plex Sans. Edit its geometry and
@@ -128,8 +127,8 @@ mise run check
 mise run smoke
 ```
 
-`mise run smoke` builds a release for SQLite and one for PostgreSQL, and checks each. CI runs
-it beside the check.
+`mise run smoke` builds one release and checks it with SQLite and with PostgreSQL. CI runs it
+beside the check.
 
 The smoke test checks that the package contains no backup operations. It starts the
 release on its own randomly named disposable database, which the release migrates as it
@@ -155,8 +154,8 @@ setting, a step before or after the update. Such a change raises the minor versi
 3. Tag it with `git tag -a vX.Y.Z -m vX.Y.Z` and push `main` and the tag.
 
 The tag starts `.github/workflows/release.yml`. It runs the checks of CI on the tagged commit.
-It builds the SQLite and PostgreSQL releases for Linux x86_64 and arm64 on Ubuntu 22.04 and
-smoke-tests each. Once all of that passes, it publishes them with `SHA256SUMS` and the changelog
+It builds one release each for Linux x86_64 and arm64 on Ubuntu 22.04 and smoke-tests each with
+both databases. Once all of that passes, it publishes them with `SHA256SUMS` and the changelog
 section as notes. Run it by hand from the Actions tab to build
 and test the version in `mix.exs` without publishing anything.
 

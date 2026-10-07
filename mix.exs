@@ -3,16 +3,13 @@
 defmodule Sikio.MixProject do
   use Mix.Project
 
-  # A build serves one database, sqlite or postgres, chosen with SIKIO_DATABASE when it is
-  # compiled. config/config.exs reads the choice made here. Each database builds into its own
-  # directory, so switching between the two never mixes their compiled code.
-  @database System.get_env("SIKIO_DATABASE", "sqlite")
-  System.put_env("SIKIO_DATABASE", @database)
+  # One build serves both databases. SIKIO_DATABASE chooses one when the application starts, and
+  # SQLite is the default. config/config.exs reads the choice made here for development and tests.
+  System.put_env("SIKIO_DATABASE", System.get_env("SIKIO_DATABASE", "sqlite"))
 
   def project do
     [
       app: :sikio,
-      build_path: "_build/#{@database}",
       version: "0.1.0",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),

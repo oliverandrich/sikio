@@ -30,7 +30,7 @@ defmodule Sikio.Accounts.CleanupTest do
   # visible in the configuration. `validate/1` is Oban's own answer to that, and it also refuses a
   # cron expression that would otherwise fail at boot in production and nowhere else.
   test "the schedule runs the job" do
-    options = Application.fetch_env!(:sikio, Oban)
+    options = Sikio.Application.oban()
 
     assert :ok = Oban.Config.validate(options)
     assert Enum.any?(options[:cron][:crontab], &match?({_expression, Cleanup}, &1))

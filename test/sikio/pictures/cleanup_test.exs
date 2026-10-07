@@ -8,7 +8,7 @@ defmodule Sikio.Pictures.CleanupTest do
 
   # The worker deletes nothing unless something runs it, so the schedule is what is asserted.
   test "the schedule runs the job" do
-    options = Application.fetch_env!(:sikio, Oban)
+    options = Sikio.Application.oban()
 
     assert :ok = Oban.Config.validate(options)
     assert Enum.any?(options[:cron][:crontab], &match?({_expression, Cleanup}, &1))

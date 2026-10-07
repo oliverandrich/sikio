@@ -7,10 +7,10 @@ defmodule Sikio.ReleaseSmoke.Smoke do
   alias Sikio.ReleaseSmoke.Support
   @root Path.expand("../..", __DIR__)
 
-  # The database the release was built for, as `mise run release` read it.
+  # The database the release is started with.
   def database, do: System.get_env("SIKIO_DATABASE", "sqlite")
 
-  def release, do: Path.join(@root, "_build/#{database()}/prod/rel/sikio/bin")
+  def release, do: Path.join(@root, "_build/prod/rel/sikio/bin")
   def run(args, env), do: args |> Support.run(env) |> String.trim()
 
   @doc "Whether the migrated schema holds `table`."

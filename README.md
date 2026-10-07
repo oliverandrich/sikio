@@ -43,8 +43,8 @@ Development runs on SQLite by default, in `tmp/sikio_dev.db`. Set `SIKIO_DATABAS
 develop against PostgreSQL instead; [Contributing](CONTRIBUTING.md) has the details. Use passkeys
 over **localhost** locally and over HTTPS once published.
 
-A release serves SQLite or PostgreSQL, chosen when it is built. [Operations](docs/operations.md)
-describes both.
+A release serves SQLite or PostgreSQL, chosen with `SIKIO_DATABASE` when it starts.
+[Operations](docs/operations.md) describes both.
 
 ## Documentation
 

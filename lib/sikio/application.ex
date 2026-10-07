@@ -33,10 +33,16 @@ defmodule Sikio.Application do
        skip: !Application.get_env(:sikio, :migrate_on_start, false)},
       {DNSCluster, query: Application.get_env(:sikio, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Sikio.PubSub},
-      {Oban, Application.fetch_env!(:sikio, Oban)},
+      {Oban, oban()},
       # Start to serve requests, typically the last entry
       SikioWeb.Endpoint
     ]
+  end
+
+  @doc "The options the job queue starts with. Its engine follows the database the application uses."
+  def oban do
+    engine = if Sikio.Repo.postgres?(), do: Oban.Engines.Basic, else: Oban.Engines.Lite
+    Keyword.put(Application.fetch_env!(:sikio, Oban), :engine, engine)
   end
 
   # Tell Phoenix to update the endpoint configuration
