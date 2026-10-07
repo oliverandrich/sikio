@@ -74,6 +74,12 @@ defmodule SikioWeb.Sidebar do
                      "completed" => "heard"
                    })
 
+  # One opens Sikio to listen, so the library starts on the queue.
+  @start "queue"
+
+  @doc "Where the library opens, and where it goes when the place on screen is gone."
+  def start_path, do: library_path(%{"status" => @start})
+
   @doc """
   The library's address: the list on screen as a path, the item shown beside it appended.
 
@@ -157,7 +163,7 @@ defmodule SikioWeb.Sidebar do
     {place, item} =
       case String.split(path, "/", trim: true) do
         [] ->
-          {%{"status" => "inbox"}, nil}
+          {%{"status" => @start}, nil}
 
         [place, named] when place in ["feeds", "tags"] ->
           {within(place, named, "inbox"), nil}

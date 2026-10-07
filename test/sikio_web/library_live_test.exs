@@ -608,7 +608,7 @@ defmodule SikioWeb.LibraryLiveTest do
       view |> element("#delete-tag") |> render_click()
       assert has_element?(view, "dialog#delete-tag-confirm", "Delete Technik?")
       view |> element("#confirm-delete-tag") |> render_click()
-      assert_patch(view, "/inbox")
+      assert_patch(view, "/queue")
       refute has_element?(view, "#tag-#{tech.id}")
       assert [_, _] = Library.subscriptions(c.user)
     end
@@ -636,13 +636,13 @@ defmodule SikioWeb.LibraryLiveTest do
       assert [_, _] = Library.subscriptions(c.user)
     end
 
-    test "ends the subscription and returns to what is new", c do
+    test "ends the subscription and returns to the queue", c do
       {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
       view |> element("#edit-subscription") |> render_click()
       view |> element("#unsubscribe") |> render_click()
       view |> element("#confirm-unsubscribe") |> render_click()
 
-      assert_patch(view, "/inbox")
+      assert_patch(view, "/queue")
       refute has_element?(view, "#source-#{c.sub.feed_id}")
       assert [%{feed: %{kind: :youtube}}] = Library.subscriptions(c.user)
     end
@@ -750,10 +750,11 @@ defmodule SikioWeb.LibraryLiveTest do
   end
 
   describe "the sidebar" do
-    # New is where the library opens, at its front and after signing in. All items come last.
-    test "opens on new and lists all items last", c do
+    # One opens Sikio to listen, so the queue is where the library opens, at its front and after
+    # signing in. All items come last.
+    test "opens on the queue and lists all items last", c do
       {:ok, view, html} = live(c.conn, ~p"/")
-      assert has_element?(view, "#view-inbox[aria-current=page]")
+      assert has_element?(view, "#view-queue[aria-current=page]")
 
       order =
         html

@@ -507,7 +507,7 @@ defmodule SikioWeb.LibraryLive do
     {:noreply,
      socket
      |> assign(:deleting, nil)
-     |> push_patch(to: SikioWeb.Sidebar.place_path("status", "inbox"))}
+     |> push_patch(to: SikioWeb.Sidebar.start_path())}
   end
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
@@ -656,9 +656,9 @@ defmodule SikioWeb.LibraryLive do
   def handle_info({SubscriptionSettings, :saved}, socket),
     do: {:noreply, SikioWeb.Sidebar.refresh(socket)}
 
-  # The source's list has nothing left to show, so the page goes to what is new.
+  # The source's list has nothing left to show, so the page goes where the library starts.
   def handle_info({SubscriptionSettings, :left}, socket),
-    do: {:noreply, push_patch(socket, to: SikioWeb.Sidebar.place_path("status", "inbox"))}
+    do: {:noreply, push_patch(socket, to: SikioWeb.Sidebar.start_path())}
 
   def handle_info({SubscriptionSettings, :not_found}, socket),
     do: {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}

@@ -235,7 +235,7 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#unsubscribe"))
     |> click(css("#confirm-unsubscribe"))
     |> gone(css("#sidebar a", text: "Small Hours"))
-    |> assert_has(css("#library-heading", text: "Inbox"))
+    |> assert_has(css("#library-heading", text: "Queue"))
   end
 
   # From lg the window stands still. The list and the detail each scroll in their own column, and

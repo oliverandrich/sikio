@@ -54,7 +54,7 @@ defmodule SikioWeb.TailwindTest do
     [entry] = Library.entries(account)
 
     session
-    |> open("/")
+    |> open("/all")
     |> assert_has(css("#runtime-#{entry.id}"))
     |> execute_script(
       """

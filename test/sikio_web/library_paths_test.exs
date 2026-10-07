@@ -99,7 +99,7 @@ defmodule SikioWeb.LibraryPathsTest do
   end
 
   test "an address reads back into the filters and the item" do
-    assert Sidebar.read_path("/", %{}) == {filters(%{"status" => "inbox"}), nil}
+    assert Sidebar.read_path("/", %{}) == {filters(%{"status" => "queue"}), nil}
     assert Sidebar.read_path("/inbox", %{}) == {filters(%{"status" => "inbox"}), nil}
     assert Sidebar.read_path("/all", %{}) == {@none, nil}
 
