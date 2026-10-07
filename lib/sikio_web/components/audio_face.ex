@@ -2,12 +2,14 @@
 
 defmodule SikioWeb.AudioFace do
   @moduledoc """
-  Sikio's own controls for an episode, one markup in two places.
+  Audio player controls, rendered in two places with the same markup.
 
-  The dock renders them over an audio element that keeps no controls of its own, and
-  `assets/js/audio_face.mjs` drives that element. The detail card renders the same face as a cue
-  before anything loads: pressing play, dragging or skipping starts the dock's player there, see
-  `assets/js/audio_cue.mjs`. Looking alike, the one lies over the other without a jump.
+  The dock renders them for an `audio` element without native controls.
+  `assets/js/audio_face.mjs` binds them to that element.
+  The detail card renders them as a cue before any audio loads.
+  Play, releasing the seek bar or skipping starts the dock's player at that position.
+  See `assets/js/audio_cue.mjs`.
+  Identical markup lets the dock's player replace the cue without a layout shift.
   """
   use Phoenix.Component
   use Gettext, backend: SikioWeb.Gettext
@@ -57,8 +59,8 @@ defmodule SikioWeb.AudioFace do
             value={@position}
             class="audio-seek"
           />
-          <%!-- Where each chapter begins, as decoration: the bar under it takes every press and
-        drag. assets/js/audio_face.mjs moves the marks once the player knows the length. --%>
+          <%!-- Chapter start marks. They have `pointer-events: none`; the range input gets the
+        input. assets/js/audio_face.mjs repositions them once the media duration is known. --%>
           <span
             :for={chapter <- @chapters}
             data-audio-mark
@@ -95,7 +97,7 @@ defmodule SikioWeb.AudioFace do
         <Lucideicons.rotate_cw aria-hidden="true" class="size-5" />
         <span aria-hidden="true">30</span>
       </button>
-      <%!-- Before anything plays there is no speed to set; the dock's face takes it over. --%>
+      <%!-- Disabled on the cue, which has no media element. The dock's controls set speed. --%>
       <button
         type="button"
         data-audio-speed
@@ -109,7 +111,7 @@ defmodule SikioWeb.AudioFace do
     """
   end
 
-  # The bar begins at the start, so a chapter there needs no mark; one past the end has no place.
+  # A chapter at 0 needs no mark. A chapter at or past the length has no position on the bar.
   defp marked?(%{at: at}, length), do: is_number(length) and at > 0 and at < length
 
   defp chapter_at(chapters, position) do

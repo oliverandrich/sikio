@@ -2,14 +2,16 @@
 
 defmodule SikioWeb.AddSourceLive do
   @moduledoc """
-  Turns a pasted link or a search into a source to subscribe to.
+  Adds a source from a pasted link or an Apple Podcasts search.
 
-  A pasted link is previewed first, with its title and the number of its items. A search result
-  subscribes in one click, which fetches and reads its feed. Discovery runs in the background.
-  Candidates stay on the server under generated ids, so a forged id selects nothing.
+  A pasted link shows a preview with its title and item count first.
+  A search result subscribes in one click, which fetches and parses its feed.
+  Discovery runs in `start_async/3`. Candidates stay in assigns under generated ids.
+  A forged id therefore selects nothing.
 
-  Subscribing leads to the source's page. A new PeerTube instance must enter the content security
-  policy, which a page load writes. Such a subscription loads the page instead of navigating to it.
+  After subscribing, the view navigates to the source's page.
+  A new PeerTube instance changes the CSP `frame-src`, which is set per HTTP request.
+  In that case the view uses `redirect/2` instead of `push_navigate/2`.
   """
   use SikioWeb, :live_view
 
@@ -47,11 +49,11 @@ defmodule SikioWeb.AddSourceLive do
   def handle_event("select", _params, %{assigns: %{subscribing: id}} = socket) when id != nil,
     do: {:noreply, socket}
 
-  # The change handler exists so a reconnecting browser can be given back what was typed.
+  # Keeps the `form` assign current, so the input survives a LiveView reconnect.
   def handle_event("validate", %{"q" => q}, socket),
     do: {:noreply, assign(socket, form: to_form(%{"q" => q}))}
 
-  # One field: an address is looked up, anything else is searched for.
+  # One input: a URL is discovered, any other text is searched.
   def handle_event("add", %{"q" => q}, socket) do
     socket = assign(socket, form: to_form(%{"q" => q}))
 
@@ -59,7 +61,7 @@ defmodule SikioWeb.AddSourceLive do
       :empty ->
         {:noreply, socket}
 
-      # Without a scheme the address was a guess, so its words can still be searched.
+      # Input without a scheme only resembles a URL. It is kept as `fallback` for a search.
       {:link, url} ->
         fallback = if String.contains?(url, "://"), do: nil, else: url
         {:noreply, socket |> discover(url) |> assign(fallback: fallback)}
@@ -69,7 +71,7 @@ defmodule SikioWeb.AddSourceLive do
     end
   end
 
-  # The field, its results and any subscription still loading are cleared together.
+  # Clears the input, the results and any pending subscribe task.
   def handle_event("clear", _params, socket) do
     {:noreply,
      socket
@@ -89,7 +91,7 @@ defmodule SikioWeb.AddSourceLive do
      |> push_event("focus", %{id: "add-q"})}
   end
 
-  # A word with a dot read as an address and led nowhere; the same words are searched instead.
+  # Input such as `name.tld` failed as a URL. This searches the same text.
   def handle_event("search_instead", _params, %{assigns: %{fallback: nil}} = socket),
     do: {:noreply, socket}
 
@@ -104,7 +106,7 @@ defmodule SikioWeb.AddSourceLive do
       %{entries: _} = preview ->
         subscribe(socket, preview)
 
-      # A search result is fetched, read and subscribed in one click. The list stays meanwhile.
+      # A search result is discovered and subscribed in one click. The list stays visible.
       %{url: url} ->
         {:noreply,
          socket
@@ -143,8 +145,8 @@ defmodule SikioWeb.AddSourceLive do
     {:noreply, socket |> assign(subscribing: nil, row_errors: errors) |> show_candidates()}
   end
 
-  # A stream renders a row again only when it is inserted again.
-  # Inserting all results anew, in their order, shows each row's state.
+  # A stream re-renders a row only when it is inserted again.
+  # Re-inserting all candidates in order updates each row's state.
   defp show_candidates(socket) do
     candidates =
       socket.assigns.candidates
@@ -163,7 +165,7 @@ defmodule SikioWeb.AddSourceLive do
   defp search(socket, term),
     do: socket |> searching(:search) |> start_async(:sources, fn -> Discovery.search(term) end)
 
-  # A new lookup abandons a subscription still loading.
+  # A new lookup cancels a pending subscribe task.
   defp searching(socket, mode) do
     socket
     |> cancel_async(:subscribe)
@@ -186,7 +188,7 @@ defmodule SikioWeb.AddSourceLive do
 
     case Library.subscribe(account, preview) do
       {:ok, subscription} ->
-        # An earlier subscription keeps the name its member gave it.
+        # An existing subscription keeps its custom name.
         name = source_name(subscription)
         to = Sidebar.source_path(subscription)
 
@@ -196,7 +198,7 @@ defmodule SikioWeb.AddSourceLive do
           do: {:noreply, push_navigate(socket, to: to)},
           else: {:noreply, redirect(socket, to: to)}
 
-      # The rows render again, so none stays waiting on a subscription that failed.
+      # Re-inserts the rows, so no row keeps its pending state after a failure.
       {:error, _} ->
         {:noreply,
          socket
@@ -205,8 +207,8 @@ defmodule SikioWeb.AddSourceLive do
     end
   end
 
-  # Each failure says what somebody can do next, because "could not read this source" on its own
-  # leaves them guessing whether to retry, fix the link or give up.
+  # Messages name a next step where one exists.
+  # A generic error does not tell whether to retry, fix the link or give up.
   defp message(:unsafe_url),
     do:
       gettext(
@@ -254,7 +256,7 @@ defmodule SikioWeb.AddSourceLive do
       title={gettext("Add a source")}
       back={%{to: ~p"/library", label: gettext("Library")}}
     >
-      <%!-- Centred, as a search page is; the results below take the full width. --%>
+      <%!-- Centered like a search page; the results below use the full width. --%>
       <header class="mx-auto max-w-2xl pt-4 pb-4 text-center sm:pt-10">
         <h1 data-large-title class="text-title font-semibold">{gettext("Add a source")}</h1>
         <p id="add-subtitle" class="mt-2 text-muted">
@@ -303,7 +305,6 @@ defmodule SikioWeb.AddSourceLive do
               <Lucideicons.arrow_right aria-hidden="true" class="size-4" />
             </.button>
           </fieldset>
-          <%!-- Two sentences, each on a line of its own. --%>
           <p id="add-hint" class="mt-2 text-center text-meta leading-relaxed text-muted">
             <span class="block">
               {gettext(
@@ -328,7 +329,7 @@ defmodule SikioWeb.AddSourceLive do
             {gettext("No podcasts found. Try another name or paste the show's website.")}
           </p>
         </div>
-        <%!-- An alert of its own, outside the polite region, so it is announced once. --%>
+        <%!-- `role="alert"` outside the `aria-live` region, so it is announced once. --%>
         <div
           :if={@error}
           id="discovery-error"

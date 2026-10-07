@@ -2,21 +2,18 @@
 
 defmodule SikioWeb.ErrorJSON do
   @moduledoc """
-  This module is invoked by your endpoint in case of errors on JSON requests.
+  Renders error responses for JSON requests.
 
   See config/config.exs.
   """
 
-  # If you want to customize a particular status code,
-  # you may add your own clauses, such as:
+  # A status code can get its own clause:
   #
   # def render("500.json", _assigns) do
   #   %{errors: %{detail: "Internal Server Error"}}
   # end
 
-  # By default, Phoenix returns the status message from
-  # the template name. For example, "404.json" becomes
-  # "Not Found".
+  # Returns the status message for the template name, e.g. "Not Found" for "404.json".
   def render(template, _assigns) do
     %{errors: %{detail: Phoenix.Controller.status_message_from_template(template)}}
   end

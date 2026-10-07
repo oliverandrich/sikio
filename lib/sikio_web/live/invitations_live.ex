@@ -2,11 +2,11 @@
 
 defmodule SikioWeb.InvitationsLive do
   @moduledoc """
-  Manual invitation links behind `{:require_account, to: "/login"}`.
+  Creates and withdraws invitation links behind `{:require_account, to: "/login"}`.
 
-  Nothing here checks who is asking: by the time `mount/3` runs, the gate has either assigned an
-  account or sent the visitor away. What an account may *do* — whether everyone can invite, or only
-  some — is this application's question and would live here, not in the library.
+  The gate assigns `current_account` or redirects before `mount/3` runs, so this view does not
+  check it. Every member may invite; per-account invitation rules would belong here, not in
+  Ithibati.
   """
   use SikioWeb, :live_view
 
@@ -25,9 +25,8 @@ defmodule SikioWeb.InvitationsLive do
       assign(socket,
         username: "",
         link: nil,
-        # Which invitation the link on screen belongs to. The link is the only copy of its token
-        # — the row keeps a digest — so taking some other invitation back must not take it away,
-        # and there is nothing on the withdrawn row to recognise it by afterwards.
+        # The id of the invitation whose link is shown. The row stores only a token digest.
+        # Withdrawing a different invitation keeps the link; the id is the only way to match it.
         link_id: nil,
         error: nil,
         email?: Identity.email?()
@@ -43,9 +42,8 @@ defmodule SikioWeb.InvitationsLive do
     {:noreply, assign(socket, username: username, error: nil)}
   end
 
-  # Asked before the changeset, so that an attempt which fails for any other reason still costs.
-  # Otherwise the budget is a formality: type nonsense until the counter is untouched, then spend
-  # the whole of it at once.
+  # The rate limit runs before the changeset, so invalid attempts also count.
+  # Otherwise invalid submissions would not consume the budget.
   def handle_event("invite", %{"username" => username}, socket) do
     {limit, seconds} = AuthRateLimiter.budget(:invite)
     key = AuthRateLimit.key(socket.assigns.current_account, :invite)
@@ -56,9 +54,8 @@ defmodule SikioWeb.InvitationsLive do
     end
   end
 
-  # The id comes off the wire, and nothing here scopes it: every member may withdraw any
-  # invitation that has not been accepted, which is the same rule as "every member may invite".
-  # There is no "yours" to get wrong.
+  # The id comes from the client and is not scoped to the account.
+  # Every member may withdraw any unaccepted invitation, as every member may invite.
   def handle_event("withdraw", %{"id" => id}, socket) do
     {:noreply, socket |> taken_back(Invitations.get(id)) |> listed()}
   end
@@ -70,17 +67,15 @@ defmodule SikioWeb.InvitationsLive do
 
   defp taken_back(socket, invitation) do
     case Invitations.withdraw(invitation) do
-      # The link goes too, whichever invitation it belonged to. The row that comes back holds a
-      # digest and not the token, so there is nothing to compare it against — and a dead link left
-      # on the screen is worse than a live one taken off it.
+      # Clears the shown link when its `link_id` matches the withdrawn invitation.
+      # The withdrawn row holds only a digest, so the id is the comparison.
       {:ok, gone} ->
         socket = assign(socket, error: nil)
         if gone.id == socket.assigns.link_id, do: forgotten(socket), else: socket
 
-      # Ithibati answers `:already_accepted` for a row that was accepted *or* is no longer there,
-      # because it rechecks inside the delete and a miss cannot tell the two apart. Two members
-      # pressing this at once would otherwise leave the second reading that somebody accepted an
-      # invitation the first one withdrew.
+      # Ithibati returns `:already_accepted` when the delete matches no unaccepted row.
+      # That covers an accepted invitation and one deleted by a concurrent withdrawal.
+      # The message therefore names both causes.
       {:error, :already_accepted} ->
         assign(socket,
           error:
@@ -95,10 +90,10 @@ defmodule SikioWeb.InvitationsLive do
     socket.assigns.current_account
     |> Invitations.open(%{"username" => username})
     |> case do
-      # The token is the only copy there will ever be: the row holds its sha256, and the virtual
-      # field is empty on anything read back later. So it goes on the screen now or not at all.
+      # The plaintext token exists only in this return value. The row stores its SHA-256 digest.
+      # The virtual `token` field is nil on any later read, so the link is shown now.
       {:ok, invitation} ->
-        # Who made it, never whom it is for.
+        # Logs the inviter's id, never the invitee's username or address.
         Logger.info("invitation made", account_id: socket.assigns.current_account.id)
         link = url(~p"/invite/#{invitation.token}")
 
@@ -117,9 +112,8 @@ defmodule SikioWeb.InvitationsLive do
     end
   end
 
-  # Told in whole minutes or whole hours, because the default window counts down in tens of
-  # thousands of seconds and nobody reads that as a waiting time. Both, because the window is
-  # configurable: an operator who sets five minutes must not be told to come back in an hour.
+  # Rounds the wait up to whole minutes or hours. The default window is 86,400 seconds.
+  # Minutes cover configured windows under an hour, so a short wait is not shown as an hour.
   defp too_many(seconds) when seconds < 3600 do
     ngettext(
       "Too many invitations. Try again in a minute.",
@@ -136,8 +130,7 @@ defmodule SikioWeb.InvitationsLive do
     )
   end
 
-  # The invitation is already written by the time this runs, so a mail server that is down is
-  # something the sender is told about rather than something that takes the invitation away.
+  # The invitation is already inserted. A delivery failure shows an error and keeps it.
   defp undelivered(invitation, link) do
     case InvitationMail.deliver(invitation, link) do
       {:ok, _sent} -> nil
@@ -280,6 +273,6 @@ defmodule SikioWeb.InvitationsLive do
     """
   end
 
-  # The same spelling the rest of this application uses for a date somebody reads.
+  # Uses the application's date format, `YYYY-MM-DD`.
   defp on(at), do: Calendar.strftime(at, "%Y-%m-%d")
 end

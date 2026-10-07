@@ -16,13 +16,12 @@ defmodule SikioWeb.Router do
     plug :put_root_layout, html: {SikioWeb.Layouts, :root}
     plug :protect_from_forgery
 
-    # Three openings, each one the player's. `media-src` because a podcast streams from whichever
-    # server published it. `frame-src` and the extra `script-src` origin because the YouTube embed
-    # and its IFrame API come from YouTube, and only after somebody has pressed play.
+    # Three CSP exceptions, all for the player. `media-src https:` allows podcast audio from any
+    # host. `frame-src` and the extra `script-src` origin allow the YouTube embed and IFrame API.
+    # The IFrame API script loads only after the first play.
     #
-    # A fourth cannot be written here. A PeerTube video is played by the instance that holds it,
-    # and any host may be one, so `SikioWeb.ContentSecurityPolicy` below adds the instances this
-    # account subscribed to. This is the policy every response carries before it does.
+    # PeerTube embeds come from arbitrary hosts and cannot be listed here.
+    # `SikioWeb.ContentSecurityPolicy` adds the account's subscribed instances to `frame-src`.
     plug :put_secure_browser_headers, %{
       "content-security-policy" =>
         "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' https:; frame-src 'self' https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
@@ -31,13 +30,12 @@ defmodule SikioWeb.Router do
 
     plug Ithibati.Web.Gate, :current_account
     plug SikioWeb.Locale
-    # After the gate, because what it may frame depends on who is asking.
+    # Runs after the gate, because the added `frame-src` origins depend on the account.
     plug SikioWeb.ContentSecurityPolicy
   end
 
-  # Its own pipeline, not `:browser`. These endpoints answer JSON, and `:browser`'s
-  # `accepts ["html"]` refuses the hook's request with a 406 before the controller is reached —
-  # which is exactly how this example found the mistake in the library's README.
+  # A separate pipeline, because these endpoints return JSON.
+  # `:browser` accepts only HTML and answers the hook's JSON request with a 406.
   pipeline :ceremony do
     plug :accepts, ["json"]
     plug :fetch_session
@@ -67,9 +65,8 @@ defmodule SikioWeb.Router do
 
   scope "/auth" do
     pipe_through :ceremony
-    # The name the passkey dialog shows, and the only thing separating this example's credentials
-    # from the other's: a relying-party id is a *host*, so both examples on localhost share one
-    # scope however different their databases are.
+    # `rp_name` is the name the passkey dialog shows.
+    # The relying-party id is the host, so all apps on localhost share one passkey scope.
     ithibati_routes(handler: SikioWeb.Auth, rp_name: "Sikio")
   end
 
@@ -90,7 +87,7 @@ defmodule SikioWeb.Router do
         {SikioWeb.Locale, :set},
         SikioWeb.Sidebar
       ] do
-      # The library's places and the item shown in one; see SikioWeb.Sidebar.library_path/3.
+      # Library places, each with an optional item; see `SikioWeb.Sidebar.library_path/3`.
       live "/", LibraryLive, :index
       live "/inbox", LibraryLive, :index
       live "/inbox/:item", LibraryLive, :index
@@ -98,7 +95,7 @@ defmodule SikioWeb.Router do
       live "/queue/:item", LibraryLive, :index
       live "/history", LibraryLive, :index
       live "/history/:item", LibraryLive, :index
-      # The addresses from before the inbox, which the library spells anew.
+      # `/new`, `/in-progress` and `/completed` predate the inbox. `LibraryLive` patches them.
       live "/new", LibraryLive, :index
       live "/new/:item", LibraryLive, :index
       live "/in-progress", LibraryLive, :index
@@ -124,8 +121,7 @@ defmodule SikioWeb.Router do
       live "/account/recovery-codes", AccountSecurityLive, :recovery_codes
     end
 
-    # A form post rather than a live event: only a request that owns the connection may write
-    # the proof into the session.
+    # A form POST, not a LiveView event, because a LiveView cannot write to the session.
     post "/setup/code", SetupController, :create
 
     get "/subscriptions.opml", OPMLController, :export

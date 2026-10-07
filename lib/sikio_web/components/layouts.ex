@@ -2,25 +2,20 @@
 
 defmodule SikioWeb.Layouts do
   @moduledoc """
-  This module holds layouts and related functionality
-  used by your application.
+  Layouts and shared layout components.
   """
   use SikioWeb, :html
 
-  # Embed all files in layouts/* within this module.
-  # The default root.html.heex file contains the HTML
-  # skeleton of your application, namely HTML headers
-  # and other static content.
+  # Embeds the templates in layouts/*. root.html.heex holds the HTML skeleton and static head.
   embed_templates "layouts/*"
   alias Ithibati.Schema.Identifier
 
   @doc """
-  The element the passkey hook attaches to.
+  Renders the empty element for the `Ithibati.Web.Hooks.PasskeyCeremony` hook.
 
-  It renders nothing — it exists so the hook has somewhere to live and somewhere to read the four
-  ceremony paths from, which are yours because you chose the scope `ithibati_routes/1` is mounted
-  under. Both pages here that can start a ceremony render it, so the paths are written once: a
-  second copy is a second place to forget when that scope moves.
+  Its data attributes hold the ceremony paths for the hook.
+  The paths depend on the scope where `ithibati_routes/1` is mounted.
+  Every page that starts a ceremony renders this component, so the paths are defined once.
   """
   def passkey_ceremony(assigns) do
     ~H"""
@@ -39,12 +34,12 @@ defmodule SikioWeb.Layouts do
   end
 
   @doc """
-  What an identifier may look like, for the browser to check before the server does.
+  Returns the username regex source for the HTML `pattern` attribute.
 
-  Derived from `Ithibati.Schema.Identifier.username_format/0` rather than written out beside it: an
-  HTML `pattern` that disagrees with the server refuses names the server would take, or waves
-  through names it will not, and nothing says so. The anchors come off because `pattern` is
-  implicitly anchored and its grammar has no `\\A`.
+  It is derived from `Ithibati.Schema.Identifier.username_format/0`, not duplicated.
+  A diverging `pattern` would reject valid names or accept invalid ones without any error.
+  The `\\A` and `\\z` anchors are removed, because `pattern` is implicitly anchored.
+  The `pattern` regex syntax has no `\\A`.
   """
   def username_pattern do
     Identifier.username_format()
@@ -53,10 +48,10 @@ defmodule SikioWeb.Layouts do
   end
 
   @doc """
-  The offer section 13 obliges a deployment to make, in the two shells anybody ever sees.
+  Renders the source code link required by AGPL section 13, in the auth and member layouts.
 
-  Read at render rather than at compile time, because `SOURCE_URL` is what a deployment that
-  modified Sikio sets, and it is read after this is compiled.
+  The URL is read at render time, not compile time.
+  Deployments of modified code set `SOURCE_URL`. `config/runtime.exs` reads it at boot.
   """
   attr :class, :any, default: "underline underline-offset-2"
 
@@ -73,7 +68,7 @@ defmodule SikioWeb.Layouts do
     """
   end
 
-  @doc "The name, with the dot that carries the signal. Written once, rendered in both shells."
+  @doc "Renders the wordmark with its signal-colored dot, for the auth and member layouts."
   def wordmark(assigns) do
     ~H"""
     sikio<span
@@ -136,12 +131,13 @@ defmodule SikioWeb.Layouts do
   end
 
   @doc """
-  The signed-in application shell.
+  The signed-in application layout.
 
-  Below `lg` the header is a bar across the top. From `lg` the same element is the reader's left
-  column, so every link exists once in the page. The library's views and sources appear in it
-  when `sidebar` is given, which `SikioWeb.Sidebar` assigns on every member page. Each is a place
-  of its own; choosing one lets go of the others.
+  Below `lg` the header is a top bar. From `lg` the same element is the left column.
+  Each link therefore exists once in the DOM.
+  The views, tags and sources render when `sidebar` is given.
+  `SikioWeb.Sidebar` assigns it on every member page.
+  Selecting a view, tag or source replaces the other filters.
   """
   attr :flash, :map, required: true
   attr :current_account, :map, required: true
@@ -190,16 +186,16 @@ defmodule SikioWeb.Layouts do
 
     ~H"""
     <div class="min-h-svh pb-[calc(var(--nav-bar)+var(--safe-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
-      <%!-- assets/js/dock_place.mjs makes room at its foot for the now playing bar. --%>
-      <%!-- On a phone a slim bar that stays at the top; see assets/js/shrink_title.mjs. --%>
+      <%!-- assets/js/dock_place.mjs adds bottom padding for the compact player panel. --%>
+      <%!-- Below `lg` a sticky top bar; see assets/js/shrink_title.mjs. --%>
       <header
         id="app-header"
         phx-hook="ShrinkTitle"
         phx-mounted={JS.ignore_attributes(["style", "data-shrunk"])}
         class="group sticky top-0 z-30 flex flex-wrap items-center justify-between gap-4 lg:sticky lg:top-0 lg:h-svh lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-start lg:gap-5 lg:overflow-y-auto lg:border-r lg:border-line lg:px-3 lg:py-4"
       >
-        <%!-- The bar's translucent ground sits here, not on the header: a backdrop filter there would
-             hold the fixed tab bar inside the header rather than at the screen's foot. --%>
+        <%!-- The translucent background is set here, not on the header. A `backdrop-filter` on
+             the header would make it the containing block of the fixed tab bar. --%>
         <div
           id="masthead"
           class="relative flex w-full items-center justify-between gap-3 bg-ground/85 px-4 py-1.5 backdrop-blur-md sm:px-10 lg:bg-transparent lg:py-0 lg:pr-0 lg:pl-2.5 lg:backdrop-blur-none"
@@ -223,7 +219,7 @@ defmodule SikioWeb.Layouts do
               <.wordmark />
             </span>
           </.link>
-          <%!-- The page's title, shown once its large heading has scrolled out of view. --%>
+          <%!-- Shows the page title once the large heading scrolls out of view. --%>
           <p
             :if={@title}
             id="nav-title"
@@ -341,7 +337,7 @@ defmodule SikioWeb.Layouts do
               {label}
             </.sidebar_link>
           </nav>
-          <%!-- An account's own tags, such as "Must view", above the subscriptions they gather. --%>
+          <%!-- The account's tags, such as "Must view", listed above the subscriptions. --%>
           <nav
             :if={@sidebar.tags != []}
             aria-labelledby="tags-heading"
@@ -429,9 +425,8 @@ defmodule SikioWeb.Layouts do
             <.source_offer class="font-semibold text-link" />
           </p>
         </div>
-        <%!-- A phone's tab bar, in the manner of iOS: an icon and a label for each tab, on a
-             translucent bar of Apple's height above the home indicator. What is in progress has
-             a tab of its own, because going on with it is what a reader most often comes for. --%>
+        <%!-- Phone tab bar in iOS style: icon and label per tab, translucent, at iOS tab bar
+             height above the safe-area inset. The queue has its own tab for continuing. --%>
         <nav
           id="main-navigation"
           class="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--nav-bar)+var(--safe-bottom))] items-stretch justify-around border-t border-line bg-ground/85 pb-[var(--safe-bottom)] backdrop-blur-md lg:hidden"
@@ -474,8 +469,8 @@ defmodule SikioWeb.Layouts do
     """
   end
 
-  # Every key, opened with ? or from the account menu; see assets/js/shortcuts.mjs. The player's
-  # keys work on every page while something plays, the library's in the library.
+  # Lists all shortcuts. Opens with `?` or from the account menu; see assets/js/shortcuts.mjs.
+  # Player keys work on every page during playback. Library keys work in the library.
   defp shortcuts(assigns) do
     ~H"""
     <.overview id="shortcuts" title={gettext("Keyboard shortcuts")} phx-hook="Shortcuts">
@@ -519,7 +514,7 @@ defmodule SikioWeb.Layouts do
     """
   end
 
-  # What the member pages' footer once said, and the offer of the source code the licence asks for.
+  # The app description, taglines and the AGPL source code link.
   defp about(assigns) do
     ~H"""
     <.overview id="about" title={gettext("About Sikio")}>
@@ -534,8 +529,8 @@ defmodule SikioWeb.Layouts do
     """
   end
 
-  # A dialog over the page with a heading and a close button. Opened by a sikio:show event on it,
-  # see assets/js/app.js; Escape closes it by itself.
+  # A modal dialog with a heading and a close button.
+  # A `sikio:show` event on it opens it; see assets/js/app.js. Escape closes it natively.
   attr :id, :string, required: true
   attr :title, :string, required: true
   attr :rest, :global
@@ -613,7 +608,7 @@ defmodule SikioWeb.Layouts do
   attr :name, :string, required: true
   attr :class, :any, default: nil
 
-  # A name's first letter in a tinted circle, where no picture stands for it.
+  # Renders a name's first letter in a tinted circle, for sources without an icon.
   defp initial(assigns) do
     ~H"""
     <span

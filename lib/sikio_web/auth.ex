@@ -2,12 +2,12 @@
 
 defmodule SikioWeb.Auth do
   @moduledoc """
-  The three decisions Ithibati does not make, made here — and this instance makes them narrowly.
+  Implements the `Ithibati.Web.Handler` callbacks for Sikio.
 
-  Nobody registers without an invitation, except the first person, who has nobody to invite them.
-  Both answers live in `registration_subject/2`, which is asked *before* a challenge is minted: a
-  refusal there means no ceremony starts at all, and a token that opens nothing is answered the
-  same way as no token.
+  Registration requires an invitation, except for the first account on an unclaimed instance.
+  `registration_subject/2` checks both before a challenge is issued.
+  A refusal there starts no ceremony.
+  An unknown token returns `:invitation_unknown`; a missing token returns `:invitation_required`.
   """
   @behaviour Ithibati.Web.Handler
 
@@ -44,9 +44,8 @@ defmodule SikioWeb.Auth do
       else: invited(params["token"])
   end
 
-  # A protected instance asks for the operator's code before it will start a first-account
-  # ceremony at all. Asked here and not only on the page, because the page is not the gate: a
-  # request straight at the ceremony endpoint never loads it.
+  # Checks the setup authorization before a first-account ceremony starts.
+  # The check runs here as well as on the page, because a request can reach the endpoint directly.
   defp claiming(conn, params) do
     if claim_open?(setup_authorization(conn)),
       do: first_account(params),
@@ -54,21 +53,19 @@ defmodule SikioWeb.Auth do
   end
 
   @doc """
-  Whether a first account may be made with the authorization this visitor holds.
+  Returns whether the given setup authorization permits creating the first account.
 
-  One rule, asked by everything that needs it: the gate above and the page that decides which
-  form to draw. Written twice it would be written as duals, and a change to one of them would
-  leave a page offering what the ceremony then refuses.
+  `registration_subject/2` and the setup page both call this function.
+  A single definition keeps the page from offering a form the ceremony refuses.
   """
   def claim_open?(authorization), do: Instance.authorized?(authorization)
 
-  # Only the proof lives in the session, never the code that bought it. It expires on its own,
-  # and `authorized?/1` is what says whether it still stands.
+  # The session stores the authorization proof, never the setup code.
+  # The proof carries an expiry; `Instance.authorized?/1` checks it.
   defp setup_authorization(conn), do: get_session(conn, :setup_authorization)
 
-  # The invitation says who this will be, so the browser is not asked. A form that let somebody
-  # type their own name here would be a form that lets them accept an invitation addressed to
-  # someone else — and `Invitations.accept/2` refuses that anyway, which is where the guarantee is.
+  # The username comes from the invitation, not from the request.
+  # `Invitations.accept/2` also rejects a mismatched username inside the transaction.
   defp invited(token) when is_binary(token) do
     case Invitations.fetch(token) do
       nil -> {:error, :invitation_unknown}
@@ -78,11 +75,10 @@ defmodule SikioWeb.Auth do
 
   defp invited(_missing), do: {:error, :invitation_required}
 
-  # Asked before a challenge is minted, so this is where a name the schema could never store has to
-  # be refused: approving it means a passkey dialog, a credential the authenticator then keeps, and
-  # a refusal only after all of that. The changeset is the authority on the format, so it answers
-  # rather than a second copy of the pattern — and it answers with the *normalised* value, so the
-  # name on the dialog is the name that will be stored.
+  # Validates the username before a challenge is issued.
+  # A later refusal would leave an authenticator credential for an account that never exists.
+  # The changeset validates the format, so no second pattern exists.
+  # Returns the normalized username, so the passkey dialog shows the stored value.
   defp first_account(%{"username" => username}) do
     %User{}
     |> User.changeset(%{"username" => username})
@@ -139,19 +135,17 @@ defmodule SikioWeb.Auth do
     end
   end
 
-  # Two shapes of the same transaction, and which one this is comes from the same question
-  # `registration_subject/2` asked rather than from the request: the browser sends the whole body
-  # again at this step, so anything read from `params` here is the client's word for it.
+  # Chooses the claim or invitation transaction with the same check as `registration_subject/2`.
+  # The choice ignores `params`, because the client resends the whole body at this step.
   defp acceptance(conn, username, token, key_attrs) do
     if Instance.needs_setup?(),
       do: claim_instance(username, key_attrs, setup_authorization(conn)),
       else: accept_invitation(Invitations.fetch(token), username, key_attrs)
   end
 
-  # The invitation has to be opened a second time, because only the identifier it named travelled
-  # with the challenge — and that identifier is what says whether this is the same invitation. One
-  # that opens somebody else's is refused here, and `accept/2` refuses it again inside the
-  # transaction, where a race cannot get past it.
+  # The invitation is fetched again, because the challenge carries only the username.
+  # A token for a different username is refused here.
+  # `accept/2` checks again inside the transaction, which closes the race.
   defp accept_invitation(%{username: username} = invitation, username, key_attrs) do
     Multi.new()
     |> Multi.insert(:account, User.changeset(%User{}, Invitations.account_attrs(invitation)))
@@ -159,15 +153,15 @@ defmodule SikioWeb.Auth do
     |> Grant.with_key_and_codes(key_attrs)
   end
 
-  # Spent, expired, never real, or addressed to somebody else: one answer for all four, so that
-  # nothing here tells a guesser which of their guesses was once a link.
+  # Accepted, expired, unknown and mismatched invitations return the same error.
+  # The response does not reveal whether a token ever existed.
   defp accept_invitation(_other, _username, _key_attrs),
     do: Multi.error(Multi.new(), :invitation, :invitation_unknown)
 
-  # Nobody to invite the first person, so this is the one account that arrives without one — and
-  # `claim/2` is what stops it from being the second as well. Before the grant, like `accept/2`
-  # above: a transaction that is going to be refused should not mint recovery codes on its way to
-  # being rolled back, because they sit in plaintext in the `changes_so_far` the caller is handed.
+  # Creates the first account without an invitation. `Instance.claim/2` refuses a second claim.
+  # The claim step runs before the grant, as `accept/2` does above.
+  # A failed transaction then generates no recovery codes.
+  # Generated codes would appear in plaintext in the returned `changes_so_far`.
   defp claim_instance(username, key_attrs, authorization) do
     Multi.new()
     |> Multi.insert(:account, User.changeset(%User{}, %{"username" => username}))
@@ -175,10 +169,9 @@ defmodule SikioWeb.Auth do
     |> Grant.with_key_and_codes(key_attrs)
   end
 
-  # "Taken" and "not a name" come from different places — the unique index and the format — and
-  # only the index can answer the first, since two people may pick one name in the same second.
-  # Asked of the library rather than read off the changeset here: it declared that index and is the
-  # only party that knows which of this table's unique columns is the identifier.
+  # A taken username comes from the unique index; an invalid one comes from format validation.
+  # Only the index detects concurrent registrations of the same name.
+  # Ithibati declares the index, so `identifier_taken?/1` identifies the constraint.
   defp account_error(changeset) do
     if Schema.User.identifier_taken?(changeset), do: :username_taken, else: :invalid_username
   end

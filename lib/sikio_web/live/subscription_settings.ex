@@ -2,13 +2,13 @@
 
 defmodule SikioWeb.SubscriptionSettings do
   @moduledoc """
-  The dialogs for one subscription: its name, where new episodes go, a YouTube channel's Shorts and
-  its tags, and leaving it.
+  LiveComponent with the edit and unsubscribe dialogs for one subscription.
+  The edit dialog sets the name, delivery target, Shorts for YouTube channels and tags.
 
-  A page opens it with `send_update/2` and an `:open` of `{:edit, subscription, trigger}` or
-  `{:leave, subscription, trigger}`. The trigger is the id that gets the focus back on cancel.
-  An `:open` of `:close` closes it. The subscription needs its feed loaded. Afterwards the page
-  receives `{#{inspect(__MODULE__)}, :saved}`, `:left` or `:not_found` in the same shape.
+  The parent opens it with `send_update/2` and `open: {:edit, subscription, trigger}` or
+  `open: {:leave, subscription, trigger}`. `trigger` is the DOM id refocused on cancel.
+  `open: :close` closes it. The subscription must have its feed preloaded.
+  The parent process then receives `{#{inspect(__MODULE__)}, :saved}`, `:left` or `:not_found`.
   """
   use SikioWeb, :live_component
 
@@ -60,7 +60,7 @@ defmodule SikioWeb.SubscriptionSettings do
     {:noreply, assign(socket, :editing, editing)}
   end
 
-  # Enter in a field saves what the form holds, as the button does.
+  # Enter in a field submits the form. It saves the current values like the Save button.
   def handle_event("submit_edit_subscription", params, socket) do
     {:noreply, socket} = handle_event("subscription_options", params, socket)
     handle_event("confirm_edit_subscription", %{}, socket)
@@ -69,11 +69,11 @@ defmodule SikioWeb.SubscriptionSettings do
   def handle_event("cancel_edit_subscription", _params, socket),
     do: {:noreply, socket |> assign(:editing, nil) |> give_back_focus()}
 
-  # A second press arrives after the first has closed the dialog.
+  # Ignores a repeated click that arrives after the first closed the dialog.
   def handle_event("confirm_edit_subscription", _params, %{assigns: %{editing: nil}} = socket),
     do: {:noreply, socket}
 
-  # Several new tags may be typed at once, set apart by commas.
+  # The `new` field may hold several comma-separated tags.
   def handle_event("confirm_edit_subscription", _params, socket) do
     %{subscription: subscription, chosen: chosen, new: new} = editing = socket.assigns.editing
     account = socket.assigns.current_account
@@ -91,7 +91,7 @@ defmodule SikioWeb.SubscriptionSettings do
     {:noreply, assign(socket, :editing, nil)}
   end
 
-  # A second press arrives after the first has opened the question.
+  # Ignores a repeated click that arrives after the first opened the confirmation.
   def handle_event("unsubscribe", _params, %{assigns: %{editing: nil}} = socket),
     do: {:noreply, socket}
 
@@ -114,7 +114,8 @@ defmodule SikioWeb.SubscriptionSettings do
     {:noreply, assign(socket, :unsubscribing, nil)}
   end
 
-  # Only a YouTube channel's form carries the box. Unticked, it sends the hidden field before it.
+  # Only YouTube channel forms have the checkbox.
+  # When unchecked, the browser sends the preceding hidden field's "false".
   defp shorts(%{"shorts" => value}, _current), do: value == "true"
   defp shorts(_params, current), do: current
 
@@ -214,7 +215,7 @@ defmodule SikioWeb.SubscriptionSettings do
             />
           </fieldset>
         </form>
-        <%!-- Leaving asks once more, in a question of its own. --%>
+        <%!-- Unsubscribe opens a separate confirmation dialog. --%>
         <:aside>
           <button
             id="unsubscribe"

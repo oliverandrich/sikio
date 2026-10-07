@@ -2,10 +2,9 @@
 
 defmodule SikioWeb.PlacesLive do
   @moduledoc """
-  The Library page: every place of the library as a grouped list, in the manner of an iPhone's
-  settings. A phone moves through it where a wide screen has the sidebar: the views, the tags
-  and the subscriptions, each leading to its list. The places and their counts come from
-  `SikioWeb.Sidebar`, which keeps them current.
+  The Library page: views, tags and subscriptions as grouped link lists, styled like iOS settings.
+  On a phone it replaces the sidebar. Each entry links to its list.
+  Places and counts come from the `sidebar` assign, which `SikioWeb.Sidebar` updates.
   """
   use SikioWeb, :live_view
 
@@ -79,7 +78,7 @@ defmodule SikioWeb.PlacesLive do
   slot :action, doc: "a link beside the heading"
   slot :inner_block, required: true
 
-  # A group of places, set apart as an iPhone sets apart a group of settings.
+  # A group of places, styled like an iOS settings group.
   defp places(assigns) do
     ~H"""
     <section id={@id} class="mb-6" aria-label={@heading}>

@@ -11,10 +11,9 @@ defmodule SikioWeb.Telemetry do
   @impl true
   def init(_arg) do
     children = [
-      # Telemetry poller will execute the given period measurements
-      # every 10_000ms. Learn more here: https://telemetry-metrics.hexdocs.pm
+      # Runs `periodic_measurements/0` every 10 seconds.
       {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
-      # Add reporters as children of your supervision tree.
+      # Metric reporters go here as children.
       # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
     ]
 
@@ -87,8 +86,8 @@ defmodule SikioWeb.Telemetry do
 
   defp periodic_measurements do
     [
-      # A module, function and arguments to be invoked periodically.
-      # This function must call :telemetry.execute/3 and a metric must be added above.
+      # Each entry is an MFA called periodically.
+      # It must call `:telemetry.execute/3`, and `metrics/0` must list the event.
       # {SikioWeb, :count_users, []}
     ]
   end

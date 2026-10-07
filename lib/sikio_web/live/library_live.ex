@@ -2,14 +2,13 @@
 
 defmodule SikioWeb.LibraryLive do
   @moduledoc """
-  The personal inbox: the newest items from the sources this account subscribed to.
+  The library: the account's items listed by status, source, tag or search.
 
-  The list and the item shown in it live in the URL, so both survive a reload and the browser's
-  back button; `SikioWeb.Sidebar.library_path/3` spells the addresses. Selecting an item patches
-  the address and keeps the list standing: from `lg` the item shows in a column beside the list,
-  below it on its own.
-  Everything on the page is kept current from notifications rather than by polling: new episodes,
-  progress from another tab, manual status changes and subscriptions added or removed elsewhere.
+  The list and the selected item are encoded in the URL, so both survive a reload and Back.
+  `SikioWeb.Sidebar.library_path/3` builds the URLs. Selecting an item is a `push_patch`.
+  From `lg` the item shows in a column beside the list. Below `lg` it replaces the list.
+  PubSub events keep the page current without polling.
+  They cover new episodes, progress from another tab, status changes and subscription changes.
   """
   use SikioWeb, :live_view
 
@@ -27,7 +26,7 @@ defmodule SikioWeb.LibraryLive do
   alias SikioWeb.SubscriptionSettings
 
   @impl true
-  # Enough rows for the tallest screen, so the next batch is asked for before the list runs out.
+  # One batch fills the tallest screen, so `phx-viewport-bottom` loads the next before the end.
   @batch 25
 
   def mount(_params, _session, socket) do
@@ -52,22 +51,22 @@ defmodule SikioWeb.LibraryLive do
      )}
   end
 
-  # The reader's offset from UTC in minutes, sent by the browser. The static render, before it
-  # connects, counts days in UTC.
+  # The browser's UTC offset in minutes, from the connect params.
+  # The static render has no connect params and uses UTC.
   defp time_zone_offset(%{"time_zone_offset" => offset})
        when is_integer(offset) and abs(offset) <= 14 * 60,
        do: offset
 
   defp time_zone_offset(_params), do: 0
 
-  # The list is read again only when the filters change. The rows are keyed, so choosing another
-  # item sends only the two rows whose selection changed and the list stands.
+  # The list is reloaded only when the filters change. Rows use `:key`, so a new selection
+  # sends only the two rows whose `selected` changed.
   @impl true
   def handle_params(params, uri, socket) do
     %URI{path: path, query: query} = URI.parse(uri)
     {filters, item} = SikioWeb.Sidebar.read_path(path, params)
-    # An address with a search shows the field, a reload or the Back button included. Search, a
-    # phone's tab of its own, opens every item with the field ready for the keys.
+    # A URL with `q` opens the search field, also after a reload or Back.
+    # `/search` is the phone's Search tab. It lists all items and focuses the field.
     socket =
       assign(
         socket,
@@ -82,7 +81,7 @@ defmodule SikioWeb.LibraryLive do
 
     socket = assign(socket, :tab, tab(path, filters))
 
-    # Any other item than the one the page chose for a wide screen is the reader's own choice.
+    # Any item other than the one `select_first` chose is a user selection.
     socket =
       if to_string(socket.assigns.chosen_for_width) == to_string(item),
         do: socket,
@@ -109,8 +108,8 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # An address names a source and an item by number; the titles after the numbers are for the
-  # reader. One that reads otherwise, after a rename or typed by hand, is corrected in place.
+  # Only the ids in the path are parsed; the slugs are for display.
+  # A non-canonical URL, after a rename or typed by hand, is replaced with `push_patch`.
   defp named(socket, "/", _query), do: socket
   defp named(socket, "/search", _query), do: socket
 
@@ -123,7 +122,7 @@ defmodule SikioWeb.LibraryLive do
       else: push_patch(socket, to: canonical, replace: true)
   end
 
-  # The tag the list shows, as the sidebar holds it.
+  # Returns the filtered tag from the `:sidebar` assign.
   defp chosen_tag(socket) do
     tag = socket.assigns.filters["tag"]
     Enum.find(socket.assigns.sidebar.tags, &(to_string(&1.id) == tag))
@@ -133,7 +132,7 @@ defmodule SikioWeb.LibraryLive do
   defp rename_error(:blank), do: gettext("A tag needs a name.")
   defp rename_error(:not_found), do: gettext("This tag is no longer there.")
 
-  # A source's dialog belongs to the place it was opened on.
+  # Closes the source settings dialog, which applies only to the place it was opened on.
   defp close_settings(socket) do
     if connected?(socket),
       do: send_update(SubscriptionSettings, id: "subscription-settings", open: :close)
@@ -141,19 +140,19 @@ defmodule SikioWeb.LibraryLive do
     socket
   end
 
-  # The website of the source the list shows, when its feed names one.
+  # Returns the shown source's `page_url`, or nil.
   defp website(sources, source) do
     if subscription = shown_subscription(sources, source), do: subscription.feed.page_url
   end
 
-  # The subscription to the source the list shows, as the sidebar holds it.
+  # Returns the shown source's subscription from the `:sidebar` assign.
   defp chosen_subscription(socket),
     do: shown_subscription(socket.assigns.sidebar.sources, socket.assigns.filters["source"])
 
   defp shown_subscription(sources, source),
     do: Enum.find(sources, &(to_string(&1.feed_id) == source))
 
-  # The dialog's ticks as what `Playback.mark_all/3` leaves out.
+  # Converts the dialog's checkboxes into the exclusion options of `Playback.mark_all/3`.
   defp marking(%{in_progress: in_progress, playing: playing, playing_id: playing_id}),
     do: [in_progress: in_progress, keep: if(playing, do: nil, else: playing_id)]
 
@@ -164,8 +163,8 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # The list's rows with a heading wherever the date group changes, by the date the list runs by.
-  # The queue runs by its own order and has no dates to group by.
+  # Inserts a heading row wherever the date group of the sort date changes.
+  # The queue is sorted by queue rank, so it has no headings.
   defp grouped(entries, %{"status" => "queue"}, _offset), do: Enum.map(entries, &{:entry, &1})
 
   defp grouped(entries, filters, offset) do
@@ -184,8 +183,8 @@ defmodule SikioWeb.LibraryLive do
   defp row_id({:heading, key, _label}), do: "group-#{key}"
   defp row_id({:entry, entry}), do: "entries-#{entry.id}"
 
-  # A heading between date groups, or an entry. Headings stay in view under the list's own head
-  # while their group scrolls past; see assets/js/list_head.mjs for the head's height.
+  # Renders a date heading or an entry row. From `lg` headings are sticky below the list head.
+  # assets/js/list_head.mjs sets `--list-head` to the head's height.
   attr :row, :any, required: true
   attr :filters, :map, required: true
   attr :titles, :map, required: true, doc: "the sources' titles, which addresses name"
@@ -220,8 +219,8 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # A phone's tab: searching is Search, the inbox and the queue are their own tabs, every other
-  # place is the Library's.
+  # Returns the active phone tab. A search is Search; the unfiltered inbox and queue have tabs.
+  # Every other place belongs to Library.
   defp tab("/search", _filters), do: :search
   defp tab(_path, %{"q" => q}) when q != "", do: :search
   defp tab(_path, %{"status" => "inbox", "source" => "", "tag" => ""}), do: :inbox
@@ -230,7 +229,7 @@ defmodule SikioWeb.LibraryLive do
 
   attr :filters, :map, required: true
 
-  # An empty list says what it would hold, and gives no advice.
+  # The empty state names what the list would contain and gives no instructions.
   defp list_empty(assigns) do
     {title, why} = nothing(assigns.filters)
     assigns = assign(assigns, title: title, why: why)
@@ -247,7 +246,7 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # What an empty list says: what it would hold, and a line on why when there is one.
+  # Returns the empty state's title and an optional explanation.
   defp nothing(%{"q" => q}) when q not in [nil, ""],
     do: {gettext("Nothing matches “%{query}”.", query: q), nil}
 
@@ -264,7 +263,7 @@ defmodule SikioWeb.LibraryLive do
   defp nothing(_filters),
     do: {gettext("No items yet."), gettext("New items arrive as your sources publish them.")}
 
-  # Where a phone's bar leads back: an item to its list, a place within the Library to the Library.
+  # The phone header's back link: from an item to its list, from a Library place to `/library`.
   defp back(selected, _tab, heading, list) when selected != nil,
     do: %{patch: list, label: heading}
 
@@ -273,12 +272,12 @@ defmodule SikioWeb.LibraryLive do
 
   defp list_path(filters, titles), do: SikioWeb.Sidebar.library_path(filters, nil, titles)
 
-  # The library's address for `filters` and `item`, naming sources by their titles.
+  # Builds the library URL for `filters` and `item`, with source and tag slugs.
   defp address(socket, filters, item \\ nil),
     do: SikioWeb.Sidebar.library_path(filters, item, socket.assigns.sidebar.titles)
 
-  # An item opened by its address may lie beyond the batches loaded. The list grows until it
-  # shows the item, or until it has passed where the item would be, which a filtered-out item is.
+  # An item opened by URL may lie beyond the loaded batches. Batches load until the list
+  # contains the item or sorts past its position. The second case covers filtered-out items.
   defp reach(%{assigns: %{selected: nil}} = socket), do: socket
 
   defp reach(%{assigns: %{selected: selected, entries: entries, more?: more?}} = socket) do
@@ -293,7 +292,7 @@ defmodule SikioWeb.LibraryLive do
   @impl true
   def handle_event("move", %{"key" => key}, socket) when key in ["j", "k"] do
     current = position(socket)
-    # j past the last row loaded loads the next batch first.
+    # `j` on the last loaded row loads the next batch first.
     socket =
       if key == "j" and current == length(socket.assigns.entries) - 1,
         do: load_more(socket),
@@ -319,9 +318,9 @@ defmodule SikioWeb.LibraryLive do
 
   def handle_event("load_more", _params, socket), do: {:noreply, load_more(socket)}
 
-  # The mini player's title: what plays, in the list on screen when that holds it, else in the
-  # list of its source. The link's own navigation was cancelled for this, so a playing item that
-  # has left the library meanwhile is said rather than left silent.
+  # Opens a playing item, from the mini player's title or after the queue plays on.
+  # It opens in the current list if listed there, else in its source's list.
+  # The client cancels the title link's navigation, so a removed item gets an error flash.
   def handle_event("show", %{"id" => id}, socket) do
     %{current_account: account, filters: filters} = socket.assigns
 
@@ -339,8 +338,9 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # The player played out the item the detail shows, and nothing follows. Where the list no longer
-  # holds it, the detail empties; a mark by hand keeps it, so it can be taken back.
+  # Sent when the player finished the shown item and no queue item follows.
+  # The detail closes if the current list no longer contains the item.
+  # A manual mark does not send this, so the detail stays open and the mark can be undone.
   def handle_event("played_out", %{"id" => id}, socket) do
     %{current_account: account, filters: filters, selected: selected} = socket.assigns
 
@@ -350,8 +350,8 @@ defmodule SikioWeb.LibraryLive do
        else: {:noreply, socket}
   end
 
-  # A wide screen keeps something in the detail; the browser asks when nothing is chosen. The
-  # address is replaced, so Back does not return to the empty view.
+  # From `lg` the detail always shows an item. The ReaderKeys hook pushes this when none is
+  # selected. The URL is replaced, so Back does not return to the empty detail.
   def handle_event(
         "select_first",
         _params,
@@ -368,8 +368,8 @@ defmodule SikioWeb.LibraryLive do
 
   def handle_event("select_first", _params, socket), do: {:noreply, socket}
 
-  # Turned narrow, the detail would cover the list. An item the page chose is let go; one the
-  # reader chose stays.
+  # Below `lg` the detail replaces the list. An item chosen by `select_first` is deselected;
+  # a user selection stays.
   def handle_event("release_first", _params, %{assigns: %{chosen_for_width: nil}} = socket),
     do: {:noreply, socket}
 
@@ -381,8 +381,8 @@ defmodule SikioWeb.LibraryLive do
        |> push_patch(to: address(socket, socket.assigns.filters), replace: true)}
 
   def handle_event("search", %{"q" => text}, socket), do: {:noreply, searched(socket, text)}
-  # The field is open or folded on the page's word, so a patch never folds it mid-edit. Opening
-  # puts the cursor in it; folding clears the search and gives the focus back to the magnifier.
+  # Only `close_search` closes the field, so a patch never closes it while typing.
+  # Opening focuses the input. Closing clears the search and focuses the toggle button.
   def handle_event("open_search", _params, socket) do
     {:noreply,
      socket |> assign(:search_open?, true) |> push_event("focus", %{id: "search-input"})}
@@ -404,7 +404,7 @@ defmodule SikioWeb.LibraryLive do
         socket
       )
 
-  # The double check asks first and names how many it would mark, by the rule that marks them.
+  # Opens a confirmation with the count from `Playback.markable`, which applies the archive rule.
   def handle_event("mark_all", _params, socket) do
     case Playback.markable(socket.assigns.current_account, socket.assigns.filters) do
       0 ->
@@ -419,8 +419,8 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # A tick changes what is marked, so the question counts again. Which item plays only the page
-  # knows, and it sends it along; see assets/js/playing_entry.mjs.
+  # A checkbox change recounts the items to archive. This LiveView does not hold the playing
+  # item, so the client sends its id; see assets/js/playing_entry.mjs.
   def handle_event("mark_options", params, socket) do
     options = %{
       in_progress: params["in_progress"] != "false",
@@ -441,7 +441,7 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("cancel_mark_all", _params, socket),
     do: {:noreply, socket |> assign(:marking, nil) |> push_event("focus", %{id: "mark-all"})}
 
-  # The change is broadcast, and the broadcast reloads the list along with the sidebar.
+  # The change triggers a PubSub broadcast. Its handler reloads the list and the sidebar.
   def handle_event("confirm_mark_all", _params, socket) do
     {:ok, _count} =
       Playback.mark_all(
@@ -453,7 +453,7 @@ defmodule SikioWeb.LibraryLive do
     {:noreply, assign(socket, :marking, nil)}
   end
 
-  # The pencil opens the source's dialog, see SikioWeb.SubscriptionSettings.
+  # Opens the `SikioWeb.SubscriptionSettings` dialog for the shown source.
   def handle_event("edit_subscription", _params, socket) do
     if subscription = chosen_subscription(socket) do
       send_update(SubscriptionSettings,
@@ -465,8 +465,8 @@ defmodule SikioWeb.LibraryLive do
     {:noreply, socket}
   end
 
-  # A tag is renamed in its own header. A name another tag holds is said in the dialog, which
-  # stays open; a new name moves the address along with it.
+  # Renames the shown tag from the list header. A taken name shows an error in the open dialog.
+  # A successful rename patches the URL to the new slug.
   def handle_event("rename_tag", _params, socket) do
     case chosen_tag(socket) do
       nil -> {:noreply, socket}
@@ -492,7 +492,7 @@ defmodule SikioWeb.LibraryLive do
     %{tag: tag, name: name} = socket.assigns.renaming
 
     case Tags.rename(socket.assigns.current_account, tag.id, name) do
-      # Read at once, so the address the page checks itself against already has the new name.
+      # Refreshes the sidebar first, so `address` and `handle_params` use the new name.
       {:ok, _renamed} ->
         socket = socket |> assign(:renaming, nil) |> SikioWeb.Sidebar.refresh()
         {:noreply, push_patch(socket, to: address(socket, socket.assigns.filters), replace: true)}
@@ -502,7 +502,7 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # A tag is deleted after a question that names it. Its subscriptions stay.
+  # Deleting a tag needs a confirmation that names it. Its subscriptions remain.
   def handle_event("delete_tag", _params, socket),
     do: {:noreply, assign(socket, :deleting, chosen_tag(socket))}
 
@@ -524,8 +524,8 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
     do: {:noreply, socket}
 
-  # The status is read again rather than taken from the selection, which the mark's broadcast
-  # only updates after a second press may already have arrived.
+  # The status is read from the database, not from `selected`. A second key press can arrive
+  # before the first mark's broadcast updates `selected`.
   def handle_event("toggle_mark", _params, %{assigns: %{selected: selected}} = socket) do
     case Library.entry(socket.assigns.current_account, selected.id) do
       nil ->
@@ -551,7 +551,7 @@ defmodule SikioWeb.LibraryLive do
     {:noreply, assign(socket, :play_on, preference.play_on)}
   end
 
-  # A row dropped or moved by a key; the broadcast reads the queue again in its new order.
+  # Sent after a drag or an arrow-key move. The broadcast reloads the queue in its new order.
   def handle_event("reorder", %{"id" => id, "index" => index}, socket) when is_integer(index),
     do: changed(socket, Playback.move(socket.assigns.current_account, id, index))
 
@@ -566,7 +566,7 @@ defmodule SikioWeb.LibraryLive do
           Playback.mark(socket.assigns.current_account, id, String.to_existing_atom(status))
         )
 
-  # The change is broadcast, and the broadcast reloads the list along with the sidebar.
+  # The change triggers a PubSub broadcast. Its handler reloads the list and the sidebar.
   defp changed(socket, result) do
     case result do
       {:ok, _} ->
@@ -578,14 +578,14 @@ defmodule SikioWeb.LibraryLive do
   end
 
   @doc """
-  Answers the library's events, which arrive through `SikioWeb.Sidebar`.
+  Handles library events forwarded by `SikioWeb.Sidebar`.
 
-  A progress sample that keeps the status updates the one item in place. Anything else may change
-  which items this view lists, so the list is read again and the selected item with it; an item
-  that left the library closes.
+  `:playback_progressed` updates the matching entry in place.
+  Any other event may change which items the list contains.
+  It reloads the list and the selected entry. A selected entry that left the library closes.
   """
-  # Progress cannot move an item between views, since filters look at the status, the kind and
-  # the source. The one item takes the new place; nothing is read again.
+  # Progress cannot move an item between lists. Filters use status, source, tag and search text.
+  # Only the matching entry gets the new position; nothing is reloaded.
   def handle_library_event({:playback_progressed, state}, socket) do
     {:noreply,
      socket
@@ -608,7 +608,7 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # A notification older than what is shown is dropped, so a late one cannot undo a mark.
+  # A state older than the shown one is ignored, so a late message cannot undo a mark.
   defp progressed(entry, state) do
     if entry.id == state.entry_id and Playback.newer?(entry, state),
       do: %{entry | playback: state},
@@ -632,11 +632,11 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # Reading the notes is the costly part of the detail, and an event rereads the same item several
-  # times a minute while it plays. Chapters and notes are read again only when the notes changed.
-  # The chapters a publisher listed come out of the notes, so they show once, in their own box.
-  # The chapters depend on the length as well, which a player may measure only later, and on
-  # what the feed names, which may arrive after the item was opened.
+  # Parsing the notes is the expensive part of the detail.
+  # Library events reselect a playing item several times a minute.
+  # Chapters and notes are recomputed only when id, description, length or feed chapters change.
+  # Chapters listed in the notes are removed from them and shown in their own box.
+  # The player may measure the length later. Feed chapters may arrive after the item was opened.
   defp reading(socket, entry) do
     read = {entry.id, entry.description, length_of(entry), entry.chapters}
 
@@ -645,14 +645,14 @@ defmodule SikioWeb.LibraryLive do
       else: Map.put(read_notes(entry), :read, read)
   end
 
-  # The chapters and the notes beside them; see Sikio.Chapters.of/2.
+  # Returns the chapters and the rendered notes; see `Sikio.Chapters.of/2`.
   defp read_notes(entry) do
     {chapters, notes} = Chapters.of(entry, length_of(entry))
     %{chapters: chapters, notes: Notes.notes(notes, entry.description_format || :html)}
   end
 
-  # A podcast's chapters file is fetched once somebody opens the item, and only when another item
-  # is opened, not with every notification about the one that is.
+  # Fetches a missing chapters file with `start_async` when a different item is selected.
+  # Reselecting the same item after an event skips the fetch.
   defp fetch_chapters(%{assigns: %{selected: %{id: id}}} = socket, %{id: id}), do: socket
 
   defp fetch_chapters(socket, %{chapters: nil, chapters_url: url} = entry) when is_binary(url) do
@@ -667,7 +667,7 @@ defmodule SikioWeb.LibraryLive do
   def handle_info({SubscriptionSettings, :saved}, socket),
     do: {:noreply, SikioWeb.Sidebar.refresh(socket)}
 
-  # The source's list has nothing left to show, so the page goes where the library starts.
+  # `:left` follows an unsubscribe from the shown source, so the page patches to the start path.
   def handle_info({SubscriptionSettings, :left}, socket),
     do: {:noreply, push_patch(socket, to: SikioWeb.Sidebar.start_path())}
 
@@ -686,10 +686,10 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # Not reached or not a file: tried again the next time the item is opened.
+  # A failed fetch is not stored. The next selection of the item retries it.
   def handle_async(:chapters, _result, socket), do: {:noreply, socket}
 
-  # The tally counts every place without a query. A search is counted by the database.
+  # Without a search the total comes from the sidebar counts. A search runs a count query.
   defp total(socket, %{"q" => ""} = filters),
     do:
       socket.assigns.sidebar.counts
@@ -703,7 +703,7 @@ defmodule SikioWeb.LibraryLive do
   defp position(%{assigns: %{selected: selected, entries: entries}}),
     do: Enum.find_index(entries, &(&1.id == selected.id))
 
-  # The list grows by a batch as its end comes into view; there are no pages to turn.
+  # Infinite scroll: appends the next batch after the last loaded entry. There is no pagination.
   defp load_more(%{assigns: %{more?: false}} = socket), do: socket
 
   defp load_more(socket) do
@@ -712,15 +712,15 @@ defmodule SikioWeb.LibraryLive do
     assign(socket, entries: entries ++ batch, more?: length(batch) == @batch)
   end
 
-  # Read again after an update, as many rows as were loaded, so the list never shrinks under the
-  # reader's scroll.
+  # Reloads as many rows as are loaded, at least one batch.
+  # The list does not shrink under the scroll position.
   defp reload(socket) do
     account = socket.assigns.current_account
     filters = socket.assigns.filters
     subscriptions = socket.assigns.sidebar.sources
     limit = max(length(socket.assigns.entries), @batch)
     entries = Library.entries(account, filters, limit: limit)
-    # The sidebar and the chips count each place on its own; the heading counts what is shown.
+    # Sidebar and chips show unfiltered counts per place. The heading shows `total` for the list.
     counts = Library.tally(socket.assigns.sidebar.counts, %{}, socket.assigns.sidebar.tag_feeds)
 
     socket
@@ -735,14 +735,13 @@ defmodule SikioWeb.LibraryLive do
     )
   end
 
-  # The Search tab searches every item and is called what it does. A search within one place keeps
-  # that place's name.
+  # A search across all items is titled Search. A search within a place keeps the place's name.
   defp name(:search, %{"status" => "", "source" => "", "tag" => ""}, _heading),
     do: gettext("Search")
 
   defp name(_tab, _filters, heading), do: heading
 
-  # The view's name: the source or the tag when one is chosen, otherwise the status.
+  # Returns the list heading: the source or tag name if set, else the status view's label.
   defp heading(%{"source" => source}, sidebar) when source != "",
     do: source_title(sidebar.sources, source)
 
@@ -788,8 +787,8 @@ defmodule SikioWeb.LibraryLive do
         data-rows={length(@entries)}
         class="lg:grid lg:h-svh lg:grid-cols-[28rem_minmax(0,1fr)]"
       >
-        <%!-- From lg the window stands still. The list and the detail scroll on their own, and
-        neither springs back at its end. Each takes the focus, so the keyboard can scroll it. --%>
+        <%!-- From lg the page does not scroll. List and detail scroll independently, with
+        `overscroll-none`. Each has `tabindex="0"`, so the keyboard can scroll it. --%>
         <div
           id="list-pane"
           tabindex="0"
@@ -800,14 +799,14 @@ defmodule SikioWeb.LibraryLive do
             @selected && "hidden lg:block"
           ]}
         >
-          <%!-- Heading, search and filters stay in view while the list scrolls beneath them. --%>
+          <%!-- From lg the heading, search and filters are sticky above the list. --%>
           <div
             id="list-head"
             phx-hook="ListHead"
             class="lg:sticky lg:top-0 lg:z-10 lg:border-b lg:border-line lg:bg-surface"
           >
-            <%!-- The heading has the head's whole width, so a long source's name wraps late. The
-                 count and the actions share the line beneath it. --%>
+            <%!-- The heading spans the head's full width, so a long source name wraps later.
+                 The count and the actions share the line below it. --%>
             <div class="flex flex-col gap-0.5 px-6 pt-6 pb-4 sm:px-12 lg:px-4 lg:pt-5 lg:pb-3">
               <h1
                 id="library-heading"
@@ -825,7 +824,7 @@ defmodule SikioWeb.LibraryLive do
                   {count_label(@total)}
                 </span>
                 <div class="ml-auto flex shrink-0 items-center gap-2">
-                  <%!-- An empty list or one of finished items has nothing to offer the double check. --%>
+                  <%!-- Archive all is hidden for an empty list, the queue and the history. --%>
                   <button
                     :if={@total > 0 and @filters["status"] not in ["queue", "heard"]}
                     id="mark-all"
@@ -859,8 +858,8 @@ defmodule SikioWeb.LibraryLive do
                   >
                     <Lucideicons.trash_2 aria-hidden="true" class="size-4.5" />
                   </button>
-                  <%!-- The source's own settings: its name, where new episodes go, its tags and
-                       the way to leave it. --%>
+                  <%!-- Opens the source's settings: name, target list for new episodes, tags and
+                       unsubscribe. --%>
                   <button
                     :if={@filters["source"] != ""}
                     id="edit-subscription"
@@ -884,8 +883,8 @@ defmodule SikioWeb.LibraryLive do
                   >
                     <Lucideicons.external_link aria-hidden="true" class="size-4.5" />
                   </.link>
-                  <%!-- Whether the player goes on with the queue when an item ends, said in words
-                       beside a switch. --%>
+                  <%!-- Switch for playing the next queue item when one ends. It has a visible
+                       text label. --%>
                   <button
                     :if={@filters["status"] == "queue"}
                     id="play-on"
@@ -941,7 +940,7 @@ defmodule SikioWeb.LibraryLive do
                   />
                   {gettext("Include items in progress")}
                 </label>
-                <%!-- Shown by the hook only while the player holds an item. --%>
+                <%!-- The PlayingEntry hook shows this only while the player has an item. --%>
                 <div
                   id="mark-all-playing"
                   phx-hook="PlayingEntry"
@@ -1022,7 +1021,7 @@ defmodule SikioWeb.LibraryLive do
                 class="w-full rounded-full border border-control bg-surface px-4 py-2 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
               />
             </form>
-            <%!-- Within a source or a tag the statuses narrow the list; elsewhere they are places. --%>
+            <%!-- Status filters show within a source or tag. Elsewhere statuses are places. --%>
             <div
               :if={!@empty? and (@filters["source"] != "" or @filters["tag"] != "")}
               class="px-6 pb-3 sm:px-12 lg:px-4 lg:pb-4"
@@ -1118,9 +1117,9 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # One item: its picture, source, title and where the reader stands. The picture comes through
-  # Sikio's own host and tries the item's picture, its source's artwork, then a mark for its kind,
-  # so every row keeps its shape.
+  # A list row: picture, source, title and playback status.
+  # The picture is proxied through Sikio's host. It tries the item's image, the source artwork,
+  # then a kind icon, so every row has the same shape.
   attr :id, :string, required: true
   attr :entry, :map, required: true
   attr :to, :string, required: true
@@ -1190,7 +1189,7 @@ defmodule SikioWeb.LibraryLive do
           </span>
         </span>
       </.link>
-      <%!-- Dragged, or moved a place with the arrow keys; see assets/js/queue_sort.mjs. --%>
+      <%!-- Drag handle. Arrow keys move the row one position; see assets/js/queue_sort.mjs. --%>
       <button
         :if={@movable}
         id={"move-#{@entry.id}"}
@@ -1206,8 +1205,8 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # A reconnect sends the form again, so an unchanged search changes nothing. A search keeps the
-  # item that is open and replaces the address rather than adding a step for each word typed.
+  # A reconnect resubmits the form, so an unchanged search is a no-op. A search keeps the selected
+  # item. It replaces the history entry instead of adding one per change.
   defp searched(socket, text) do
     filters = Map.put(socket.assigns.filters, "q", text)
 
@@ -1220,8 +1219,8 @@ defmodule SikioWeb.LibraryLive do
         )
   end
 
-  # On a phone the filters fold away. The browser alone opens and closes them, so a patch never
-  # folds them under the reader's finger; a filtered page opens with them shown.
+  # Below `lg` the filters are collapsed. JS commands toggle them on the client only,
+  # so a patch never collapses them. A filtered list mounts with them expanded.
   defp toggle_filters do
     JS.toggle_class("hidden flex", to: "#list-filters")
     |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#toggle-filters")
@@ -1233,7 +1232,7 @@ defmodule SikioWeb.LibraryLive do
     |> JS.set_attribute({"aria-expanded", "true"}, to: "#toggle-filters")
   end
 
-  # The place the filters narrow: a source or a tag, or else a view by its status.
+  # Returns the filters of the place: without the status for a source or tag, else unchanged.
   defp place_of(%{"source" => source} = filters) when source != "",
     do: %{filters | "status" => ""}
 
@@ -1245,7 +1244,7 @@ defmodule SikioWeb.LibraryLive do
   attr :label, :string, required: true
   slot :inner_block, required: true
 
-  # A row of choices of which one holds, labelled for those who do not see the row.
+  # A `role="group"` of segment links. Its `aria-label` names the group for screen readers.
   defp segments(assigns) do
     ~H"""
     <div role="group" aria-label={@label} class="flex flex-wrap gap-2">
@@ -1275,7 +1274,7 @@ defmodule SikioWeb.LibraryLive do
   attr :entry, :map, required: true
   attr :again, :boolean, required: true, doc: "the item was heard and goes in once more"
 
-  # The way into the queue, at its head or its end.
+  # Menu that adds the item at the start or the end of the queue.
   defp queue_menu(assigns) do
     ~H"""
     <.item_menu
@@ -1306,8 +1305,8 @@ defmodule SikioWeb.LibraryLive do
   slot :icon
   slot :inner_block, required: true
 
-  # A menu at the card's head. The card renders again while its item plays, so the menu keeps
-  # its own open state, and a click elsewhere or Escape closes it.
+  # A `<details>` menu in the card header. The card re-renders during playback, so
+  # `JS.ignore_attributes` keeps the `open` attribute. A click outside or Escape closes it.
   defp item_menu(assigns) do
     ~H"""
     <details
@@ -1334,7 +1333,7 @@ defmodule SikioWeb.LibraryLive do
           <Lucideicons.ellipsis aria-hidden="true" class="size-4.5" />
         <% end %>
       </summary>
-      <%!-- Above the player, which the dock lays over the card's slot at z-40. --%>
+      <%!-- z-50 keeps the menu above the dock's player, which covers the slot at z-40. --%>
       <div class="absolute top-full right-0 z-50 mt-1 flex w-max min-w-48 flex-col rounded-control border border-line bg-surface p-1 shadow-lg">
         {render_slot(@inner_block)}
       </div>
@@ -1389,9 +1388,9 @@ defmodule SikioWeb.LibraryLive do
   attr :rest, :global, include: ~w(target rel)
   slot :icon, required: true
 
-  # An action at the card's head: an icon and its name, a link when it leads somewhere. A card
-  # narrower than three names and the meta line keeps the names for screen readers only. The
-  # card's width follows the columns beside it, so it decides rather than the window.
+  # A card header action with icon and label, a link when `href` is set.
+  # Below the `@2xl` container width, which fits three labels and the meta line, labels are
+  # `sr-only`. A container query is used because the card width depends on the columns.
   defp card_action(assigns) do
     assigns =
       assign(
@@ -1415,7 +1414,7 @@ defmodule SikioWeb.LibraryLive do
   attr :entry, :map, required: true
   attr :status, :atom, required: true
 
-  # Where the reader stands, as the row and the detail say it: new, the time left, or done.
+  # Playback status for the row and the detail: new, time left, heard or archived.
   defp status_mark(assigns) do
     ~H"""
     <span :if={@status == :in_progress} class="font-mono font-medium text-signal-strong">
@@ -1430,11 +1429,11 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # Where the card's player stands before it plays: where the dock's would pick it up.
+  # The cue's position before playback, matching where the dock player would resume.
   defp cue_position(%{playback: nil}), do: 0
   defp cue_position(%{playback: playback}), do: Playback.resume_position(playback)
 
-  # How far somebody got, as a bar along the foot of the picture when the length is known.
+  # Progress bar along the bottom of the picture, shown only when the length is known.
   attr :entry, :map, required: true
 
   defp progress(assigns) do
@@ -1460,12 +1459,12 @@ defmodule SikioWeb.LibraryLive do
     if duration && duration > 0, do: min(round(playback.position / duration * 100), 100)
   end
 
-  # The length the player measured, or else the one the feed stated. YouTube's feed states none,
-  # so a video has a length only once this account has played it.
+  # Prefers the duration measured by the player over the feed's duration.
+  # YouTube feeds have no duration, so a video has one only after this account played it.
   defp length_of(%{playback: %{duration: duration}}) when is_number(duration), do: duration
   defp length_of(entry), do: entry.duration
 
-  # What is left to hear or watch, in whole minutes. Without a length, or past it, the status says it.
+  # Remaining time in whole minutes, at least 1. Without a length, or past it, the status label.
   defp time_left(%{playback: playback} = entry) do
     duration = length_of(entry)
 
@@ -1477,13 +1476,13 @@ defmodule SikioWeb.LibraryLive do
       else: status_label(entry)
   end
 
-  # The selected item: what it is, where the reader stands, and the way to play it. Playing
-  # happens in the dock, which this asks through a browser event so the media never moves.
+  # The selected item's detail. Playback runs in the dock, started by a `sikio:play` browser
+  # event, so the media element is never moved.
   attr :chapters, :list, required: true
   attr :entry, :map, required: true
 
-  # The chapters the publisher listed. Each starts the item at its place, or moves the player
-  # there when it already plays; the one reached is marked.
+  # Chapter list. A click dispatches `sikio:play` with the chapter's position, which starts or
+  # seeks the player. The current chapter has `aria-current`.
   defp chapters(assigns) do
     assigns = assign(assigns, :current, current_chapter(assigns.chapters, assigns.entry))
 
@@ -1508,7 +1507,7 @@ defmodule SikioWeb.LibraryLive do
     """
   end
 
-  # The chapter the item has reached, once it was started and until it was heard to the end.
+  # The last chapter at or before the position while the item is in progress, else nil.
   defp current_chapter(chapters, %{playback: %{status: :in_progress, position: position}}) do
     chapters |> Enum.filter(&(&1.at <= position)) |> List.last()
   end
@@ -1531,10 +1530,11 @@ defmodule SikioWeb.LibraryLive do
       )
 
     ~H"""
-    <%!-- A card from lg. A phone shows the item on the page itself. A video spans either. --%>
+    <%!-- From lg the detail is a card; below lg it has no card styling.
+    The player slot spans the full width in both. --%>
     <article class="@container flex flex-col gap-4 lg:rounded-xl lg:bg-surface lg:p-6 lg:ring-1 lg:ring-line">
       <div class="flex items-start gap-3">
-        <%!-- The source's picture through this host, as the sidebar shows it, or its initial. --%>
+        <%!-- The source icon, proxied as in the sidebar, or the source's initial. --%>
         <span
           id="item-source-mark"
           aria-hidden="true"
@@ -1555,7 +1555,7 @@ defmodule SikioWeb.LibraryLive do
             aria-live="polite"
             class="meta-dots flex flex-wrap items-center text-meta text-muted"
           >
-            <%!-- The medium leads to the original, as the menu's last entry does. --%>
+            <%!-- The medium label links to the original, like the menu's last item. --%>
             <span :if={!@original}>{medium_label(@entry)}</span>
             <span :if={@original}>
               <a
@@ -1572,14 +1572,14 @@ defmodule SikioWeb.LibraryLive do
             </span>
             <span :if={@runtime} class="font-mono tracking-tighter">{@runtime}</span>
             <span><.status_mark entry={@entry} status={@status} /></span>
-            <%!-- An icon alone, so starting an item never makes the line wrap and the card jump. --%>
+            <%!-- Icon only, so starting or queueing an item does not wrap the line and shift the card. --%>
             <span :if={@queued} title={gettext("In the queue")}>
               <Lucideicons.list_ordered aria-hidden="true" class="size-3.5" />
               <span class="sr-only">{gettext("In the queue")}</span>
             </span>
           </p>
         </div>
-        <%!-- What comes next for the item stands at the head; the menu holds the rest. --%>
+        <%!-- The header shows the next step for the item; the menu holds the other actions. --%>
         <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center gap-1">
           <.queue_menu :if={!@queued} entry={@entry} again={@status == :heard} />
           <.card_action
@@ -1653,8 +1653,8 @@ defmodule SikioWeb.LibraryLive do
           </.item_menu>
         </div>
       </div>
-      <%!-- The player's place. The dock lays the playing player over it; until then it shows what
-      would play and loads nothing from anybody else. See assets/js/dock_place.mjs. --%>
+      <%!-- Player slot. The dock positions the active player over it. Before playback it shows
+      a preview and loads no third-party resources. See assets/js/dock_place.mjs. --%>
       <div
         id="player-slot"
         phx-mounted={JS.ignore_attributes(["style", "data-pinned", "data-playing"])}
@@ -1681,7 +1681,7 @@ defmodule SikioWeb.LibraryLive do
             <span class="sr-only">{play_label(@entry)}</span>
           </span>
         </button>
-        <%!-- An episode shows the player itself. Nothing loads until it is used; see
+        <%!-- An episode renders the audio controls inline. No media loads before first use; see
         assets/js/audio_cue.mjs. --%>
         <.audio_face
           :if={!video?(@entry)}
@@ -1697,8 +1697,8 @@ defmodule SikioWeb.LibraryLive do
           }
         />
       </div>
-      <%!-- The medium first, then the text about it. The title and the notes share one column at a
-      reading measure in the card's middle; the card keeps the column's width. --%>
+      <%!-- Title and notes follow the player in one centered column of at most 80ch.
+      `w-full` keeps that width when the text is shorter. --%>
       <section class="mx-auto flex w-full max-w-[80ch] flex-col gap-3 pt-2">
         <h2 data-large-title class="text-[26px] leading-tight font-semibold">{@entry.title}</h2>
         <.chapters :if={@chapters != []} chapters={@chapters} entry={@entry} />

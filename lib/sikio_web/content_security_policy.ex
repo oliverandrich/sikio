@@ -2,19 +2,19 @@
 
 defmodule SikioWeb.ContentSecurityPolicy do
   @moduledoc """
-  The one opening that cannot be written in advance.
+  Adds the account's PeerTube instances to the CSP `frame-src` directive.
 
-  The router states the policy every response carries. A PeerTube video is played by the
-  instance that holds it, and any host may be one, so this widens `frame-src` by the instances
-  this account subscribed to and by nothing else. A signed-out visitor adds nothing, and neither
-  does an account that follows no instance.
+  The router sets the base policy on every response. PeerTube videos are embedded from their
+  instance, which can be any host. This plug appends the origins of the account's subscribed
+  instances and nothing else. Signed-out requests and accounts without instances keep the base
+  policy.
 
-  It is a plug of its own because it runs after the gate: what may be framed depends on who is
-  asking. It adds to what the router wrote rather than replacing it, so the response carries a
-  policy even if this never runs.
+  It runs after `Ithibati.Web.Gate`, because the origins depend on `current_account`.
+  It extends the router's header instead of replacing it. Without this plug the base policy
+  still applies.
 
-  It costs one query per document request. It does not run for the socket, so a page keeps the
-  policy it loaded with.
+  It runs one query per HTTP request. LiveView socket messages do not pass through it, so a
+  page keeps the policy it was loaded with.
   """
   @behaviour Plug
 

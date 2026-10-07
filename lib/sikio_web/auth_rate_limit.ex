@@ -2,15 +2,13 @@
 
 defmodule SikioWeb.AuthRateLimit do
   @moduledoc """
-  What every budget in this application is counted against, and how much of it there is.
+  Rate-limit keys for auth requests, and a plug that enforces the ceremony and recovery budgets.
 
-  As a plug it limits auth requests per visitor address, as `SikioWeb.ClientIp` resolved it: from
-  the forwarding header when a trusted proxy carried the request, and from the socket otherwise.
-  Counting the socket behind a proxy would give everybody one budget, and `ClientIp.bucket/1`
-  says what counts as one visitor, which for IPv6 is the allocation.
+  The plug counts requests per client address, as `SikioWeb.ClientIp` resolved it.
+  Behind a trusted proxy that is the forwarded address, otherwise the socket peer.
+  `ClientIp.bucket/1` groups IPv6 addresses by their `/64` prefix.
 
-  `key/2` also answers for an account, which is what bounds how many invitations one member may
-  make. A browser is the wrong thing to count there: what is being spent belongs to the account.
+  `key/2` also accepts an account. The invitation budget is counted per account.
   """
   @behaviour Plug
   import Plug.Conn
@@ -22,14 +20,12 @@ defmodule SikioWeb.AuthRateLimit do
   def init(opts), do: opts
 
   @doc """
-  The counter key for one group of requests, from an account or from a visitor.
+  Returns the counter key for a request group, from an account or a connection.
 
-  Built here so that every budget in the application is counted the same way. A caller that spelt
-  the key itself would be one endpoint away from counting an IPv6 visitor per address, and the
-  budget would mean nothing there without anything saying so.
+  All callers build keys here, so IPv6 clients are always bucketed by `/64` prefix.
 
-  An account is counted by its own id and not by the browser in front of it: a session, a name or
-  an address would each let the same person start over, and the account is what is spending.
+  An account is keyed by its id. A session, username or address would let the same account
+  reset its count.
   """
   def key(%User{id: id}, group), do: {group, id}
   def key(%Plug.Conn{} = conn, group), do: {group, ClientIp.bucket(conn.remote_ip)}

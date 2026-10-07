@@ -2,35 +2,34 @@
 
 defmodule SikioWeb.Notes do
   @moduledoc """
-  A publisher's show notes, reduced to what a reader needs.
+  Sanitizes show notes for rendering.
 
-  Its own module because it is a boundary rather than a convenience. The notes arrive from
-  whoever publishes the feed and are stored as they came, so the filtering happens here on the
-  way out and a better filter tomorrow applies to what was imported yesterday.
+  Notes are stored unfiltered, as the feed delivered them. Sanitizing happens here at render time.
+  A changed filter therefore also applies to entries imported earlier.
   """
 
   @doc """
-  The notes as markup a template may render, read according to what the publisher wrote.
+  Returns the notes as safe HTML, or nil when nothing remains.
 
-  A podcast writes markup and YouTube writes plain text. Reading text as markup loses everything
-  after a stray `<`, and reading markup as text shows the reader the tags, so the entry says
-  which it holds and this decides accordingly.
+  `format` is `:html` or `:text`. YouTube descriptions and `itunes:summary` are text.
+  Parsing text as HTML drops everything after a stray `<`.
+  Escaping HTML as text displays the tags.
 
-  Markup goes through `basic_html`, which keeps paragraphs, lists, emphasis and links and drops
-  everything else, including event attributes and `javascript:` targets. That matters because
-  `script-src` allows inline scripts, so a handler that survived would run. Script and style
-  elements lose their contents first: the sanitizer drops those tags but keeps the text between
-  them, and a reader has no use for somebody's stylesheet.
+  HTML goes through `HtmlSanitizeEx.basic_html/1`.
+  It keeps paragraphs, lists, emphasis and links.
+  It drops all other elements, event attributes and `javascript:` URLs.
+  This matters because the CSP `script-src` allows `'unsafe-inline'`.
+  `script` and `style` elements are removed with their contents first.
+  The sanitizer alone drops those tags but keeps their text.
 
-  Text is escaped and its lines become paragraphs, because a chapter list is a list of lines.
-  Addresses in it become links.
+  Text is HTML-escaped. Each non-blank line becomes a paragraph, which keeps chapter lists intact.
+  URLs in it become links.
 
-  After sanitizing, a picture with an `https` address is served through Sikio's own host and any
-  other picture is dropped, because the content security policy refuses the publisher's. A link
-  opens in a new tab: following it in place would leave the page and the dock playing in it.
+  After sanitizing, `img` elements with an `https` `src` are proxied through `SikioWeb.Pictures`.
+  Other `img` elements are dropped, because the CSP `img-src` allows only `'self'` and `data:`.
+  Links get `target="_blank"`, so following one does not navigate away from the player dock.
 
-  The answer is marked safe, because a template escapes a plain string and would show the reader
-  the tags instead of the notes. Nothing warns about that, so the return type carries it.
+  The result is wrapped with `Phoenix.HTML.raw/1`, so templates render it unescaped.
   """
   def notes(description, format \\ :html)
 
@@ -57,13 +56,12 @@ defmodule SikioWeb.Notes do
     |> outward()
   end
 
-  # An address in escaped text, up to whitespace or an escaped quote or bracket. Only the web's:
-  # a `javascript:` target never becomes a link.
+  # Matches an http(s) URL in escaped text, up to whitespace or an escaped quote or angle bracket.
+  # Other schemes such as `javascript:` never match.
   @address ~r{https?://(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s<>"])+}u
 
-  # Text from YouTube writes addresses without markup. They become links that open in a tab of
-  # their own, as links in markup do. The text is escaped already, so an `&` reads `&amp;` in
-  # the address and the attribute alike.
+  # Turns bare URLs in plain text into links that open in a new tab, as in HTML notes.
+  # The input is already escaped, so `&` appears as `&amp;` in both `href` and link text.
   defp linked(escaped) do
     Regex.replace(@address, escaped, fn found ->
       {address, after_it} = trailing(found, "")
@@ -73,13 +71,13 @@ defmodule SikioWeb.Notes do
     end)
   end
 
-  # A full stop, a comma or a closing bracket after an address is the sentence's. A bracket the
-  # address opened itself, as Wikipedia's do, stays.
+  # Moves trailing punctuation out of the URL. A `)` stays when the URL contains a `(`,
+  # as Wikipedia URLs do.
   defp trailing(address, after_it) do
     last = String.last(address)
 
     cond do
-      # The text was escaped, so `;` may close an entity such as `&amp;`, which stays whole.
+      # The text is escaped, so a trailing `;` may end an entity such as `&amp;`. It stays.
       Regex.match?(~r/&[a-z0-9#]+;$/i, address) ->
         {address, after_it}
 
@@ -94,13 +92,12 @@ defmodule SikioWeb.Notes do
     end
   end
 
-  # Marking markup safe is this module's whole purpose, and the scanner cannot see that both
-  # callers escaped or sanitized the value one line earlier. Only they may call this, and the
-  # tests beside them are what guards it.
+  # Sobelow flags `raw/1`. Both callers escape or sanitize the value immediately before.
+  # Only those callers use this function, and their tests cover the escaping.
   # sobelow_skip ["XSS.Raw"]
   defp marked(html), do: Phoenix.HTML.raw(html)
 
-  # Notes that hold neither text nor a picture once filtered are no notes.
+  # Returns nil when the filtered notes contain neither text nor an `img`.
   defp outward(html) do
     with {:ok, tree} <- Floki.parse_fragment(html),
          tree = Floki.traverse_and_update(tree, &outward_node/1),

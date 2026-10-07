@@ -2,21 +2,14 @@
 
 defmodule SikioWeb do
   @moduledoc """
-  The entrypoint for defining your web interface, such
-  as controllers, components, channels, and so on.
-
-  This can be used in your application as:
+  Shared `use` definitions for routers, controllers, LiveViews and components.
 
       use SikioWeb, :controller
       use SikioWeb, :html
 
-  The definitions below will be executed for every controller,
-  component, etc, so keep them short and clean, focused
-  on imports, uses and aliases.
-
-  Do NOT define functions inside the quoted expressions
-  below. Instead, define additional modules and import
-  those modules here.
+  Each quoted block is injected into every module that uses it.
+  Keep the blocks to imports, uses and aliases.
+  Define functions in separate modules and import them here.
   """
 
   def static_paths,
@@ -26,7 +19,6 @@ defmodule SikioWeb do
     quote do
       use Phoenix.Router, helpers: false
 
-      # Import common connection and controller functions to use in pipelines
       import Plug.Conn
       import Phoenix.Controller
       import Phoenix.LiveView.Router
@@ -71,30 +63,23 @@ defmodule SikioWeb do
     quote do
       use Phoenix.Component
 
-      # Import convenience functions from controllers
       import Phoenix.Controller,
         only: [get_csrf_token: 0, view_module: 1, view_template: 1]
 
-      # Include general helpers for rendering HTML
       unquote(html_helpers())
     end
   end
 
   defp html_helpers do
     quote do
-      # Translation
       use Gettext, backend: SikioWeb.Gettext
 
-      # HTML escaping functionality
       import Phoenix.HTML
-      # Core UI components
       import SikioWeb.CoreComponents
 
-      # Common modules used in templates
       alias Phoenix.LiveView.JS
       alias SikioWeb.Layouts
 
-      # Routes generation with the ~p sigil
       unquote(verified_routes())
     end
   end
@@ -109,7 +94,7 @@ defmodule SikioWeb do
   end
 
   @doc """
-  When used, dispatch to the appropriate controller/live_view/etc.
+  Injects the block named by `which`, such as `:controller` or `:live_view`.
   """
   defmacro __using__(which) when is_atom(which) do
     apply(__MODULE__, which, [])

@@ -2,15 +2,13 @@
 
 defmodule SikioWeb.PlayerDockLive do
   @moduledoc """
-  An independently authenticated, persistent player outside routed page content.
+  Persistent player LiveView rendered in the root layout, outside the routed LiveView.
 
-  This is the exception to the application's layout rule, and the reason is the DOM. It renders
-  into the root layout rather than inside the navigated view, so moving between the library, an
-  item and the subscriptions never touches the element holding the media. A YouTube iframe that
-  moved would reload, and a reloaded iframe is a video starting again from the top.
+  This is the exception to the layout rule. Live navigation replaces only the routed LiveView.
+  The media element in this LiveView therefore stays in the DOM across navigation.
+  A moved YouTube iframe would reload and restart the video from the beginning.
 
-  It authenticates itself, because a LiveView mounted outside the routed one gets no account from
-  the route it is not on.
+  It runs its own authentication `on_mount` hook. It belongs to no route or `live_session`.
   """
   use SikioWeb, :live_view
 
@@ -24,9 +22,8 @@ defmodule SikioWeb.PlayerDockLive do
   alias Sikio.Playback
   alias SikioWeb.Pictures
 
-  # Both hooks by hand, because rendering from the root layout means belonging to no live_session
-  # and inheriting nothing from one. Without the second, this dock answers a German session in
-  # English while the page around it is translated.
+  # Declared here, because a LiveView rendered from the root layout belongs to no `live_session`.
+  # Without `SikioWeb.Locale`, the dock renders in English while the page uses the session locale.
   on_mount {Ithibati.Web.Gate, {:require_account, to: "/login"}}
   on_mount {SikioWeb.Locale, :set}
 
@@ -40,10 +37,10 @@ defmodule SikioWeb.PlayerDockLive do
     {:ok, rejoin(socket, get_connect_params(socket)), layout: false}
   end
 
-  # LiveView mounts again after every reconnect, and the browser names the player it still holds.
-  # That player is taken back only while its session owns the entry, so the element stays on the
-  # page and saves the position it kept while offline. A session taken over in the meantime is
-  # reported like any other.
+  # LiveView mounts again after every reconnect. The connect params name the client's player.
+  # The player is restored only if its session still owns the entry's playback.
+  # The element then stays in the DOM and saves the position reached while offline.
+  # If another session took over meanwhile, the dock shows the interrupted notice.
   defp rejoin(socket, %{"player_entry" => id, "player_session" => session})
        when is_binary(session) do
     case Library.entry(socket.assigns.current_account, id) do
@@ -61,7 +58,7 @@ defmodule SikioWeb.PlayerDockLive do
   defp rejoin(socket, _params), do: socket
 
   @impl true
-  # The card's player may name a place: it can be dragged or skipped before anything loads.
+  # `position` is optional. The card's cue can seek or skip before any media loads.
   def handle_event("start", %{"id" => id} = params, socket) do
     if socket.assigns.player && to_string(socket.assigns.entry.id) == to_string(id) do
       {:noreply, socket}
@@ -70,8 +67,7 @@ defmodule SikioWeb.PlayerDockLive do
     end
   end
 
-  # The item that played has ended. Playing on, the first in the queue follows it; the one that
-  # ended has left the queue as it was heard.
+  # Sent when the current entry ends. With play-on enabled, starts the first other queued entry.
   def handle_event("next", _params, socket) do
     case next_in_queue(socket) do
       nil -> {:noreply, socket}
@@ -104,10 +100,11 @@ defmodule SikioWeb.PlayerDockLive do
       else: {:noreply, socket}
   end
 
-  # A whole list marked finished leaves out what a player holds, so the dock has nothing to do.
+  # Ignored. If `mark_all/3` archived the playing entry, it cleared the session.
+  # The player's next progress save then returns `:stale`.
   def handle_info({:playback_marked, _count}, socket), do: {:noreply, socket}
 
-  # Tags and a subscription's settings change what the library lists, never what plays.
+  # Tag and subscription setting changes affect library lists, not the current playback.
   def handle_info({:tags_changed, _subscription_id}, socket), do: {:noreply, socket}
   def handle_info({:subscription_changed, _subscription_id}, socket), do: {:noreply, socket}
 
@@ -126,22 +123,22 @@ defmodule SikioWeb.PlayerDockLive do
     end
   end
 
-  # A change to what this dock holds. Its own session saved it, or nothing plays here.
+  # The change came from this dock's own session, or no player is active here.
   defp follow(socket, player, state) when is_nil(player) or player.session_id == state.session_id,
     do: {:noreply, assign_progress(socket, state)}
 
-  # Marked by hand, which clears the session: done with, as if it had ended.
+  # Marking an entry by hand clears its session. The dock treats it like a finished entry.
   defp follow(socket, _player, %{session_id: nil, status: status})
        when status in [:heard, :archived],
        do: done_with(socket, next_in_queue(socket))
 
   defp follow(socket, _player, %{session_id: nil, status: :new}), do: done_with(socket, nil)
 
-  # Another player took the item over.
+  # Another session took over the entry's playback.
   defp follow(socket, _player, state),
     do: {:noreply, socket |> assign_progress(state) |> interrupted()}
 
-  # The first in the queue besides what plays, while the account plays on.
+  # Returns the first queued entry other than the current one, or nil when play-on is off.
   defp next_in_queue(socket) do
     account = socket.assigns.current_account
     current = socket.assigns.entry && socket.assigns.entry.id
@@ -173,7 +170,7 @@ defmodule SikioWeb.PlayerDockLive do
     end
   end
 
-  # The keys move between chapters, so a chapters file nobody fetched yet is fetched here.
+  # Chapter keys need the chapters, so an unfetched chapters file is fetched asynchronously.
   defp fetch_chapters(socket, %{chapters: nil, chapters_url: url} = entry) when is_binary(url),
     do: start_async(socket, :chapters, fn -> {entry.id, Feeds.chapters(entry)} end)
 
@@ -187,7 +184,7 @@ defmodule SikioWeb.PlayerDockLive do
       ),
       do: {:noreply, socket |> update(:entry, &%{&1 | chapters: chapters}) |> assign_chapters()}
 
-  # Another item plays by now, or the file could not be read: the keys keep the notes' chapters.
+  # The entry changed meanwhile, or the fetch failed. Chapters parsed from the notes stay.
   def handle_async(:chapters, _result, socket), do: {:noreply, socket}
 
   defp stop_current(%{assigns: %{player: nil}}), do: :ok
@@ -220,12 +217,11 @@ defmodule SikioWeb.PlayerDockLive do
     do:
       socket |> assign(:entry, %{socket.assigns.entry | playback: progress}) |> assign_chapters()
 
-  # The address the feed named, with what the embed needs from us: permission to speak through
-  # its api, to start at once, and the second to resume at. Peer to peer stays off, so the
-  # instance alone serves the video: a mirror it names may fail, and peers would see the viewer's
-  # address. Nothing here is built out of host and id, so a
-  # release that spells its own addresses differently keeps working. What it named may already
-  # carry a query, and a second question mark would hide everything this adds.
+  # Appends embed parameters to the feed's `embed_url`: API, autoplay and start position.
+  # `p2p=0` makes the instance serve the video alone.
+  # A mirror it names may fail, and P2P peers would see the viewer's IP address.
+  # The URL is not built from host and video id, so instances with other embed paths work.
+  # `URI.append_query/2` handles an `embed_url` that already has a query string.
   defp peertube_url(entry, player) do
     entry.embed_url
     |> URI.parse()
@@ -235,9 +231,10 @@ defmodule SikioWeb.PlayerDockLive do
     |> URI.to_string()
   end
 
-  # The privacy-enhanced host, and the API enabled so the position can be read back. `origin` is
-  # what lets YouTube accept messages from this page at all. `cc_load_policy` asks for no
-  # captions, which YouTube does not always heed; see assets/js/media_player.mjs.
+  # Uses the privacy-enhanced host. `enablejsapi` allows reading the position back.
+  # YouTube accepts postMessage calls from this page only when `origin` is set.
+  # `cc_load_policy=0` requests no captions. YouTube does not always honor it.
+  # See assets/js/media_player.mjs.
   defp youtube_url(entry, player) do
     query =
       URI.encode_query(%{
@@ -253,10 +250,10 @@ defmodule SikioWeb.PlayerDockLive do
     "https://www.youtube-nocookie.com/embed/#{entry.video_id}?#{query}"
   end
 
-  # The chapters of what plays, for the keys that move between them and the face's marks. The
-  # same rule as the detail's list; the length a player measured counts here as there. Progress
-  # replaces the entry every few seconds, so the notes are read again only when what they depend
-  # on changed.
+  # Assigns chapters for the chapter keys and the audio face's marks.
+  # It uses `Chapters.of/2` like the detail view, with the measured duration when present.
+  # Progress updates replace the entry every few seconds.
+  # The notes are parsed again only when the cache key changes.
   defp assign_chapters(%{assigns: %{entry: entry, chapters: {read, _starts}}} = socket) do
     length = (entry.playback && entry.playback.duration) || entry.duration
     key = {entry.id, entry.description, length, entry.chapters}
@@ -273,7 +270,7 @@ defmodule SikioWeb.PlayerDockLive do
   def render(assigns) do
     ~H"""
     <div id="player-control" phx-hook="PlayerDock" data-entry-id={@player && @entry.id}>
-      <%!-- Places the panel beside the reader's columns; see assets/js/dock_place.mjs. --%>
+      <%!-- Positions the panel beside the content columns; see assets/js/dock_place.mjs. --%>
       <div id="dock-place" phx-hook="DockPlace" hidden></div>
       <aside
         :if={@entry || @notice}
@@ -283,8 +280,8 @@ defmodule SikioWeb.PlayerDockLive do
         tabindex="-1"
         class="fixed right-4 bottom-4 left-4 z-40 max-h-[85vh] overflow-y-auto rounded-control border border-line bg-surface p-5 shadow-xl sm:left-auto sm:w-[400px]"
       >
-        <%!-- On a phone, away from its item, the panel is a capsule above the tab bar: the
-             picture or the video, what plays, play or pause and close. See app.css. --%>
+        <%!-- On a phone, outside the entry's detail view, app.css shows the panel as a capsule
+             above the tab bar: artwork or video, title, play/pause and close. --%>
         <div class="player-heading mb-4 flex items-start justify-between gap-3">
           <img
             :if={@entry && @entry.feed.kind == :podcast}
@@ -313,7 +310,8 @@ defmodule SikioWeb.PlayerDockLive do
               <span class="font-mono">{timestamp(@entry.playback.position)}</span>
             </p>
           </div>
-          <%!-- Drives the player as the keyboard does; the player says whether it plays. --%>
+          <%!-- Dispatches the same `toggle` command as the keyboard shortcut. The MediaPlayer
+               hook sets `data-playing`, which switches the icon. --%>
           <button
             :if={@player}
             id="capsule-play"
@@ -397,8 +395,8 @@ defmodule SikioWeb.PlayerDockLive do
             gettext("YouTube cannot play this video. Try opening it on YouTube.")
           }
         >
-          <%!-- The audio element keeps no controls of its own. Sikio's face drives it; see
-          assets/js/audio_face.mjs. Its layout for each place is in app.css. --%>
+          <%!-- The audio element has no native controls. The audio face controls it; see
+          assets/js/audio_face.mjs. app.css holds its layout for each `data-place`. --%>
           <audio
             :if={@entry.feed.kind == :podcast}
             preload="metadata"
@@ -431,9 +429,9 @@ defmodule SikioWeb.PlayerDockLive do
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
             allowfullscreen
           ></iframe>
-          <%!-- Empty while the player works; warnings and errors go here. --%>
+          <%!-- Empty during playback. The MediaPlayer hook writes warnings and errors here. --%>
           <p data-player-message role="status" class="mt-4 text-label text-muted"></p>
-          <%!-- How far it has come, a line along the capsule's foot; the player sets --played. --%>
+          <%!-- Progress line at the capsule's bottom. The MediaPlayer hook sets --played. --%>
           <span data-progress aria-hidden="true" class="hidden"></span>
         </div>
       </aside>

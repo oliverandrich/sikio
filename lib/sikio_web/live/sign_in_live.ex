@@ -2,12 +2,12 @@
 
 defmodule SikioWeb.SignInLive do
   @moduledoc """
-  The LiveView says *when* a ceremony starts; the hook does the round-trips.
+  Sign-in, recovery and first-account setup pages.
 
-  That split is not a style choice. A ceremony ends in a session cookie and a LiveView cannot set
-  one, so the hook posts to the endpoints over `fetch` and follows the redirect the handler answers
-  with. What a LiveView is good at — validating the fields before any of that begins — is what it
-  does here.
+  The LiveView starts a ceremony with `push_event/3`; a JavaScript hook performs the requests.
+  A ceremony ends by setting the session cookie, which a LiveView cannot do.
+  The hook calls the endpoints with `fetch` and follows the redirect in the JSON response.
+  The LiveView validates form fields before a ceremony starts.
   """
   use SikioWeb, :live_view
 
@@ -27,11 +27,10 @@ defmodule SikioWeb.SignInLive do
      )}
   end
 
-  # Whether this visitor may be asked for a name yet. A proof that has run out sends somebody back
-  # to the code rather than to a refusal after the passkey dialogue.
+  # Decides between the setup code form and the username form.
+  # An expired proof shows the code form instead of failing after the passkey dialog.
   #
-  # Only the setup page asks. Anywhere else the question is a database round-trip for an answer
-  # nothing on the page reads.
+  # Only the setup action queries the database. Other actions do not render this assign.
   defp claim_open?(%{assigns: %{live_action: :setup}}, session),
     do: Auth.claim_open?(session["setup_authorization"])
 
@@ -62,7 +61,6 @@ defmodule SikioWeb.SignInLive do
   end
 
   def handle_event("register", %{"username" => username}, socket) do
-    # Pushed to the hook, which takes it from here.
     {:noreply,
      socket |> assign(error: nil) |> push_event("ithibati:register", %{username: username})}
   end
@@ -75,8 +73,8 @@ defmodule SikioWeb.SignInLive do
     {:noreply, socket |> assign(error: nil) |> push_event("ithibati:recover", %{code: code})}
   end
 
-  # What the hook pushes back. A successful ceremony ends in the redirect the handler answered with,
-  # so the only thing that reaches the LiveView is a failure.
+  # Events pushed by the hook. A successful ceremony redirects the browser.
+  # Only failures need handling in the LiveView.
   def handle_event("ithibati:failed", %{"error" => error} = payload, socket) do
     {:noreply, assign(socket, error: CeremonyMessages.message(error, payload["exception"]))}
   end

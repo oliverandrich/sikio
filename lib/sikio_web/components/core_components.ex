@@ -4,11 +4,9 @@ defmodule SikioWeb.CoreComponents do
   @moduledoc """
   Provides core UI components.
 
-  At first glance, this module may seem daunting, but its goal is to provide
-  core building blocks for your application, such as tables, forms, and
-  inputs. The components consist mostly of markup and are well-documented
-  with doc strings and declarative assigns. You may customize and style
-  them in any way you want, based on your application growth and needs.
+  It holds the basic building blocks such as tables, forms and inputs.
+  The components are mostly markup, with doc strings and declared attributes.
+  This app owns them and may change their markup and styling.
 
   Styling uses vanilla [Tailwind CSS](https://tailwindcss.com) utilities.
   Useful references:
@@ -84,12 +82,14 @@ defmodule SikioWeb.CoreComponents do
   end
 
   @doc """
-  Renders a question before something that changes much at once.
+  Renders a modal confirmation dialog for bulk changes.
 
-  It is rendered only while it asks and opens as it appears; see assets/js/app.js. It takes the
-  focus itself, so no button shows a ring before anybody tabs. A patch keeps it open, since the
-  server never renders `open`. Its buttons and Escape send `cancel_<name>` and `confirm_<name>`,
-  to `target` when one is given.
+  Render it only while it should be open. On mount it dispatches `sikio:show`.
+  `assets/js/app.js` then calls `showModal()`; see that file.
+  The dialog focuses itself, so no button shows a focus ring before the first Tab.
+  The server never renders `open`, and `JS.ignore_attributes/1` keeps it across patches.
+  The buttons send `confirm_<name>` and `cancel_<name>`; Escape sends `cancel_<name>`.
+  Events go to `target` when given.
   """
   attr :name, :string, required: true
   attr :title, :string, required: true
@@ -124,8 +124,8 @@ defmodule SikioWeb.CoreComponents do
           {render_slot(@inner_block)}
         </div>
       </div>
-      <%!-- The answers in a band of their own. On a phone they stack, the confirming one on top;
-      from sm they stand in a row from the right, another way out at the far left. --%>
+      <%!-- Action bar. Below `sm` the buttons stack with confirm on top. From `sm` they form a
+      right-aligned row, with the `aside` slot at the far left. --%>
       <div
         id={"#{@name}-actions"}
         class="flex flex-col gap-2 rounded-b-lg border-t border-line bg-ground px-5 py-4 sm:flex-row-reverse sm:items-center sm:gap-3 sm:px-6"
@@ -153,7 +153,7 @@ defmodule SikioWeb.CoreComponents do
     """
   end
 
-  @doc "A text field's classes inside a dialog: a finger's height on a phone, a button's beside a mouse."
+  @doc "Returns text field classes for dialogs: touch height on phones, button height from `sm`."
   def dialog_field,
     do:
       "min-h-11 rounded-control border border-edge bg-surface px-3 text-sm text-ink placeholder:text-muted sm:min-h-9 focus-visible:outline-2 focus-visible:outline-accent"
@@ -172,7 +172,7 @@ defmodule SikioWeb.CoreComponents do
   attr :variant, :string, values: ~w(primary danger)
   slot :inner_block, required: true
 
-  # A filled button that cannot be pressed yet steps back to an outline instead of a grey slab.
+  # A disabled filled button renders as an outline button instead of a grey block.
   @stepped_back "disabled:border disabled:border-edge disabled:bg-surface disabled:text-muted disabled:shadow-none"
 
   def button(%{rest: rest} = assigns) do
@@ -372,7 +372,7 @@ defmodule SikioWeb.CoreComponents do
     """
   end
 
-  # All other inputs text, datetime-local, url, password, etc. are handled here...
+  # Renders the remaining types, such as text, url, password and datetime-local.
   def input(assigns) do
     ~H"""
     <div class="mb-4 space-y-1">
@@ -398,7 +398,6 @@ defmodule SikioWeb.CoreComponents do
     """
   end
 
-  # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
     <p class="mt-1.5 flex gap-2 items-center text-label text-danger">
@@ -419,7 +418,7 @@ defmodule SikioWeb.CoreComponents do
     ~H"""
     <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
       <div>
-        <%!-- A phone's bar takes the page's title once this has scrolled away. --%>
+        <%!-- On phones, the top bar shows the title once this heading scrolls under it. --%>
         <h1 data-large-title class="text-title font-semibold">
           {render_slot(@inner_block)}
         </h1>
@@ -552,16 +551,12 @@ defmodule SikioWeb.CoreComponents do
   Translates an error message using gettext.
   """
   def translate_error({msg, opts}) do
-    # When using gettext, we typically pass the strings we want
-    # to translate as a static argument:
+    # Gettext macros take static strings, which `mix gettext.extract` collects:
     #
-    #     # Translate the number of files with plural rules
     #     dngettext("errors", "1 file", "%{count} files", count)
     #
-    # However the error messages in our forms and APIs are generated
-    # dynamically, so we need to translate them by calling Gettext
-    # with our gettext backend as first argument. Translations are
-    # available in the errors.po file (as we use the "errors" domain).
+    # Changeset errors are dynamic, so this calls the `Gettext` functions with the backend.
+    # Translations live in errors.po, the "errors" domain.
     if count = opts[:count] do
       Gettext.dngettext(SikioWeb.Gettext, "errors", msg, msg, count, opts)
     else
@@ -577,7 +572,7 @@ defmodule SikioWeb.CoreComponents do
   end
 
   # Shared by the text, select and textarea inputs.
-  @doc "A text field's classes outside a dialog, for a field the input component cannot lay out."
+  @doc "Returns text field classes outside dialogs, for fields not rendered by `input/1`."
   def field_class,
     do:
       "block w-full rounded-control border border-edge bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-accent focus:outline-2 focus:outline-accent disabled:cursor-not-allowed disabled:opacity-50"

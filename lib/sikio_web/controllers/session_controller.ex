@@ -9,11 +9,10 @@ defmodule SikioWeb.SessionController do
   def sign_out(conn, _params), do: conn |> Gate.log_out() |> redirect(to: "/login")
 
   @doc """
-  The recovery codes, shown once.
+  Renders the recovery codes once and deletes them from the session.
 
-  A controller and not a LiveView, because the session key has to be gone after this: a LiveView
-  has no connection to delete it from, so a refresh would show them again — and the whole point of
-  "shown once" is that a second look is not available.
+  This is a controller action, because a LiveView cannot delete a session key.
+  Without the deletion a reload would show the codes again.
   """
   def recovery_codes(conn, _params) do
     case get_session(conn, :recovery_codes) do

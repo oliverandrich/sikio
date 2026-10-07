@@ -2,11 +2,9 @@
 
 defmodule SikioWeb.Gettext do
   @moduledoc """
-  A module providing Internationalization with a gettext-based API.
+  The Gettext backend. It compiles the translations under `priv/gettext`.
 
-  By using [Gettext](https://gettext.hexdocs.pm), your module compiles translations
-  that you can use in your application. To use this Gettext backend module,
-  call `use Gettext` and pass it as an option:
+  Modules use it with `use Gettext` and the `:backend` option:
 
       use Gettext, backend: SikioWeb.Gettext
 

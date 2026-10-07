@@ -2,17 +2,18 @@
 
 defmodule SikioWeb.DateGroups do
   @moduledoc """
-  The groups a library list falls into by date: today, yesterday, this week, last week, then
-  one per month, and the undated last.
+  Date groups for library lists: today, yesterday, this week, last week, then one per month.
+  Entries without a date fall into an `:undated` group.
 
-  Days are the reader's own. The browser sends its offset from UTC when it connects, and a date
-  is moved by it before its day is read. Weeks begin on Monday.
+  Days are local to the reader. The browser sends its UTC offset as a connect param.
+  Each date is shifted by that offset before its day is taken. Weeks start on Monday.
   """
   use Gettext, backend: SikioWeb.Gettext
 
   @doc """
-  The group `datetime` falls into, seen at `now` by a reader `offset` minutes ahead of UTC:
-  `{key, label}`, where the key tells two groups apart and the label names one.
+  Returns the `{key, label}` group of `datetime` at `now`, for an offset in minutes ahead of UTC.
+
+  The key identifies the group. The label is the displayed heading.
   """
   def group(nil, _now, _offset), do: {:undated, gettext("No date")}
 

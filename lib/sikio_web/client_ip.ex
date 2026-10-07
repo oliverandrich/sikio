@@ -2,31 +2,27 @@
 
 defmodule SikioWeb.ClientIp do
   @moduledoc """
-  The visitor's address, taken from the proxy's header only when the proxy is the one asking.
+  A plug that sets `remote_ip` to the client address.
 
-  Every budget in this application is spent per address, so the address decides who a refusal
-  refuses. Behind a reverse proxy the socket always comes from the same place, and counting that
-  would give every visitor one shared budget: one stranger spending it would lock out everybody
-  else, including the operator with a setup code in hand.
+  It reads `X-Forwarded-For` only when the socket peer is a trusted proxy.
 
-  `X-Forwarded-For` carries the address that would fix it, and it is written by whoever sends the
-  request. Believing it without asking where it came from is the opposite mistake, and a worse
-  one: a visitor would pick their own budget and no limit would mean anything.
+  Rate limits count per address. Behind a reverse proxy every socket peer is the proxy.
+  Counting the peer would give all clients one shared budget.
 
-  So it is believed on one condition, which is the connection it arrived on. The loopback is
-  trusted because that is where a proxy on the same host speaks from. `:trusted_proxies` names
-  any others, as addresses `config/runtime.exs` has already parsed and checked.
+  Any client can send `X-Forwarded-For`. Trusting it unconditionally would let a client
+  choose its own rate-limit key.
 
-  The header is read here rather than by a library. The one for this reads three further headers
-  by default, which a proxy does not write and a visitor therefore can; and its notion of a
-  private address overrules the proxies it was told about, so naming an internal proxy on
-  `10.0.0.2` made it the visitor for everybody behind it. Both measured. The rule this needs is
-  one sentence long, and it is the one below.
+  Loopback peers are trusted, because a proxy on the same host connects from there.
+  `:trusted_proxies` lists other proxies, already parsed and validated in `config/runtime.exs`.
+
+  The header is parsed here, not by a library. The library considered reads three more headers
+  by default, which a client can set. Its private-address handling also overrode the configured
+  proxies. With an internal proxy on `10.0.0.2`, that proxy became the client address. Both
+  were verified.
   """
   @behaviour Plug
 
-  # The one header the proxy writes. A proxy appends the address it saw to whatever arrived, so
-  # the rightmost entry that is not one of our own is the visitor.
+  # Each proxy appends its peer address. The rightmost untrusted entry is the client.
   @header "x-forwarded-for"
 
   @localhost {0, 0, 0, 0, 0, 0, 0, 1}
@@ -40,20 +36,17 @@ defmodule SikioWeb.ClientIp do
     peer = unmapped(conn.remote_ip)
     visitor = if trusted?(peer, proxies), do: forwarded(conn, proxies) || peer, else: peer
 
-    # The socket is kept as well. `remote_ip` answers who the request is from, which behind a
-    # proxy is the visitor, and that is what a log line and every budget should name. Which
-    # machine actually opened the connection is a different question, and an operator chasing a
-    # misconfigured proxy needs it.
+    # `remote_ip` holds the client address for logs and rate limits.
+    # `:socket_peer_ip` keeps the socket peer for debugging a proxy configuration.
     %{conn | remote_ip: visitor} |> Plug.Conn.assign(:socket_peer_ip, peer)
   end
 
   @doc """
-  The address a budget is counted against.
+  Returns the address a rate limit counts against.
 
-  A visitor with IPv6 usually holds a whole `/64`, and moving inside it is free. Counting the
-  exact address would turn ten attempts a minute into as many as somebody cares to make, now that
-  the address can come from a header. So the allocation is counted. An IPv4 address is one
-  address and is counted as it is.
+  An IPv6 client usually holds a whole `/64` and can switch addresses within it.
+  Counting exact addresses would let one client multiply its budget.
+  IPv6 addresses are therefore reduced to their `/64` prefix. IPv4 addresses are used as they are.
   """
   def bucket({_, _, _, _} = address), do: address
   def bucket({a, b, c, d, _, _, _, _}), do: {a, b, c, d, 0, 0, 0, 0}
@@ -67,9 +60,9 @@ defmodule SikioWeb.ClientIp do
     |> Enum.find(&(&1 && not trusted?(&1, proxies)))
   end
 
-  # Bytes rather than `to_charlist/1`, which raises on a header that is not valid UTF-8. A
-  # visitor writes those bytes and this plug runs before everything, so the raise would be a
-  # request nobody can make succeed.
+  # Uses `:erlang.binary_to_list/1`, because `to_charlist/1` raises on invalid UTF-8.
+  # The client controls the header, and this plug runs early in the endpoint.
+  # A raise would fail every request carrying such a header.
   defp address(entry) do
     case entry |> :erlang.binary_to_list() |> :string.trim() |> :inet.parse_strict_address() do
       {:ok, parsed} -> unmapped(parsed)
@@ -77,13 +70,12 @@ defmodule SikioWeb.ClientIp do
     end
   end
 
-  # The whole `127.0.0.0/8`, because giving each backend its own loopback address is an ordinary
-  # way to run several of them.
+  # Trusts all of `127.0.0.0/8`. Several backends may each use their own loopback address.
   defp trusted?({127, _, _, _}, _proxies), do: true
   defp trusted?(@localhost, _proxies), do: true
   defp trusted?(address, proxies), do: Enum.any?(proxies, &covers?(&1, address))
 
-  # A range covers the addresses that share its leading bits, in its own family only.
+  # A range matches addresses of the same family that share its prefix bits.
   defp covers?({network, bits}, address) when tuple_size(network) == tuple_size(address),
     do: leading(network, bits) == leading(address, bits)
 
@@ -98,8 +90,9 @@ defmodule SikioWeb.ClientIp do
   end
 
   @doc """
-  One entry of `TRUSTED_PROXIES`: an address, or a range written as the address it starts at and
-  how many leading bits the others share, such as `172.20.0.0/16`. Anything else is `:error`.
+  Parses one `TRUSTED_PROXIES` entry: an address or a CIDR range such as `172.20.0.0/16`.
+
+  Returns `:error` for anything else.
   """
   def parse_proxy(entry) do
     case String.split(entry, "/") do
@@ -127,12 +120,11 @@ defmodule SikioWeb.ClientIp do
 
   defp configured, do: Application.get_env(:sikio, :trusted_proxies, [])
 
-  # A dual-stack socket reports an IPv4 peer in its mapped form, and production binds `::`. Caddy
-  # on the same host then arrives as `{0, 0, 0, 0, 0, 65535, 32512, 1}`, which matches no loopback
-  # written the plain way. Without this the plug does nothing on the one deployment it is for,
-  # and quietly: a test built on `Plug.Test.conn/3` never sees the mapped form.
-  # The guard is the whole check: OTP's conversion reads the low bits of whatever it is handed
-  # and does not ask whether the address was mapped.
+  # A dual-stack socket reports IPv4 peers as IPv4-mapped IPv6 addresses. Production binds `::`.
+  # Caddy on the same host then appears as `{0, 0, 0, 0, 0, 65535, 32512, 1}`.
+  # That address matches no plain loopback pattern, so the proxy would not be trusted.
+  # Tests built on `Plug.Test.conn/3` never produce the mapped form.
+  # The guard does the check. OTP's conversion reads the low bits without checking the prefix.
   defp unmapped({0, 0, 0, 0, 0, 0xFFFF, _high, _low} = address),
     do: :inet.ipv4_mapped_ipv6_address(address)
 

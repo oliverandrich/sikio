@@ -2,8 +2,8 @@
 
 defmodule SikioWeb.SubscriptionsLive do
   @moduledoc """
-  Lists the account's subscriptions to pause, resume, edit or leave. The collection is imported or
-  exported as OPML. `SikioWeb.AddSourceLive` adds a source.
+  Lists the account's subscriptions with pause, resume, edit and unsubscribe actions.
+  Links to OPML import and export. `SikioWeb.AddSourceLive` adds a source.
   """
   use SikioWeb, :live_view
 
@@ -52,7 +52,7 @@ defmodule SikioWeb.SubscriptionsLive do
   def handle_info({SubscriptionSettings, :not_found}, socket),
     do: {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}
 
-  # Saved or left, the list and the sidebar show it.
+  # After a save or unsubscribe, reloads the list and refreshes the sidebar.
   def handle_info({SubscriptionSettings, _done}, socket),
     do: {:noreply, socket |> load_subscriptions() |> Sidebar.refresh()}
 
@@ -64,7 +64,7 @@ defmodule SikioWeb.SubscriptionsLive do
     |> stream(:subscriptions, subscriptions, reset: true)
   end
 
-  # An icon button in a row. Leaving turns red under the pointer, everything else ink.
+  # Classes for a row's icon button. Unsubscribe hovers red, the others ink.
   defp row_action(hover \\ "hover:text-ink"),
     do: [
       "flex size-11 items-center justify-center rounded-full text-muted hover:bg-ground focus-visible:outline-2 focus-visible:outline-accent sm:size-9",
@@ -139,7 +139,7 @@ defmodule SikioWeb.SubscriptionsLive do
               <span :if={!subscription.feed.icon_url}>{initial(source_name(subscription))}</span>
             </span>
             <div class="min-w-0 flex-1">
-              <%!-- The address follows the name. Both are cut to fit; the full address is its title. --%>
+              <%!-- The feed URL follows the name. Both truncate; `title` holds the full URL. --%>
               <p class="flex flex-wrap items-baseline gap-x-2 sm:flex-nowrap">
                 <.link
                   navigate={Sidebar.source_path(subscription)}
@@ -166,7 +166,7 @@ defmodule SikioWeb.SubscriptionsLive do
                 {gettext("Imported items are safe.")}
               </p>
             </div>
-            <%!-- On a phone the actions sit below the text, under the name. --%>
+            <%!-- Below `sm` the actions wrap to a row under the text, aligned with the name. --%>
             <div class="-ml-2.5 flex w-full shrink-0 items-center gap-1 pl-12 sm:ml-0 sm:w-auto sm:pl-0">
               <button
                 type="button"
@@ -233,7 +233,7 @@ defmodule SikioWeb.SubscriptionsLive do
     """
   end
 
-  @doc "How often active sources are asked at most, in hours when the interval is whole hours."
+  @doc "Renders the maximum poll interval, in hours when it is a whole number of hours."
   attr :minutes, :integer, required: true
 
   def polling_interval(assigns) do

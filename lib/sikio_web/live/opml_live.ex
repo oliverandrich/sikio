@@ -2,11 +2,11 @@
 
 defmodule SikioWeb.OPMLLive do
   @moduledoc """
-  Imports an OPML subscription list, showing what it holds before anything is subscribed.
+  Imports an OPML subscription list after a preview of its sources.
 
-  The preview is the point. An OPML file from another application may name fifty feeds, some of
-  them long dead, and the list of what will be attempted is worth seeing first. The import then
-  reports one line per source rather than a single pass or fail.
+  OPML files from other apps can list up to 50 feeds here, some of them dead.
+  The preview lists them before any subscription is created.
+  The import reports a result per source instead of a single pass or fail.
   """
   use SikioWeb, :live_view
 
@@ -88,8 +88,8 @@ defmodule SikioWeb.OPMLLive do
 
     socket = socket |> assign(busy: false, pending: [], summary: summary) |> show_sources(results)
 
-    # An instance imported here may now be played, and what may be framed is decided on a
-    # document. Moving inside a LiveView produces none, so this asks for one.
+    # A new PeerTube instance changes the CSP `frame-src`. The CSP is set per HTTP request.
+    # Live navigation sends none, so a changed origin list triggers a full redirect.
     if Library.player_origins(socket.assigns.current_account) == framed,
       do: {:noreply, socket},
       else: {:noreply, redirect(socket, to: ~p"/subscriptions/import")}
@@ -103,7 +103,7 @@ defmodule SikioWeb.OPMLLive do
      )}
   end
 
-  # LiveView supplies this server-created temporary path; it is never taken from form params.
+  # LiveView creates this temporary path on the server. It never comes from form params.
   # sobelow_skip ["Traversal.FileModule"]
   defp read_upload(path), do: path |> File.read!() |> OPML.parse()
 
@@ -162,12 +162,12 @@ defmodule SikioWeb.OPMLLive do
       title={gettext("Import OPML")}
       back={%{to: ~p"/subscriptions", label: gettext("Subscriptions")}}
     >
-      <%!-- A phone's bar leads back instead. --%>
+      <%!-- Hidden below `lg`. On phones the layout's top bar has the back link. --%>
       <.link
         navigate={~p"/subscriptions"}
         class="hidden text-label font-semibold text-accent lg:inline"
       >{gettext("← Your subscriptions")}</.link>
-      <%!-- Centred as /add is, so the two ways to bring sources in look alike. --%>
+      <%!-- Centered like /add, so both ways to add sources look alike. --%>
       <header class="mx-auto max-w-2xl pt-4 pb-4 text-center sm:pt-10">
         <h1 data-large-title class="text-title font-semibold">
           {gettext("Bring your favourites.")}
@@ -179,8 +179,8 @@ defmodule SikioWeb.OPMLLive do
       <section class="mx-auto mt-8 max-w-2xl">
         <.form for={@form} id="opml-upload-form" phx-change="validate" phx-submit="preview">
           <fieldset disabled={@busy} class="min-w-0">
-            <%!-- The label is the field: the native input stays reachable but out of sight.
-                 The ring follows the keyboard only, since a click also focuses the input. --%>
+            <%!-- The label is the click and drop area. The input is `sr-only` but focusable.
+                 The ring uses `focus-visible`, because a click also focuses the input. --%>
             <label
               id="opml-drop"
               for={@uploads.opml.ref}
@@ -280,7 +280,7 @@ defmodule SikioWeb.OPMLLive do
     """
   end
 
-  # The upload is capped at 1 MB, so whole kilobytes say enough.
+  # Uploads are capped at 1 MB, so whole kilobytes are precise enough.
   defp file_size(bytes) when bytes < 1000, do: "#{bytes} B"
   defp file_size(bytes), do: "#{round(bytes / 1000)} KB"
 end

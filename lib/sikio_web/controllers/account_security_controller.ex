@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 defmodule SikioWeb.AccountSecurityController do
-  @moduledoc "Account security mutations, authenticated again on every request."
+  @moduledoc """
+  Account security mutations.
+
+  Regenerating recovery codes requires a reauthentication within the last five minutes.
+  """
   use SikioWeb, :controller
 
   alias Ithibati.Identity.Passkeys

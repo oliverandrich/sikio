@@ -5,7 +5,7 @@ defmodule SikioWeb.PictureController do
 
   alias Sikio.Pictures
 
-  # A week in the browser. The picture behind an address does not change once it was fetched.
+  # One week. The picture behind a signed URL does not change after the first fetch.
   @max_age 604_800
 
   def show(conn, %{"ref" => reference}) do
@@ -15,8 +15,8 @@ defmodule SikioWeb.PictureController do
     end
   end
 
-  # The type is one of four raster types read from the bytes, never the publisher's header.
-  # The path is the cache directory joined with a hash, never a name from the request.
+  # The type is one of four raster types detected from the bytes, not the response header.
+  # The path is the cache directory joined with a SHA-256 hash, not a name from the request.
   # sobelow_skip ["XSS.ContentType", "Traversal.SendFile"]
   defp answer(conn, {:ok, %{type: type, path: path}}, _fallback) do
     conn

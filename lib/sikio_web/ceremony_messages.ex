@@ -2,12 +2,10 @@
 
 defmodule SikioWeb.CeremonyMessages do
   @moduledoc """
-  One sentence per reason a ceremony can fail, in one place.
+  Translates ceremony error codes into user-facing messages.
 
-  The reasons arrive as the codes `SikioWeb.Auth` returned, plus the ones the library
-  produces. Turning them into sentences is the application's job — a library that shipped the
-  wording would be deciding the tone of somebody else's product — and both pages that can start a
-  ceremony ask here, because the same code answered two ways is how a vocabulary drifts.
+  Codes come from `SikioWeb.Auth` and from Ithibati. Ithibati ships no wording.
+  Every LiveView that starts a ceremony calls this module, so each code has one message.
   """
 
   use Gettext, backend: SikioWeb.Gettext
@@ -15,10 +13,10 @@ defmodule SikioWeb.CeremonyMessages do
   alias Sikio.Identity
 
   @doc """
-  A sentence for the `ithibati:failed` code, or an honest fallback for one nobody listed.
+  Returns the message for an `ithibati:failed` code, or a generic message for an unlisted code.
 
-  Both pages call this one, with the code and the `exception` the payload carried. That second
-  value is the `DOMException` name when a browser refused, and `nil` otherwise.
+  `name` is the payload's `exception` value. It is the `DOMException` name when the browser
+  refused the ceremony, and `nil` otherwise.
   """
   def message("ceremony_failed", name) when is_binary(name),
     do: gettext("Your browser refused: %{name}.", name: name)
@@ -42,9 +40,8 @@ defmodule SikioWeb.CeremonyMessages do
   defp sentence("invitation_unknown"),
     do: gettext("That invitation has been used, or has expired.")
 
-  # An account here is named or addressed, and the library says `username` either way. Which of
-  # the two this instance means is what these three sentences have to know: telling somebody that
-  # a username may hold underscores, when what was wanted was an address, sends them nowhere.
+  # Ithibati uses `username` codes for both identifier modes.
+  # These messages depend on `Identity.email?/0`, so they name a username or an email address.
   defp sentence("username_taken") do
     if Identity.email?(),
       do: gettext("That address already has an account."),
@@ -69,9 +66,8 @@ defmodule SikioWeb.CeremonyMessages do
   defp sentence("already_enrolled"),
     do: gettext("That device already holds a passkey for this site.")
 
-  # All three of these this application reaches and could not explain: a second person racing the
-  # setup page, an invitation opened by somebody registering under another name, and a setup code
-  # whose proof ran out while the page stood open.
+  # Sikio reaches these three codes: a concurrent first-account claim, an invitation accepted
+  # under another identifier, and a setup proof that expired or was replaced.
   defp sentence("already_claimed"),
     do: gettext("Somebody else has already claimed this instance.")
 
@@ -104,6 +100,6 @@ defmodule SikioWeb.CeremonyMessages do
   defp sentence("recovery_failed"), do: gettext("That code never reached us. Try again.")
   defp sentence("unknown"), do: gettext("That request failed without saying why.")
 
-  # Your own codes land here, and so do the two families that carry a suffix.
+  # Matches unlisted codes, including the suffixed `http_*` and `missing_data_*` codes.
   defp sentence(other), do: gettext("Something went wrong: %{reason}", reason: other)
 end

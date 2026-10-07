@@ -2,13 +2,11 @@
 
 defmodule SikioWeb.InviteLive do
   @moduledoc """
-  What somebody sees when they open an invitation link.
+  The page for an invitation link.
 
-  The page shows the identifier the invitation was addressed to and does not offer to change it. That
-  is not politeness: `Ithibati.Identity.Invitations.accept/2` checks that the account being created
-  carries the identifier the invitation named, so a field here would only produce a refusal further
-  down — and, until somebody noticed, a form that looks like it hands an invitation to whoever fills
-  it in.
+  It shows the invitation's identifier and has no field to change it.
+  `Ithibati.Identity.Invitations.accept/2` requires the new account to carry that identifier.
+  An editable field could only produce a refusal.
   """
   use SikioWeb, :live_view
 

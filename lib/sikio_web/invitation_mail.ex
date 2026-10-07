@@ -2,16 +2,13 @@
 
 defmodule SikioWeb.InvitationMail do
   @moduledoc """
-  Sends an invitation to the address it is addressed to.
+  Emails an invitation link to the invitation's address.
 
-  Only where accounts are addressed. Named, there is nothing to send to and nothing to configure:
-  the link is handed over however its sender likes. `Sikio.Identity` is what ties the mode to a
-  working mail configuration, and it does so where the instance starts, so nothing here asks
-  again.
+  Delivery happens only in email identifier mode. In username mode the inviter passes the link on.
+  `Sikio.Identity` validates the mail configuration at startup, so this module does not.
 
-  An invitation exists before any of this and outlives a delivery that failed. The link is the
-  only copy there will ever be, so losing it to a mail server that is down would lose the
-  invitation with it.
+  The invitation is inserted before delivery and survives a failed delivery.
+  The link holds the only plaintext token, so a delivery error must not discard it.
   """
   use Gettext, backend: SikioWeb.Gettext
 
@@ -38,10 +35,9 @@ defmodule SikioWeb.InvitationMail do
     )
     |> Mailer.deliver()
   rescue
-    # Swoosh raises rather than answers when its adapter refuses the configuration, and gen_smtp
-    # raises on a value it cannot use. By the time this runs the invitation is written and its
-    # token exists in this process and nowhere else, so letting either through would lose the
-    # link along with the delivery.
+    # Swoosh raises when its adapter rejects the configuration; gen_smtp raises on invalid values.
+    # The invitation is already inserted, and the plaintext token exists only in this process.
+    # Rescuing returns an error, so the caller can still show the link.
     error -> {:error, error}
   end
 end
