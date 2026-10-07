@@ -109,7 +109,13 @@ does not undo a newer one's migrations.
 
 ## With PostgreSQL
 
-Add a database service and point Sikio at it. In `compose.yaml`:
+Sikio migrates a PostgreSQL database but does not create it. The database and its owner must
+exist before the first start.
+
+### Its own database container
+
+Add a database service and point Sikio at it. The `postgres` image creates the database named
+in `POSTGRES_DB` when it starts on an empty volume. In `compose.yaml`:
 
 ```yaml
 services:
@@ -147,3 +153,51 @@ database with `pg_dump`:
 ```sh
 docker compose exec db pg_dump -U sikio sikio | gzip > sikio-$(date +%F).sql.gz
 ```
+
+### A shared database and Caddy on Docker networks
+
+A host may run one PostgreSQL and one Caddy for several services, each reached on a Docker
+network of its own: here `db`, where the database answers as `postgres`, and `caddy`, where a
+Caddy that reads container labels finds the services. The administrator creates a database and
+an owner for Sikio:
+
+```sql
+CREATE ROLE sikio LOGIN PASSWORD '…';
+CREATE DATABASE sikio OWNER sikio;
+```
+
+Sikio then joins both networks and publishes no port:
+
+```yaml
+services:
+  sikio:
+    image: ghcr.io/oliverandrich/sikio:0.1
+    restart: unless-stopped
+    env_file: sikio.env
+    environment:
+      PHX_HOST: sikio.example.org
+      SIKIO_DATABASE: postgres
+      DATABASE_URL: ecto://sikio:${SIKIO_DB_PASSWORD}@postgres/sikio
+      # The caddy network's subnet, from `docker network inspect caddy`.
+      TRUSTED_PROXIES: 172.20.0.0/16
+    labels:
+      caddy: sikio.example.org
+      caddy.reverse_proxy: "{{upstreams 4000}}"
+    networks: [db, caddy]
+    volumes:
+      - sikio-data:/data
+
+volumes:
+  sikio-data:
+
+networks:
+  db:
+    external: true
+  caddy:
+    external: true
+```
+
+Caddy reaches Sikio from its own address on the `caddy` network, which changes when its
+container is made again, so `TRUSTED_PROXIES` names the network's whole subnet. The volume holds
+only the picture cache, which Sikio fetches again when it is gone; the database's backup is the
+administrator's. Get the setup code as in step 5.

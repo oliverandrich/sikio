@@ -92,6 +92,19 @@ defmodule Sikio.RuntimeConfigTest do
       assert configured("10.0.0.2, fd00::2") == [{10, 0, 0, 2}, {64_768, 0, 0, 0, 0, 0, 0, 2}]
     end
 
+    # A proxy in a container changes its address when it is made again. A range names the network
+    # it lives on: the address it starts at and how many leading bits the others share.
+    test "a range arrives as its address and the bits it keeps, in both families" do
+      assert configured("172.20.0.0/16, fd00::/64") ==
+               [{{172, 20, 0, 0}, 16}, {{64_768, 0, 0, 0, 0, 0, 0, 0}, 64}]
+    end
+
+    test "a range its family cannot hold stops the boot and says which one" do
+      assert_raise RuntimeError, ~r{10\.0\.0\.0/33}, fn -> configured("10.0.0.0/33") end
+      assert_raise RuntimeError, ~r{fd00::/129}, fn -> configured("fd00::/129") end
+      assert_raise RuntimeError, ~r{10\.0\.0\.0/x}, fn -> configured("10.0.0.0/x") end
+    end
+
     # How a unit file or an environment file writes a variable it has no value for. An empty
     # string is not a list holding an empty name.
     test "an unset variable leaves the default alone" do

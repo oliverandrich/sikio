@@ -81,7 +81,49 @@ defmodule SikioWeb.ClientIp do
   # way to run several of them.
   defp trusted?({127, _, _, _}, _proxies), do: true
   defp trusted?(@localhost, _proxies), do: true
-  defp trusted?(address, proxies), do: address in proxies
+  defp trusted?(address, proxies), do: Enum.any?(proxies, &covers?(&1, address))
+
+  # A range covers the addresses that share its leading bits, in its own family only.
+  defp covers?({network, bits}, address) when tuple_size(network) == tuple_size(address),
+    do: leading(network, bits) == leading(address, bits)
+
+  defp covers?({_network, _bits}, _address), do: false
+  defp covers?(proxy, address), do: proxy == address
+
+  defp leading(address, bits) do
+    part = if tuple_size(address) == 4, do: 8, else: 16
+    whole = for n <- Tuple.to_list(address), into: <<>>, do: <<n::size(part)>>
+    <<head::bitstring-size(^bits), _rest::bitstring>> = whole
+    head
+  end
+
+  @doc """
+  One entry of `TRUSTED_PROXIES`: an address, or a range written as the address it starts at and
+  how many leading bits the others share, such as `172.20.0.0/16`. Anything else is `:error`.
+  """
+  def parse_proxy(entry) do
+    case String.split(entry, "/") do
+      [address] -> strict_address(address)
+      [address, bits] -> range(strict_address(address), Integer.parse(bits))
+      _ -> :error
+    end
+  end
+
+  defp strict_address(text) do
+    case :inet.parse_strict_address(to_charlist(text)) do
+      {:ok, address} -> {:ok, address}
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp range({:ok, address}, {bits, ""}) when bits >= 0 do
+    if bits <= width(address), do: {:ok, {address, bits}}, else: :error
+  end
+
+  defp range(_address, _bits), do: :error
+
+  defp width(address) when tuple_size(address) == 4, do: 32
+  defp width(_address), do: 128
 
   defp configured, do: Application.get_env(:sikio, :trusted_proxies, [])
 

@@ -59,7 +59,7 @@ Export these variables in the environment used for both migration and startup:
 | `LOG_LEVEL` | `info` (the default), `notice`, `warning`, `error`, `critical`, `alert` or `emergency`, in any case; anything else stops the boot |
 | `FEED_POLL_MINUTES` | How often a source is asked at most, in whole minutes; 60 by default, at least 5 |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
-| `TRUSTED_PROXIES` | Addresses that may forward a visitor's own; only needed for a proxy on another host |
+| `TRUSTED_PROXIES` | Addresses or ranges such as `172.20.0.0/16` that may forward a visitor's own; only needed for a proxy that is not on the loopback |
 | `ACCOUNT_IDENTITY` | `username` (the default) or `email`; anything else stops the boot. `email` requires the mail settings below |
 | `MAIL_ENABLED` | `true` to deliver invitations; required by `ACCOUNT_IDENTITY=email` |
 | `MAIL_FROM` | The address invitations come from |
@@ -114,10 +114,10 @@ is holding, and that account can arrive from anywhere.
 
 Authentication limits count per visitor, taken from the forwarding header. That
 header is believed only on a connection from a trusted proxy. The loopback is
-trusted already, so a proxy on the same machine needs no configuration; one on
-another host is named in `TRUSTED_PROXIES`, comma separated, one address per entry
-rather than a range. An address that is not an address stops the boot rather than
-being dropped quietly. Nothing forwarded is
+trusted already, so a proxy on the same machine needs no configuration. Any other is named
+in `TRUSTED_PROXIES`, comma separated: an address, or a range for a proxy in a container whose
+address changes when it is made again, such as the subnet of a shared Docker network. An entry
+that is neither stops the boot rather than being dropped quietly. Nothing forwarded is
 believed on a connection from anywhere else, so an instance exposed directly still
 counts the address it actually sees.
 

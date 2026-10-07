@@ -30,6 +30,21 @@ defmodule SikioWeb.ClientIpTest do
 
   @forwarded [{"x-forwarded-for", "203.0.113.7"}]
 
+  # A proxy in a container is trusted by the network it lives on, whatever address it has today.
+  test "a proxy anywhere in a trusted range speaks for the visitor it forwarded" do
+    trusting([{{172, 20, 0, 0}, 16}, {{64_768, 0, 0, 0, 0, 0, 0, 0}, 64}])
+
+    assert asked({172, 20, 3, 4}, @forwarded) == {203, 0, 113, 7}
+    assert asked({64_768, 0, 0, 0, 1, 2, 3, 4}, @forwarded) == {203, 0, 113, 7}
+  end
+
+  test "an address outside every trusted range is not believed" do
+    trusting([{{172, 20, 0, 0}, 16}, {{64_768, 0, 0, 0, 0, 0, 0, 0}, 64}])
+
+    assert asked({172, 21, 0, 1}, @forwarded) == {172, 21, 0, 1}
+    assert asked({64_768, 0, 0, 1, 0, 0, 0, 1}, @forwarded) == {64_768, 0, 0, 1, 0, 0, 0, 1}
+  end
+
   # What a dual-stack socket reports for a peer that connected over IPv4. Production binds `::`,
   # so this is the form Caddy on the same host actually arrives in. Measured, not guessed.
   @mapped_loopback {0, 0, 0, 0, 0, 65_535, 32_512, 1}

@@ -40,14 +40,14 @@ case "TRUSTED_PROXIES" |> System.get_env("") |> String.trim() do
            |> Enum.map(fn name ->
              name = String.trim(name)
 
-             case :inet.parse_strict_address(to_charlist(name)) do
-               {:ok, address} ->
-                 address
+             case SikioWeb.ClientIp.parse_proxy(name) do
+               {:ok, proxy} ->
+                 proxy
 
-               {:error, _reason} ->
+               :error ->
                  raise """
-                 environment variable TRUSTED_PROXIES names something that is not an address: #{inspect(name)}
-                 For example: TRUSTED_PROXIES=10.0.0.2,fd00::2
+                 environment variable TRUSTED_PROXIES names something that is not an address or a range: #{inspect(name)}
+                 For example: TRUSTED_PROXIES=10.0.0.2,fd00::2,172.20.0.0/16
                  """
              end
            end)
