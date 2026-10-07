@@ -267,6 +267,9 @@ export const MediaPlayer = {
         onReady: () => {
           if (this.closed) return
           this.ready = true
+          // YouTube shows captions for some videos unasked, and no parameter turns them off. This
+          // undocumented call does, and the player's CC button brings them back.
+          this.youtube.unloadModule?.("captions")
           if (this.pendingSeek !== null && this.pendingSeek !== undefined) this.seek(this.pendingSeek)
           let previousPosition = this.youtube.getCurrentTime()
           this.poll = setInterval(() => {

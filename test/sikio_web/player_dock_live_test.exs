@@ -385,6 +385,21 @@ defmodule SikioWeb.PlayerDockLiveTest do
     end
   end
 
+  # YouTube shows captions for some videos unasked. The address asks for none; the player unloads
+  # them as well, since YouTube does not always listen.
+  test "a YouTube embed asks for no captions", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
+    {:ok, _} = Library.subscribe(user, preview)
+    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :youtube))
+
+    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+    [_, src] = Regex.run(~r|src="([^"]+)"|, dock |> element("iframe") |> render())
+    query = src |> String.replace("&amp;", "&") |> URI.parse() |> Map.fetch!(:query)
+
+    assert URI.decode_query(query)["cc_load_policy"] == "0"
+  end
+
   # What the feed names is the instance's own address and may already carry a query. A second
   # question mark hides everything after it, so the embed never sees that it may speak.
   test "an embed address that already has a query still gets one question mark", %{

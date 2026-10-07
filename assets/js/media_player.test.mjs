@@ -256,7 +256,7 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
   const doc = new EventTarget(), message = {textContent: ""}, samples = []
   let events, poll, position = 0, destroyed = false, sought = null, playerReady = false, muted = false
   let state = 2
-  const calls = []
+  const calls = [], unloaded = []
   globalThis.document = doc
   globalThis.window = {YT: {PlayerState: {PLAYING: 1, PAUSED: 2, BUFFERING: 3, ENDED: 0}, Player: class {
     constructor(_frame, options) {events = options.events}
@@ -270,6 +270,7 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     mute() {muted = true}
     unMute() {muted = false}
     isMuted() {return muted}
+    unloadModule(name) {unloaded.push(name)}
     destroy() {destroyed = true}
   }}}
   globalThis.setInterval = callback => {poll = callback; return 0}
@@ -284,6 +285,9 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     playerReady = true
     events.onReady()
     assert.equal(sought, 21)
+    // YouTube shows captions for some videos unasked. The player starts without them; its CC
+    // button brings them back.
+    assert.deepEqual(unloaded, ["captions"])
     assert.equal(message.textContent, "", "a player that works says nothing")
     hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 55}}))
     assert.equal(sought, 55, "a chapter moves the video")

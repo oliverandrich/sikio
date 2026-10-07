@@ -236,11 +236,13 @@ defmodule SikioWeb.PlayerDockLive do
   end
 
   # The privacy-enhanced host, and the API enabled so the position can be read back. `origin` is
-  # what lets YouTube accept messages from this page at all.
+  # what lets YouTube accept messages from this page at all. `cc_load_policy` asks for no
+  # captions, which YouTube does not always heed; see assets/js/media_player.mjs.
   defp youtube_url(entry, player) do
     query =
       URI.encode_query(%{
         autoplay: 1,
+        cc_load_policy: 0,
         enablejsapi: 1,
         origin: SikioWeb.Endpoint.url(),
         playsinline: 1,
