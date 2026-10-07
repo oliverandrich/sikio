@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// On a phone the page opens on a large heading, and the bar at the top shows the title instead
-// once that heading has scrolled under it, as an iPhone's apps do. The page marks its heading
-// with data-large-title; the bar is told by data-shrunk, which the stylesheet reads.
+// iOS-style large title. An IntersectionObserver watches the [data-large-title] heading.
+// The hook sets data-shrunk on its element once the heading has scrolled under it.
+// The observer's top root margin is the element's height.
+// The group-data-[shrunk] variant on #nav-title then shows the title.
 export const ShrinkTitle = {
   mounted() { this.watch() },
   updated() { this.watch() },

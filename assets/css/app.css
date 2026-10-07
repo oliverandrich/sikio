@@ -16,8 +16,8 @@
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
 
-/* IBM Plex Sans and Mono, served from this host under the SIL Open Font License. Sans is one
-   variable file per subset; Mono is used for metadata in two weights. */
+/* IBM Plex Sans and Mono, self-hosted under the SIL Open Font License.
+   Sans is one variable font file per subset. Mono is used for metadata in weights 400 and 500. */
 @font-face {
   font-family: "IBM Plex Sans";
   font-style: normal;
@@ -72,42 +72,41 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Sikio's visual language is white, black and one signal. Tailwind's neutral greys carry
-   everything, ink marks actions and the current place, and amber marks what is new or playing.
-   Colours are named by role, not by hue, so markup never chooses a shade. Dark mode follows the
-   system and redefines the same names below. */
+/* Palette: Tailwind's neutral greys, ink for actions and the current place, amber for new or
+   playing items. Colour tokens are named by role, not by hue, so markup never picks a shade.
+   Dark mode follows prefers-color-scheme and redefines the same tokens below. */
 @theme {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-  /* Until the views drop `font-display` for the type scale. */
+  /* Alias for the `font-display` utility. No template under lib/ uses it. */
   --font-display: var(--font-sans);
 
   --color-ground: var(--color-neutral-50);
   --color-surface: var(--color-white);
   --color-ink: var(--color-neutral-950);
-  /* neutral-500 would miss 4.5:1 for small text on a selection. */
+  /* neutral-500 is below 4.5:1 contrast for small text on the selection colour. */
   --color-muted: var(--color-neutral-600);
   --color-line: var(--color-neutral-200);
   /* The unplayed part of a seek bar. */
   --color-track: var(--color-neutral-300);
-  /* A chapter's mark on the seek bar, on its played part and on the rest: 3:1 on either. */
+  /* Chapter marks on the played and unplayed parts of the seek bar, each at least 3:1 contrast. */
   --color-mark-played: var(--color-ink);
   --color-mark: var(--color-ink);
-  /* The edge of a field or a quiet button, firmer than a line between rows. */
+  /* Borders of inputs and secondary buttons, darker than row dividers. */
   --color-edge: var(--color-neutral-300);
   --color-control: var(--color-neutral-500);
   --color-accent: var(--color-neutral-950);
   --color-on-accent: var(--color-white);
   --color-selection: var(--color-neutral-100);
   --color-signal: var(--color-amber-500);
-  /* For text and for fills on a track, which amber-500 is too light for on white. */
+  /* For text and track fills, where amber-500 has too little contrast on white. */
   --color-signal-strong: var(--color-amber-700);
   --color-danger: var(--color-red-700);
   --color-danger-surface: var(--color-red-50);
   --color-warning: var(--color-amber-800);
   --color-warning-surface: var(--color-amber-50);
 
-  /* Sized for dense lists that are read for hours, not for landing pages. */
+  /* Small type scale for dense lists. */
   --text-meta: 12px;
   --text-meta--line-height: 1.4;
   --text-label: 13px;
@@ -145,28 +144,28 @@
   }
 }
 
-/* Black text alone does not read as a link, so a link in running text carries an underline in the
-   signal's amber that turns to ink under the pointer. */
+/* Links in running text get an amber underline, since black text alone is not recognisable as
+   a link. On hover the underline takes the text colour. */
 @utility text-link {
   color: var(--color-accent);
   text-decoration-line: underline;
   text-decoration-color: var(--color-signal);
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
-  /* A coloured line broken at every descender reads as damaged. */
+  /* Skip-ink would break the coloured underline at every descender. */
   text-decoration-skip-ink: none;
   &:hover { text-decoration-color: currentColor; }
 }
 
-/* Show notes as a publisher wrote them, with room to read: paragraphs, lists and links. A bare
-   address as link text breaks where it must, so it never widens the page. */
+/* Publisher show notes: spacing for paragraphs, lists, headings, images and links.
+   overflow-wrap: anywhere lets a bare URL break, so it cannot widen the page. */
 @utility notes {
   overflow-wrap: anywhere;
   & :where(p, ul, ol) { margin-bottom: 0.75rem; }
   & ul { list-style: disc; padding-left: 1.25rem; }
   & ol { list-style: decimal; padding-left: 1.25rem; }
   & li { margin-bottom: 0.25rem; }
-  /* A little heavier than the text, so a link holds its own beside the amber line. */
+  /* Medium weight, so the link text stands out next to the amber underline. */
   & a { @apply text-link font-medium; }
   & :where(h1, h2, h3) { font-weight: 600; }
   & img { margin-block: 0.75rem; max-width: 100%; border-radius: var(--radius-control); }
@@ -175,47 +174,46 @@
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
-/* Respect phone safe areas. Compacting hides chrome with CSS rather than removing it from the DOM:
-   unmounting the audio element would stop playback, which is the opposite of what it is for. */
+/* The bottom offset respects the safe area inset. Places restyle the panel with CSS only.
+   Removing the audio element from the DOM would stop playback. */
 #player-panel { bottom: max(1rem, var(--safe-bottom)); max-height: 85dvh; }
 
-/* From lg the panel is either pinned to the detail column or a now playing window at the bottom
-   left; assets/js/dock_place.mjs decides and sets data-place. In the bar audio keeps its play
-   button and seek bar, and a video stays visible with its own controls. */
+/* assets/js/dock_place.mjs sets data-place to pinned, compact or floating.
+   From lg the panel is pinned in the detail column or a compact window at the bottom left.
+   In the compact window audio keeps its play button and seek bar; a video keeps its controls. */
 #player-panel[data-place="pinned"] {
   box-shadow: none; max-height: none; border: 0; border-radius: 0; background: transparent; padding: 0;
 }
-/* Pinned, the panel never scrolls. A video is as wide as its slot and no taller than the window;
-   its player fits the picture inside. */
+/* A pinned panel has no max-height. The iframe is at most 100dvh tall.
+   The embedded player letterboxes the video inside the iframe. */
 #player-panel[data-place="pinned"] iframe { min-height: 0; max-height: 100dvh; }
-/* Pinned, the panel lies on the detail's player slot and the browser keeps it there as the column
-   scrolls. It hides while the slot is out of view. Its width is the slot's, written by
-   assets/js/dock_place.mjs. */
+/* A pinned panel uses CSS anchor positioning on #player-slot, so it follows the slot on scroll.
+   position-visibility hides it while the anchor is out of view.
+   assets/js/dock_place.mjs sets its width to the slot's width. */
 #player-slot { anchor-name: --player-slot; }
 #player-panel[data-place="pinned"] {
   position-anchor: --player-slot; position-visibility: anchors-visible;
   top: anchor(top); left: anchor(left); right: auto; bottom: auto;
 }
-/* The now playing window floats at the bottom left, twice what fitted inside the sidebar, so a
-   video can still be watched. */
+/* The compact window sits at the bottom left, 480px wide, so a video stays watchable. */
 #player-panel[data-place="compact"] { top: auto; left: .75rem; right: auto; bottom: 1rem; width: 480px; }
-/* The player pinned in the detail covers its slot, where the cue to start it waited. */
+/* The pinned panel covers the slot, so the slot's own preview content is hidden. */
 #player-slot[data-pinned] > * { display: none; }
-/* On a phone the panel floats beside the card. The card's audio player gives way to it while its
-   episode plays, so two players never show the one episode at different places. */
+/* Hides the audio cue while the slot's entry plays, so the episode never shows two players.
+   dock_place.mjs then also sets data-pinned, whose rule above hides the cue as well. */
 #player-slot[data-playing] > #audio-cue { display: none; }
-/* The detail around it names source and title, and choosing another item puts it away. */
+/* The detail already shows source and title, so the pinned panel hides its heading. */
 #player-panel[data-place="pinned"] .player-heading { display: none; }
-/* Details set apart by dots. Each carries the dot before it. The line is pulled left by one dot's
-   width and cut there, so a line never starts with a dot, wherever it wraps. A detail lays out as
-   flex, which drops the template's white space beside the dot. */
+/* Metadata separated by dots. Each item has a ::before dot.
+   A negative margin and clip-path hide the first dot of every wrapped line.
+   Each item is a flex container, which drops the template's whitespace beside the dot. */
 .meta-dots { margin-left: -1rem; clip-path: inset(0 0 0 1rem); }
 .meta-dots > * { display: flex; align-items: center; }
 .meta-dots > *::before {
   content: "·" / ""; display: inline-block; width: 1rem; text-align: center; font-family: var(--font-sans);
 }
 
-/* A saved place says nothing; the line holds warnings and errors. */
+/* The message line shows only warnings and errors, so it is hidden when empty. */
 [data-player-message]:empty { display: none; }
 #player-panel[data-place="compact"] { padding: .625rem .75rem; max-height: none; }
 #player-panel[data-place="compact"] .player-heading { margin-bottom: .5rem; align-items: center; }
@@ -224,12 +222,12 @@
 }
 #player-panel[data-place="compact"] iframe { min-height: 0; margin-top: .5rem; }
 #player-panel[data-place="compact"]:has(audio) [data-player-message] { display: none; }
-/* Audio shows its place in its own controls. */
+/* The audio face shows the position, so the status line is hidden. */
 #player-panel:has([data-audio-face]) .player-status { display: none; }
 
-/* Sikio's own audio controls over an audio element without any; see assets/js/audio_face.mjs.
-   One markup in two places. In a narrow detail it is a bar to drag with the buttons beneath, in a
-   wide one a single row, and in the window at the bottom left a play button beside the bar. */
+/* Custom controls for an audio element without native controls; see assets/js/audio_face.mjs.
+   The same markup renders in the slot and in the panel. Narrow: seek bar above the buttons.
+   Wide: one row. Compact window: play button beside the seek bar. */
 .audio-face {
   display: grid; align-items: center; gap: 1rem .875rem;
   grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
@@ -241,7 +239,7 @@
   grid-area: play; display: flex; align-items: center; justify-content: center;
   width: 4rem; height: 4rem; border-radius: 999px;
   background: var(--color-accent); color: var(--color-on-accent);
-  /* Small enough to stay inside the face's own padding, where a card or panel edge cuts nothing. */
+  /* Small enough to stay within the face's padding, so no card or panel edge clips it. */
   box-shadow: 0 3px 8px color-mix(in oklab, var(--color-accent) 25%, transparent);
   transition: transform .15s ease;
 }
@@ -255,7 +253,7 @@
   font-family: var(--font-mono); font-size: var(--text-meta); font-variant-numeric: tabular-nums;
   color: var(--color-muted);
 }
-/* The chapter that plays, between the two times, cut short rather than pushing them apart. */
+/* The current chapter between the two times, truncated with an ellipsis. */
 .audio-chapter {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   text-align: center; font-family: var(--font-sans);
@@ -276,11 +274,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The seek bar in three layers. The rail behind draws the track, the played part in the signal
-   colour up to the thumb's centre, which assets/js/audio_face.mjs keeps in --share (0 to 1).
-   The chapter marks lie on it, and the range input above shows only its thumb, so the thumb
-   covers a mark rather than the other way round. The thumb's centre moves between 6px from
-   either end, and the rail's colours and the marks follow it there. */
+/* The seek bar has three layers. ::before draws the track, played up to the thumb's centre.
+   assets/js/audio_face.mjs sets --share (0 to 1). Chapter marks sit above the track.
+   The range input has z-index 1 and shows only its thumb, so the thumb covers a mark.
+   The thumb's centre ranges from 6px to 100% - 6px; the gradient and marks use the same range. */
 .audio-bar { --share: 0; position: relative; }
 .audio-bar::before {
   content: ""; position: absolute; inset: 50% 0 auto; height: 6px; transform: translateY(-50%);
@@ -301,7 +298,7 @@
   width: 100%; height: 1rem; margin: 0; background: transparent; cursor: pointer;
 }
 .audio-seek:focus-visible { outline: none; --seek-ring: 0 0 0 3px var(--color-signal), 0 0 0 6px var(--color-accent); }
-/* Pseudo-elements of two engines cannot share a rule, so they share the values above. */
+/* WebKit and Gecko pseudo-elements cannot share a selector list, so they share --seek-ring. */
 .audio-seek::-webkit-slider-runnable-track { height: 6px; background: transparent; }
 .audio-seek::-moz-range-track { height: 6px; background: transparent; }
 .audio-seek::-webkit-slider-thumb {
@@ -313,9 +310,9 @@
   box-shadow: var(--seek-ring);
 }
 
-/* In the detail, as the card's cue and as the player pinned over it: one row on the ground. The
-   two look alike, so the one lies over the other without a jump. A narrow card, or a narrow
-   pinned panel, keeps the floating layout; the card and the panel are the containers asked. */
+/* In the detail, the cue and the pinned panel share one-row styles, so pinning causes no jump.
+   The queries resolve against the panel, or for the slot against the card's @container article.
+   Below 34rem both keep the two-row layout. */
 #player-panel { container-type: inline-size; }
 @container (width >= 34rem) {
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-face {
@@ -328,7 +325,7 @@
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-skip { width: 2.75rem; height: 2.75rem; }
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-speed { margin-left: .25rem; }
 }
-/* A band across the card, ruled above and below. */
+/* A full-width band with borders above and below. */
 :is(#player-panel[data-place="pinned"], #player-slot) .audio-face {
   padding: .875rem 1rem; background: var(--color-ground); border-block: 1px solid var(--color-line);
 }
@@ -336,14 +333,14 @@
 :is(#player-panel[data-place="pinned"], #player-slot) .audio-speed {
   background: var(--color-surface); box-shadow: 0 0 0 1px var(--color-line);
 }
-/* As narrow as a phone: the buttons close up and the speed slims, so it keeps clear of skipping
-   back while play stays in the middle. */
+/* Phone width: smaller column gap and skip buttons, and a narrower speed button.
+   That keeps the speed button clear of skip back while play stays centred. */
 @container (20rem <= width < 24rem) {
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face { column-gap: .25rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-skip { width: 2.75rem; height: 2.75rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-speed { min-width: 3.25rem; padding: 0 .5rem; }
 }
-/* Very narrow, as the detail beside the list at 1024 pixels: the row beneath the bar closes up. */
+/* Very narrow, as the detail beside the list at 1024px: the button row uses space-between. */
 @container (width < 20rem) {
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face {
     grid-template-columns: auto auto auto auto; grid-template-areas: "track track track track" "speed back play forward";
@@ -353,10 +350,10 @@
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-skip { width: 2.5rem; height: 2.5rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-speed { min-width: 0; padding: 0 .5rem; }
 }
-/* Before anything plays there is no speed to set, though the button keeps its place. */
+/* The speed button is disabled before playback but keeps its grid cell. */
 .audio-speed:disabled { cursor: default; }
 
-/* In the window at the bottom left: a small play button beside the bar, and nothing more. */
+/* Compact window: a small play button beside the seek bar; skip and speed are hidden. */
 #player-panel[data-place="compact"] .audio-face {
   grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "play track"; gap: .625rem;
 }
@@ -368,67 +365,65 @@
 #player-panel[data-place="compact"] .audio-track { gap: .25rem; }
 #player-panel[data-place="compact"] .audio-times { font-size: 10px; }
 
-/* Below lg the main navigation is a bar along the bottom, so the panel floats above it. The bar,
-   the page's room beneath its content and the panel's lift all read the bar's height here. The
-   page also needs room to scroll past the panel; from lg the panel sits in a column or the
-   sidebar and covers nothing. */
-/* The top bar's height, beneath which a playing video stays. The tab bar is Apple's 49 points.
-   An iPhone's status bar, home indicator and notch come as safe areas, read once here so the
-   rules below and the browser tests share one name for each. */
+/* Below lg the main navigation is a bottom tab bar; --nav-bar is its height, Apple's 49pt.
+   The tab bar, the page's bottom padding and the panel's bottom offset use it.
+   --top-bar is the top bar's height; a pinned video sticks below it.
+   The safe area insets are read once here, so these rules and the browser tests share the names. */
 :root {
   --nav-bar: 49px; --top-bar: 3.5rem;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
 }
 
-/* The page's colour on the root itself, in light and dark. Safari tints the strip behind the
-   status bar after it, and it changes with the system's appearance. */
+/* Background colour on the root element. Safari tints the area behind the status bar with it.
+   color-scheme lets it follow the system appearance. */
 html { background-color: var(--color-ground); color-scheme: light dark; }
-/* Tailwind 4 leaves buttons with the arrow. Whatever can be pressed shows the hand, as a link does. */
+/* Tailwind 4 preflight gives buttons the default cursor. Pressable elements get the pointer. */
 @layer base {
   button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary { cursor: pointer; }
 }
 
-/* From lg the page does not spring back at its ends, and so Safari offers no pull to reload. */
+/* From lg overscroll-behavior: none disables rubber-band scrolling and Safari's pull to reload. */
 @media (width >= 64rem) {
   html { overscroll-behavior: none; }
 }
 
 @media (width < 64rem) {
   #player-panel { bottom: calc(var(--nav-bar) + 1rem + var(--safe-bottom)); max-height: 75dvh; }
-  /* The page and its bars keep clear of the status bar above and of the notch held sideways. */
+  /* Safe area insets keep the page and bars clear of the status bar and a landscape notch. */
   body { padding-inline: var(--safe-left) var(--safe-right); }
   #masthead { padding-top: calc(.375rem + var(--safe-top)); }
   #main-navigation { padding-inline: var(--safe-left) var(--safe-right); }
-  /* The player in its item stays under the top bar as the notes scroll, as on YouTube. A video
-     spans the screen; an episode's controls keep the card's margins, so while stuck the page's
-     ground reaches the edges beside them and no text shows through. */
+  /* A pinned player sticks below the top bar while the notes scroll.
+     A stuck audio panel keeps the card's margins. A ground-coloured box-shadow fills the sides,
+     so no text shows beside it. */
   #player-panel[data-place="pinned"] { position-visibility: always; }
   #player-panel[data-place="pinned"][data-stuck]:has(audio) {
     background: var(--color-ground);
     box-shadow: 0 0 0 100vmax var(--color-ground); clip-path: inset(0 -100vmax);
   }
-  /* Pinned, the panel is part of the page: it passes under the bars, and held sideways a video is
-     no taller than the room between them. Its player fits the picture inside. */
+  /* A pinned panel has z-index 20, below the bars at 30, so it scrolls under them.
+     In landscape the iframe is no taller than the space between the bars. */
   #player-panel[data-place="pinned"] { z-index: 20; }
   #player-panel[data-place="pinned"] iframe {
     max-height: calc(100dvh - var(--top-bar) - var(--safe-top) - var(--nav-bar) - var(--safe-bottom));
   }
   #player-panel[data-place="pinned"][data-stuck] { top: calc(var(--top-bar) + var(--safe-top)); }
-  /* Before anything plays the slot shows the player's likeness and stays under the bar itself,
-     so starting the player changes nothing about where it is. */
+  /* Before playback the slot shows the preview and is sticky below the top bar itself.
+     Starting playback therefore does not move the player. */
   #player-slot:not([data-pinned]) {
     position: sticky; top: calc(var(--top-bar) + var(--safe-top)); z-index: 10;
     background: var(--color-ground);
     box-shadow: 0 0 0 100vmax var(--color-ground); clip-path: inset(0 -100vmax);
   }
-  /* The account menu opens upwards into the panel's room and holds the offer of the source. */
+  /* Raises the bottom navigation while it contains an open #user-menu.
+     #user-menu currently renders in #masthead, so this selector matches nothing. */
   #main-navigation:has(#user-menu[open]) { z-index: 50; }
   body:has(#player-panel:not([data-place="pinned"])) #page-content { padding-bottom: 6rem; }
 
-  /* Away from its item the player is a capsule above the tab bar, in one row: the picture or the
-     video, what plays, play or pause, and close. A line along its foot shows how far it has come.
-     The heading and the player give their children to the row, so nothing moves in the DOM. */
+  /* Floating: one row above the tab bar with artwork or video, title, play/pause and close.
+     A 2px bar along the bottom shows progress.
+     display: contents flattens the heading and player into the row without moving DOM nodes. */
   #player-panel[data-place="floating"] {
     display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem;
     left: calc(.5rem + var(--safe-left)); right: calc(.5rem + var(--safe-right)); width: auto;
@@ -459,8 +454,8 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
   }
 }
 
-/* Held sideways a phone has little height. The bar names the place from the start, the large
-   heading keeps out of the way but stays for screen readers, and the list's head closes up. */
+/* Landscape phone: the top bar shows the title from the start. The large heading is visually
+   hidden but stays for screen readers, and the list head has less padding. */
 @media (width < 64rem) and (height < 30rem) {
   h1[data-large-title] {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
@@ -476,9 +471,7 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
   #subscriptions article > div:first-child { flex-basis: 100%; }
 }
 
-/* This file is for your main application CSS */
-
-/* From lg the list's head stays in view, so a row the keyboard reaches is scrolled clear of it. */
+/* From lg the list head is sticky. scroll-margin-top keeps a focused row clear of it. */
 @media (width >= 64rem) {
   #entries article { scroll-margin-top: 12rem; }
 }

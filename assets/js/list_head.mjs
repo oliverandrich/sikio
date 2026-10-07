@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// The list's head stays in view while the list scrolls, and its height changes as the search and
-// the filters open. The date headings stick beneath it, so the list pane learns its height.
-// Rounded down: a heading then tucks a fraction of a pixel under the head rather than leaving a
-// line of the list showing between them.
+// The list head is sticky and its height changes when the search or the filters open.
+// A ResizeObserver writes its height to the pane's --list-head CSS custom property.
+// The sticky date headings use it as their top offset.
+// Rounded down, so a heading overlaps the head by a subpixel instead of leaving a visible gap.
 export function headHeight(head) {
   return `${Math.floor(head.getBoundingClientRect().height)}px`
 }

@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// A PeerTube embed answers through postMessage, in the format jschannel documents in its own
-// source: JSON strings carrying either a request `{id, method, params}`, an answer `{id, result}`
-// or `{id, error, message}`, or a notification `{method, params}` with no id. Every method name
-// carries the channel's scope, which for PeerTube is `peertube`.
+// A PeerTube embed communicates through postMessage in the jschannel format.
+// The format is documented in jschannel's source. Messages are JSON strings of four shapes:
+// a request `{id, method, params}`, a result `{id, result}`, an error `{id, error, message}`,
+// and a notification `{method, params}` without id.
+// Every method name carries the channel scope, `peertube` for PeerTube.
 //
-// This is that client and nothing more: what the player needs is a handful of calls and the
-// progress the embed volunteers. The library PeerTube publishes brings a second one of its own
-// for a protocol whose whole grammar is four shapes.
+// This is a minimal jschannel client. The player needs a few calls and the status updates.
+// PeerTube's published embed library bundles its own jschannel implementation.
 //
-// The embed speaks first. It sends a ready notification asking to publish, and says nothing
-// further until that is answered, so anything asked before then waits rather than being lost.
+// The embed sends the first message: a ready notification with a publish request.
+// It sends nothing else until that is answered. Calls made before then are queued.
 //
-// Opening the channel is not the same moment as the player behind it being usable. Asked any
-// earlier the embed answers its position with an error, and with a zero once it stops erring,
-// which would overwrite the place somebody left off at. Whoever needs to know waits for the
-// first reported position instead, so nothing here asks.
+// An open channel does not mean the embedded player is ready.
+// Position requests before that return an error, then 0.
+// Saving 0 would overwrite the saved position.
+// Callers wait for the first status update with a position, so this module requests none.
 
 const SCOPE = "peertube"
 const READY = `${SCOPE}::__ready`
@@ -27,8 +27,7 @@ export function connect(iframe, {origin, onStatus = () => {}, onError = () => {}
   const pending = new Map()
   const queued = []
 
-  // A frame taken out of the page has no window. There is nobody left to tell, and throwing here
-  // would break whatever removed it.
+  // A detached iframe has no `contentWindow`. Throwing here would break the code that removed it.
   const post = message => {
     if (destroyed) return
     iframe.contentWindow?.postMessage(JSON.stringify(message), origin)
@@ -51,8 +50,8 @@ export function connect(iframe, {origin, onStatus = () => {}, onError = () => {}
     if (typeof message.method === "string") return notify(message)
   }
 
-  // Answering the request is what opens the channel. Nothing is published from this side: the
-  // embed is asked things, it is never asked to call back.
+  // The reply to the ready notification opens the channel and sends the queued calls.
+  // This side publishes no methods, so the embed has nothing to call here.
   const greet = params => {
     if (open) return
     open = true
@@ -62,8 +61,8 @@ export function connect(iframe, {origin, onStatus = () => {}, onError = () => {}
     while (queued.length) post(queued.shift())
   }
 
-  // Nothing of this side is bound, so the embed asks little. Answering matters anyway: an
-  // unanswered call leaves it waiting on a promise of its own.
+  // Requests from the embed get a null result.
+  // An unanswered request leaves a promise pending in the embed.
   const serve = message => post({id: message.id, result: null})
 
   const answer = message => {

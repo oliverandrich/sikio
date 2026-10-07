@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Where the player panel goes. It never moves in the DOM, because a moved YouTube iframe reloads,
-// so this only names its place for the stylesheet and leaves room for it.
+// Chooses the player panel's placement. The panel never moves in the DOM.
+// A moved YouTube iframe would reload.
+// This module sets `data-place` for app.css and reserves space.
 //
-// - pinned: in the detail's player slot under the title, when the detail shows what plays. On a
-//   phone a video stays under the top bar as the notes scroll.
-// - floating: below lg anywhere else, above the bottom bar, as the stylesheet places it.
-// - compact: a window at the bottom left, over the foot of the sidebar and the list, when the
-//   detail shows something else or the page has none. Playback is global and selection is not,
-//   so the notes get the room. The sidebar and the list keep room to scroll out from under it.
+// - pinned: over the detail's player slot, when the detail shows the playing entry.
+//   On a phone the pinned panel sticks under the top bar as the notes scroll.
+// - floating: below lg in all other cases, above the bottom navigation bar, positioned by app.css.
+// - compact: from lg in all other cases, a window at the bottom left over sidebar and list.
+//   Playback is global and selection is not, so the detail column stays free.
+//   Sidebar and list get bottom padding so their content can scroll clear of the window.
 export function placement({wide, shown, playing}) {
   if (shown && shown === playing) return "pinned"
   return wide ? "compact" : "floating"
@@ -17,9 +18,9 @@ export function placement({wide, shown, playing}) {
 const GAP = 16
 const WIDE = typeof window === "object" ? window.matchMedia("(width >= 64rem)") : null
 
-// Where the panel lies is the stylesheet's, by data-place: anchored to the detail's player slot,
-// or fixed at the bottom left. This decides which, and keeps the room it needs: the slot as tall as
-// the pinned panel, and the sidebar and the list free at their foot beneath the window.
+// app.css positions the panel by `data-place`: anchor positioning on the slot, or fixed placement.
+// This function sets `data-place` and reserves space.
+// The slot gets the pinned panel's height. Sidebar and list get bottom padding below the window.
 function place() {
   const panel = document.querySelector("#player-panel")
   const detail = document.querySelector("#item-detail")
@@ -31,9 +32,9 @@ function place() {
   const where = panel ? placement({wide: WIDE.matches, shown, playing}) : "floating"
   if (panel) panel.dataset.place = where
 
-  // A pinned panel is as wide as its slot, written here rather than taken from anchor-size():
-  // Safari measured the panel as a container before that width was known, laid the audio's
-  // buttons out for a narrow one and shifted them whenever the time changed.
+  // A pinned panel gets the slot's width as an inline style, not via anchor-size().
+  // With anchor-size(), Safari evaluated the panel's container queries before the width resolved.
+  // The audio buttons then used the narrow layout and shifted whenever the time text changed.
   const slot = detail?.querySelector("#player-slot")
   if (panel) panel.style.width = where === "pinned" && slot ? `${slot.clientWidth}px` : ""
 
@@ -47,20 +48,23 @@ function place() {
     const pinned = panel && where === "pinned"
     slot.style.height = pinned ? `${room}px` : ""
     slot.toggleAttribute("data-pinned", pinned)
-    // Floating on a phone the panel covers nothing, so the card marks that its episode plays.
+    // With `data-playing`, app.css hides the card's audio cue.
+    // It is set while the detail shows the playing entry.
     slot.toggleAttribute("data-playing", Boolean(panel) && shown !== null && shown === playing)
   }
 }
 
-// On a phone a pinned video stays under the top bar once its slot has scrolled beneath it; the
-// stylesheet reads data-stuck. The panel follows its slot by itself, so only the slot's top edge
-// crossing the bar's needs telling. The observer's root reaches from far above the screen down to
-// the bar's edge: the slot meets it exactly when its top has passed that edge, however much of it
-// is in view and however far a scroll jumps. The edge is measured, so a new height builds it again.
+// On a phone a pinned panel sticks under the top bar once its slot scrolls beneath it.
+// app.css reads `data-stuck`. Anchor positioning keeps the panel on its slot otherwise.
+// So only the slot's top edge crossing the bar's bottom edge needs detection.
+// The IntersectionObserver's root margin extends 100000px upwards.
+// It ends at the bar's bottom edge.
+// The slot intersects exactly when its top is above that edge, regardless of scroll distance.
+// The margin depends on `innerHeight`, so a height change recreates the observer.
 let stuck = {slot: null, height: 0, observer: null}
 
-// Whether the slot has passed under the bar. A slow page collects several crossings before the
-// observer reports them, oldest first, so the last says where the slot is now.
+// Whether the slot is under the bar. One callback can deliver several entries, oldest first.
+// The last entry is the current state.
 export function stuckFrom(entries) {
   return entries.at(-1).isIntersecting
 }
@@ -86,9 +90,9 @@ export const DockPlace = {
     this.schedule = () => {
       this.frame ||= requestAnimationFrame(() => { this.frame = 0; place() })
     }
-    // A panel changes height without a mutation, a video loading or a style changing. The slot
-    // under it follows. The panel comes and goes, so whichever is there is the one observed.
-    // The observer runs after layout and before paint, so placing here leaves no stale frame.
+    // The panel's height can change without a DOM mutation, for example when a video loads.
+    // A ResizeObserver keeps the slot height in sync. `watch` observes the current panel element.
+    // ResizeObserver callbacks run after layout and before paint, so no stale frame is painted.
     this.sizes = new ResizeObserver(() => {
       cancelAnimationFrame(this.frame)
       this.frame = 0
@@ -101,7 +105,7 @@ export const DockPlace = {
       if (panel) this.sizes.observe(panel)
       this.watched = panel
     }
-    // The audio's own controls change their text as it plays, which moves nothing.
+    // Text updates inside the audio face do not affect placement, so they are ignored.
     this.observer = new MutationObserver(records => {
       if (records.every(record => record.target.closest?.("[data-audio-face]"))) return
       this.watch()

@@ -3,7 +3,8 @@
 import {bindFace, feedLength, renderMarks} from "./audio_face.mjs"
 import {connect} from "./peertube_embed.mjs"
 
-// One request at a time; keep the newest sample while a save is in flight.
+// Sends at most one save at a time.
+// While one is in flight, a newer sample replaces the pending one.
 export function createReporter({session, read, send, stop, message, strings, now = Date.now}) {
   let sequence = 0, inFlight = null, pending = null, lastSave = -Infinity
   let connected = true, closed = false, completed = false
@@ -32,7 +33,7 @@ export function createReporter({session, read, send, stop, message, strings, now
         finishResult(false)
         return
       }
-      // A saved place is the normal case and says nothing. It takes back its own warning only.
+      // A successful save shows no message. It clears the message only after a warning from `warn`.
       if (warned) { warned = false; message("") }
       flush()
       if (inFlight === null && !pending) finishResult(true)
@@ -41,8 +42,9 @@ export function createReporter({session, read, send, stop, message, strings, now
 
   return {
     save(ended = false, force = false) {
-      // Finishing, the stopped player's last place is already asked for. A paused PeerTube embed
-      // keeps reporting, and taking each report would keep the queue from ever running dry.
+      // During `finish`, the final position is already pending or in flight.
+      // A paused PeerTube embed keeps sending status updates.
+      // Accepting them would refill the queue, and `finish` would never complete.
       if (closed || finishing || (!force && now() - lastSave < 5000)) return
       const current = read()
       if (!current || !Number.isFinite(current.position) || current.position < 0) return
@@ -81,14 +83,16 @@ export function createReporter({session, read, send, stop, message, strings, now
   }
 }
 
-// A video reports its place every second or faster, so a larger step between two reports is a
-// seek: by key, by chapter or in the embed's own controls. Audio has an event for that.
+// Video positions arrive at least once per second.
+// A change of more than 3 seconds between two readings is a seek.
+// The seek can come from a key, a chapter or the embed's controls.
+// Audio uses its `seeked` event instead.
 export function jumped(previous, position) {
   return Math.abs(position - previous) > 3
 }
 
-// Where a chapter key goes from `position`: ahead, the next chapter's start; back, the start of
-// the chapter that plays, or the one before it just after a start, as players do.
+// Target of a chapter key. Forward: the next chapter start more than 1 second ahead.
+// Backward: the current chapter's start, or the previous chapter's within 3 seconds of a start.
 export function chapterTarget(starts, position, direction) {
   if (direction > 0) return starts.find(start => start > position + 1) ?? null
   const before = starts.filter(start => start <= position)
@@ -119,25 +123,26 @@ function loadYouTube(unavailable) {
   return youtubeAPI
 }
 
-// The player that last told the system what plays, so another one's cleanup leaves it alone.
+// The hook instance that last set the Media Session.
+// Cleanup of other instances leaves it unchanged.
 let owner = null
 
-// The chapters of what plays, as the page names them now: where each begins and its title.
+// Parses the current `data-chapters`: each chapter's start (`at`) and title.
 const chapters = el => JSON.parse(el.dataset.chapters || "[]")
 
 const systemSession = () => globalThis.navigator?.mediaSession
 
 const offset = (given, fallback) => (given > 0 ? given : fallback)
 
-// A browser throws on an action it does not know; the others still work.
+// `setActionHandler` throws for an unsupported action. The other actions still register.
 function handle(session, action, handler) {
-  try { session.setActionHandler(action, handler) } catch { /* not offered here */ }
+  try { session.setActionHandler(action, handler) } catch { /* unsupported action */ }
 }
 
 export const MediaPlayer = {
   mounted() {
-    // Every sentence this hook can show is rendered by the server, so the player speaks the
-    // language the rest of the page speaks. Nothing here holds a second copy of the wording.
+    // User-facing text comes from server-rendered data attributes in the session locale.
+    // The hook defines no user-facing text of its own.
     this.strings = {...this.el.dataset}
     this.cleanups = []
     this.closed = false
@@ -155,8 +160,8 @@ export const MediaPlayer = {
       else if (this.peertube) this.peertube.call("pause").catch(() => {})
       else this.youtube?.pauseVideo?.()
     }
-    // Where the player is and how long it lasts: the audio's own, what the instance last reported,
-    // YouTube's. Nothing before the player knows itself.
+    // Position and duration from the audio element, the last PeerTube status or the YouTube API.
+    // Returns null until the player is ready.
     this.read = () => {
       if (!this.ready) return null
       if (this.audio) return {position: this.audio.currentTime, duration: this.audio.duration}
@@ -167,14 +172,13 @@ export const MediaPlayer = {
       send: (sample, reply) => this.pushEvent("progress", sample, reply),
       stop: this.stop, message: this.message, strings: this.strings})
     this.listen(this.el, "sikio:flush", event => this.reporter.finish(event.detail.done))
-    // The end, said once to the page: the dock may go on with the queue.
+    // Dispatches `sikio:ended` on window. PlayerDock then pushes `next` to the server.
     this.ended = () => {
       if (!this.closed) globalThis.window?.dispatchEvent?.(new CustomEvent("sikio:ended"))
     }
-    // A chapter moves the player. Each player is moved its own way; the save follows as for a
-    // seek by hand.
+    // PlayerDock dispatches `sikio:seek` for a chapter of the playing entry.
     this.listen(this.el, "sikio:seek", event => this.seek(event.detail.position))
-    // The page's keys, routed here by the dock; see assets/js/player_keys.mjs.
+    // Keyboard commands dispatched by PlayerDock; see assets/js/player_keys.mjs.
     this.listen(this.el, "sikio:command", event => this.command(event.detail))
     this.listen(document, "visibilitychange", () => {
       if (document.hidden) this.reporter.save(false, true)
@@ -184,9 +188,9 @@ export const MediaPlayer = {
     else this.mountYouTube()
   },
 
-  // The instance tells us where it is about twice a second, so nothing here polls. Its first
-  // report is also what says the player exists: asked any earlier it answers zero, and saving a
-  // zero would throw away the place somebody left off at.
+  // The embed sends a status update about twice a second, so the hook does not poll.
+  // The first status update with a position marks the player ready.
+  // Earlier position requests return 0, and saving 0 would overwrite the saved position.
   mountPeerTube() {
     const iframe = this.el.querySelector("iframe")
 
@@ -205,8 +209,8 @@ export const MediaPlayer = {
 
         if (!this.ready) return
         this.show({playing: state === "playing", ...this.reported})
-        // The embed repeats its state and place with every report. Becoming paused is worth a
-        // forced save, and so is a seek while paused; the same place again is not.
+        // Every status update repeats state and position. A change to paused forces a save.
+        // So does a position change while paused. An unchanged position does not.
         const changed = state !== this.lastState
         const moved = typeof status === "object" && status.position !== this.lastPosition
         const jump = moved && jumped(this.lastPosition, status.position)
@@ -227,7 +231,7 @@ export const MediaPlayer = {
     this.announce(audio)
     const restore = () => {
       if (this.ready || this.closed) return
-      // A chapter chosen meanwhile is where it starts, rather than the saved place.
+      // A seek requested before `loadedmetadata` takes precedence over the saved position.
       const position = this.pendingSeek ?? Number(this.el.dataset.position)
       this.pendingSeek = null
       audio.currentTime = Number.isFinite(audio.duration) ? Math.min(position, audio.duration) : position
@@ -250,7 +254,7 @@ export const MediaPlayer = {
       this.ended()
     })
     this.listen(audio, "error", () => this.message(this.strings.audioFailed))
-    // Sikio's own controls over the audio; see assets/js/audio_face.mjs.
+    // Custom controls for the audio element; see assets/js/audio_face.mjs.
     const face = this.el.querySelector("[data-audio-face]")
     if (face) {
       this.cleanups.push(bindFace(audio, face, {play: this.strings.labelPlay,
@@ -267,8 +271,9 @@ export const MediaPlayer = {
         onReady: () => {
           if (this.closed) return
           this.ready = true
-          // YouTube shows captions for some videos unasked, and no parameter turns them off. This
-          // undocumented call does, and the player's CC button brings them back.
+          // YouTube shows captions for some videos despite `cc_load_policy=0`.
+          // The undocumented `unloadModule("captions")` hides them.
+          // The player's CC button restores them.
           this.youtube.unloadModule?.("captions")
           if (this.pendingSeek !== null && this.pendingSeek !== undefined) this.seek(this.pendingSeek)
           let previousPosition = this.youtube.getCurrentTime()
@@ -306,10 +311,11 @@ export const MediaPlayer = {
     }
   },
 
-  // A chapter moves the player, each its own way; the save follows as for a seek by hand. The
-  // PeerTube channel queues what it is asked before the embed opens. Audio takes a place at once,
-  // but restoring the saved one once it is ready would undo it, so a chapter chosen before then
-  // is kept for that. YouTube answers only once ready, and a chapter chosen earlier waits.
+  // Each player type seeks differently. The save follows as for a seek in the player's controls.
+  // The PeerTube channel queues calls until the channel opens.
+  // Audio accepts `currentTime` at once, but `restore` would overwrite it on `loadedmetadata`.
+  // So a seek before ready is also kept in `pendingSeek` for `restore`.
+  // The YouTube API accepts seeks only after `onReady`, so earlier seeks wait in `pendingSeek`.
   seek(position) {
     if (this.peertube) {
       this.peertube.call("seek", position).catch(() => {})
@@ -328,7 +334,7 @@ export const MediaPlayer = {
     if (name === "toggle") this.toggle()
     else if (name === "skip") this.seek(Math.max(this.place() + by, 0))
     else if (name === "chapter") {
-      // Read at each press: the page may learn the chapters after the player started.
+      // Read on each key press. `data-chapters` can change after playback starts.
       const starts = chapters(this.el).map(chapter => chapter.at)
       const at = chapterTarget(starts, this.place(), direction)
       if (at !== null) this.seek(at)
@@ -336,8 +342,8 @@ export const MediaPlayer = {
     else if (name === "fullscreen") this.fullscreen()
   },
 
-  // Whether it plays and how far it has come, on the element for the stylesheet: the phone's
-  // capsule shows play or pause and a line along its foot from these.
+  // Sets `data-playing` and the `--played` CSS custom property on the hook element.
+  // The phone capsule's play icon and progress line read them in app.css.
   show({playing, position, duration}) {
     if (playing !== undefined) this.el.dataset.playing = String(playing)
     if (playing !== undefined && this.audio && owner === this) {
@@ -348,10 +354,11 @@ export const MediaPlayer = {
     }
   },
 
-  // The system's own controls for an episode: the lock screen, the control centre, headphones and
-  // media keys. They name the episode and drive it through the player's own commands. A skip goes
-  // as far as the system's button says, as iOS draws its own; without an offset as Sikio's do. A
-  // video's frame has a session of its own, which Sikio cannot reach.
+  // Media Session metadata and action handlers for audio: lock screen, control centre, headphones,
+  // media keys. The handlers call the hook's own commands.
+  // Skips use the action's `seekOffset`, which iOS shows on its buttons.
+  // Without one they skip 15 and 30 seconds, like Sikio's buttons.
+  // A video iframe has its own media session, which this page cannot access.
   announce(audio) {
     const session = systemSession()
     if (!session || typeof MediaMetadata !== "function") return
@@ -366,7 +373,8 @@ export const MediaPlayer = {
       seekto: ({seekTime}) => this.seek(seekTime)
     }
     for (const [action, handler] of Object.entries(actions)) handle(session, action, handler)
-    // The next episode's player may announce itself before this one is gone. What it set stays.
+    // The next hook instance can set the Media Session before this one is destroyed.
+    // Cleanup then leaves its state unchanged.
     this.cleanups.push(() => {
       if (owner !== this) return
       owner = null
@@ -376,7 +384,7 @@ export const MediaPlayer = {
     })
   },
 
-  // Where the episode is, for the system's scrubber. Only a known length can be shown.
+  // Updates the Media Session position state. It requires a finite duration.
   placeOnSystem(audio) {
     const session = systemSession()
     if (owner !== this || !session?.setPositionState || !Number.isFinite(audio.duration)) return
@@ -384,7 +392,7 @@ export const MediaPlayer = {
       position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate})
   },
 
-  // Until a player knows itself, it is where it is about to start.
+  // Before the player is ready, returns the pending seek or the saved start position.
   place() {
     return this.read()?.position ?? this.pendingSeek ?? Number(this.el.dataset.position)
   },
@@ -396,14 +404,15 @@ export const MediaPlayer = {
     } else if (this.peertube) {
       this.peertube.call(this.lastState === "playing" ? "pause" : "play").catch(() => {})
     } else if (this.youtube?.getPlayerState) {
-      // A video that buffers is meant to play, so the key pauses it as well.
+      // A buffering video counts as playing, so the toggle pauses it.
       const {PLAYING, BUFFERING} = window.YT?.PlayerState ?? {}
       if ([PLAYING, BUFFERING].includes(this.youtube.getPlayerState())) this.youtube.pauseVideo()
       else this.youtube.playVideo()
     }
   },
 
-  // PeerTube has no mute of its own, so the volume it last reported is put back.
+  // The PeerTube embed API has no mute. Mute sets volume 0.
+  // Unmute restores the last reported volume.
   mute() {
     if (this.audio) {
       this.audio.muted = !this.audio.muted
@@ -416,7 +425,8 @@ export const MediaPlayer = {
     }
   },
 
-  // The frame fills the screen; a key press is the gesture the browser asks for.
+  // Toggles fullscreen for the iframe.
+  // The key press is the user gesture that `requestFullscreen` requires.
   fullscreen() {
     if (document.fullscreenElement) document.exitFullscreen?.()
     else this.el.querySelector("iframe")?.requestFullscreen?.()
@@ -424,7 +434,8 @@ export const MediaPlayer = {
 
   disconnected() { this.reporter.disconnect() },
   reconnected() { this.reporter.reconnect() },
-  // The face is rendered once and left alone, so chapters the page learns later are drawn here.
+  // The hook element has `phx-update="ignore"`, so LiveView does not patch the face's children.
+  // Chapter marks from a later `data-chapters` value are rendered here.
   updated() {
     const face = this.el.querySelector("[data-audio-face]")
     if (!face || !this.audio || this.el.dataset.chapters === this.drawnChapters) return
@@ -439,9 +450,10 @@ export const MediaPlayer = {
     this.reporter?.destroy()
     this.cleanups?.forEach(cleanup => cleanup())
     clearInterval(this.poll)
-    // LiveView has already taken the element out of the page. A frame out of the page plays
-    // nothing and has no window to tell, and an exception here would abort LiveView's patch, so
-    // the channels close first and only audio, which keeps playing detached, is paused.
+    // LiveView has already removed the element from the DOM.
+    // A detached iframe plays nothing and has no `contentWindow`.
+    // An exception here would abort LiveView's patch, so iframe players get no pause call.
+    // Only audio keeps playing when detached, so only audio is paused.
     this.peertube?.destroy?.()
     this.youtube?.destroy?.()
     if (this.audio) {

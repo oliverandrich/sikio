@@ -2,8 +2,9 @@
 
 import {playerKey} from "./player_keys.mjs"
 
-// LiveView asks for these on every join of every view. The Phoenix socket shares the option and
-// asks without a view on every connect. Only the dock carries a player, and only while it plays.
+// LiveSocket calls `params` with the view's element on every LiveView join.
+// The Phoenix socket calls the same function without a view on every connect.
+// Only the dock contains a MediaPlayer, and only while an entry plays.
 export function rejoinParams(view) {
   const dock = view?.querySelector("#player-control")
   const session = dock?.querySelector("[phx-hook=MediaPlayer]")?.dataset.session
@@ -18,7 +19,7 @@ export const PlayerDock = {
       const id = event.detail.id
       const position = event.detail.position ?? null
       if (String(id) === this.el.dataset.entryId) {
-        // A chapter of what already plays moves its player there; play alone shows it.
+        // For the playing entry, a position seeks the player. Without one, the panel gets focus.
         const media = this.el.querySelector("[phx-hook='MediaPlayer']")
         if (position !== null && media) {
           media.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position}}))
@@ -27,23 +28,24 @@ export const PlayerDock = {
         }
         return
       }
-      // The card's player and a chapter may name a place to begin at; null resumes.
+      // The card's cue and chapter links can pass a start position. Null resumes the saved one.
       this.change("start", {id, position})
     }
     this.close = () => this.change("close", {})
-    // What played has ended. Once its place is saved the server may start the next in the queue.
-    // The page hears which item followed which, so a detail showing the one that ended can follow.
+    // Runs on `sikio:ended`. After the final save it pushes `next`.
+    // The server may then start a queued entry.
+    // `sikio:played-on` then names both entries, so a detail of the ended entry can switch.
     this.next = () => {
       const from = this.el.dataset.entryId
       this.change("next", {}, () => {
-        // When nothing follows, the dock keeps what ended; the page hears of that as no next item.
+        // Without a next entry the dock keeps the ended one, and `to` is null.
         const next = this.el.dataset.entryId || null
         const to = next === from ? null : next
         window.dispatchEvent(new CustomEvent("sikio:played-on", {detail: {from, to}}))
       })
     }
-    // The page keeps the keyboard on every page and hands the player's keys to whichever player
-    // plays. Without one, p starts the open item as its play button does; the rest are the page's.
+    // A window keydown listener on every page dispatches player keys to the active MediaPlayer.
+    // Without a player, the toggle key clicks `#start-playback`. Other keys are left alone.
     this.onKey = event => {
       this.tabbed = event.key === "Tab"
       const command = playerKey(event)
@@ -55,9 +57,9 @@ export const PlayerDock = {
       if (start) start.click()
       else media.dispatchEvent(new CustomEvent("sikio:command", {detail: command}))
     }
-    // A click into a video's frame takes the keyboard where the page cannot hear it. The click has
-    // reached the frame by then; the page takes the keyboard back and gives it to the panel.
-    // Tab into the frame is meant, to reach the embed's own controls, and keeps it there.
+    // A click into a video iframe moves focus there, and its key events do not reach this window.
+    // After window `blur`, a zero-delay timeout moves focus from a dock iframe to the panel.
+    // Focus reached by Tab stays in the iframe, for the embed's own controls.
     this.onPointer = () => {this.tabbed = false}
     this.onBlur = () => setTimeout(() => {
       const active = document.activeElement

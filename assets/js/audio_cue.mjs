@@ -2,9 +2,9 @@
 
 import {feedLength, listener, namesHovered, paint, part, skipped} from "./audio_face.mjs"
 
-// The card's player before anything plays. It looks like the dock's and loads nothing: pressing
-// play, letting go of the bar or skipping asks the dock to start, at the place chosen. The dock's
-// player then lies over it; see assets/js/dock_place.mjs.
+// The card's audio controls before playback. Same markup as the dock's; it loads no media.
+// Play, a seek change or a skip calls `start` with the chosen position.
+// The dock's panel is then positioned over it; see assets/js/dock_place.mjs.
 export function bindCue(face, {start, positionOf}) {
   const seek = part(face, "seek")
   const {listen, cleanup} = listener()
@@ -21,8 +21,8 @@ export function bindCue(face, {start, positionOf}) {
 }
 
 export const AudioCue = {
-  // The face stays one element while the card shows another entry, so the entry is read at the
-  // moment it starts, never kept from when the hook mounted.
+  // LiveView patches the same element for another entry, so data-entry-id is read on each start,
+  // not at mount.
   mounted() {
     this.cleanup = bindCue(this.el, {
       positionOf: this.el.dataset.positionOf,

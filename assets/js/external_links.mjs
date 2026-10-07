@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// A link that leaves Sikio opens outside it. Installed as an app, a page would otherwise load
-// inside Sikio's own window. The markup names a target for the links it knows; this catches one
-// it forgot, at the moment it is clicked.
+// Links to other origins open in a new browsing context.
+// In an installed web app they would otherwise load inside Sikio's window.
+// Templates set a target on known external links. This handles any link without one on click.
 
-// Whether an address leads to another host on the web. Mail and scripts are not places to open.
+// True for an http or https URL with a different origin. mailto: and javascript: URLs return false.
 export function leavesApp(href, origin) {
   let url
   try {
@@ -15,7 +15,7 @@ export function leavesApp(href, origin) {
   return (url.protocol === "https:" || url.protocol === "http:") && url.origin !== origin
 }
 
-// A click on such a link without a target of its own gives it a tab of its own.
+// Sets target="_blank" and rel="noopener noreferrer" on such a link if it has no target.
 export function openAway(event, origin) {
   const link = event.target.closest?.("a[href]")
   if (!link || link.target || !leavesApp(link.href, origin)) return

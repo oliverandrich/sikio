@@ -2,50 +2,50 @@
 
 import {elsewhere} from "./player_keys.mjs"
 
-// j and k move through the reader's list, m marks what is selected and f opens the search. A key
-// held with a modifier, typed into a form control, sent from a media element or pressed in an open
-// dialog belongs to something else. The player's own keys are in assets/js/player_keys.mjs.
+// j and k move the selection, m toggles its mark and f opens the search.
+// Keys with a modifier, in a form control, on a media element or iframe, or in an open dialog are
+// ignored. Repeats of m and f are ignored. Player keys are in assets/js/player_keys.mjs.
 export function readerKey(event) {
   if (elsewhere(event) || ["AUDIO", "VIDEO", "IFRAME"].includes(event.target?.tagName)) return null
   if (event.key === "m" || event.key === "f") return event.repeat ? null : event.key
   return event.key === "j" || event.key === "k" ? event.key : null
 }
 
-// The mini player's title links to what plays in its source, which works on any page. In the
-// library a plain click asks the page instead, which keeps the list on screen when it holds the
-// item. A click meant for a new tab or window stays the browser's.
+// The player's title links to the playing entry on its source page, which works on any page.
+// In the library a plain click pushes "show" instead, so the list stays rendered.
+// Other buttons and modifier clicks return null and keep the default navigation.
 export function shownEntry(event) {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null
   return event.target?.closest?.("[data-show-entry]")?.dataset.showEntry ?? null
 }
 
-// When the queue plays on, the detail follows from the item that ended to the next one. It does so
-// only from the item that ended, and only to one the list on screen holds. Answers an id or null.
+// After play-on, returns the next entry id for the detail, or null.
+// Only when the ended entry is selected and the rendered list contains the next one.
 export function followed({selected, from, to, listed}) {
   return to && listed && selected === from ? to : null
 }
 
-// Beside the list there is room for the detail, so a wide screen always shows something there.
-// On a phone the detail would cover the list, so nothing is chosen for the reader.
+// From lg the detail column sits beside the list, so an empty selection gets the first row.
+// Below lg the detail replaces the list, so nothing is selected automatically.
 export function wantsFirst({wide, selected, rows}) {
   return wide && !selected && rows > 0
 }
 
 const WIDE = typeof window === "object" ? window.matchMedia("(width >= 64rem)") : null
 
-// Escape in the search field clears the search and folds the field away.
+// Escape in the search input closes the search.
 export function closesSearch(event) {
   return event.key === "Escape" && event.target?.id === "search-input"
 }
 
-// How far the list must scroll to show a row between its head's lower edge and the pane's end.
+// Scroll delta that brings a row between the list head's bottom edge and the pane's bottom edge.
 export function reveal({top, bottom, rowTop, rowBottom}) {
   if (rowTop < top) return rowTop - top
   if (rowBottom > bottom) return rowBottom - bottom
   return 0
 }
 
-// From lg a newly chosen item starts at the detail's top, and its row is in the list's view.
+// Scrolls the detail to the top. From lg it also scrolls the selected row into the list pane.
 function follow(id) {
   const detail = document.getElementById("item-detail")
   if (detail) detail.scrollTop = 0
@@ -64,14 +64,14 @@ export const ReaderKeys = {
       if (closesSearch(event)) return this.pushEvent("close_search", {})
       const key = readerKey(event)
       if (key === "f") {
-        // Otherwise the f lands in the field that is about to take the focus.
+        // Otherwise the f is typed into the search input once it receives focus.
         event.preventDefault()
         this.pushEvent("open_search", {})
       } else if (key === "m") this.pushEvent("toggle_mark", {})
       else if (key) this.pushEvent("move", {key})
     }
     window.addEventListener("keydown", this.onKey)
-    // Caught before LiveView's own navigation, which would go to the item's source.
+    // Capture phase runs before LiveView's link handling, which would navigate to the source page.
     this.onClick = event => {
       const id = shownEntry(event)
       if (id === null) return
@@ -80,13 +80,15 @@ export const ReaderKeys = {
       this.pushEvent("show", {id})
     }
     document.addEventListener("click", this.onClick, {capture: true})
-    // The dock says when the queue played on; see assets/js/player_dock.mjs.
+    // assets/js/player_dock.mjs dispatches sikio:played-on after an entry ends; `to` is null
+    // when no entry follows.
     this.onPlayedOn = ({detail: {from, to}}) => {
       const selected = this.el.dataset.selected
       const listed = Boolean(to && document.getElementById(`entries-${to}`))
       const id = followed({selected, from, to, listed})
       if (id) this.pushEvent("show", {id})
-      // Whether the list still holds what ended is the server's to say: its reload may come later.
+      // The server checks whether the list still contains the ended entry.
+      // The list in the DOM may not have reloaded yet.
       else if (!to && selected === from) this.pushEvent("played_out", {id: from})
     }
     window.addEventListener("sikio:played-on", this.onPlayedOn)
@@ -94,15 +96,15 @@ export const ReaderKeys = {
       const {selected, rows} = this.el.dataset
       if (wantsFirst({wide: WIDE.matches, selected, rows: Number(rows)})) this.pushEvent("select_first", {})
     }
-    // Turned narrow, an item the page chose for the wide screen would cover the list.
+    // Below lg an automatically selected entry would hide the list, so the server releases it.
     this.fitWidth = () => WIDE.matches ? this.chooseFirst() : this.pushEvent("release_first", {})
     WIDE.addEventListener("change", this.fitWidth)
-    // Opened by its address, an item far down the list has its row brought into view too.
+    // An entry opened by URL may be far down the list, so its row is scrolled into view.
     this.shown = this.el.dataset.selected
     if (this.shown) follow(this.shown)
     this.chooseFirst()
   },
-  // A new place or filter may leave nothing chosen, so the page asks again after every patch.
+  // A new place or filter may leave no selection, so this runs again after every update.
   updated() {
     const {selected} = this.el.dataset
     if (selected && selected !== this.shown) follow(selected)

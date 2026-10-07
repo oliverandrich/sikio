@@ -2,8 +2,9 @@
 
 import {elsewhere} from "./player_keys.mjs"
 
-// The overview of every key, opened with ? from anywhere outside a field. The account menu opens
-// it as every overview, with sikio:show. The dialog closes on Escape by itself.
+// Opens the keyboard shortcut dialog on ? unless `elsewhere` applies.
+// The account menu opens it with sikio:show like the other overview dialogs.
+// The native dialog element closes on Escape.
 export function opensShortcuts(event) {
   return event.key === "?" && !elsewhere(event)
 }

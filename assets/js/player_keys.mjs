@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// The player's keys. Sikio keeps the keyboard and drives whichever player plays through its API,
-// so the keys mean the same for a podcast and for a video, and on every page.
+// Player keyboard shortcuts. Sikio handles the keydown events and calls the active player's API.
+// The keys therefore act the same for audio and video, on every page.
 //
-//   p                play or pause; Space stays the page's, as Safari presses a focused button
+//   p                play or pause; Space is unbound, Safari uses it to press a focused button
 //   Left / Right     back 15 s / ahead 30 s, as the buttons do
 //   Shift + arrows   the previous / next chapter
 //   u                sound off or on
@@ -19,8 +19,8 @@ export function playerKey(event) {
   return {p: {name: "toggle"}, u: {name: "mute"}, x: {name: "fullscreen"}}[event.key] ?? null
 }
 
-// A key held with a modifier, typed into a field or pressed in an open dialog belongs to that,
-// not to the page. Every key of the page's asks this first.
+// True for a key event with Meta, Ctrl or Alt, from an editable element or form control, or
+// inside an open dialog. Every page shortcut checks this first.
 export function elsewhere(event) {
   const target = event.target
   return event.metaKey || event.ctrlKey || event.altKey || target?.isContentEditable ||

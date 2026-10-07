@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// The queue's rows are moved by their handles: dragged with a mouse or a finger, or one place at
-// a time with the arrow keys while a handle has the focus. The row follows the pointer while it
-// is held and the others make room where it would land; where it is let go the server is told
-// the place. The list itself comes back in the new order, so nothing here keeps one.
+// Reorders queue rows by their [data-move] handles, with pointer events or the arrow keys.
+// During a drag the row follows the pointer and the other rows shift by CSS transforms.
+// On pointerup the hook pushes "reorder" with the new index. The server renders the new order.
 
-// The place a row lands at: after every other row whose middle the pointer has passed.
+// Drop index: the number of other rows whose vertical middle is above the pointer.
 export function dropIndex(middles, y) {
   return middles.filter(middle => middle < y).length
 }
 
-// How the other `count` rows move while the row from `from` would land at `to`: a place up (-1),
-// a place down (1) or not at all, given top to bottom.
+// Shift of each of the other `count` rows for a move from `from` to `to`, top to bottom:
+// -1 one place up, 1 one place down, 0 unchanged.
 export function shifts(from, to, count) {
   return Array.from({length: count}, (_, k) => (from <= k && k < to ? -1 : to <= k && k < from ? 1 : 0))
 }
 
-// The place one key moves a row at `index` of `count` rows to, or null for none.
+// Target index for ArrowUp or ArrowDown on the row at `index` of `count`, or null.
 export function keyIndex(key, index, count) {
   if (key === "ArrowUp" && index > 0) return index - 1
   if (key === "ArrowDown" && index < count - 1) return index + 1
@@ -33,7 +32,7 @@ export const QueueSort = {
       const row = handle.closest("article")
       const rows = this.rows()
       const others = rows.filter(other => other !== row)
-      // Measured once, before anything moves, so the rows making room do not move the target.
+      // Measured once before any transform, so shifted rows do not change the drop targets.
       const middles = others.map(other => {
         const box = other.getBoundingClientRect()
         return box.top + box.height / 2
@@ -69,7 +68,7 @@ export const QueueSort = {
       const index = keyIndex(event.key, rows.indexOf(handle.closest("article")), rows.length)
       if (index === null) return
       event.preventDefault()
-      // The handle keeps the focus where the row lands, so the next key moves it on.
+      // Refocuses the handle after the reply, so the next arrow key moves the same row again.
       this.pushEvent("reorder", {id: handle.dataset.move, index},
         () => document.getElementById(handle.id)?.focus())
     }

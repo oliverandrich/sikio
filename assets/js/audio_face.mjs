@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Sikio's own face for an audio element, which stays in the page without controls of its own.
-// media_player.mjs keeps reading and saving the position through that element; this file only
-// shows it and turns presses into calls on it. The markup is the dock's, rendered by the server,
-// so every word here comes from it.
+// Custom controls for an audio element without native controls.
+// media_player.mjs reads and saves the position through the audio element.
+// `bindFace` renders that state and maps control input to calls on the element.
+// audio_cue.mjs reuses the helpers for the card's cue.
+// The server renders the markup. Labels come from its data attributes.
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2]
 
-// A time as the player shows it: hours only when there are any.
+// Formats seconds as m:ss, or h:mm:ss from one hour.
 export function clock(seconds) {
   const total = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
   const [h, m, s] = [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60]
@@ -15,7 +16,7 @@ export function clock(seconds) {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
 }
 
-// What is left, as a countdown with a real minus sign. Unknown when the length is.
+// Remaining time with a U+2212 minus sign. Empty when the duration is unknown.
 export function left(position, duration) {
   if (!Number.isFinite(duration) || duration <= 0) return ""
   return "−" + clock(Math.max(duration - position, 0))
@@ -26,18 +27,17 @@ export function skipped(position, by, duration) {
   return Number.isFinite(duration) && duration > 0 ? Math.min(target, duration) : target
 }
 
-// The next listed speed above the one in use, round to the slowest after the fastest.
+// The next speed in SPEEDS above `rate`. After the fastest it wraps to the slowest.
 export function nextSpeed(rate) {
   return SPEEDS.find(speed => speed > rate + 0.001) ?? SPEEDS[0]
 }
 
-// One of a face's controls, by the name its data-audio attribute gives it.
 export const part = (face, name) => face.querySelector(`[data-audio-${name}]`)
 
-// The length the feed named. The bar's own range is that only when one was named.
+// The duration from the feed, read from `data-length`. NaN when the feed named none.
 export const feedLength = face => Number(part(face, "seek").dataset.length) || NaN
 
-// Listeners that can all be taken off again at once.
+// Collects event listeners so `cleanup` removes them all.
 export function listener() {
   const cleanups = []
   return {
@@ -49,15 +49,14 @@ export function listener() {
   }
 }
 
-// The chapter marks a face carries, each with where its chapter begins and its title.
 const marks = face => [...face.querySelectorAll("[data-audio-mark]")]
 
-// The title of the chapter that a place lies in, or nothing before the first or without any.
+// Title of the chapter containing `position`. Empty before the first chapter or without chapters.
 export function chapterAt(face, position) {
   return marks(face).filter(mark => Number(mark.dataset.at) <= position).at(-1)?.dataset.title ?? ""
 }
 
-// Moves the marks to the length the player knows. The start needs none, and past the end has none.
+// Positions the marks for `duration` via `--at`. Marks at 0 or at or after the end are hidden.
 export function placeMarks(face, duration, list = marks(face)) {
   if (!(duration > 0)) return
   for (const mark of list) {
@@ -67,7 +66,7 @@ export function placeMarks(face, duration, list = marks(face)) {
   }
 }
 
-// Draws the marks anew, for a face the page does not render again, such as the dock's.
+// Replaces the marks in a face that LiveView does not patch, such as the dock's.
 export function renderMarks(face, chapters, duration, doc = document) {
   for (const mark of marks(face)) mark.remove()
   const drawn = chapters.map(({at, title}) => {
@@ -84,8 +83,9 @@ export function renderMarks(face, chapters, duration, doc = document) {
   placeMarks(face, duration, drawn)
 }
 
-// The bar names the chapter under the pointer while it hovers, and the one that plays after.
-// The thumb's centre runs from 6px in to 6px short of the end, and the place with it.
+// While the pointer hovers the seek bar, the label shows the chapter under it.
+// On `pointerleave` it shows the chapter at the current value again.
+// The thumb centre ranges from 6px to width minus 6px. The pointer offset maps to that range.
 export function namesHovered(face, listen) {
   const seek = part(face, "seek"), label = part(face, "chapter")
   if (!label) return
@@ -100,15 +100,15 @@ export function namesHovered(face, listen) {
   })
 }
 
-// Writes a place into a face: the times, the chapter, what a screen reader says, and how far the
-// bar is filled. The audio reports its time several times a second while the clock moves once;
-// text is only written when it changes.
+// Renders a position: times, chapter label, chapter marks, `aria-valuetext` and `--share`.
+// `timeupdate` fires several times per second, but the displayed time changes once per second.
+// Text is written only when it changes.
 export function paint(face, position, duration, positionOf) {
   const write = (element, text) => { if (element && element.textContent !== text) element.textContent = text }
   const seek = part(face, "seek")
   const chapter = chapterAt(face, position)
   write(part(face, "elapsed"), clock(position))
-  // The pointer's chapter stands while it hovers the bar; see namesHovered.
+  // While the pointer hovers the bar, the label keeps the hovered chapter; see namesHovered.
   const label = part(face, "chapter")
   if (!label || !("hovered" in label.dataset)) write(label, chapter)
   write(part(face, "left"), left(position, duration))
@@ -131,7 +131,7 @@ export function bindFace(audio, face, strings) {
   const {listen, cleanup} = listener()
   let dragging = false
 
-  // The length the audio states once it knows it, before that the one the feed named.
+  // The audio element's duration once known, otherwise the feed's duration.
   const length = () =>
     Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : feedLength(face)
 
@@ -144,7 +144,7 @@ export function bindFace(audio, face, strings) {
     show(audio.currentTime)
   }
 
-  // The event says what happened; the element's own flag may lag behind it.
+  // Event listeners pass the state explicitly. `audio.paused` can lag behind the event.
   const state = (playing = !audio.paused) => {
     play.setAttribute("aria-label", playing ? strings.pause : strings.play)
     if (playing) face.dataset.playing = ""
@@ -156,9 +156,9 @@ export function bindFace(audio, face, strings) {
   for (const event of ["pause", "ended"]) listen(audio, event, () => state(false))
   for (const event of ["timeupdate", "loadedmetadata", "seeked", "durationchange"]) listen(audio, event, follow)
 
-  // Dragging shows where the thumb would land. Letting go, or a key, moves the audio.
+  // `input` only updates the display. `change`, from release or a key, sets `currentTime`.
   listen(seek, "input", () => { dragging = true; show(Number(seek.value)) })
-  // Dragging back to where it started fires no change, so letting go ends the drag as well.
+  // Dragging back to the start value fires no `change`, so these events also end the drag.
   for (const event of ["pointerup", "keyup", "blur"]) listen(seek, event, () => { dragging = false })
   listen(seek, "change", () => {
     dragging = false
@@ -174,7 +174,7 @@ export function bindFace(audio, face, strings) {
   }
 
   namesHovered(face, listen)
-  // The marks move only when the length does, not with every tick of the clock.
+  // Marks are repositioned only when the duration changes, not on `timeupdate`.
   for (const event of ["loadedmetadata", "durationchange"]) listen(audio, event, () => placeMarks(face, length()))
 
   listen(speed, "click", () => {
@@ -183,7 +183,7 @@ export function bindFace(audio, face, strings) {
   })
 
   state()
-  // Before its metadata the audio answers zero for its place. The server showed the saved one.
+  // Before metadata loads, `currentTime` is 0. The server-rendered saved position stays until then.
   if (audio.readyState >= 1) {
     placeMarks(face, length())
     follow()

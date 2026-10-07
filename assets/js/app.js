@@ -43,7 +43,7 @@ import {openAway} from "./external_links.mjs"
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  // The reader's offset from UTC in minutes, which decides where the library's "today" begins.
+  // The client's UTC offset in minutes. LibraryLive uses it to group entries by day.
   params: view => ({
     _csrf_token: csrfToken,
     time_zone_offset: -new Date().getTimezoneOffset(),
@@ -54,18 +54,18 @@ const liveSocket = new LiveSocket("/live", Socket, {
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-// An overview dialog opens over the page when a sikio:show event reaches it; see Layouts.overview.
-// A browser gives the focus to the first button, which then shows its ring. A dialog marked
-// autofocus takes the focus itself, which browsers do not do for it; Tab still reaches the buttons.
+// A sikio:show event opens the target dialog as a modal; see Layouts.overview.
+// showModal() focuses the first button, which then shows its focus ring.
+// A dialog with the autofocus attribute is focused itself instead. Tab still reaches the buttons.
 window.addEventListener("sikio:show", event => {
   const dialog = event.target
   if (!(dialog instanceof HTMLDialogElement) || dialog.open) return
   dialog.showModal()
   if (dialog.hasAttribute("autofocus")) dialog.focus()
 })
-// A page names what takes the focus once it has rendered the field it opened, closed or cleared.
+// The server's "focus" push event names the element id to focus after a patch.
 window.addEventListener("phx:focus", ({detail: {id}}) => document.getElementById(id)?.focus())
-// Before the browser follows a link, a link away from Sikio is given a tab of its own.
+// A capture-phase click listener sets target="_blank" on links to other origins.
 document.addEventListener("click", event => openAway(event, window.location.origin), true)
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
