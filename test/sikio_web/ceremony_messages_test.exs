@@ -2,11 +2,11 @@
 
 defmodule SikioWeb.CeremonyMessagesTest do
   @moduledoc """
-  Every code this library can send reaches a sentence of this application's own.
+  Every Ithibati ceremony code maps to an application message.
 
-  The library publishes its vocabulary, so a new word arrives as a red suite instead of as a raw
-  atom on somebody's screen. Three of the clauses this guards are ones this application produces
-  itself: `already_claimed`, `identifier_mismatch` and `setup_authorization_required`.
+  `Ithibati.Ceremony.codes/0` lists all codes. A new code fails this suite instead of showing raw.
+  Three codes come from this application: `already_claimed`, `identifier_mismatch` and
+  `setup_authorization_required`.
   """
   use SikioWeb.ConnCase
 
@@ -27,13 +27,13 @@ defmodule SikioWeb.CeremonyMessagesTest do
     refute CeremonyMessages.message("setup_authorization_required", nil) =~ "Something went wrong"
   end
 
-  # The set that arrives is open, so the catch-all is not a bug.
+  # The set of codes is open, so the catch-all clause is intended.
   test "while a code nobody listed still says something" do
     assert CeremonyMessages.message("http_502", nil) == "Something went wrong: http_502"
   end
 
-  # Driven through the page, because the clause above is worth nothing until something calls it
-  # with two arguments. This example had the clause and both pages still called it with one.
+  # Runs through the LiveView, because the two-argument clause only matters if callers use it.
+  # An earlier version had the clause, but both pages passed one argument.
   test "and the page hands on the name the browser gave" do
     {:ok, view, _html} = live(build_conn(), ~p"/setup")
 

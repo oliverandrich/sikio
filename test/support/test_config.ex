@@ -2,34 +2,34 @@
 
 defmodule Sikio.TestConfig do
   @moduledoc """
-  Application configuration a test changes, put back when the test ends.
+  Changes application configuration for one test and restores it on exit.
 
-  Writing `nil` back is not the same as leaving a key unset: a library reads that `nil` and
-  refuses it, where an absent key is its own default. This example lost an afternoon to exactly
-  that, twice, under two different keys, so the restore is written once and lives here.
+  Restoring `nil` differs from leaving a key unset.
+  A library rejects an explicit `nil` but applies its default for an absent key.
+  This caused failures under two different keys, so the restore lives in one place.
   """
   import ExUnit.Callbacks, only: [on_exit: 1]
 
   @doc """
-  Sets one rate-limit budget for the length of the test, leaving every other group standing.
+  Sets one rate-limit group's budget for the test and keeps the other groups.
 
-  `:auth_rate_limits` is one keyword list holding all of them, so writing it whole is how a test
-  quietly takes away a budget that somebody else's setup put there — and the group then falls
-  back to its shipped default rather than to what was wanted. That has cost this suite three
-  separate failures, each in a different file and none of them where the mistake was made.
-  The group's counts are cleared as well.
+  `:auth_rate_limits` is one keyword list for all groups.
+  Overwriting it whole drops budgets set by another setup. Those groups fall back to defaults.
+  This caused three failures in different files, each away from the faulty write.
+  The group's counters are cleared as well.
   """
   def put_budget(group, budget) do
     configured = Application.get_env(:sikio, :auth_rate_limits, [])
 
-    # The counts start empty. They are kept per account id, and SQLite rolls its id sequence back
-    # with each test's transaction, so a later test's account may carry an earlier one's id.
+    # The counters are keyed by account id.
+    # SQLite rolls its id sequence back with each test's transaction.
+    # A later test's account can therefore reuse an earlier test's id.
     :sys.replace_state(Sikio.AuthRateLimiter, &put_in(&1, [:groups, group], %{}))
 
     put_env(:sikio, :auth_rate_limits, Keyword.put(configured, group, budget))
   end
 
-  @doc "Sets a key for the length of the test and restores what was there, absence included."
+  @doc "Sets a key for the test. Restores the previous value on exit, or deletes a new key."
   def put_env(app, key, value) do
     previous = Application.fetch_env(app, key)
     Application.put_env(app, key, value)

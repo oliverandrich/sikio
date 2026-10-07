@@ -2,11 +2,11 @@
 
 defmodule Sikio.MigrationCase do
   @moduledoc """
-  A migration watched on a database of its own, made for the test and dropped after it.
+  Runs migrations on a separate database, created for the test and dropped afterwards.
 
-  The sandbox starts with every migration already run, so it cannot show one at work. Here the
-  test migrates to a version, writes what the data looked like then, migrates on and reads what
-  became of it. It runs on whichever database the build serves.
+  The sandbox database is fully migrated, so it cannot exercise a single migration.
+  A test migrates to a version, inserts rows in that version's shape, migrates on and reads them.
+  It runs on the configured database, SQLite or PostgreSQL.
   """
   use ExUnit.CaseTemplate
 
@@ -39,7 +39,7 @@ defmodule Sikio.MigrationCase do
         pool_size: 2
       )
 
-    # Each test loads the migration files again, which redefines their modules on purpose.
+    # Each test loads the migration files again, which redefines their modules.
     conflicts = Code.get_compiler_option(:ignore_module_conflict)
     Code.put_compiler_option(:ignore_module_conflict, true)
     on_exit(fn -> Code.put_compiler_option(:ignore_module_conflict, conflicts) end)
@@ -48,13 +48,13 @@ defmodule Sikio.MigrationCase do
     {:ok, repo} = Repo.start_link(config)
     previous = Repo.put_dynamic_repo(repo)
 
-    # The repo ends with the test process it is linked to; what is left is the database.
+    # The repo is linked to the test process and stops with it. Only the database needs removal.
     on_exit(fn -> Repo.__adapter__().storage_down(config) end)
     on_exit(fn -> Repo.put_dynamic_repo(previous) end)
     %{repo: repo}
   end
 
-  @doc "Migrates the test's database up to `version`, or down to just after it."
+  @doc "Migrates the test database up to `version`, or down until `version` is the newest."
   def migrate(repo, direction, version) do
     path = Ecto.Migrator.migrations_path(Repo)
     opts = [dynamic_repo: repo, log: false, log_migrations_sql: false]
@@ -66,9 +66,9 @@ defmodule Sikio.MigrationCase do
   end
 
   @doc """
-  Writes an entry as its table stood at the version migrated to, and answers a map of its id.
+  Inserts an `entries` row in the table's shape at the migrated version. Returns `%{id: id}`.
 
-  The schema names the table's columns as they are now. One added later would refuse the row.
+  The row bypasses the schema. The schema lists current columns, which would fail the insert.
   """
   def entry!(feed_id, attrs) do
     now = DateTime.utc_now()
@@ -77,7 +77,7 @@ defmodule Sikio.MigrationCase do
     %{id: id}
   end
 
-  @doc "The error the build's database raises when it refuses a statement."
+  @doc "Returns the exception module the configured database raises for a rejected statement."
   def database_error do
     case Application.fetch_env!(:sikio, :database) do
       :sqlite -> Exqlite.Error

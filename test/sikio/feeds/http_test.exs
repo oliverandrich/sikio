@@ -84,18 +84,16 @@ defmodule Sikio.Feeds.HTTPTest do
     assert {:error, :too_large} = HTTP.get("https://example.org/rss", max_bytes: 4)
   end
 
-  # A stub that answers with the connection it was handed has sent nothing. Reading a status and
-  # a body off it yields nil, and nil bytes raise somewhere that reports an unsafe address, which
-  # is a lie about what went wrong.
+  # A stub that returns the conn unchanged sends no response. Status and body are then nil.
+  # Without handling, the nil body raised an error that was reported as `:unsafe_url`.
   test "a stub that never answers is reported as unavailable, not as an unsafe address" do
     Req.Test.stub(HTTP, fn conn -> conn end)
 
     assert {:error, :unavailable} = HTTP.get("https://feeds.example.org/rss")
   end
 
-  # What keeps this suite from asking a stranger's server. Every request is answered by a stub,
-  # and a test that forgets to register one has to notice: an answer that reads like a peer
-  # being down would let it pass while proving nothing.
+  # Every request goes through Req.Test, so no test reaches the network.
+  # A missing stub must raise. An `:unavailable` result could let a test pass without a stub.
   test "a request with no stub registered fails loudly rather than looking unavailable" do
     assert_raise RuntimeError, ~r/stub/, fn ->
       HTTP.get("https://nobody-stubbed-this.example.org/rss")

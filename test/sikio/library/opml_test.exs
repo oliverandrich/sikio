@@ -23,8 +23,8 @@ defmodule Sikio.Library.OPMLTest do
     assert {:ok, [%{title: "A & B", url: "https://example.org/feed?a=1&b=2"}]} = OPML.parse(xml)
   end
 
-  # A folder names a tag. The innermost folder counts, and a feed listed in two folders is one
-  # source with both tags.
+  # A folder becomes a tag. Only the innermost folder counts.
+  # A feed in two folders becomes one source with both tags.
   test "reads the folder a source stands in as its tag" do
     xml =
       document(
@@ -71,7 +71,7 @@ defmodule Sikio.Library.OPMLTest do
     refute xml =~ "alice"
   end
 
-  # Tags leave as folders, a subscription under each of its tags, and come back as tags.
+  # Export writes each tag as a folder. Parsing the export restores the tags.
   test "export writes a subscription under each of its tags" do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/tagged")
@@ -88,7 +88,7 @@ defmodule Sikio.Library.OPMLTest do
            ]
   end
 
-  # An imported source takes the tags its folders name; one already subscribed gains them.
+  # Import applies the file's tags to new and existing subscriptions. Existing tags remain.
   test "imports give their sources the tags the file names" do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/existing")
@@ -135,8 +135,8 @@ defmodule Sikio.Library.OPMLTest do
     assert [%{status: :existing}] = OPML.import_sources(user, [Enum.at(sources, 1)])
   end
 
-  # Fifty sources one after another can take minutes. They are fetched a few at a time, so a slow
-  # server delays its own source rather than every one behind it.
+  # Sequential fetches of fifty sources can take minutes. Concurrent fetches keep a slow server
+  # from delaying the others. The test holds two requests open at once.
   test "sources are fetched at the same time and reported in the file's order" do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     test = self()

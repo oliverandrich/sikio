@@ -2,11 +2,10 @@
 
 defmodule Sikio.Feeds.TransportTest do
   @moduledoc """
-  The socket, against a server that answers exactly what these tests dictate.
+  Tests `Sikio.Feeds.Transport` over real sockets against a loopback server with fixed responses.
 
-  Everything else in the suite stops at the plug that stands in for a peer, so nothing there
-  reaches this module at all. A listener on the loopback is neither DNS nor a stranger's server,
-  and this is the layer beneath the address checks, so it may be handed one directly.
+  Other tests stop at the Req.Test plug and never reach this module. A loopback listener needs no
+  DNS or external server. This layer sits below the address checks, so it accepts 127.0.0.1.
   """
   use ExUnit.Case, async: true
 
@@ -22,7 +21,7 @@ defmodule Sikio.Feeds.TransportTest do
     Record.extract(:Extension, from_lib: "public_key/include/public_key.hrl")
   )
 
-  # What a peer would send, byte for byte, so a test may describe a shape no library would emit.
+  # Sends a raw response, so a test can produce responses that no HTTP library would emit.
   defp answering(response) do
     {:ok, listener} =
       :gen_tcp.listen(0, @listen)
@@ -42,15 +41,14 @@ defmodule Sikio.Feeds.TransportTest do
     port
   end
 
-  # The uri names what was asked for, the address says where to go. Here they disagree on
-  # purpose, which is the whole shape this module exists for.
+  # The URI host and the connect address differ on purpose. Transport connects to the address.
   defp fetch(port, opts \\ []) do
     scheme = if opts[:cacerts], do: "https", else: "http"
     uri = %URI{scheme: scheme, host: "feeds.example.org", port: port, path: "/rss"}
     headers = [{"host", uri.host}, {"accept-encoding", "identity"}]
     limit = Keyword.get(opts, :limit, 8_000_000)
 
-    # No stand-in: this is the socket, which is the only thing these tests are about.
+    # `plug: nil` overrides `:feed_http_plug`, so the request uses a real socket.
     Transport.fetch(
       uri,
       {127, 0, 0, 1},
@@ -77,8 +75,8 @@ defmodule Sikio.Feeds.TransportTest do
     assert response.headers["etag"] == ["\"abc\""]
   end
 
-  # The connection goes to a checked address while the name it claims rides in the header. That
-  # is the whole reason this module exists, so it is asked of the wire rather than of the code.
+  # Transport connects to the checked address and sends the URI host in the `host` header.
+  # The test reads the header from the raw request.
   test "the name the caller gave is what reaches the peer" do
     port = answering("HTTP/1.1 204 No Content\r\n\r\n")
 
@@ -87,8 +85,8 @@ defmodule Sikio.Feeds.TransportTest do
     assert request =~ "host: feeds.example.org"
   end
 
-  # A peer may answer before it answers. Those headers belong to nothing: taking them for the
-  # real ones turns an early hint about compression into a refusal of a perfectly good feed.
+  # A server may send a 1xx response before the final one. Its headers must be discarded.
+  # A merged `content-encoding` header would make a valid feed fail to decode.
   test "an informational answer is not mixed into the real one" do
     port =
       answering("""
@@ -109,8 +107,7 @@ defmodule Sikio.Feeds.TransportTest do
     assert Map.get(response.headers, "link") == nil
   end
 
-  # One byte past the limit is what tells the caller it was exceeded. Everything beyond that is
-  # memory this process was not asked to hold.
+  # One byte past the limit signals the overflow to the caller. The body is truncated there.
   test "a body larger than the limit is kept only one byte past it" do
     body = String.duplicate("x", 200_000)
 
@@ -121,9 +118,8 @@ defmodule Sikio.Feeds.TransportTest do
     assert byte_size(response.body) == 1_001
   end
 
-  # The connection goes to a checked address, so the name that the certificate must match comes
-  # from the uri alone. Both certificates are made here, under an authority made here, and the
-  # transport is told to trust that authority instead of the system's.
+  # Certificate verification uses the URI host, not the connect address.
+  # The test generates a CA and a server certificate and passes the CA as `cacerts`.
   test "a certificate for the name in the uri is accepted at the checked address" do
     {port, cacerts} = answering_tls("feeds.example.org")
 
@@ -138,7 +134,7 @@ defmodule Sikio.Feeds.TransportTest do
 
   defp answering_tls(name) do
     san = extension(extnID: {2, 5, 29, 17}, critical: false, extnValue: [dNSName: ~c"#{name}"])
-    # Signed with SHA-256: the default is SHA-1, which a TLS 1.3 client rightly refuses.
+    # Signed with SHA-256. The default SHA-1 is rejected by TLS 1.3 clients.
     key = [key: {:namedCurve, :secp256r1}, digest: :sha256]
 
     %{cert: cert, key: private, cacerts: cacerts} =

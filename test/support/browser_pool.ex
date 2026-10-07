@@ -2,15 +2,16 @@
 
 defmodule SikioWeb.BrowserPool do
   @moduledoc """
-  One Chrome session that the browser features take turns on.
+  One Chrome session shared by all browser features.
 
-  Starting Chrome costs about 0.3 s and ending it 0.05 s, which was most of a typical feature.
-  The features run one at a time in the sandbox's shared mode, so one session serves them all,
-  reset to a blank page and an empty origin before each. It belongs to this process rather than
-  to a test, because Wallaby ends a session when the test that started it ends.
+  Starting Chrome takes about 0.3 s and ending it 0.05 s, most of a typical feature's runtime.
+  Features run sequentially in the sandbox's shared mode, so one session serves all of them.
+  The session is reset to a blank page and a cleared origin before each feature.
+  This Agent owns the session, because Wallaby ends a session when its starting test ends.
 
-  It carries no sandbox metadata in its user agent: that would name the first test's process,
-  long gone by the next. The shared mode lets every process use the test's connection instead.
+  The user agent carries no sandbox metadata.
+  That metadata would name the first test's pid, which has exited by the next feature.
+  Shared mode lets every process use the test's connection instead.
   """
   use Agent
 
@@ -18,7 +19,7 @@ defmodule SikioWeb.BrowserPool do
 
   def start_link(_opts \\ []), do: Agent.start_link(fn -> nil end, name: __MODULE__)
 
-  @doc "A session reset for the next feature, started on first use and again if it broke."
+  @doc "Returns the reset session. Starts a new one on first use or after a failed reset."
   def checkout do
     Agent.get_and_update(
       __MODULE__,
@@ -30,7 +31,7 @@ defmodule SikioWeb.BrowserPool do
     )
   end
 
-  @doc "Ends the session, once the suite is done."
+  @doc "Ends the session after the suite."
   def stop do
     Agent.get(__MODULE__, fn session -> session && Wallaby.Chrome.end_session(session) end)
   end
@@ -40,8 +41,8 @@ defmodule SikioWeb.BrowserPool do
     session
   end
 
-  # Everything a feature may leave behind: the page and its timers, cookies and storage for the
-  # test host, an emulated colour scheme or device, virtual passkeys, the window's size.
+  # Clears what a feature may leave: the page and its timers, cookies, the test origin's storage.
+  # Also resets emulated media, device metrics, virtual authenticators and the window size.
   defp reset?(session) do
     {width, height} = @window
     session = Wallaby.Browser.visit(session, "about:blank")

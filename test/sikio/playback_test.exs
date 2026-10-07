@@ -38,8 +38,8 @@ defmodule Sikio.PlaybackTest do
     assert {:ok, %{position: +0.0, status: :new}} = Playback.start(c.bob, c.entry.id)
   end
 
-  # The card's player can be dragged or skipped before anything loads. Starting then begins at
-  # that place, also for an episode heard to the end, and a place from a browser is checked.
+  # The card's player can seek before the audio loads. `start/3` then begins at that position,
+  # also for a heard entry. A negative or non-numeric position falls back to 0.
   test "a start may name the place to begin at", c do
     assert {:ok, %{position: 600.0}} = Playback.start(c.alice, c.entry.id, 600)
 
@@ -71,7 +71,7 @@ defmodule Sikio.PlaybackTest do
     assert {:error, :stale} =
              Playback.save(c.alice, c.entry.id, current.session_id, sample(1, 10))
 
-    # A later deliberate seek backwards is valid.
+    # A backward seek with a higher sequence number is accepted.
     assert {:ok, %{position: 10.0}} =
              Playback.save(c.alice, c.entry.id, current.session_id, sample(3, 10))
 
@@ -85,8 +85,8 @@ defmodule Sikio.PlaybackTest do
              Playback.mark(c.alice, c.entry.id, :new)
   end
 
-  # Many episodes end on credits nobody waits for, so 90 % of the length is heard. Heard is a floor:
-  # playing it again does not make it unheard.
+  # Many episodes end with credits, so 90 % of the duration counts as heard.
+  # Replaying a heard entry keeps it heard.
   test "an item played to 90 % is heard, and stays heard when played again", c do
     {:ok, state} = Playback.start(c.alice, c.entry.id)
 
@@ -105,7 +105,7 @@ defmodule Sikio.PlaybackTest do
     assert %{playback: %{status: :heard}} = Library.entry(c.alice, c.entry.id)
   end
 
-  # The end itself counts too, for a player that knows no length.
+  # An `ended` sample marks the entry heard when the duration is unknown.
   test "an item played to its end is heard without a length", c do
     {:ok, state} = Playback.start(c.alice, c.entry.id)
     ended = %{sample(1, 30) | "duration" => nil} |> Map.put("ended", true)
@@ -113,8 +113,8 @@ defmodule Sikio.PlaybackTest do
     assert {:ok, %{status: :heard}} = Playback.save(c.alice, c.entry.id, state.session_id, ended)
   end
 
-  # Heard by hand at any point, put aside unheard, or back to the inbox from the start. Each takes
-  # the item out of the queue.
+  # Manual marks: heard, archived, or new with the position reset. Each removes the entry from
+  # the queue.
   test "an item is marked heard, archived or new by hand, and leaves the queue", c do
     for status <- [:heard, :archived, :new] do
       {:ok, _} = Playback.enqueue(c.alice, c.entry.id, :last)
@@ -129,8 +129,8 @@ defmodule Sikio.PlaybackTest do
     end
   end
 
-  # Dragged to a place in the queue, an item lands between its new neighbours and nothing else
-  # moves. A place past the end is the end.
+  # A moved item lands at the target index, and the others keep their relative order.
+  # An index past the end moves it to the end.
   test "an item moves to a place in the queue", c do
     entries =
       for n <- 1..4, do: %{hd(c.preview.entries) | external_id: "m#{n}", title: "Moved #{n}"}
@@ -155,7 +155,7 @@ defmodule Sikio.PlaybackTest do
     assert {:error, :not_found} = Playback.move(c.bob, id.(1), 0)
   end
 
-  # The player goes on in the order the list shows, so both break a tie the same way.
+  # The player follows the queue list order, so both must break rank ties the same way.
   test "the queue plays in the order it is shown when two ranks are equal", c do
     entries =
       for n <- 1..2, do: %{hd(c.preview.entries) | external_id: "t#{n}", title: "Tie #{n}"}
@@ -163,7 +163,7 @@ defmodule Sikio.PlaybackTest do
     {:ok, _} = Library.subscribe(c.alice, %{c.preview | entries: entries})
     id = &Repo.one!(from e in Entry, where: e.title == ^"Tie #{&1}", select: e.id)
 
-    # Queued in reverse, so the playback rows run against the entries.
+    # Enqueued in reverse, so playback row order differs from entry order.
     for n <- [2, 1], do: {:ok, _} = Playback.enqueue(c.alice, id.(n), :last)
     Repo.update_all(Playback.State, set: [queue_rank: 1.0])
 
@@ -171,8 +171,8 @@ defmodule Sikio.PlaybackTest do
     assert Playback.queue(c.alice) == shown
   end
 
-  # Each move to the same place halves the gap it lands in, until a float has no value left
-  # between the two neighbours.
+  # Each move into the same slot halves the rank gap. After enough moves no float fits between
+  # the neighbours, which forces a renumbering.
   test "an item moved into the same place again and again keeps its place", c do
     entries =
       for n <- 1..3, do: %{hd(c.preview.entries) | external_id: "h#{n}", title: "Half #{n}"}
@@ -188,8 +188,8 @@ defmodule Sikio.PlaybackTest do
     end
   end
 
-  # A list shows the queue, so moving an item in or out of it or within it changes what lists
-  # show, as a new status does. Progress alone does not.
+  # Queue changes alter what lists show, so they broadcast `:playback_changed` like a status
+  # change does.
   test "a change to the queue is announced as a change, not as progress", c do
     Events.subscribe(c.alice)
     {:ok, _} = Playback.enqueue(c.alice, c.entry.id, :last)
@@ -200,7 +200,7 @@ defmodule Sikio.PlaybackTest do
     assert_received {:playback_changed, %{queue_rank: nil}}
   end
 
-  # As in Castro, playing an item puts it at the head of the queue unless it stands there already.
+  # As in Castro, playing an item moves it to the queue head, unless it is already queued.
   test "playing an item queues it first, and leaves a queued one where it is", c do
     entries =
       for n <- 1..2, do: %{hd(c.preview.entries) | external_id: "p#{n}", title: "Played #{n}"}
@@ -217,7 +217,7 @@ defmodule Sikio.PlaybackTest do
     assert Playback.queue(c.alice) == [c.entry.id, id.("Played 1"), id.("Played 2")]
   end
 
-  # What was put aside and is played after all is under way again.
+  # Playing an archived entry sets it back to `in_progress`.
   test "an archived item played again is in progress", c do
     {:ok, _} = Playback.mark(c.alice, c.entry.id, :archived)
     {:ok, %{session_id: session}} = Playback.start(c.alice, c.entry.id)
@@ -226,7 +226,7 @@ defmodule Sikio.PlaybackTest do
              Playback.save(c.alice, c.entry.id, session, sample(1, 10))
   end
 
-  # The queue keeps its own order: first goes before everything, last after it.
+  # `:first` enqueues at the head and `:last` at the tail.
   test "the queue takes an item first or last and lets it go", c do
     entries =
       for n <- 1..3, do: %{hd(c.preview.entries) | external_id: "q#{n}", title: "Queued #{n}"}
@@ -278,10 +278,9 @@ defmodule Sikio.PlaybackTest do
     assert Library.entry(c.alice, c.entry.id).playback.session_id == current.session_id
   end
 
-  # Ownership is checked on every write, a sample at least every five seconds per player, and
-  # while the row is locked. The check asks whether the account subscribes, not for the item.
-  # A sample asks it in the statement that locks. SQLite locks the whole database instead, from
-  # the start of every transaction.
+  # Every write checks ownership, and players send a sample at least every five seconds.
+  # The check queries `subscriptions` and never `feeds`. A save issues a single SELECT.
+  # On Postgres that SELECT takes the row lock. SQLite locks the database at transaction start.
   test "a write checks ownership without loading the item", c do
     {{:ok, %{session_id: session}}, started} =
       queries(fn -> Playback.start(c.alice, c.entry.id) end)
@@ -298,10 +297,9 @@ defmodule Sikio.PlaybackTest do
       do: assert(lock =~ ~r/FOR UPDATE$/)
   end
 
-  # A whole list put aside: exactly what it shows, however many pages that is, for this account
-  # alone. It is archived, not heard, so none of it reaches the history. Two things may be left
-  # out on request: what is in progress, and the one item the reader's player holds. A session a
-  # closed tab left behind holds nothing back.
+  # `mark_all` archives every entry the filter matches, across all pages, for this account only.
+  # Archived entries stay out of the history. Options exclude in-progress entries and the
+  # entry in the reader's player. Without options, a leftover session excludes nothing.
   test "mark_all archives what a list shows, leaving out only what it is asked to", c do
     entries =
       for n <- 1..120,
@@ -320,7 +318,7 @@ defmodule Sikio.PlaybackTest do
     {:ok, _} = Playback.mark(c.alice, id.("Episode 7"), :heard)
     Events.subscribe(c.alice)
 
-    # "episode 11" is Episode 11 and Episode 110 to 119.
+    # The query "episode 11" matches Episode 11 and Episodes 110 to 119.
     assert {:ok, 11} = Playback.mark_all(c.alice, %{"q" => "episode 11"})
     assert_received {:playback_marked, 11}
 
@@ -336,7 +334,7 @@ defmodule Sikio.PlaybackTest do
 
     assert Enum.map(left, & &1.title) |> Enum.sort() == ["Episode 5", "Episode 6"]
 
-    # Asked for everything, the session Episode 5 still carries holds nothing back.
+    # Without options, the leftover session on Episode 5 does not exclude it.
     assert Playback.markable(c.alice, %{"status" => ""}) == 2
     assert {:ok, 2} = Playback.mark_all(c.alice, %{"status" => ""})
 

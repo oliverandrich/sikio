@@ -2,7 +2,7 @@
 
 defmodule Sikio.LogEventsTest do
   @moduledoc """
-  The events production logs: what an operator acts on, by id, never by name, code or token.
+  Tests production log events. They identify accounts by id, never by username, code or token.
   """
   use Sikio.DataCase, async: true
   use Oban.Testing, repo: Sikio.Repo
@@ -21,7 +21,7 @@ defmodule Sikio.LogEventsTest do
   alias Sikio.Feeds.Parser
   alias SikioWeb.Auth
 
-  # A job that fails, as any of Sikio's may, with a reason as long as it likes.
+  # An Oban worker that fails with the given reason, of any length.
   defmodule Failing do
     @moduledoc false
     use Oban.Worker
@@ -29,8 +29,9 @@ defmodule Sikio.LogEventsTest do
     def perform(%{args: %{"reason" => reason}}), do: {:error, reason}
   end
 
-  # Hands this test the lines its processes log, at every level: its own, and those that name it
-  # among their callers, as a LiveView under test does. A handler runs in the process that logs.
+  # A `:logger` handler that sends this test's log events to the test process, at every level.
+  # It matches the test pid or a `$callers` entry, which covers a LiveView under test.
+  # A handler runs in the logging process.
   defmodule Lines do
     @moduledoc false
     def log(event, %{config: %{to: to}}) do
@@ -123,8 +124,8 @@ defmodule Sikio.LogEventsTest do
     refute log =~ "someone_else"
   end
 
-  # The operator has to know which source fails: its title and host say so. A private feed may
-  # carry its token in the path or the query, so the address itself stays out.
+  # Title and host identify the failing feed. The full URL is omitted, because a private feed
+  # may carry a token in its path or query.
   test "a feed that cannot be fetched is a warning with its id, title, host and why" do
     {:ok, preview} = Parser.parse(podcast(), feed_url("private/a-feed-token.rss?auth=secret"))
     {:ok, feed} = Feeds.store(preview)
@@ -140,7 +141,7 @@ defmodule Sikio.LogEventsTest do
     refute log =~ "secret"
   end
 
-  # The feed's own line already says what failed and where; a second for its job says nothing more.
+  # The feed refresh warning identifies the failure. A job failure line would duplicate it.
   test "a refresh that fails is one line, not one more for its job" do
     account = claim("first_claimant")
     {:ok, preview} = Parser.parse(podcast(), feed_url())

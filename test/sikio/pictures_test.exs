@@ -59,14 +59,14 @@ defmodule Sikio.PicturesTest do
       assert {:ok, %{type: "image/png"}} = Pictures.fetch(urls, dir)
     end
 
-    # An SVG may carry script, and it would be served from this origin.
+    # An SVG can contain script, and the cache serves it from this origin.
     test "an SVG is refused even though it is an image", %{tmp_dir: dir} do
       serving(%{"/logo.svg" => {"image/svg+xml", "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"}})
 
       assert Pictures.fetch(["https://img.example.org/logo.svg"], dir) == :error
     end
 
-    # The header is the publisher's claim and the bytes are the evidence. Both have to agree.
+    # The `content-type` header and the file signature must agree.
     test "a body that is not the picture its header claims is refused", %{tmp_dir: dir} do
       serving(%{
         "/fake.png" => {"image/png", "<html>not a picture</html>"},
@@ -83,7 +83,8 @@ defmodule Sikio.PicturesTest do
       assert Pictures.fetch(["https://img.example.org/huge.jpg"], dir) == :error
     end
 
-    # A dead address is asked once. Every page that lists the item would otherwise ask again.
+    # A failed URL is not requested again immediately. Otherwise every page listing the item
+    # would request it.
     test "a failed picture is not fetched again straight away", %{tmp_dir: dir} do
       serving(%{})
 
@@ -96,7 +97,7 @@ defmodule Sikio.PicturesTest do
   end
 
   describe "fetch/2 when something goes wrong" do
-    # Media types are case-insensitive, and a publisher may write them either way.
+    # Media types are case-insensitive.
     test "a type written in capitals is still a picture", %{tmp_dir: dir} do
       serving(%{"/caps.jpg" => {"Image/JPEG", jpeg()}})
 
@@ -104,7 +105,7 @@ defmodule Sikio.PicturesTest do
                Pictures.fetch(["https://img.example.org/caps.jpg"], dir)
     end
 
-    # A crash may leave an empty file behind. It is fetched again rather than served as broken.
+    # A crash may leave an empty cache file. It is fetched again instead of being served.
     test "a damaged cache entry is fetched again", %{tmp_dir: dir} do
       serving(%{"/1.jpg" => {"image/jpeg", jpeg()}})
       {:ok, %{path: path}} = Pictures.fetch(["https://img.example.org/1.jpg"], dir)
@@ -114,7 +115,7 @@ defmodule Sikio.PicturesTest do
       assert File.read!(path) == jpeg()
     end
 
-    # A full disk or a read-only directory costs the picture, not the page.
+    # A cache write failure, such as a full disk, returns `:error` instead of raising.
     test "a cache that cannot be written is no picture rather than a crash", %{tmp_dir: dir} do
       serving(%{"/1.jpg" => {"image/jpeg", jpeg()}})
       blocked = Path.join(dir, "not-a-directory")
@@ -125,8 +126,7 @@ defmodule Sikio.PicturesTest do
   end
 
   describe "prune/2" do
-    # The cache grows with every picture any list ever showed, so what nobody asked for in a
-    # month goes. Serving a picture is what counts as asking for it.
+    # Pruning bounds the cache size. Serving a picture refreshes its mtime, which the age checks.
     test "pictures not served for longer than the age are removed", %{tmp_dir: dir} do
       serving(%{"/kept.jpg" => {"image/jpeg", jpeg()}, "/old.jpg" => {"image/jpeg", jpeg()}})
       long_ago = System.os_time(:second) - 31 * 86_400
@@ -143,7 +143,7 @@ defmodule Sikio.PicturesTest do
       refute File.exists?(old)
     end
 
-    # The operator may point the cache at a directory that holds other things as well.
+    # The configured cache directory may contain other files.
     test "only the cache's own files are removed", %{tmp_dir: dir} do
       foreign = Path.join(dir, "notes.txt")
       File.write!(foreign, "keep me")

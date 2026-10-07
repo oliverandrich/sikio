@@ -2,10 +2,10 @@
 
 defmodule SikioWeb.LibraryPathsTest do
   @moduledoc """
-  The library's addresses: a list on screen and the item in it, as paths.
+  Conversion between library filters and URL paths, in both directions.
 
-  The library works on filters by status, source, tag and search. Only how they are spelled
-  in an address is decided here, both ways.
+  The library filters by status, source, tag and search. `Sidebar` encodes them as paths and
+  reads paths back into filters and an item id.
   """
   use ExUnit.Case, async: true
 
@@ -24,7 +24,7 @@ defmodule SikioWeb.LibraryPathsTest do
     assert Sidebar.library_path(@none) == "/all"
   end
 
-  # Like the library's front, a source opens on its inbox. Every item is a place of its own.
+  # A source path without a status segment opens the source's inbox.
   test "a source is named by its number and its title, and opens on its inbox" do
     assert Sidebar.library_path(filters(%{"source" => "106", "status" => "inbox"}), nil, @feeds) ==
              "/feeds/106-metacheles-tonspur"
@@ -45,7 +45,7 @@ defmodule SikioWeb.LibraryPathsTest do
     assert Sidebar.place_path("source", "106", @feeds) == "/feeds/106-metacheles-tonspur"
   end
 
-  # A tag is a place like a source, named by its number and its name, and opens on its inbox.
+  # Tag paths follow the source scheme: id and slug, with the inbox as default status.
   test "a tag is named by its number and its name, and opens on its inbox" do
     tags = %{{:tag, 3} => "Must view"}
 
@@ -125,7 +125,7 @@ defmodule SikioWeb.LibraryPathsTest do
              {filters(%{"source" => "106", "status" => "heard"}), "4056"}
   end
 
-  # Addresses from before the inbox still lead to the lists they meant.
+  # Paths from before the inbox existed map to the current lists.
   test "the old addresses read as the lists they meant" do
     assert Sidebar.read_path("/new", %{}) == {filters(%{"status" => "inbox"}), nil}
 

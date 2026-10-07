@@ -6,7 +6,7 @@ defmodule Sikio.Pictures.CleanupTest do
 
   alias Sikio.Pictures.Cleanup
 
-  # The worker deletes nothing unless something runs it, so the schedule is what is asserted.
+  # Asserts that the Oban crontab includes the worker, since an unscheduled worker never runs.
   test "the schedule runs the job" do
     options = Sikio.Application.oban()
 

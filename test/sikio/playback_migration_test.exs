@@ -2,11 +2,11 @@
 
 defmodule Sikio.PlaybackMigrationTest do
   @moduledoc """
-  The migration that splits what was finished into heard and archived, and adds the queue.
+  Tests the migration that splits `completed` into `heard` and `archived` and adds `queue_rank`.
 
-  It runs on a database of its own, made for the test and dropped after it: a migration cannot be
-  watched inside the sandbox, which starts with every migration already run. What was completed
-  becomes heard when its place had reached 90 % of its length, and archived otherwise.
+  `Sikio.MigrationCase` runs it on a temporary database, because the sandbox is fully migrated.
+  A `completed` state becomes `heard` when its position reached 90 % of the duration.
+  Otherwise it becomes `archived`.
   """
   use Sikio.MigrationCase
 
@@ -61,7 +61,7 @@ defmodule Sikio.PlaybackMigrationTest do
              "untouched" => "new"
            }
 
-    # The queue holds a rank, and the database refuses a status it no longer knows.
+    # `queue_rank` exists, and the database rejects the removed `completed` status.
     Repo.update_all(from(p in "playback_states"), set: [queue_rank: 1.0])
 
     assert_raise database_error(), fn ->

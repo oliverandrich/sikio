@@ -4,7 +4,8 @@ import {test} from "node:test"
 import assert from "node:assert/strict"
 import {dropIndex, keyIndex, shifts} from "./queue_sort.mjs"
 
-// The others' middles, top to bottom. The dragged row lands after every one its pointer passed.
+// `middles` are the other rows' vertical midpoints, top to bottom.
+// A dropped row lands after every row whose midpoint the pointer passed.
 test("a row dropped lands after the rows whose middle it passed", () => {
   const middles = [100, 200, 300]
   assert.equal(dropIndex(middles, 50), 0)
@@ -13,7 +14,7 @@ test("a row dropped lands after the rows whose middle it passed", () => {
   assert.equal(dropIndex(middles, 900), 3)
 })
 
-// From the keyboard a row moves one place, and not past either end.
+// The arrow keys move a row one position, never past either end.
 test("the arrow keys move a row one place within the list", () => {
   assert.equal(keyIndex("ArrowUp", 2, 4), 1)
   assert.equal(keyIndex("ArrowDown", 2, 4), 3)
@@ -22,10 +23,11 @@ test("the arrow keys move a row one place within the list", () => {
   assert.equal(keyIndex("Enter", 1, 4), null)
 })
 
-// While a row is held the others make room where it would land: dragged down, the rows it
-// passes move up a place; dragged up, they move down. Given per other row, top to bottom.
+// While a row is held, the other rows shift to make room.
+// Dragged down, passed rows move up one position. Dragged up, they move down one.
+// The result has one value per other row, top to bottom.
 test("the other rows make room where the held row would land", () => {
-  // Four rows, the second held: three others.
+  // Four rows with the second held, so three others.
   assert.deepEqual(shifts(1, 1, 3), [0, 0, 0], "where it was, nothing moves")
   assert.deepEqual(shifts(1, 3, 3), [0, -1, -1], "to the end, the two below move up")
   assert.deepEqual(shifts(1, 0, 3), [1, 0, 0], "to the top, the one above moves down")

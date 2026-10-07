@@ -2,24 +2,21 @@
 
 defmodule Sikio.SharedIdentifiersTest do
   @moduledoc """
-  What keeps the suite from deadlocking against itself.
+  Prevents deadlocks between async tests.
 
-  Almost every test file is `async: true`, each in its own sandbox transaction. Two transactions
-  that take the same two rows in opposite order deadlock, and Postgres kills one of them. The
-  only thing standing between the suite and that is whether two of them ever write the same row.
+  Most test files are `async: true`, each in its own sandbox transaction. Two transactions that
+  lock the same two rows in opposite order deadlock, and Postgres aborts one of them. This
+  requires two concurrent tests to write the same row.
 
-  The deadlock itself cannot be pinned by a test: it depends on how two transactions interleave,
-  and it happens in Postgres rather than in anything here. What can be pinned is the property
-  that removes the hazard, which is this.
-
-  The property is asked directly rather than through a list of names somebody has to remember
-  to extend. A list only ever covers what its author had in mind.
+  A test cannot reproduce the deadlock reliably, because it depends on transaction interleaving.
+  This test checks the precondition instead: no two async files share a username or feed URL
+  literal. It scans the source files rather than a hand-maintained list of names.
   """
   use ExUnit.Case, async: true
 
   @fixtures "test/support/feed_fixtures.ex"
 
-  # A name a test writes, and an address it turns into a feed row.
+  # Username literals and feed URL literals.
   @patterns [~r/username: "([^"]+)"/, ~r/"(https:\/\/[^"]+)"/]
 
   test "no two concurrent tests write a row under the same name" do
@@ -45,9 +42,9 @@ defmodule Sikio.SharedIdentifiersTest do
            """
   end
 
-  # Both halves of the hazard: a sandbox to write in, and another test running at the same
-  # moment. ExUnit runs the synchronous ones after every async one has finished, so a feature
-  # test cannot be the other half. One made async starts being covered.
+  # Selects async files that use a sandbox case template.
+  # ExUnit runs synchronous tests after all async tests, so they cannot collide.
+  # A file that becomes async is included automatically.
   defp concurrent_files do
     for path <- Path.wildcard("test/**/*.ex{,s}"),
         path != @fixtures,
@@ -67,8 +64,8 @@ defmodule Sikio.SharedIdentifiersTest do
     |> Enum.uniq()
   end
 
-  # What the fixtures spell is shared on purpose: it is the document every test reads, not a row
-  # any of them invents. Only what a test makes up for itself can collide.
+  # Literals from the shared fixtures are excluded. Every test reads them; only test-local
+  # literals can collide.
   defp fixture_content do
     source = File.read!(@fixtures)
 

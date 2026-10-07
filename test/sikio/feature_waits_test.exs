@@ -2,11 +2,12 @@
 
 defmodule Sikio.FeatureWaitsTest do
   @moduledoc """
-  What keeps the browser features from waiting for nothing and failing on a race.
+  Forbids Wallaby's `refute_has/2` in features.
 
-  Wallaby's `refute_has/2` retries until the element appears. On a page without it, it waits the
-  whole `max_wait_time` before it passes. On a page that still shows it, because the reply to a
-  click has not arrived, it fails at once. `SikioWeb.FeatureCase.gone/2` waits for absence instead.
+  `refute_has/2` retries until the element is present. When it is absent, the assertion passes
+  only after the full `max_wait_time`. When it is still present, for example before a click's
+  LiveView reply arrives, the assertion fails at once. `SikioWeb.FeatureCase.gone/2` retries until
+  the element count is zero.
   """
   use ExUnit.Case, async: true
 

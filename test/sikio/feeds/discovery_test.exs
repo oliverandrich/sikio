@@ -9,8 +9,8 @@ defmodule Sikio.Feeds.DiscoveryTest do
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.HTTP
 
-  # What an instance answers at any of its pages: an application shell that advertises feeds
-  # nobody asked for. Deliberately not a feed, so the discovery has to ask what runs here.
+  # The HTML shell a PeerTube instance serves on every route. It advertises unrelated feeds.
+  # It is not a feed, so discovery must query nodeinfo.
   defp instance_page do
     """
     <html><head>
@@ -20,10 +20,10 @@ defmodule Sikio.Feeds.DiscoveryTest do
     """
   end
 
-  # How long the server asks to be left alone, in seconds, beside what the request brought.
+  # `poll/2` returns the result and the server's requested wait in seconds, or nil.
   describe "poll/2" do
     defp answer(status, headers, body \\ "") do
-      # Prepended rather than put, so a header named twice is sent twice.
+      # `prepend_resp_headers/2` keeps duplicate header names.
       Req.Test.stub(HTTP, fn conn ->
         conn |> Plug.Conn.prepend_resp_headers(headers) |> Plug.Conn.send_resp(status, body)
       end)
@@ -59,7 +59,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
       assert wait in 1790..1800
 
       assert {{:error, :unavailable}, nil} = answer(503, [{"retry-after", "whenever"}])
-      # Sent twice, the first one counts.
+      # With a duplicate header, the first value is used.
       assert {{:error, :unavailable}, 120} =
                answer(503, [{"retry-after", "120"}, {"retry-after", "240"}])
 
@@ -67,8 +67,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
   end
 
-  # One field takes a link or a search. What reads as an address is looked up; everything else is
-  # searched for. A bare host counts as an address, since that is how people paste one.
+  # One input field accepts a URL or a search term. A bare host counts as a URL.
   describe "intent/1" do
     test "an address with a scheme or a bare host is a link" do
       for input <- [
@@ -119,8 +118,8 @@ defmodule Sikio.Feeds.DiscoveryTest do
              Discovery.discover("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos")
   end
 
-  # A channel's feed does not say which of its videos are Shorts. The channel's Shorts playlist
-  # has a feed of its own, and what it names is marked.
+  # A channel's Atom feed does not mark Shorts. Entries listed in the channel's Shorts playlist
+  # feed are marked as Shorts.
   describe "a YouTube channel's Shorts" do
     @channel_feed "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"
 
@@ -148,7 +147,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
       assert shorts(Discovery.poll(@channel_feed, [])) == [false]
     end
 
-    # A playlist has no Shorts to leave out, the Shorts playlist itself included.
+    # Playlist feeds, including the Shorts playlist, skip the Shorts lookup.
     test "are not looked up for a playlist" do
       Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, youtube()) end)
       playlist = "https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHabcdefghijklmnopqrstuv"
@@ -245,8 +244,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
     assert Enum.map(feeds, & &1.title) == ["First", "Second"]
   end
 
-  # A page may advertise five feeds. Asking them one after another makes whoever pasted the page
-  # wait for the slowest five times over.
+  # A page may list several candidate feeds. Sequential fetches would add up their latencies.
   test "a webpage's candidate feeds are fetched at the same time" do
     test = self()
 
@@ -352,8 +350,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
     assert feed.icon_url == "https://yt3.googleusercontent.com/picture=s900-c-k-no-rj"
   end
 
-  # The picture is decoration. A channel page that is slow, blocked or shaped differently must not
-  # cost somebody the subscription they asked for.
+  # The channel picture is optional. A failed channel page fetch must not fail discovery.
   test "a channel without a reachable picture still subscribes" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
@@ -366,7 +363,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
              Discovery.discover("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv")
   end
 
-  # The same rule the feed's own artwork follows: an href in a document belongs to that document.
+  # A relative href resolves against the document that contains it, as for feed artwork.
   test "a picture named relative to the channel page resolves against it" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
@@ -392,8 +389,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
     assert feed.icon_url == "https://www.youtube.com/img/avatar.jpg"
   end
 
-  # Any host may run PeerTube, so nothing can be recognised from a list of names. The instance
-  # says what it runs, and that answer is what decides.
+  # Any host may run PeerTube, so no hostname list can identify it. Detection uses nodeinfo.
   test "a PeerTube instance is recognised by what it says it runs" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
@@ -422,7 +418,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
              Discovery.discover("https://video.example.org")
   end
 
-  # A blog that happens to answer nodeinfo is not an instance of anything playable.
+  # A host whose nodeinfo names other software, such as Mastodon, is not PeerTube.
   test "a host running something else is not treated as PeerTube" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
@@ -479,9 +475,8 @@ defmodule Sikio.Feeds.DiscoveryTest do
              Discovery.discover("https://video.example.org/c/good/videos")
   end
 
-  # A PeerTube video page advertises its own comment feed and the feed of the whole instance.
-  # Searching the page for links would take one of those. The channel that published the video
-  # is what somebody pasting a video means.
+  # A PeerTube video page advertises its comment feed and the instance feed.
+  # Discovery uses the video API to subscribe to the publishing channel instead.
   test "a pasted PeerTube video subscribes to its channel, not to its comments" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
@@ -517,8 +512,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
              Discovery.discover("https://video.example.org/w/mSh0rtUu1d")
   end
 
-  # An instance serves every one of its routes as the same application shell, so the address
-  # somebody copied out of their browser may be any of them.
+  # An instance serves the same HTML shell on every route. A pasted URL may be any of them.
   test "the other addresses an instance answers under also reach their feed" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do

@@ -26,8 +26,8 @@ defmodule SikioWeb.AuthRateLimiterTest do
     assert AuthRateLimiter.check({:one, 1}, 1, 1, server) == :ok
   end
 
-  # A full table still refuses a key it has no room for. It says when a slot frees, though, and
-  # not the window the caller asked for: a day-long budget would otherwise refuse for a day.
+  # A full table refuses a new key. The retry time is when the earliest slot frees.
+  # Returning the requested window would block a day-long budget for a day.
   test "a full group refuses until its earliest slot frees", %{server: server} do
     assert AuthRateLimiter.check({:ceremony, 1}, 5, 60, server) == :ok
     assert AuthRateLimiter.check({:ceremony, 2}, 5, 60, server) == :ok

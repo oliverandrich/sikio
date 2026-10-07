@@ -2,13 +2,13 @@
 
 defmodule SikioWeb.AddressedAccountsTest do
   @moduledoc """
-  What the screens ask for, and say, when an account is an address rather than a name.
+  Forms and messages in email mode compared with username mode.
 
-  The rule is one setting deep, so every surface that spells "username" has to follow it or the
-  interface asks for one thing and the ceremony refuses another. A form offering a pattern no
-  address can match is the expensive version of that: it is refused after the passkey dialogue.
+  The `:account_identity` setting switches the identifier. Every form and message naming it must
+  follow, or the form and the ceremony disagree. A mismatched input pattern fails only after the
+  passkey prompt.
   """
-  # async: false — the mode is application configuration and these set it.
+  # async: false, because these tests change application configuration.
   use SikioWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -22,8 +22,7 @@ defmodule SikioWeb.AddressedAccountsTest do
 
   defp addressing, do: TestConfig.put_env(:sikio, :account_identity, :email)
 
-  # Past the operator's code, because the claim form is what asks for the identifier and the code
-  # form stands in front of it.
+  # Skips the setup code form, because only the claim form asks for the identifier.
   setup %{conn: conn}, do: %{conn: claiming_conn(conn)}
 
   test "the first account is asked for as an address", %{conn: conn} do
@@ -42,10 +41,9 @@ defmodule SikioWeb.AddressedAccountsTest do
     refute html =~ ~s(type="email")
   end
 
-  # The invitation form puts the field's name in front of whatever the changeset said, so the
-  # sentence the shape is refused with has to read as the second half of one and not as a whole
-  # one of its own. Written out rather than matched loosely: the fault this catches is the field
-  # named twice, and a `=~ "address"` passes straight through it.
+  # The invitation form prefixes the changeset message with the field label.
+  # The message must not repeat the label. The assertion matches the full sentence,
+  # because `=~ "address"` also passes when the label appears twice.
   test "the invitation refusal names the field once" do
     addressing()
 
@@ -58,8 +56,7 @@ defmodule SikioWeb.AddressedAccountsTest do
   end
 
   defp refusal_for(value) do
-    # The inviter has to satisfy the mode as well: an account is an address here or a name there,
-    # and the same fixture cannot be both.
+    # The inviter's username must be valid in the current mode.
     inviter = if Identity.email?(), do: "ada@example.org", else: "ada"
     account = Repo.insert!(User.changeset(%User{}, %{username: inviter}))
     conn = build_conn() |> Plug.Test.init_test_session(%{}) |> Gate.log_in(account)
@@ -69,8 +66,7 @@ defmodule SikioWeb.AddressedAccountsTest do
     view |> form("#invitation-form", %{"username" => value}) |> render_submit()
   end
 
-  # The codes are the library's and say `username` whatever the mode is. The sentence this
-  # application answers with is the part that has to know.
+  # Ithibati's error codes name `username` in both modes. `CeremonyMessages` words them per mode.
   test "a refusal says what was actually wanted" do
     assert CeremonyMessages.message("invalid_username", nil) =~ "underscores"
 

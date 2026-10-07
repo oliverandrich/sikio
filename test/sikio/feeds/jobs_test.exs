@@ -25,7 +25,7 @@ defmodule Sikio.Feeds.JobsTest do
   end
 
   test "schedules one refresh per active feed, whoever subscribed to it", ctx do
-    # The same feed on purpose: one refresh is scheduled however many accounts want it.
+    # Two accounts subscribe to the same feed. The scheduler enqueues one refresh.
     other = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, preview} = Parser.parse(podcast(), ctx.url)
     {:ok, _second} = Library.subscribe(other, preview)
@@ -36,8 +36,8 @@ defmodule Sikio.Feeds.JobsTest do
     assert length(all_enqueued(worker: Refresh)) == 1
   end
 
-  # Every request sets when the feed is asked next. The scheduler runs more often than any feed
-  # is due, so the feeds spread over the hour.
+  # Each refresh sets `next_check_at`. The scheduler runs more often than any feed is due and
+  # enqueues only due feeds.
   test "a feed is scheduled once its next check has come", ctx do
     id = ctx.subscription.feed_id
 
@@ -50,8 +50,8 @@ defmodule Sikio.Feeds.JobsTest do
     assert_enqueued(worker: Refresh, args: %{feed_id: id})
   end
 
-  # The moment is computed when the job runs, a little after the scheduler queued it. Without
-  # leeway the feed would miss the run it was meant for and wait for the next one.
+  # The scheduler compares due times when it runs, slightly after cron enqueued it.
+  # Without a one-minute leeway, a feed would miss this run and wait for the next.
   test "a feed due within the next minute is scheduled now", ctx do
     due_in(ctx.subscription.feed_id, minutes: 0.5)
 
@@ -59,7 +59,7 @@ defmodule Sikio.Feeds.JobsTest do
     assert_enqueued(worker: Refresh, args: %{feed_id: ctx.subscription.feed_id})
   end
 
-  # A full queue can hold a refresh past the next run of the scheduler. It is still the one.
+  # A busy queue can delay a refresh past the next scheduler run. No duplicate is enqueued.
   test "a refresh still waiting in the queue is not queued twice", ctx do
     due_in(ctx.subscription.feed_id, minutes: -1)
     assert :ok = perform_job(Scheduler, %{})
@@ -78,8 +78,8 @@ defmodule Sikio.Feeds.JobsTest do
     assert_enqueued(worker: Refresh, args: %{feed_id: ctx.subscription.feed_id})
   end
 
-  # The schedule and the job disagree on purpose. A feed may be paused in the minutes between
-  # being queued and being run, and the job is the one that asks last.
+  # A feed may be paused between enqueue and execution, so `Refresh` rechecks subscriptions.
+  # No HTTP stub is registered, so a request would raise.
   test "a queued job does nothing after the last subscription is paused", ctx do
     {:ok, _paused} = Library.pause(ctx.user, ctx.subscription.id, true)
     due_in(ctx.subscription.feed_id, minutes: -1)
@@ -89,7 +89,7 @@ defmodule Sikio.Feeds.JobsTest do
     assert :ok = perform_job(Refresh, %{feed_id: ctx.subscription.feed_id})
   end
 
-  # The job is how new episodes arrive, so it is the one that sends them where subscriptions say.
+  # `Refresh` delivers new entries according to the subscription's `delivery` setting.
   test "a refresh job sends new episodes where the subscription says", ctx do
     {:ok, _} = Library.update_subscription(ctx.user, ctx.subscription.id, %{delivery: :queue})
 
@@ -98,7 +98,8 @@ defmodule Sikio.Feeds.JobsTest do
     assert [%{title: "Later"}] = Library.entries(ctx.user, %{"status" => "queue"})
   end
 
-  # A server that names its wait is asked again then, by the schedule, not by Oban a minute later.
+  # A 429 with `Retry-After` returns `:ok`, so Oban does not retry. `next_check_at` carries the
+  # wait.
   test "a refresh job leaves a server alone that asked to wait", ctx do
     Req.Test.stub(HTTP, fn conn ->
       conn |> Plug.Conn.put_resp_header("retry-after", "3600") |> Plug.Conn.send_resp(429, "")

@@ -3,11 +3,11 @@
 if Application.compile_env!(:sikio, :database) == :postgres do
   defmodule Sikio.QueueLockTest do
     @moduledoc """
-    Changes to one account's queue on Postgres, each on a connection of its own.
+    Tests locking of one account's queue on Postgres, with concurrent connections.
 
-    The sandbox runs a test on one connection, where nothing can race. This module commits for
-    real instead and removes what it wrote. SQLite needs no such test: its transactions take the
-    database's only write lock when they begin.
+    The sandbox uses one connection, so it cannot test concurrency. This module commits and
+    deletes its rows afterwards. SQLite needs no such test, because `IMMEDIATE` transactions take
+    the single write lock at start.
     """
     use ExUnit.Case, async: false
 
@@ -26,8 +26,9 @@ if Application.compile_env!(:sikio, :database) == :postgres do
 
     @username "queue_lock_test"
 
-    # Modules that are not async run after every async one, so nothing else holds a sandbox.
-    # Cleanup is registered first and finds its rows by name, so a failing setup leaves none.
+    # Synchronous modules run after all async ones, so no other test holds a sandbox.
+    # Cleanup is registered first and deletes by username and URL.
+    # A failed setup therefore leaves no rows.
     setup do
       url = feed_url()
       Sandbox.mode(Repo, :auto)
@@ -54,15 +55,15 @@ if Application.compile_env!(:sikio, :database) == :postgres do
       assert is_float(rank)
     end
 
-    # It takes items out of the queue, many rows at once, while a renumbering may hold some.
+    # `mark_all/2` dequeues many rows at once, while a renumbering may lock some of them.
     test "putting a list aside waits for a change to the queue", c do
       {:ok, _} = Playback.enqueue(c.account, c.entry.id, :last)
 
       assert {:ok, 1} = waits_for_queue(c.account, fn -> Playback.mark_all(c.account, %{}) end)
     end
 
-    # Taking an item out does not hold the queue. A renumbering that read the item before must not
-    # put it back once the other transaction commits.
+    # Dequeuing does not take the queue lock. A concurrent renumbering must not restore an item
+    # that another transaction dequeued.
     test "a renumbering leaves out an item taken out of the queue meanwhile", c do
       {:ok, preview} = Parser.parse(podcast(), c.url)
 
@@ -72,7 +73,7 @@ if Application.compile_env!(:sikio, :database) == :postgres do
       {:ok, _} = Library.subscribe(c.account, %{preview | entries: entries})
       [first, taken, moved] = for n <- 1..3, do: entry_id("Rank #{n}")
 
-      # No float lies between the first two ranks, so moving the third between them renumbers.
+      # No float lies between the first two ranks, so moving the third there forces a renumbering.
       for {id, rank} <- [{first, 1.0}, {taken, 1.0000000000000002}, {moved, 3.0}] do
         {:ok, _} = Playback.enqueue(c.account, id, :last)
         Repo.update_all(from(p in State, where: p.entry_id == ^id), set: [queue_rank: rank])
@@ -104,8 +105,8 @@ if Application.compile_env!(:sikio, :database) == :postgres do
 
     defp entry_id(title), do: Repo.one!(from e in Entry, where: e.title == ^title, select: e.id)
 
-    # Holds the account's queue in another transaction, then runs `change`. It has to wait, as
-    # Postgres reports, until the holder lets go.
+    # Holds the queue lock in another transaction, then runs `change`. Asserts via
+    # `pg_stat_activity` that `change` waits until the lock is released.
     defp waits_for_queue(account, change) do
       test = self()
 
@@ -130,7 +131,7 @@ if Application.compile_env!(:sikio, :database) == :postgres do
       Task.await(task)
     end
 
-    # Whether a statement containing `statement` waits for a lock.
+    # Returns whether a query containing `statement` waits for a lock.
     defp blocked?(statement) do
       %{rows: [[count]]} =
         Repo.query!(

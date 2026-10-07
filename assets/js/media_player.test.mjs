@@ -4,8 +4,8 @@ import {test} from "node:test"
 import assert from "node:assert/strict"
 import {createReporter, MediaPlayer} from "./media_player.mjs"
 
-// The wording the server renders into the element's dataset. The tests assert on these, because
-// what the player says is what somebody reads when playback stops.
+// Messages the server renders into the element's dataset.
+// The tests assert on them, because users read them when playback stops.
 const STRINGS = {
   stale: "Your progress changed elsewhere. Press Play to continue here.",
   disconnected: "Connection lost. Playback paused; your latest position will save when reconnected.",
@@ -81,8 +81,8 @@ test("reconnect retries the latest position and ignores a late pre-disconnect re
   assert.equal(f.message(), "", "a save clears the warning and says nothing of its own")
 })
 
-// The player's own hint, such as press play after a refused autoplay, is not the reporter's to
-// clear. A save only takes back a warning the reporter gave itself.
+// The player's own hints, such as "Press play" after a blocked autoplay, stay after a save.
+// A save clears only warnings the reporter set itself.
 test("a save leaves a message it did not give", () => {
   const f = reporterFixture()
   f.reporter.save()
@@ -100,8 +100,8 @@ test("a save leaves a message it did not give", () => {
   assert.equal(f.message(), "Press play")
 })
 
-// A paused PeerTube embed keeps reporting twice a second, and each report asks for a save. A
-// switch that waited for the queue to run dry would never end, and no button would work again.
+// A paused PeerTube embed reports twice a second, and each report requests a save.
+// Finishing must not wait for an empty save queue. It would never end, and no button would work.
 test("finishing ends although the player keeps asking to save", () => {
   const f = reporterFixture()
   const results = []
@@ -126,7 +126,7 @@ test("unknown live duration is omitted and invalid positions are not persisted",
   assert.equal(calls[0].duration, null)
 })
 
-// The page's keys drive the audio: play and pause, the skips, the chapters and the sound.
+// Player commands control the audio: play/pause, skips, chapters and mute.
 test("audio follows the player's keys", () => {
   const calls = []
   const audio = new EventTarget()
@@ -145,7 +145,7 @@ test("audio follows the player's keys", () => {
     hook.mounted()
     audio.readyState = 1
     audio.dispatchEvent(new Event("loadedmetadata"))
-    // Restoring the place starts the audio, so the first press pauses it and the next plays.
+    // Restoring the position starts playback, so the first toggle pauses and the second plays.
     command({name: "toggle"})
     command({name: "toggle"})
     assert.deepEqual(calls, ["play", "pause", "play"])
@@ -169,7 +169,7 @@ test("audio follows the player's keys", () => {
     assert.equal(audio.muted, true)
     command({name: "mute"})
     assert.equal(audio.muted, false)
-    // The page may learn the chapters later, from a file or a measured length.
+    // Chapters can change later, from a chapters file or a measured duration.
     hook.el.dataset.chapters = JSON.stringify([{at: 0, title: "A"}, {at: 50, title: "B"}])
     audio.currentTime = 10
     command({name: "chapter", direction: 1})
@@ -180,7 +180,7 @@ test("audio follows the player's keys", () => {
   }
 })
 
-// A key before the audio knows itself moves from the saved place, not from zero.
+// A skip before metadata loads moves from the saved position, not from zero.
 test("a skip before the audio is ready starts from the saved place", () => {
   const audio = new EventTarget()
   Object.assign(audio, {dataset: {}, currentTime: 0, duration: 4000, readyState: 0, playbackRate: 1,
@@ -220,7 +220,7 @@ test("audio restores after metadata, saves end and cleans up", () => {
   try {
     hook.mounted()
     assert.equal(audio.currentTime, 0)
-    // A chapter chosen before the audio knows itself is where it starts, not the saved place.
+    // A chapter selected before metadata loads sets the start instead of the saved position.
     hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 33}}))
     audio.readyState = 1
     audio.dispatchEvent(new Event("loadedmetadata"))
@@ -264,7 +264,7 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     getDuration() {return 100}
     getPlayerState() {return state}
     pauseVideo() {calls.push("pauseVideo")}
-    // Like YouTube's own, the player answers only once it said it is ready.
+    // Like the real API, the fake ignores `seekTo` until the player is ready.
     seekTo(at) {if (playerReady) sought = at}
     playVideo() {calls.push("playVideo")}
     mute() {muted = true}
@@ -280,22 +280,22 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
   try {
     hook.mounted()
     await Promise.resolve()
-    // A chapter chosen before the player is ready is not lost.
+    // A chapter selected before the player is ready is applied on ready.
     hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 21}}))
     playerReady = true
     events.onReady()
     assert.equal(sought, 21)
-    // YouTube shows captions for some videos unasked. The player starts without them; its CC
-    // button brings them back.
+    // YouTube enables captions for some videos by default. The player unloads them at start.
+    // Its CC button turns them back on.
     assert.deepEqual(unloaded, ["captions"])
     assert.equal(message.textContent, "", "a player that works says nothing")
     hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 55}}))
     assert.equal(sought, 55, "a chapter moves the video")
-    // The page's keys drive the video through the API. The fake reports paused.
+    // Player commands control the video through the API. The fake reports paused.
     const command = detail => hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail}))
     command({name: "toggle"})
     assert.deepEqual(calls, ["playVideo"])
-    // A video that buffers after a skip is meant to play, so the key pauses it.
+    // A video buffering after a skip is meant to play, so toggle pauses it.
     state = 3
     command({name: "toggle"})
     assert.deepEqual(calls, ["playVideo", "pauseVideo"])
@@ -311,7 +311,8 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
     position = 30
     poll()
     assert.equal(samples.at(-1)?.position, 30)
-    // Playing is saved every few seconds, a jump at once: the page shows the chapter it reached.
+    // During playback a save happens every few seconds, a jump saves at once.
+    // So the page shows the chapter reached by the jump.
     state = 1
     position = 31
     poll()
@@ -334,7 +335,7 @@ test("YouTube saves a seek while paused, maps errors and destroys the iframe", a
   }
 })
 
-// A browser may refuse to start sound on its own. Then the reader needs to know what to press.
+// A browser may block autoplay with sound. The player then asks the user to press play.
 test("audio the browser refuses to start asks for the play button", async () => {
   const audio = new EventTarget()
   Object.assign(audio, {dataset: {}, currentTime: 0, duration: 100, readyState: 1, playbackRate: 1,
@@ -382,9 +383,9 @@ test("finish refuses a switch while disconnected and can be retried", () => {
   assert.deepEqual(results, [false, true])
 })
 
-// A PeerTube embed reports where it is about twice a second. That is the sample, and it is also
-// what says the player exists: asked any earlier it answers zero, which would overwrite the
-// place somebody left off at.
+// A PeerTube embed reports its position about twice a second. Each report is a sample.
+// The first report also shows that the player exists. Before it, a query returns zero.
+// Saving that zero would overwrite the saved position.
 test("PeerTube reports its own position and does not save before it has one", async () => {
   const previous = {document: globalThis.document, window: globalThis.window}
   const doc = new EventTarget(), samples = [], said = [], posted = []
@@ -418,7 +419,8 @@ test("PeerTube reports its own position and does not save before it has one", as
     assert.equal(samples.at(-1)?.position, 42.5)
     assert.equal(samples.at(-1)?.duration, 100)
 
-    // Playing is saved every few seconds, a jump at once: the page shows the chapter it reached.
+    // During playback a save happens every few seconds, a jump saves at once.
+    // So the page shows the chapter reached by the jump.
     const playing = position => fromEmbed({method: "peertube::playbackStatusUpdate",
       params: {position, duration: 100, playbackState: "playing"}})
     playing(43)
@@ -429,10 +431,10 @@ test("PeerTube reports its own position and does not save before it has one", as
     await Promise.resolve()
     assert.equal(samples.at(-1).ended, true)
 
-    // A chapter moves the instance's player.
+    // A chapter seeks the instance's player.
     hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 118}}))
     assert.ok(posted.some(m => m.method === "peertube::seek" && m.params === 118), "the instance seeks")
-    // The page's keys drive the instance's player. It said last that it ended, so play.
+    // Player commands control the instance's player. Its last state was ended, so toggle plays.
     const command = detail => hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail}))
     command({name: "toggle"})
     assert.ok(posted.some(m => m.method === "peertube::play"), "toggle plays what is not playing")
@@ -441,7 +443,7 @@ test("PeerTube reports its own position and does not save before it has one", as
     command({name: "mute"})
     assert.ok(posted.some(m => m.method === "peertube::setVolume" && m.params === 0), "sound off")
 
-    // Closing flushes first, while the frame is still in the page, and that is what pauses it.
+    // Closing flushes while the iframe is still in the page, and the flush pauses the player.
     hook.el.dispatchEvent(new CustomEvent("sikio:flush", {detail: {done: () => {}}}))
     assert.ok(posted.some(m => m.method === "peertube::pause"), "closing stops the instance's player")
     hook.destroyed()
@@ -452,9 +454,9 @@ test("PeerTube reports its own position and does not save before it has one", as
   }
 })
 
-// LiveView removes the player's element before it calls destroyed, so the iframe is detached and
-// has no window to write to. Cleaning up must not throw: an exception there aborts LiveView's patch
-// before the dock's reply arrives, and from then on no button works.
+// LiveView removes the player's element before calling `destroyed`, so the iframe has no window.
+// Cleanup must not throw. An exception aborts LiveView's patch before the dock's reply arrives.
+// After that no button works.
 test("a PeerTube player whose frame is gone cleans up quietly and hears nothing more", () => {
   const previous = {document: globalThis.document, window: globalThis.window}
   const samples = []
@@ -488,7 +490,7 @@ test("a PeerTube player whose frame is gone cleans up quietly and hears nothing 
   }
 })
 
-// A paused embed keeps reporting the same place twice a second. Only becoming paused is news.
+// A paused embed reports the same position twice a second. Only the change to paused is saved.
 test("a paused PeerTube video saves its place once, not with every report", async () => {
   const previous = {document: globalThis.document, window: globalThis.window}
   const samples = []
@@ -517,7 +519,7 @@ test("a paused PeerTube video saves its place once, not with every report", asyn
     const playing = samples.length
     for (let n = 0; n < 4; n++) report("paused")
     assert.equal(samples.length, playing + 1)
-    // A seek while paused moves the place, and that is saved at once.
+    // A seek while paused changes the position, which is saved immediately.
     report("paused", 300)
     report("paused", 300)
     assert.equal(samples.length, playing + 2)
@@ -529,9 +531,9 @@ test("a paused PeerTube video saves its place once, not with every report", asyn
   }
 })
 
-// Measured against a real instance: a video reaching its end reports `paused` and then `ended`
-// a millisecond later. YouTube reports one state, so two saves leaving together is new here.
-// The later one has to win, or finishing a video would leave it merely paused.
+// Measured on a real instance: at its end a video reports `paused`, then `ended` 1 ms later.
+// YouTube reports one state, so two concurrent saves occur only with PeerTube.
+// The later save must win, or a finished video would stay paused.
 test("PeerTube pauses a millisecond before it ends, and the end is what counts", async () => {
   const previous = {document: globalThis.document, window: globalThis.window}
   const samples = [], said = []
@@ -570,8 +572,8 @@ test("PeerTube pauses a millisecond before it ends, and the end is what counts",
   }
 })
 
-// The capsule shows play or pause and a line for how far it has come. The player says both on its
-// element, whichever kind it is.
+// The capsule shows play or pause and a progress line.
+// The player sets `data-playing` and `--played` on its element. Tested for audio and PeerTube.
 test("the player says whether it plays and how far it has come", async () => {
   const previous = {document: globalThis.document, window: globalThis.window}
   globalThis.document = Object.assign(new EventTarget(), {hidden: false})
@@ -628,8 +630,8 @@ test("the player says whether it plays and how far it has come", async () => {
   }
 })
 
-// The system's own controls for an episode: the lock screen, the control centre, headphones and
-// media keys. A stand-in session records what the player tells it.
+// The Media Session API backs lock screen, control centre, headphone and media key controls.
+// The fake session records what the player sets.
 function mediaSession() {
   const session = {metadata: null, playbackState: "none", handlers: {}, position: null,
     setActionHandler(name, handler) {
@@ -685,7 +687,7 @@ test("the system's controls show the episode and drive it", () => {
     assert.equal(audio.currentTime, 85)
     session.handlers.seekforward({})
     assert.equal(audio.currentTime, 115)
-    // iOS draws its skip buttons with an offset of its own and sends it along; the jump follows.
+    // iOS sends its own `seekOffset` for its skip buttons, and the jump uses it.
     session.handlers.seekbackward({seekOffset: 10})
     assert.equal(audio.currentTime, 105)
     session.handlers.seekforward({seekOffset: 10})
@@ -711,7 +713,7 @@ test("the system's controls show the episode and drive it", () => {
   }
 })
 
-// The next episode may announce itself before the last one's player is gone.
+// The next episode's player can mount before the previous one is destroyed.
 test("a player clears only what it set itself", () => {
   const {session, restore} = mediaSession()
   const previousDocument = globalThis.document
@@ -732,7 +734,7 @@ test("a player clears only what it set itself", () => {
   }
 })
 
-// The dock plays on with the queue when an item ends; the player says so.
+// The player dispatches `sikio:ended` on window when an episode ends. The dock then plays on.
 test("an ended episode tells the page", () => {
   const previous = {document: globalThis.document, window: globalThis.window}
   globalThis.document = Object.assign(new EventTarget(), {hidden: false})
@@ -754,8 +756,8 @@ test("an ended episode tells the page", () => {
   }
 })
 
-// The dock's face is rendered once. Chapters the page learns later, from a file or a measured
-// length, reach its bar here, and the same chapters are not drawn twice.
+// The dock's face is rendered once. `updated` draws chapters loaded later on its bar.
+// The same chapters are not drawn twice.
 test("chapters learned later are drawn on the dock's bar", () => {
   const previousDocument = globalThis.document
   globalThis.document = {createElement: () => ({dataset: {}, style: {setProperty() {}}, setAttribute() {}})}

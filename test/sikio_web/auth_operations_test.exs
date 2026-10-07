@@ -49,7 +49,7 @@ defmodule SikioWeb.AuthOperationsTest do
     assert AuthCleanup.run() == %{sessions: 0, challenges: 0, invitations: 0}
   end
 
-  # A connected LiveView never looks its session up again, so only this broadcast ends it.
+  # A connected LiveView does not recheck its session. Only the disconnect broadcast ends it.
   test "cleanup disconnects the LiveViews of an expired session" do
     account = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     expired = Sessions.generate_session_token(account)
@@ -64,7 +64,8 @@ defmodule SikioWeb.AuthOperationsTest do
     refute_receive %Phoenix.Socket.Broadcast{event: "disconnect"}
   end
 
-  # More expired sessions than SQLite takes bind parameters, as after months without cleanup.
+  # 33,000 sessions exceed SQLite's bind parameter limit per statement.
+  # Months without cleanup can leave such a backlog.
   test "cleanup deletes a backlog larger than one statement's parameters" do
     account = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     expired_at = DateTime.add(DateTime.utc_now(), -61, :day)

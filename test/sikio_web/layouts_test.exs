@@ -2,18 +2,17 @@
 
 defmodule SikioWeb.LayoutsTest do
   @moduledoc """
-  The one place where the browser is told the same rule as the server.
+  Agreement of the username `pattern` attribute with the server rule.
 
-  A `pattern` attribute that disagrees with `Ithibati.Schema.Identifier.username_format/0` refuses
-  names the server would take, or waves through names it will not, and neither failure says
-  anything — so the derivation that keeps them in step is pinned rather than trusted.
+  A `pattern` that differs from `Ithibati.Schema.Identifier.username_format/0` rejects valid
+  names or accepts invalid ones, without any error. These tests pin the derivation.
   """
   use ExUnit.Case, async: true
 
   alias Ithibati.Schema.Identifier
   alias SikioWeb.Layouts
 
-  # HTML anchors `pattern` implicitly; this is what the browser compiles it to.
+  # HTML anchors `pattern` implicitly. This builds the anchored regex the browser compiles.
   defp as_browser_sees_it do
     Regex.compile!("\\A(?:" <> Layouts.username_pattern() <> ")\\z")
   end
@@ -41,9 +40,8 @@ defmodule SikioWeb.LayoutsTest do
     end
   end
 
-  # The guard on the derivation itself: `pattern` is ECMAScript, which has no `\\A`, so a stray
-  # anchor would not merely be untidy — the browser would refuse to compile the attribute and stop
-  # validating anything at all, silently.
+  # `pattern` is ECMAScript, which has no `\A` or `\z`. A browser ignores a pattern
+  # that fails to compile, so validation would stop without an error.
   test "and carries no anchor the browser cannot compile" do
     refute Layouts.username_pattern() =~ ~r/\\[Az]/
   end

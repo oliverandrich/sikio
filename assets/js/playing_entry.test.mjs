@@ -17,7 +17,7 @@ function mount(dock) {
   return {el, input}
 }
 
-// The choice about the player's item shows only while the player holds one, and names it.
+// The player-item option is visible only while the player has an entry, and carries its id.
 test("the player's item is offered only while there is one", () => {
   const playing = mount({dataset: {entryId: "42"}})
   assert.equal(playing.el.hidden, false)

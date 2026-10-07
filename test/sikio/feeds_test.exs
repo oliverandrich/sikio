@@ -15,9 +15,8 @@ defmodule Sikio.FeedsTest do
   alias Sikio.Library
   alias Sikio.Library.Events
 
-  # One address for this module and a different one for every other, evaluated once when this
-  # is compiled. Several tests here mean the same feed on purpose, which is what half of them
-  # are about; two modules meaning the same row is what the suite deadlocks on.
+  # Evaluated once at compile time and unique to this module. Tests here share this feed on
+  # purpose. Two async modules writing the same row can deadlock.
   @feed_url feed_url()
 
   test "a feed is stored once, however often it is imported" do
@@ -30,8 +29,8 @@ defmodule Sikio.FeedsTest do
     assert Repo.aggregate(Entry, :count) == 1
   end
 
-  # Two items sharing a GUID are one episode. The first one in the document is the one kept, so a
-  # feed that repeats an entry lower down cannot rewrite what is already in the library.
+  # Items with the same GUID are one entry. The first occurrence wins, so a later duplicate in
+  # the document cannot overwrite it.
   test "an episode repeated inside one document is imported once" do
     body = String.replace(podcast(), "</channel>", twin() <> "</channel>")
 
@@ -49,8 +48,8 @@ defmodule Sikio.FeedsTest do
     assert Repo.aggregate(Entry, :count) == 1
   end
 
-  # The fixture's newest episode is weeks old, so a tenth of its age is more than the day the
-  # wait is capped at. Each kind of answer sets the next request.
+  # The fixture's newest entry is weeks old, so a tenth of its age exceeds the one-day cap.
+  # Both a store and a 304 set `next_check_at`.
   test "a stored or unchanged feed is asked next by the age of its newest entry" do
     {:ok, stored} = Feeds.store(preview())
     assert_next_check(stored.id, hours: 24)
@@ -60,7 +59,7 @@ defmodule Sikio.FeedsTest do
     assert_next_check(stored.id, hours: 24)
   end
 
-  # A failure says nothing about the feed's pace, so it is tried again at the base interval.
+  # A failure carries no publication date, so the next check uses the base interval.
   test "a feed that failed is asked again after the base interval" do
     {:ok, stored} = Feeds.store(preview())
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "try later") end)
@@ -69,7 +68,7 @@ defmodule Sikio.FeedsTest do
     assert_next_check(stored.id, hours: 1)
   end
 
-  # A busy server says when to come back, and that is when it is asked next.
+  # A `Retry-After` of 7200 seconds sets the next check two hours ahead.
   test "a server that asks to be left alone is asked again when it said" do
     {:ok, stored} = Feeds.store(preview())
 
@@ -82,7 +81,8 @@ defmodule Sikio.FeedsTest do
     assert_next_check(stored.id, hours: 2)
   end
 
-  # A gone feed is not one that is down for a while. The reader is told which it is.
+  # 404 and 410 record `gone`, distinct from a temporary `unavailable`, so readers can tell them
+  # apart.
   test "a source that is gone records that it is gone" do
     {:ok, stored} = Feeds.store(preview())
 
@@ -93,8 +93,8 @@ defmodule Sikio.FeedsTest do
     end
   end
 
-  # The sidebar marks a failing source. Starting to fail and recovering are news, once each;
-  # failing again is not, or every poll of a broken feed would reload every open library.
+  # The sidebar marks failing feeds. The first failure and the recovery broadcast once each.
+  # A repeated failure broadcasts nothing, or each poll would reload every open library view.
   test "a source that starts failing or recovers notifies its subscribers once" do
     {:ok, stored} = Feeds.store(preview())
     Events.subscribe_updates(%User{id: subscriber(stored.id)})
@@ -122,8 +122,8 @@ defmodule Sikio.FeedsTest do
     assert refreshed.last_checked_at
   end
 
-  # The subscription points at the address somebody pasted. A feed that answers a redirect today
-  # would otherwise arrive under its new address as a second, unsubscribed source.
+  # The feed keeps the subscribed URL. Storing the redirect target would create a second,
+  # unsubscribed feed row.
   test "a redirecting endpoint does not move the subscribed address" do
     {:ok, stored} = Feeds.store(preview())
 
@@ -144,8 +144,8 @@ defmodule Sikio.FeedsTest do
     assert Repo.aggregate(Feed, :count) == 1
   end
 
-  # `String.slice/3` counts graphemes, so a title of 512 accented characters is 1024 code points.
-  # The column has to hold what the parser is willing to produce.
+  # `String.slice/3` counts graphemes. 512 graphemes of `e` plus a combining accent are 1024 code
+  # points, and the column must hold what the parser produces.
   test "a title of combining characters is stored rather than refused" do
     long = String.duplicate("e\u0301", 600)
     body = String.replace(podcast(), "One &amp; two", long)
@@ -154,8 +154,7 @@ defmodule Sikio.FeedsTest do
     assert Repo.one(from e in Entry, select: e.title) == String.slice(long, 0, 512)
   end
 
-  # A source that answers 304 has nothing new to tell anybody, and every notification costs each
-  # open library a full reload.
+  # A 304 broadcasts nothing. Each broadcast reloads every open library view.
   test "an unchanged source notifies nobody" do
     {:ok, stored} = Feeds.store(preview())
     Events.subscribe_updates(%User{id: subscriber(stored.id)})
@@ -165,7 +164,7 @@ defmodule Sikio.FeedsTest do
     refute_receive :library_changed, 100
   end
 
-  # A new website is what a reader sees of the source, so it counts like a new name.
+  # The website is visible in the library, so a change broadcasts like a renamed feed.
   test "a poll that only moves the website notifies the subscribers" do
     {:ok, stored} = Feeds.store(preview())
     Events.subscribe_updates(%User{id: subscriber(stored.id)})
@@ -176,7 +175,7 @@ defmodule Sikio.FeedsTest do
     assert_receive :library_changed
   end
 
-  # A poll that names no website keeps the stored one, and keeping it is no change to announce.
+  # A poll without a website keeps the stored one. That is no change, so nothing is broadcast.
   test "a poll without the website notifies nobody" do
     {:ok, stored} = Feeds.store(preview())
     Events.subscribe_updates(%User{id: subscriber(stored.id)})
@@ -188,9 +187,9 @@ defmodule Sikio.FeedsTest do
     refute_receive :library_changed, 100
   end
 
-  # A source without working cache validators answers in full on every poll. Rewriting rows it
-  # did not change costs a new row version, write ahead log and a dead tuple per entry, and a
-  # notification that makes every open library reload. Every write sets `updated_at`.
+  # Feeds without working cache validators return the full document on every poll.
+  # Rewriting an unchanged row costs a row version, WAL and a dead tuple, plus a broadcast.
+  # Every write sets `updated_at`, so the test compares it.
   test "importing what is already stored writes no entry" do
     {:ok, stored} = Feeds.store(preview())
     before = versions(stored.id)
@@ -214,8 +213,7 @@ defmodule Sikio.FeedsTest do
     assert_received :library_changed
   end
 
-  # A renamed show with no new episode is still news: the sidebar and the subscriptions show its
-  # name.
+  # A rename without new entries broadcasts, because the sidebar and subscriptions show the title.
   test "a poll that only renames the source notifies its subscribers" do
     {:ok, stored} = Feeds.store(preview())
     Events.subscribe_updates(%User{id: subscriber(stored.id)})
@@ -225,8 +223,8 @@ defmodule Sikio.FeedsTest do
     assert_received :library_changed
   end
 
-  # The guard compares every column the update writes. One left out of it would never be updated
-  # again, and nothing else would notice, so each one is changed on its own here.
+  # The upsert guard must compare every column the update writes. An omitted column would never
+  # update again. Each column is changed separately here.
   for {field, value} <- [
         title: "A new title",
         media_url: "https://audio.example.org/moved.mp3",
@@ -270,8 +268,8 @@ defmodule Sikio.FeedsTest do
     assert {:error, :not_found} = Feeds.refresh(-1)
   end
 
-  # The feed this test already stored, not another one: the assertion below is that there is
-  # exactly one.
+  # Subscribes a new user to the feed the test already stored. The pin match asserts that
+  # exactly one feed exists.
   defp subscriber(feed_id) do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, preview} = Parser.parse(podcast(), @feed_url)
@@ -304,8 +302,8 @@ defmodule Sikio.FeedsTest do
     assert entry.excerpt == "Notes with a link."
   end
 
-  # A library imported before these columns existed has rows without them. The next poll carries
-  # what the publisher sends, so the backfill costs nothing beyond waiting for it.
+  # Rows imported before these columns existed lack their values. The next poll fills them in,
+  # so no separate backfill is needed.
   test "a later poll fills in what an earlier import could not store" do
     {:ok, feed} = Feeds.store(preview())
     Repo.update_all(Entry, set: [image_url: nil, duration: nil, description: nil, excerpt: nil])
@@ -319,8 +317,8 @@ defmodule Sikio.FeedsTest do
     assert Repo.one(Entry).duration == 3723
   end
 
-  # Graphemes are not codepoints. Three hundred family emoji are three hundred characters to
-  # Elixir and two thousand one hundred to Postgres, which refused them and took the import down.
+  # 300 family emoji are 300 graphemes in Elixir but 2100 code points in Postgres.
+  # The column limit used to reject them and fail the whole import.
   test "an excerpt of emoji is stored rather than refused by its column" do
     notes = String.duplicate("\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}", 300)
 
@@ -335,8 +333,8 @@ defmodule Sikio.FeedsTest do
     assert Repo.one(Entry).excerpt != nil
   end
 
-  # The feed keeps its picture when a poll carries none. The entries did the opposite and wiped
-  # artwork and notes off every episode of a show that left them out once.
+  # A poll that omits artwork, notes or page URL keeps the stored values, for the feed and its
+  # entries.
   test "a poll that omits artwork, notes and the page keeps what was stored" do
     {:ok, _feed} = Feeds.store(preview())
 
@@ -350,8 +348,8 @@ defmodule Sikio.FeedsTest do
     assert entry.page_url == podcast_page()
   end
 
-  # A Short drops out of the channel's Shorts feed long before it leaves the channel's own, so a
-  # poll that does not name it a Short says nothing about it.
+  # A Short leaves the Shorts playlist feed long before the channel feed.
+  # A poll without the Short mark therefore does not clear it.
   test "an entry once known as a Short stays one" do
     [entry] = preview().entries
     {:ok, _feed} = Feeds.store(%{preview() | entries: [Map.put(entry, :short, true)]})
@@ -361,8 +359,8 @@ defmodule Sikio.FeedsTest do
     assert Repo.one(from e in Entry, select: e.short)
   end
 
-  # The search reads one stored text. A poll without notes keeps the notes, so the text has to
-  # take the new title from the poll and the notes from the row.
+  # Search reads `search_text`. A poll without notes keeps the stored notes, so `search_text`
+  # combines the new title with the stored notes.
   test "a poll that renames an entry and omits its notes is found by the new title" do
     {:ok, _feed} = Feeds.store(preview())
 
@@ -375,8 +373,8 @@ defmodule Sikio.FeedsTest do
     assert entry.search_text =~ "notes with a link"
   end
 
-  # A podcast's chapters file is fetched once, the first time somebody opens the item, through
-  # the same guarded client as feeds. What it holds is stored; a failure is tried again later.
+  # A chapters file is fetched on first access through `Sikio.Feeds.HTTP`. The result is stored.
+  # A failed fetch is retried on the next call.
   describe "chapters/1" do
     test "fetches a podcast's chapters file once and keeps what it holds" do
       {:ok, feed} = Feeds.store(preview())
@@ -412,7 +410,7 @@ defmodule Sikio.FeedsTest do
       assert Repo.get(Entry, entry.id).chapters == []
     end
 
-    # A poll may link another file while the old one downloads. Its chapters are not the new one's.
+    # A poll may change `chapters_url` during the download. The old file's chapters are discarded.
     test "chapters of a file the item no longer links are not stored" do
       {:ok, feed} = Feeds.store(preview())
       Repo.update_all(Entry, set: [chapters_url: "https://example.org/c.json"])
@@ -436,10 +434,8 @@ defmodule Sikio.FeedsTest do
     end
   end
 
-  # Chapters fetched from a podcast's JSON file are stored on the entry. The feed itself names
-  # only the file, so its next poll must not wipe what was fetched.
-  # Chapters fetched from a file belong to that file. A feed that links another one has them
-  # fetched again rather than keeping the old file's.
+  # Fetched chapters belong to their file. When a poll links another file, the stored chapters
+  # are cleared so the new file is fetched.
   test "a poll that links another chapters file lets the stored chapters go" do
     {:ok, feed} = Feeds.store(preview())
     stored = [%{"at" => 0, "title" => "Alt"}, %{"at" => 60, "title" => "Auch alt"}]
@@ -454,6 +450,7 @@ defmodule Sikio.FeedsTest do
     assert entry.chapters == nil
   end
 
+  # The feed names only the chapters file, so a poll must not clear fetched chapters.
   test "a poll that names no chapters keeps the ones stored" do
     {:ok, feed} = Feeds.store(preview())
     stored = [%{"at" => 0, "title" => "Intro"}, %{"at" => 60, "title" => "Mitte"}]
@@ -466,8 +463,7 @@ defmodule Sikio.FeedsTest do
     assert entry.chapters_url == "https://example.org/c.json"
   end
 
-  # The same, when the poll changes something else and so writes the row: an omitted file is no
-  # new file.
+  # The same holds when the poll changes another field and writes the row.
   test "a poll that renames an entry and names no chapters keeps the ones stored" do
     {:ok, feed} = Feeds.store(preview())
     stored = [%{"at" => 0, "title" => "Intro"}, %{"at" => 60, "title" => "Mitte"}]
@@ -482,8 +478,8 @@ defmodule Sikio.FeedsTest do
     assert entry.chapters_url == "https://example.org/c.json"
   end
 
-  # A YouTube refresh fetches the Atom feed and nothing else, so it carries no picture. Replacing
-  # the stored one with that nothing would empty the sidebar on the first poll after subscribing.
+  # A YouTube refresh fetches only the Atom feed, which has no channel picture.
+  # Overwriting with nil would remove the sidebar picture after the first poll.
   test "a refresh that carries no picture keeps the stored one" do
     {:ok, feed} =
       Feeds.store(%{
@@ -511,7 +507,7 @@ defmodule Sikio.FeedsTest do
     assert entry.duration == 3600
   end
 
-  # Spreading postpones by up to ten minutes, never less than the wait.
+  # Spreading adds up to ten minutes. The lower bound allows for elapsed test time.
   defp assert_next_check(feed_id, hours: hours) do
     expected = DateTime.add(DateTime.utc_now(), hours, :hour)
     next = Repo.get!(Feed, feed_id).next_check_at

@@ -2,10 +2,10 @@
 
 defmodule SikioWeb.CardActionsTest do
   @moduledoc """
-  The detail card's actions, whose names fit or not depending on the card's width.
+  The detail card's actions, labelled or icon-only depending on the card width.
 
-  The card's width follows the columns beside it, not the window, so only a browser can say
-  whether the names fit.
+  The card width depends on the adjacent columns, not the window.
+  So only a browser can measure it.
   """
   use SikioWeb.FeatureCase
 
@@ -15,7 +15,7 @@ defmodule SikioWeb.CardActionsTest do
   alias Sikio.Library
   alias Sikio.Playback
 
-  # Started, a video stands in the queue, so its head offers marking it as watched.
+  # Starting playback queues the video, so the card head offers "Mark as watched".
   setup %{session: session} do
     account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
@@ -25,8 +25,8 @@ defmodule SikioWeb.CardActionsTest do
     %{video: video}
   end
 
-  # A narrow card shows its actions as icons, a wide one names them, and neither lets them run past
-  # its edge.
+  # A narrow card shows icons with visually hidden labels. A wide card shows the labels.
+  # At both widths the actions end inside the card.
   feature "a card names its actions where they fit and shows icons where not", context do
     %{session: session, video: video} = context
 
@@ -46,7 +46,7 @@ defmodule SikioWeb.CardActionsTest do
     end)
   end
 
-  # The rest waits in a menu, which opens, acts and closes again.
+  # The other actions are in the `#item-more` menu. It opens, runs an action and closes.
   feature "the menu at the card's head acts and closes", context do
     %{session: session, video: video} = context
 

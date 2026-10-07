@@ -2,19 +2,11 @@
 
 defmodule SikioWeb.ConnCase do
   @moduledoc """
-  This module defines the test case to be used by
-  tests that require setting up a connection.
+  Test case for tests that need a `Plug.Conn`.
 
-  Such tests rely on `Phoenix.ConnTest` and also
-  import other functionality to make it easier
-  to build common data structures and query the data layer.
-
-  Finally, if the test case interacts with the database,
-  we enable the SQL sandbox, so changes done to the database
-  are reverted at the end of every test. If you are using
-  PostgreSQL, you can even run database tests asynchronously
-  by setting `use SikioWeb.ConnCase, async: true`, although
-  this option is not recommended for other databases.
+  Imports `Phoenix.ConnTest`, verified routes and helpers from `Sikio.DataCase`.
+  Each test runs in an SQL sandbox transaction that is rolled back afterwards.
+  The sandbox is shared when the test is not `async`.
   """
 
   use ExUnit.CaseTemplate
@@ -29,12 +21,10 @@ defmodule SikioWeb.ConnCase do
 
   using do
     quote do
-      # The default endpoint for testing
       @endpoint SikioWeb.Endpoint
 
       use SikioWeb, :verified_routes
 
-      # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
       import SikioWeb.ConnCase
@@ -55,13 +45,13 @@ defmodule SikioWeb.ConnCase do
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
-  @doc "An item's address in the list of all items, as the library itself spells it."
+  @doc "Returns an entry's path in the unfiltered library list, as `SikioWeb.Sidebar` builds it."
   def item_path(entry), do: SikioWeb.Sidebar.library_path(%{"status" => ""}, entry)
 
   @doc """
-  A signed-in account subscribed to one podcast with one episode, for `setup`.
+  Setup callback: a signed-in account subscribed to one podcast with one episode.
 
-  Answers the connection, the account as `user`, the episode as `entry` and the subscription.
+  Returns the conn, the account as `user`, the episode as `entry` and the subscription as `sub`.
   """
   def sign_in_with_episode(%{conn: conn}) do
     user = Repo.insert!(User.changeset(%User{}, %{username: DataCase.unique_username()}))

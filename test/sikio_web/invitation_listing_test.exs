@@ -2,12 +2,10 @@
 
 defmodule SikioWeb.InvitationListingTest do
   @moduledoc """
-  Seeing what is outstanding, and taking one back.
+  Listing and withdrawing pending invitations.
 
-  Nobody can be removed from this instance once they are in, so the only moment anybody can
-  influence who joins is before a link is redeemed. That is what this page makes visible, and
-  every member may act on it: dividing members into classes is the answer this application does
-  not want.
+  Members cannot be removed once they join, so withdrawal before acceptance is the only control.
+  Every member may view and withdraw invitations. There is no administrator role.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -34,8 +32,8 @@ defmodule SikioWeb.InvitationListingTest do
     assert html =~ "ada"
   end
 
-  # A row written before the column existed has nobody in it. `nil` is a real answer, and the
-  # list says so rather than inventing a name or leaving a gap somebody reads as one.
+  # Rows created before the inviter column existed have a `nil` inviter.
+  # The list shows "Unknown" instead of a blank cell.
   test "a row with no inviter says so" do
     %Invitation{} |> Invitation.changeset(%{"username" => "alan"}) |> Repo.insert!()
 
@@ -45,8 +43,8 @@ defmodule SikioWeb.InvitationListingTest do
     assert html =~ "Unknown"
   end
 
-  # By id, not by the name: the invite form carries "grace_hopper" as a placeholder, so a
-  # page-wide search for the name passes whatever the list does.
+  # Checks element ids, because the form placeholder "grace_hopper" contains the name "grace".
+  # A page-wide text search would always match.
   test "an accepted invitation is not listed" do
     {:ok, invitation} = Invitations.open(member(), %{"username" => "grace"})
     invitation |> Ecto.Changeset.change(accepted_at: DateTime.utc_now()) |> Repo.update!()
@@ -73,9 +71,8 @@ defmodule SikioWeb.InvitationListingTest do
     refute Ithibati.Identity.Invitations.fetch(token)
   end
 
-  # The link is the only copy of the token there will ever be: the row holds its digest, so a link
-  # taken off the screen cannot be got back. Taking somebody else's invitation back must not take
-  # it with them.
+  # The row stores only the token digest, so the displayed link is the only copy of the token.
+  # Withdrawing another invitation must keep the displayed link.
   test "taking one back leaves a link that belongs to another invitation standing" do
     {:ok, old} = Invitations.open(member("ada"), %{"username" => "alan"})
 
@@ -93,7 +90,7 @@ defmodule SikioWeb.InvitationListingTest do
     refute has_element?(view, "#invitation-#{old.id}")
   end
 
-  # And its own link goes, because it names a row that is not there any more.
+  # Withdrawing the invitation behind the displayed link removes the link.
   test "taking back the one the link belongs to takes the link with it" do
     {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
 
@@ -110,18 +107,16 @@ defmodule SikioWeb.InvitationListingTest do
     refute html =~ "/invite/"
   end
 
-  # The id comes off the wire and nothing upstream says it is a number. `Repo.get/2` casts to the
-  # primary key's type and raises on anything else, which takes the LiveView process down instead
-  # of answering the person who pressed the button.
+  # The id is client input and may not be numeric. `Repo.get/2` raises on an uncastable id.
+  # The raise would crash the LiveView process instead of rendering a message.
   test "an id that is not one is answered, not raised at" do
     {:ok, view, _html} = live(signed_in(member()), ~p"/invitations")
 
     assert render_click(view, "withdraw", %{"id" => "not-an-id"}) =~ "no longer there"
   end
 
-  # The id comes off the wire. An invitation that was redeemed between the page rendering and the
-  # button being pressed is gone from the library's point of view, and the page has to answer for
-  # that rather than raise at whoever pressed it.
+  # An invitation can be accepted between render and click. Ithibati then treats it as gone.
+  # The page renders a message instead of raising, and the row remains.
   test "withdrawing one that was accepted in the meantime says so and keeps it" do
     {:ok, invitation} = Invitations.open(member("ada"), %{"username" => "grace"})
 

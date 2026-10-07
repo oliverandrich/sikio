@@ -32,8 +32,8 @@ defmodule SikioWeb.AccountSecurityFeatureTest do
     |> landed_on("/account/passkeys")
     |> connected()
 
-    # A different authenticator models a second device. The first device's existing
-    # credential is correctly excluded from enrollment by Ithibati.
+    # A new authenticator models a second device.
+    # Ithibati excludes the first device's existing credential from enrollment.
     {:ok, _} =
       Wallaby.HTTPClient.request(:post, "#{session.url}/chromium/send_command_and_get_result", %{
         cmd: "WebAuthn.removeVirtualAuthenticator",

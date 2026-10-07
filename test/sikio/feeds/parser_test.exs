@@ -75,7 +75,7 @@ defmodule Sikio.Feeds.ParserTest do
              )
   end
 
-  # A source's own website, where the publisher presents it, for a link beside it in the library.
+  # `page_url` is the feed's website. The library links to it.
   test "keeps the website each kind of source names" do
     assert {:ok, %{page_url: site}} = Parser.parse(podcast(), "https://example.org/rss")
     assert site == podcast_site()
@@ -83,12 +83,12 @@ defmodule Sikio.Feeds.ParserTest do
     assert {:ok, %{page_url: site}} = Parser.parse(peertube(), peertube_feed_url())
     assert site == "https://video.example.org/c/9f1b2c3d-0000-4444-8888-aaaabbbbcccc/videos"
 
-    # YouTube's address follows from the channel id the parser already checks.
+    # The YouTube URL is built from the validated channel id.
     assert {:ok, %{page_url: site}} = Parser.parse(youtube(), youtube_feed_url())
     assert site == "https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv"
   end
 
-  # A channel may say how many minutes it may be cached. Anything but a whole number says nothing.
+  # `<ttl>` is the cache lifetime in minutes. Only a positive integer is accepted.
   test "reads how long a channel says it may be cached" do
     with_ttl = &String.replace(podcast(), "</channel>", "<ttl>#{&1}</ttl></channel>")
 
@@ -156,8 +156,8 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.description == "Plain summary"
   end
 
-  # The runtime comes from a stranger's document and lands in a four byte column. A number too
-  # large for it raised out of the importer and took the whole feed with it.
+  # The duration is untrusted input stored in a four-byte integer column. An oversized value
+  # used to raise in the importer and fail the whole feed.
   test "a runtime the column cannot hold is refused rather than stored" do
     for value <- ["9999999999", "-30", "12:", "one", "1:2:3:4"] do
       assert {:ok, %{entries: [entry]}} =
@@ -183,8 +183,8 @@ defmodule Sikio.Feeds.ParserTest do
     end
   end
 
-  # YouTube writes plain text where a podcast writes markup. The column carries the publisher's
-  # own bytes and says which of the two it holds, so neither is read as the other.
+  # YouTube descriptions are plain text, podcast notes are HTML. The description is stored
+  # unchanged, and `description_format` records which format it is.
   test "a plain text description is stored as written and labelled as text" do
     body =
       String.replace(
@@ -212,8 +212,8 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.description =~ ~s(<a href="https://example.org">link</a>)
   end
 
-  # `itunes:summary` is plain text by specification, so a summary saying `5 < 6` must not be
-  # read as a document whose first tag never closes.
+  # `itunes:summary` is plain text by specification. A summary containing `5 < 6` must not be
+  # parsed as HTML.
   test "a summary is text even though the description beside it is markup" do
     body =
       podcast()
@@ -230,9 +230,9 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.excerpt == "5 < 6 and counting"
   end
 
-  # PeerTube declares the podcast namespace, which is what tells a show that has published
-  # nothing yet from a blog. Without a mark of its own, an instance would be subscribed to as a
-  # podcast with no episodes, because every video enclosure is refused as not being audio.
+  # PeerTube feeds declare the podcast namespace, which marks an empty podcast feed.
+  # Without separate detection, a PeerTube feed would parse as a podcast with no episodes,
+  # because video enclosures are rejected.
   test "a PeerTube feed is not mistaken for a podcast that has published nothing" do
     assert {:ok, feed} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
 
@@ -256,7 +256,7 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.description =~ ~s(<a href="https://video.example.org/s">here</a>)
   end
 
-  # An instance that has published nothing still declares who generated the feed.
+  # An empty PeerTube feed is detected by its `<generator>` element.
   test "an empty PeerTube feed is recognised by what generated it" do
     body = String.replace(peertube(), ~r|<item>.*</item>|s, "")
 
@@ -264,9 +264,9 @@ defmodule Sikio.Feeds.ParserTest do
              Parser.parse(body, "https://video.example.org/feeds/videos.xml")
   end
 
-  # An href that is not there resolves to the document that does not carry it, because merging
-  # nothing against an address answers that address. An item with no embed is not playable, and
-  # an entry pointing at the feed it came from would have the dock frame the XML.
+  # A missing href would resolve to the feed URL, because merging an empty reference returns
+  # the base. An item without an embed is not playable and is rejected. Otherwise the player
+  # dock would frame the feed XML.
   test "an item without an embed is refused rather than pointed at the feed" do
     body = String.replace(peertube(), ~r|<media:embed[^>]*/>|, "")
 
@@ -274,9 +274,7 @@ defmodule Sikio.Feeds.ParserTest do
              Parser.parse(body, "https://video.example.org/feeds/videos.xml")
   end
 
-  # One video among audio does not make a show a video channel, and reading every episode with
-  # the wrong reader drops all of them.
-  # Each kind names an item's own page in its own way. The page is what the detail opens.
+  # Each feed kind marks an item's page differently. The detail view links to it.
   test "every kind keeps the page its item names" do
     {:ok, %{entries: [podcast]}} = Parser.parse(podcast(), "https://example.org/rss")
     {:ok, %{entries: [peertube]}} = Parser.parse(peertube(), peertube_feed_url())
@@ -287,7 +285,7 @@ defmodule Sikio.Feeds.ParserTest do
     assert youtube.page_url == "https://www.youtube.com/watch?v=abcdefghijk"
   end
 
-  # The page comes from a stranger and ends up in a link, so it passes the check artwork passes.
+  # The page URL is untrusted and rendered as a link, so it gets the same check as artwork URLs.
   test "a page is resolved against the feed and must be the web's" do
     page = fn link ->
       body = String.replace(podcast(), podcast_page(), link)
@@ -300,7 +298,7 @@ defmodule Sikio.Feeds.ParserTest do
     assert page.("") == nil
   end
 
-  # Atom names several links. Only the alternate one is the video's page.
+  # An Atom entry may have several links. Only `rel="alternate"` is the video page.
   test "a YouTube entry's page is its alternate link and nothing else" do
     body =
       String.replace(
@@ -313,7 +311,7 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.page_url == nil
   end
 
-  # Podlove Simple Chapters stand in the item itself, a start in normal play time and a title.
+  # Podlove Simple Chapters are embedded in the item, with a normal play time start and a title.
   test "reads the chapters a podcast lists in its item" do
     chapters = """
     <psc:chapters version="1.2" xmlns:psc="http://podlove.org/simple-chapters">
@@ -335,7 +333,7 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.chapters_url == nil
   end
 
-  # The start is a stranger's number. One no episode could reach is skipped, not computed.
+  # The start is untrusted input. An out-of-range start, such as `1e308:00`, is skipped.
   test "a chapter start no episode could reach is skipped without breaking the feed" do
     chapters = """
     <psc:chapters><psc:chapter start="1e308:00" title="Kaputt" />
@@ -348,7 +346,7 @@ defmodule Sikio.Feeds.ParserTest do
     assert Enum.map(entry.chapters, & &1["title"]) == ["A", "B"]
   end
 
-  # A list is read in time order, whatever order the feed wrote it in.
+  # Chapters are sorted by start time, regardless of feed order.
   test "listed chapters are put in time order" do
     chapters =
       ~s|<psc:chapters><psc:chapter start="00:10:00" title="Später" /><psc:chapter start="0" title="Anfang" /></psc:chapters>|
@@ -358,7 +356,7 @@ defmodule Sikio.Feeds.ParserTest do
     assert Enum.map(entry.chapters, & &1["title"]) == ["Anfang", "Später"]
   end
 
-  # Fewer than two usable chapters are no list, and must not stand in the way of a linked file.
+  # Fewer than two valid chapters count as none, so a linked chapters file is used instead.
   test "an unusable chapter list leaves room for a linked file" do
     extra =
       ~s|<psc:chapters><psc:chapter start="0" title="Einzig" /><psc:chapter start="x" title="Kaputt" /></psc:chapters>| <>
@@ -370,7 +368,8 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.chapters_url == "https://example.org/c.json"
   end
 
-  # Podcasting 2.0 links a JSON file. Only its address is read here; Podigee spells it href.
+  # Podcasting 2.0 links a JSON chapters file, and the parser stores only its URL.
+  # Podigee uses `href` instead of `url`.
   test "keeps the address of a podcast's chapters file, spelled url or href" do
     for attribute <- ["url", "href"] do
       link =
@@ -390,6 +389,8 @@ defmodule Sikio.Feeds.ParserTest do
     assert {video.chapters, video.chapters_url} == {nil, nil}
   end
 
+  # One video item does not make a podcast a video feed. Parsing every item as video would drop
+  # all audio episodes.
   test "a show that publishes one video is still a podcast" do
     item = """
     <item><guid>bonus</guid><title>A bonus clip</title>

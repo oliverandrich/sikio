@@ -2,8 +2,8 @@
 
 defmodule Sikio.TagsTest do
   @moduledoc """
-  An account's own tags on its own subscriptions. The feeds beneath stay shared and know nothing
-  of them.
+  Tests account-scoped tags on subscriptions. Tags attach to subscriptions, never to shared
+  feeds.
   """
   use Sikio.DataCase, async: true
 
@@ -32,12 +32,12 @@ defmodule Sikio.TagsTest do
     assert {:ok, tags} = Tags.set(c.alice, c.podcast.id, ["Tech", " Must view ", ""])
     assert names(tags) == ["Must view", "Tech"]
 
-    # The same name in other letters is the same tag.
+    # Tag names match case-insensitively.
     assert {:ok, [%{name: "Must view"}]} = Tags.set(c.alice, c.video.id, ["must VIEW"])
     assert names(Tags.list(c.alice)) == ["Must view", "Tech"]
     assert names(Tags.of(c.alice, c.podcast.id)) == ["Must view", "Tech"]
 
-    # Taking a tag off leaves the tag, which may be given again.
+    # Removing a tag from every subscription keeps the tag in `Tags.list/1`.
     assert {:ok, [%{name: "Tech"}]} = Tags.set(c.alice, c.podcast.id, ["Tech"])
     assert {:ok, []} = Tags.set(c.alice, c.video.id, [])
     assert names(Tags.list(c.alice)) == ["Must view", "Tech"]
@@ -55,8 +55,8 @@ defmodule Sikio.TagsTest do
     assert bobs.id != alices.id
   end
 
-  # A tag is a place like a source: its list holds the entries of the subscriptions that carry
-  # it, and its count is what is new among them.
+  # A tag works as a library filter like a feed. It lists and counts the entries of its
+  # subscriptions.
   test "a tag lists and counts the entries of its subscriptions", c do
     {:ok, [tech]} = Tags.set(c.alice, c.video.id, ["Tech"])
     tag = to_string(tech.id)
@@ -73,7 +73,7 @@ defmodule Sikio.TagsTest do
     assert counts.tags == %{tech.id => 2}
   end
 
-  # A tag keeps its subscriptions under a new name. A name another tag holds is refused.
+  # Renaming keeps the tag id and its subscriptions. A name used by another tag is rejected.
   test "a tag is renamed, but not to a name the account already gives", c do
     {:ok, [tech]} = Tags.set(c.alice, c.podcast.id, ["Tech"])
     {:ok, _} = Tags.set(c.alice, c.video.id, ["Later"])
@@ -90,7 +90,7 @@ defmodule Sikio.TagsTest do
     assert {:error, :not_found} = Tags.rename(c.bob, tech.id, "Mine")
   end
 
-  # Deleting a tag takes it off every subscription; the subscriptions stay.
+  # Deleting a tag keeps the subscriptions.
   test "a deleted tag leaves its subscriptions", c do
     {:ok, [tech]} = Tags.set(c.alice, c.podcast.id, ["Tech"])
 
@@ -100,7 +100,7 @@ defmodule Sikio.TagsTest do
     assert [_, _] = Library.subscriptions(c.alice)
   end
 
-  # A subscription that ends takes its tags off with it; the tag stays for the account.
+  # Unsubscribing removes the subscription's tag links. The tag itself remains.
   test "unsubscribing takes the tags off, and the tag stays", c do
     {:ok, _} = Tags.set(c.alice, c.podcast.id, ["Tech"])
     {:ok, _} = Library.unsubscribe(c.alice, c.podcast.id)

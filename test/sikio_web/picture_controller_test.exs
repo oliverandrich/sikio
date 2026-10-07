@@ -22,7 +22,7 @@ defmodule SikioWeb.PictureControllerTest do
     %{conn: conn |> init_test_session(%{}) |> Gate.log_in(user)}
   end
 
-  # Each test names its own address, so the shared cache never answers for another test.
+  # Each test uses a unique URL, so the shared cache never returns another test's entry.
   defp picture_url(name), do: "https://img.example.org/#{name}-#{unique()}.jpg"
 
   test "a signed reference is answered with the picture, from this host", %{conn: conn} do
@@ -36,11 +36,11 @@ defmodule SikioWeb.PictureControllerTest do
     assert cache =~ "private"
   end
 
-  # Unsigned, this would fetch any address on a stranger's behalf.
+  # Without a signature check, any client could make the server fetch any URL.
   test "a reference that was not signed here is refused without fetching", %{conn: conn} do
     "/pictures/" <> ref = Pictures.path([picture_url("two")])
-    # A character in the middle of the signature: the last one carries padding bits that a
-    # decoder ignores, so changing it may change nothing.
+    # Changes a character mid-signature. The last character carries padding bits that a
+    # Base64 decoder ignores, so changing it may leave the signature valid.
     [protected, payload, signature] = String.split(ref, ".")
     {head, <<char, tail::binary>>} = String.split_at(signature, 10)
     flipped = if char == ?A, do: ?B, else: ?A
@@ -61,7 +61,7 @@ defmodule SikioWeb.PictureControllerTest do
     assert redirected_to(response) == "/images/sikio.svg"
   end
 
-  # The browser caches by address, so the same picture has to keep the same one.
+  # Browsers cache by URL, so the same picture must keep the same path.
   test "the same picture always has the same address" do
     url = picture_url("three")
     assert Pictures.path([url]) == Pictures.path([url])

@@ -2,8 +2,9 @@
 
 defmodule SikioWeb.SettingsBarTest do
   @moduledoc """
-  The pages beside the library on a phone: each names itself in the bar once its heading has
-  scrolled away, and the bar leads back to where it belongs.
+  Navigation bar of the pages beside the library on a phone.
+
+  Each page has a bar title, a `data-large-title` heading and a back link to its parent page.
   """
   use SikioWeb.ConnCase, async: true
 

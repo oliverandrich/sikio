@@ -14,31 +14,31 @@ test("j and k move, m marks and f searches, other keys do not", () => {
   assert.equal(readerKey(press("x")), null)
 })
 
-// A key pressed into a video's frame never reaches the page; one sent from a media element would
-// be its own. Sikio's player is no exception to the library's keys.
+// Keys pressed in a video iframe never reach the page. Keys from a media element belong to it.
+// Buttons of Sikio's own player still get the library keys.
 test("keys pressed into a media element are not the library's", () => {
   assert.equal(readerKey(press("m", {target: {tagName: "AUDIO"}})), null)
   assert.equal(readerKey(press("j", {target: {tagName: "IFRAME"}})), null)
-  // Sikio's own player keeps no keys of its own: m on one of its buttons marks as anywhere.
+  // Sikio's player has no key handling of its own, so m on one of its buttons marks the item.
   const control = {tagName: "BUTTON", closest: selector => selector === "#player-panel" ? {} : null}
   assert.equal(readerKey(press("m", {target: control})), "m")
 })
 
-// Held down, m would mark and unmark in a stream. j and k may repeat; moving on is what they do.
+// A held m would toggle the mark repeatedly, so repeats are ignored. j and k repeat to keep moving.
 test("a held m marks once, a held j keeps moving", () => {
   assert.equal(readerKey(press("m", {repeat: true})), null)
   assert.equal(readerKey(press("j", {repeat: true})), "j")
 })
 
-// Escape in the search field clears and folds it; elsewhere Escape belongs to someone else.
+// Escape in the search field clears and closes it. Elsewhere Escape is left to other handlers.
 test("Escape closes the search only from inside it", () => {
   assert.equal(closesSearch(press("Escape", {target: {tagName: "INPUT", id: "search-input"}})), true)
   assert.equal(closesSearch(press("Escape", {target: {tagName: "INPUT", id: "other"}})), false)
   assert.equal(closesSearch(press("x", {target: {tagName: "INPUT", id: "search-input"}})), false)
 })
 
-// Beside the list there is room for the detail, so something is always shown there. On a phone
-// the detail would cover the list, so nothing is chosen for the reader.
+// A wide screen has room for the detail, so the first row is selected when none is.
+// On a phone the detail would cover the list, so nothing is selected automatically.
 test("a wide screen with rows and nothing chosen asks for the first", () => {
   assert.equal(wantsFirst({wide: true, selected: "", rows: 3}), true)
   assert.equal(wantsFirst({wide: false, selected: "", rows: 3}), false)
@@ -58,15 +58,15 @@ test("a key typed into a form control stays there", () => {
   assert.equal(readerKey(press("j", {target: {tagName: "BUTTON", closest: selector => ["dialog", "dialog[open]"].includes(selector) ? {} : null}})), null, "an open dialog keeps the page's keys")
 })
 
-// The list's head stands over the top of the pane, so a row is only in view beneath it.
+// The list head overlaps the top of the pane, so a row is visible only below the head.
 test("a row above the head's edge or below the pane's end is scrolled into view", () => {
   assert.equal(reveal({top: 100, bottom: 600, rowTop: 150, rowBottom: 250}), 0)
   assert.equal(reveal({top: 100, bottom: 600, rowTop: 60, rowBottom: 160}), -40)
   assert.equal(reveal({top: 100, bottom: 600, rowTop: 560, rowBottom: 660}), 60)
 })
 
-// The mini player's title asks the library to show what plays. A click that opens a tab or a
-// window, or one on something else, is left to the browser.
+// A plain click on the compact player's title requests the playing entry.
+// Modified clicks, middle clicks and clicks elsewhere are left to the browser.
 test("a plain click on the mini player's title names the entry to show", () => {
   const link = {dataset: {showEntry: "4056"}}
   const click = (extra = {}) => ({button: 0, target: {closest: s => s === "[data-show-entry]" ? link : null}, ...extra})
@@ -78,7 +78,7 @@ test("a plain click on the mini player's title names the entry to show", () => {
   assert.equal(shownEntry({button: 0, target: {closest: () => null}}), null)
 })
 
-// The detail follows the player only from the item that ended, and only to an item the list holds.
+// The detail follows the player only from the ended item, and only to an item the list contains.
 test("the detail follows the queue to the next item it lists", () => {
   assert.equal(followed({selected: "1", from: "1", to: "2", listed: true}), "2")
   assert.equal(followed({selected: "1", from: "1", to: "2", listed: false}), null)

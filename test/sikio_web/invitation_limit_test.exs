@@ -2,18 +2,15 @@
 
 defmodule SikioWeb.InvitationLimitTest do
   @moduledoc """
-  How many invitations one account may make.
+  Per-account invitation budget.
 
-  Every member may invite, which is this application's decision and a good one among people who
-  know each other. It stops being only a question of tidiness once an instance addresses its
-  accounts: the form then sends mail to whatever address was typed, through the operator's own
-  credentials, and an account somebody else has taken is an open relay pointed at the operator's
-  domain.
+  Every member may invite. In email mode the form mails any typed address through the
+  operator's credentials. A compromised account would be an open relay for the operator's domain.
 
-  The budget is the account's, not the browser's. A session, a name or an address would each let
-  the same person start again; the account is the thing that is actually spending.
+  The budget is counted per account. A budget per session, name or address would let the same
+  person start over.
   """
-  # async: false — the budget is application configuration and these set it.
+  # async: false, because these tests set the budget in application configuration.
   use SikioWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -53,8 +50,8 @@ defmodule SikioWeb.InvitationLimitTest do
     refute Repo.get_by(Invitation, username: refused)
   end
 
-  # Otherwise the budget is a formality: somebody types nonsense until the counter is untouched
-  # and then spends the whole of it in one go.
+  # Failed attempts count against the budget.
+  # Otherwise invalid submissions would be free and the limit would not bound attempts.
   test "an attempt that fails for another reason still costs", %{conn: conn} do
     inviting(conn, "not a username at all")
     inviting(conn, unique_username())
@@ -75,8 +72,8 @@ defmodule SikioWeb.InvitationLimitTest do
     assert inviting(theirs, unique_username()) |> render() =~ "/invite/"
   end
 
-  # The link is the only copy there will ever be, so a refusal that scrolled it off the page
-  # would take an invitation that was already made with it.
+  # The link on the page is the only copy of its token.
+  # A refusal must keep a link that is already shown.
   test "a refusal leaves the link that is already on screen", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/invitations")
 

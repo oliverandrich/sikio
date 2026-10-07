@@ -2,11 +2,10 @@
 
 defmodule SikioWeb.SourceOfferTest do
   @moduledoc """
-  What the licence obliges the running application to say.
+  The source code offer required by the licence.
 
-  Section 13 of the AGPL is the reason this licence exists: whoever runs Sikio for other people
-  has to offer those people its source. A link is that offer, so it is pinned here rather than
-  trusted to survive the next change to a layout.
+  AGPL section 13 requires whoever runs Sikio for others to offer them its source.
+  A link is that offer. These tests keep it present across layout changes.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -27,8 +26,8 @@ defmodule SikioWeb.SourceOfferTest do
     assert html =~ @configured
   end
 
-  # Member pages have no footer. The sidebar's foot offers the source on a desktop, and the
-  # overview about Sikio, which the account menu opens, on every page.
+  # Member pages have no footer. The sidebar colophon links the source on desktop.
+  # The about overview, opened from the account menu, links it on every page.
   test "a signed-in reader finds it in the overview about Sikio", %{conn: conn} do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     conn = conn |> init_test_session(%{}) |> Gate.log_in(user)
@@ -42,7 +41,7 @@ defmodule SikioWeb.SourceOfferTest do
     refute html =~ "<footer"
   end
 
-  # The source lives elsewhere, so it opens outside the app, as every other link away does.
+  # The source is external, so the link opens in a new tab like other external links.
   test "the offer opens in a tab of its own", %{conn: conn} do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     conn = conn |> init_test_session(%{}) |> Gate.log_in(user)
@@ -55,17 +54,17 @@ defmodule SikioWeb.SourceOfferTest do
            )
   end
 
-  # Somebody who has not signed in is still interacting with the application over a network, and
-  # on a fresh instance the first thing they meet is the setup page.
+  # Anonymous visitors also use the application over a network.
+  # On a fresh instance the setup page is the first page they see.
   test "so is a visitor who has not signed in", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/setup")
 
     assert html =~ @configured
   end
 
-  # A marker in a template is a comment the compiler removes, but the newline after it is not
-  # a comment. Every answer would then begin with whitespace before the doctype, which browsers
-  # forgive and tools that read the first characters do not.
+  # The compiler removes a template comment but keeps the newline after it.
+  # The response would then start with whitespace before the doctype.
+  # Browsers accept that; tools that check the first bytes do not.
   test "the document still begins with its doctype", %{conn: conn} do
     body = conn |> get(~p"/setup") |> response(200)
 

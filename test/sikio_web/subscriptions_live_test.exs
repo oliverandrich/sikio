@@ -21,7 +21,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     %{conn: conn, user: user}
   end
 
-  # Managing is its own page: the subscriptions and the OPML file, no search.
+  # The subscriptions page links OPML import and export and has no search or discovery form.
   test "the page manages subscriptions and adds none", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/subscriptions")
     assert has_element?(view, "#subscriptions-empty")
@@ -31,7 +31,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     refute has_element?(view, "#search-form")
   end
 
-  # How often a source is asked is the operator's choice, so the page says what it is.
+  # The operator configures the poll interval, so the page states it.
   test "the page names how often its sources are asked", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, _} = Library.subscribe(user, preview)
@@ -55,8 +55,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert interval.(90) =~ "at most every 90 minutes,"
   end
 
-  # The sidebar's mark says it only on hover. Here the reason is written out, for keyboards and
-  # touch screens too.
+  # The sidebar shows the error only in a hover title. This page prints it for keyboard and touch.
   test "a source whose last refresh failed says why", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
@@ -70,7 +69,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert render(view) =~ ~r/\b1 source\s*</
   end
 
-  # Each row pauses or resumes its polling from an icon and states which it is in.
+  # Row buttons pause and resume polling. A paused row shows "Polling paused".
   test "a row pauses and resumes its polling", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
@@ -85,7 +84,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert [%{paused: false}] = Library.subscriptions(user)
   end
 
-  # A row names its source and, behind the name, the address it is polled at.
+  # A row shows the feed name and the feed URL without scheme. The `title` holds the full URL.
   test "a row links its name to the source and shows the feed's address behind it", %{
     conn: conn,
     user: user
@@ -103,7 +102,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
              address
            )
 
-    # The name leads to the source's own page in Sikio.
+    # The name links to the feed's page in Sikio.
     assert has_element?(
              view,
              ~s|#subscription-#{subscription.id} a[href="/feeds/#{subscription.feed_id}-small-hours"]|,
@@ -111,7 +110,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
            )
   end
 
-  # The source's own website opens in a new tab, after the pencil and before leaving.
+  # The website link opens in a new tab with `rel=noopener`. Without `page_url` it is absent.
   test "a row opens the source's website, when it has one", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
@@ -127,7 +126,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     refute has_element?(view, "#open-website-#{subscription.id}")
   end
 
-  # The pencil opens the source's own dialog, and what it saves shows in the list at once.
+  # The edit button opens the subscription dialog. A saved name appears in the row immediately.
   test "a row edits its subscription in the source's dialog", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
@@ -144,7 +143,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert has_element?(view, "#subscription-#{subscription.id}", "Late Night")
   end
 
-  # Escape closes the dialog and hands the focus back to the button that opened it.
+  # Escape closes the dialog and pushes a `focus` event for the row's edit button.
   test "Escape closes the dialog and gives the focus back to its row", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
@@ -157,7 +156,8 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert_push_event(view, "focus", %{id: "edit-subscription-" <> _})
   end
 
-  # A second press on leaving arrives after the first has closed the dialog, and changes nothing.
+  # A second `unsubscribe` event can arrive after the first closed the edit dialog.
+  # The confirm dialog stays open.
   test "a second press on leaving from the dialog is harmless", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
@@ -170,7 +170,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert has_element?(view, "dialog#unsubscribe-confirm")
   end
 
-  # Another tab may have left the subscription while this one edits it.
+  # Another tab can delete the subscription while the dialog is open. Saving then shows an error.
   test "saving a subscription left elsewhere says so", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
@@ -184,7 +184,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert render(view) =~ "Subscription not found."
   end
 
-  # Leaving from the list asks first, as leaving from the library does.
+  # Unsubscribing from a row requires confirmation. The subscription stays until confirmed.
   test "a row leaves its subscription after asking", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)

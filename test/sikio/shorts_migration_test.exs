@@ -2,10 +2,10 @@
 
 defmodule Sikio.ShortsMigrationTest do
   @moduledoc """
-  The migration that lets a subscription leave out a YouTube channel's Shorts.
+  Tests the migration that adds `subscriptions.shorts` and `entries.short`.
 
-  A subscription made before it followed the whole channel and keeps doing so. One made after it
-  leaves the Shorts out unless asked. No entry stored before it is known to be a Short.
+  Existing subscriptions get `shorts: true`. New subscriptions default to `false`.
+  Existing entries get `short: false`.
   """
   use Sikio.MigrationCase
 

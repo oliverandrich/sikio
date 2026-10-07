@@ -40,16 +40,15 @@ defmodule SikioWeb.HardeningTest do
     refute Map.has_key?(conn.resp_cookies, "_starter_auth_key")
   end
 
-  # The player is the only reason this application talks to anybody else, so the policy names
-  # exactly what it needs: YouTube's embed and its API script, and audio from whichever server a
-  # podcast is published on. Everything else stays on 'self'.
+  # Only the player loads third-party content. The policy allows YouTube's embed and API script,
+  # and audio from any HTTPS server. `default-src` is `'self'`.
   test "the policy names the player's third parties and nothing wider", %{conn: conn} do
     conn = get(conn, "/login")
     [policy] = get_resp_header(conn, "content-security-policy")
 
     assert policy =~ "default-src 'self'"
-    # `'self'` is in there because naming frame-src at all stops the fallback to default-src, and
-    # LiveReload frames a page of its own in development.
+    # `'self'` is listed because any `frame-src` disables the `default-src` fallback.
+    # LiveReload frames its own page in development.
     assert policy =~ "frame-src 'self' https://www.youtube-nocookie.com"
     assert policy =~ "media-src 'self' https:"
     assert policy =~ "script-src 'self' 'unsafe-inline' https://www.youtube.com"
@@ -57,14 +56,13 @@ defmodule SikioWeb.HardeningTest do
     refute policy =~ "img-src *"
     refute policy =~ "default-src *"
 
-    # Tighter than Phoenix's default, so no page tells a stranger's server which page linked to it.
-    # The embed and the API script opt back in per element, and nothing else does.
+    # Stricter than Phoenix's default, so no `Referer` reaches other servers.
+    # Only the embed and the API script elements opt back in.
     assert get_resp_header(conn, "referrer-policy") == ["no-referrer"]
   end
 
-  # PeerTube is not one origin, it is as many as there are instances, and the operator cannot
-  # know them in advance. The policy is derived instead of guessed: it names the instances this
-  # account subscribed to and no others, so it stays as narrow as it was for YouTube.
+  # Every PeerTube instance is a separate origin, unknown to the operator in advance.
+  # The policy is built per request from the account's subscribed instances.
   test "the policy frames the instances this account subscribed to, and only those" do
     {conn, account} = signed()
     {:ok, _} = Sikio.Library.subscribe(account, peertube_preview("https://video.example.org"))
@@ -121,9 +119,9 @@ defmodule SikioWeb.HardeningTest do
              Auth.registration_subject(expired, %{"intent" => "add_passkey"})
   end
 
-  # The session lives in a cookie of at most 4 KB. Adding a passkey keeps its challenge there,
-  # beside whatever signing up or recovering left behind, and the response must still fit. On a
-  # new host the passkey prompt finds nothing, so its challenge is never spent and stays.
+  # The session cookie holds at most 4 KB. Adding a passkey stores its challenge there,
+  # beside leftovers from sign-up or recovery. On a new host the passkey prompt finds no
+  # credential, so its authentication challenge is never consumed and stays in the session.
   test "adding a passkey after confirming fits the session cookie" do
     {conn, account} = signed()
     conn = conn |> get("/account/confirm/passkeys") |> recycle() |> get("/account/verify")

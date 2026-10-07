@@ -2,15 +2,14 @@
 
 defmodule Sikio.RuntimeConfigTest do
   @moduledoc """
-  What `config/runtime.exs` makes of the environment, run against the file itself.
+  Tests how `config/runtime.exs` reads environment variables, using `Config.Reader.read!/2`.
 
-  Nothing else executes most of it. A release reads it once at startup, so a value it mishandles
-  is first seen as an instance that will not boot, or worse, as one that boots and does something
-  other than its operator asked.
+  No other test executes most of this file. A release reads it once at boot.
+  A mishandled value shows up as a failed boot, or as a running instance with the wrong setting.
   """
   use ExUnit.Case, async: false
 
-  # The environment a production boot cannot do without; each test changes what it is about.
+  # The variables a production boot requires. Each test overrides the ones it checks.
   @prod %{
     "DATABASE_URL" => "ecto://sikio:secret@localhost/sikio",
     "DATABASE_PATH" => "/var/lib/sikio/sikio.db",
@@ -20,7 +19,7 @@ defmodule Sikio.RuntimeConfigTest do
     "PHX_BIND_IP" => nil
   }
 
-  # Sets each variable, or removes it for nil, and puts back whatever the shell had afterwards.
+  # Sets each variable, or deletes it for nil. `on_exit` restores the previous values.
   defp read(mix_env, env) do
     previous = Map.new(env, fn {name, _value} -> {name, System.get_env(name)} end)
     on_exit(fn -> put_env(previous) end)
@@ -43,7 +42,7 @@ defmodule Sikio.RuntimeConfigTest do
     defp migrates(value),
       do: %{"SIKIO_MIGRATE_ON_START" => value} |> prod() |> sikio(:migrate_on_start)
 
-    # A release brings its schema up to date as it starts, unless its operator migrates by hand.
+    # A release migrates on start unless the operator disables it to migrate manually.
     test "a release migrates on start unless told not to" do
       assert migrates(nil) == true
       assert migrates("") == true
@@ -55,7 +54,7 @@ defmodule Sikio.RuntimeConfigTest do
       assert_raise RuntimeError, ~r/SIKIO_MIGRATE_ON_START/, fn -> migrates("no") end
     end
 
-    # Development data is migrated by hand, never by starting the server.
+    # Development databases are migrated explicitly, never on server start.
     test "development and tests never migrate on start" do
       for env <- [:dev, :test] do
         config = read(env, %{"SIKIO_MIGRATE_ON_START" => "true"})
@@ -76,7 +75,7 @@ defmodule Sikio.RuntimeConfigTest do
       assert interval("") == nil
     end
 
-    # Five minutes is how often the scheduler looks, so a shorter interval could not be kept.
+    # The scheduler runs every five minutes, so a shorter interval cannot take effect.
     test "anything but a whole number of at least five minutes stops the boot" do
       for value <- ["abc", "0", "4", "1.5", "-60"] do
         assert_raise RuntimeError, ~r/FEED_POLL_MINUTES/, fn -> interval(value) end
@@ -92,8 +91,8 @@ defmodule Sikio.RuntimeConfigTest do
       assert configured("10.0.0.2, fd00::2") == [{10, 0, 0, 2}, {64_768, 0, 0, 0, 0, 0, 0, 2}]
     end
 
-    # A proxy in a container changes its address when it is made again. A range names the network
-    # it lives on: the address it starts at and how many leading bits the others share.
+    # A recreated container proxy gets a new address. A CIDR range covers its network.
+    # It is parsed into the base address and the prefix length.
     test "a range arrives as its address and the bits it keeps, in both families" do
       assert configured("172.20.0.0/16, fd00::/64") ==
                [{{172, 20, 0, 0}, 16}, {{64_768, 0, 0, 0, 0, 0, 0, 0}, 64}]
@@ -105,21 +104,19 @@ defmodule Sikio.RuntimeConfigTest do
       assert_raise RuntimeError, ~r{10\.0\.0\.0/x}, fn -> configured("10.0.0.0/x") end
     end
 
-    # How a unit file or an environment file writes a variable it has no value for. An empty
-    # string is not a list holding an empty name.
+    # systemd units and env files write an unset variable as an empty string.
+    # It means unset, not a list with one empty entry.
     test "an unset variable leaves the default alone" do
       assert configured("") == nil
     end
 
-    # A stray comma leaves an entry of nothing. Naming it plainly would print an empty space, so
-    # the message shows it as the empty string it is.
+    # A stray comma produces an empty entry. The error message shows it as `""`, not as a blank.
     test "an entry of nothing says so rather than pointing at a blank" do
       assert_raise RuntimeError, ~r/""/, fn -> configured("10.0.0.2, ,fd00::2") end
     end
 
-    # An operator who typed a hostname gets told on the spot. Dropping it would leave an instance
-    # that trusts one fewer proxy than its operator believes, which is a rate limit that quietly
-    # counts the wrong thing.
+    # A hostname raises at boot. Dropping it silently would trust one proxy fewer than configured.
+    # The rate limit would then count the proxy address instead of the client.
     test "something that is not an address stops the boot and says which one" do
       assert_raise RuntimeError, ~r/proxy\.example\.com/, fn ->
         configured("10.0.0.2,proxy.example.com")
@@ -127,8 +124,8 @@ defmodule Sikio.RuntimeConfigTest do
     end
   end
 
-  # The identity block is kept out of tests, where a shell that happens to export it must not
-  # decide what the suite runs against, so these read it as development does.
+  # `runtime.exs` skips this block in `:test`, so an exported shell variable cannot affect the
+  # suite. These tests read it as `:dev`.
   describe "ACCOUNT_IDENTITY" do
     defp identity(value),
       do: :dev |> read(%{"ACCOUNT_IDENTITY" => value}) |> sikio(:account_identity)
@@ -138,9 +135,8 @@ defmodule Sikio.RuntimeConfigTest do
       assert identity("username") == :username
     end
 
-    # The same promise `TRUSTED_PROXIES` keeps. Taking only the exact word and dropping the rest
-    # in silence would boot an instance naming its accounts while its operator configured
-    # addresses.
+    # Same rule as `TRUSTED_PROXIES`: invalid values raise instead of being ignored.
+    # Ignoring `Email` would boot with usernames although the operator chose email addresses.
     test "anything else stops the boot rather than being dropped quietly" do
       assert_raise RuntimeError, ~r/Email/, fn -> identity("Email") end
     end
@@ -153,7 +149,7 @@ defmodule Sikio.RuntimeConfigTest do
       assert source("https://git.example.org/sikio") == "https://git.example.org/sikio"
     end
 
-    # A link without a scheme renders as a path on this instance, which offers nothing.
+    # A URL without a scheme would render as a relative path on this instance.
     test "anything else stops the boot" do
       assert_raise RuntimeError, ~r/SOURCE_URL/, fn -> source("git.example.org/sikio") end
     end
@@ -179,7 +175,7 @@ defmodule Sikio.RuntimeConfigTest do
       assert %{port: 465, tls: :never, ssl: true} = Map.new(mailer(%{"SMTP_PORT" => "465"}))
     end
 
-    # A missing password found at the first invitation is a week later and somebody else's mail.
+    # Failing at boot surfaces a missing setting before the first invitation mail fails.
     test "a missing setting stops the boot" do
       assert_raise System.EnvError, ~r/SMTP_PASSWORD/, fn -> mailer(%{"SMTP_PASSWORD" => nil}) end
     end
@@ -190,7 +186,7 @@ defmodule Sikio.RuntimeConfigTest do
       assert endpoint(prod())[:http][:ip] == {0, 0, 0, 0, 0, 0, 0, 0}
     end
 
-    # With Caddy on the same host, the plain port has no business answering anybody else.
+    # With Caddy on the same host, the HTTP port can bind to loopback only.
     test "PHX_BIND_IP narrows where it listens, in both families" do
       assert endpoint(prod(%{"PHX_BIND_IP" => "127.0.0.1"}))[:http][:ip] == {127, 0, 0, 1}
       assert endpoint(prod(%{"PHX_BIND_IP" => "::1"}))[:http][:ip] == {0, 0, 0, 0, 0, 0, 0, 1}
@@ -204,7 +200,7 @@ defmodule Sikio.RuntimeConfigTest do
       assert endpoint(prod())[:url][:host] == "sikio.example"
     end
 
-    # force_ssl redirects to this host. A default would send every plain-http visitor elsewhere.
+    # `force_ssl` redirects to this host. A wrong default would redirect HTTP requests elsewhere.
     test "a missing PHX_HOST stops the boot" do
       assert_raise RuntimeError, ~r/PHX_HOST/, fn -> prod(%{"PHX_HOST" => nil}) end
       assert_raise RuntimeError, ~r/PHX_HOST/, fn -> prod(%{"PHX_HOST" => " "}) end
@@ -217,7 +213,7 @@ defmodule Sikio.RuntimeConfigTest do
     end
   end
 
-  # The database the release was built for decides which variable names it.
+  # `SIKIO_DATABASE` decides which variable is required. These tests follow the suite's database.
   describe "the database" do
     if Application.compile_env!(:sikio, :database) == :sqlite do
       test "DATABASE_PATH names the SQLite file, outside the release" do

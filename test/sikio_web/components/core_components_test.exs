@@ -23,8 +23,8 @@ defmodule SikioWeb.CoreComponentsTest do
     end
   end
 
-  # A class given to a button adds to its look. Replacing the look dropped padding, focus ring
-  # and colours from every button that only wanted a margin.
+  # A `class` on a button adds to its base classes. Replacing them dropped padding, focus ring
+  # and colours from buttons that only set a margin.
   test "a class given to a button is added to its own" do
     html =
       render_component(&CoreComponents.button/1,

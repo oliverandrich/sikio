@@ -2,13 +2,13 @@
 
 defmodule Sikio.ChaptersTest do
   @moduledoc """
-  Chapters as publishers write them into a description, in the shapes the sources really use.
+  Tests chapter parsing from show notes, using formats found in real feeds.
   """
   use ExUnit.Case, async: true
 
   alias Sikio.Chapters
 
-  # A PeerTube instance writes markup: one paragraph, a line each, minutes and seconds.
+  # PeerTube writes HTML: one paragraph, one line per chapter, `m:ss` stamps.
   test "reads chapters from markup and leaves the rest of the notes" do
     notes = """
     <p>Ständig hört man von Rekorden.</p><p>0:00 Intro<br />1:58 Akkus, LFP &amp; AGM<br />4:51 Solarpanels<br />18:40 Outro</p><p>Mehr auf ct.de</p>
@@ -26,7 +26,8 @@ defmodule Sikio.ChaptersTest do
     assert String.trim(rest) == "<p>Ständig hört man von Rekorden.</p><p>Mehr auf ct.de</p>"
   end
 
-  # YouTube writes text: hours always, a dash before the title, a first chapter just after zero.
+  # YouTube writes plain text: `hh:mm:ss` stamps and a dash before the title.
+  # The first stamp may be above zero.
   test "reads chapters from text with hours and a dash" do
     notes = """
     Dennis ist zu Gast.
@@ -46,7 +47,7 @@ defmodule Sikio.ChaptersTest do
     assert rest =~ "Mehr: https://ct.de"
   end
 
-  # A publisher who lost a line break: the second stamp inside a line starts the next chapter.
+  # A second stamp inside one line starts the next chapter. This covers a missing line break.
   test "a stamp with a dash inside a line starts another chapter" do
     notes = "00:00:02 - Hallo!\n00:00:47 - 80er-Ästhetik 00:05:03 - Metas Muse\n00:09:51 - Abgang"
 
@@ -66,7 +67,7 @@ defmodule Sikio.ChaptersTest do
     assert Enum.map(chapters, &{&1.at, &1.title}) == [{0, "Start"}, {130, "Mitte"}, {754, "Ende"}]
   end
 
-  # Many podcasts list chapters as list items. The list goes with them, not empty bullets.
+  # Many podcasts list chapters as `<li>` items. The emptied list is removed.
   test "chapters in a list leave no empty items behind" do
     notes = "<p>Vorab.</p><ul><li>00:00 A</li><li>01:00 B</li><li>02:00 C</li></ul>"
     assert {chapters, rest} = Chapters.split(notes, :html, nil)
@@ -74,7 +75,7 @@ defmodule Sikio.ChaptersTest do
     assert String.trim(rest) == "<p>Vorab.</p>"
   end
 
-  # A heading, a block or a list may end the line before the first chapter.
+  # A heading, block or list may directly precede the first chapter.
   test "the first chapter after a heading or a block is read as well" do
     for before <- ["<h3>Kapitel</h3>", "<div>Kapitel</div>", "<ul><li>x</li></ul>"] do
       notes = before <> "<p>00:00 A<br>01:00 B<br>02:00 C</p>"
@@ -84,7 +85,8 @@ defmodule Sikio.ChaptersTest do
     end
   end
 
-  # Podcasting 2.0's file: a start in seconds and a title; a chapter marked toc false is hidden.
+  # Podcasting 2.0 chapters JSON: `startTime` in seconds and `title`. `toc: false` entries are
+  # skipped.
   test "reads a podcast's chapters file" do
     json =
       ~s|{"version":"1.2.0","chapters":[{"startTime":0,"title":"Pferde","img":"x"},| <>
@@ -110,16 +112,16 @@ defmodule Sikio.ChaptersTest do
     end
   end
 
-  # Notes are UTF-8. A line break is never found inside a character, whose bytes may look like
-  # one: the check mark ✅ ends in the byte of a next-line control.
+  # Notes are UTF-8. Line break detection must not match inside a multibyte character.
+  # The last byte of ✅ is 0x85, the NEL control.
   test "characters whose bytes resemble a line break are left whole" do
     notes = "✅ Was am 29. September geschah\n✅ Warum ein Papier\n…und mehr"
     assert Chapters.split(notes, :text, nil) == {[], notes}
     assert Chapters.split("<p>" <> notes <> "</p>", :html, nil) == {[], "<p>" <> notes <> "</p>"}
   end
 
-  # Only a list that reads unmistakably as chapters is taken: three at least, rising, within the
-  # item's length. Anything less is somebody's sentence, and the notes stay as they were.
+  # A chapter list needs at least three ascending stamps within the duration.
+  # Otherwise the notes stay unchanged.
   test "anything less than a clear chapter list is left in the notes" do
     two = "0:00 Intro\n5:00 Outro"
     falling = "0:00 Intro\n9:00 Mitte\n5:00 Outro"

@@ -2,20 +2,16 @@
 
 defmodule Sikio.StarterDriftTest do
   @moduledoc """
-  Whether this application's copies of generated files still say what the starter's do.
+  Compares this application's copies of generated files with the Ithibati Starter templates.
 
-  Ithibati Starter writes the auth half of an application, so each of these files exists three
-  times: here, in Chapisho, and in the template every new project is made from. Nothing kept them
-  together and they drifted. Reading a forwarding header with `to_charlist/1` raises on bytes a
-  visitor writes; both applications had it, the template had the fix *and* a test for it, and it
-  stayed that way until somebody diffed the three by hand.
+  Ithibati Starter generates the auth code. Each shared file exists in Sikio, in Chapisho and in
+  the starter. The copies have diverged before. Both applications parsed a forwarding header with
+  `to_charlist/1`, which raises on some client bytes. Only the template had the fix and its test.
 
-  Prose is ignored on purpose. Moduledocs are reworded and reflowed per application — a paragraph
-  about "this blog" does not belong here — while a differing expression is what nobody meant.
+  Comments and docs are ignored, because each application rewords them. Code must match.
 
-  The comparison is against the *locked* starter, so a push to that repository does not turn this
-  red on its own. Reconciling is `mix deps.update ithibati_starter`, which is a deliberate act
-  and the moment to read what changed.
+  The comparison uses the locked starter version, so upstream pushes do not fail this test.
+  `mix deps.update ithibati_starter` updates the lock; review the changes then.
   """
   use ExUnit.Case, async: true
 
@@ -23,9 +19,8 @@ defmodule Sikio.StarterDriftTest do
 
   @app "sikio"
 
-  # What this application promises to keep in step. Everything else the starter generates is
-  # either ours by now or was never shared; the second test below is what stops that set from
-  # growing by accident.
+  # Files kept identical to the starter. Other generated files are application-owned.
+  # The second test fails when an unlisted file matches its template.
   @shared [
     "lib/__APP__/accounts/invitation.ex.tpl",
     "lib/__APP__/accounts/user.ex.tpl",
@@ -77,8 +72,8 @@ defmodule Sikio.StarterDriftTest do
     end
   end
 
-  # A file that quietly becomes identical is a file somebody should decide about: either it is
-  # shared and belongs above, or it matches by chance and will drift again unwatched.
+  # An unlisted matching file needs a decision. Either it belongs in `@shared`, or the match is
+  # coincidental and one copy should change.
   test "and nothing else has quietly become identical", ctx do
     undeclared =
       for {template, local} <- ctx.pairs,
@@ -96,9 +91,8 @@ defmodule Sikio.StarterDriftTest do
     """
   end
 
-  # `code/2` drops a heredoc after `@moduledoc`/`@doc`, and every LiveView here carries an `~H`
-  # one that it must not touch: eating a render function would make two different pages compare
-  # equal, which is the shape of an assertion that cannot fail.
+  # `code/2` drops heredocs after `@moduledoc` and `@doc` but must keep `~H` heredocs.
+  # Dropping a render function would make two different templates compare equal.
   test "prose is dropped and markup is not", ctx do
     path = Path.join(System.tmp_dir!(), "drift_#{System.unique_integer([:positive])}.ex")
 

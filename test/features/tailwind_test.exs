@@ -7,9 +7,9 @@ defmodule SikioWeb.TailwindTest do
   alias Sikio.Feeds.Parser
   alias Sikio.Library
 
-  # Sikio's own grounds, Tailwind's neutral-50 and neutral-950, read from the browser rather than from
-  # the markup: a class name proves nothing about what a stylesheet finally resolves to. A palette
-  # retune in Tailwind changes these values, which is worth noticing.
+  # Page backgrounds, Tailwind's neutral-50 and neutral-950, read as computed style.
+  # A class name does not show the value the stylesheet resolves to.
+  # A Tailwind palette change alters these values and fails this test on purpose.
   @ground "oklch(0.985 0 none)"
   @dark_ground "oklch(0.145 0 none)"
 
@@ -42,8 +42,8 @@ defmodule SikioWeb.TailwindTest do
     end)
   end
 
-  # Durations, dates and counts are set in the mono, which a browser only loads once something
-  # asks for it. A family that never loaded falls back to a system face without an error.
+  # Durations, dates and counts use the mono font. The test checks the runtime element only.
+  # Browsers load a font face only when used. A missing face falls back without an error.
   feature "metadata is set in IBM Plex Mono, and the face is loaded", %{session: session} do
     account = signed_in(session, "ada")
 
@@ -68,8 +68,8 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
-  # On a phone the answers stand one above the other across the dialog, at a finger's height, the
-  # one that confirms on top.
+  # On a phone the confirm button spans the action row at 44 px height.
+  # The buttons stack in the order confirm, cancel, unsubscribe.
   @sessions [
     [
       capabilities:
@@ -104,10 +104,11 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
-  # From lg the sources may run long. They scroll, while the wordmark above and the offer of the
-  # source below stay where they are. Only a window too short for those two scrolls the whole
-  # column. A pencil beside the sources leads to managing them, so the bar of links is the phone's.
-  # This checks the computed overflow and display, not a scroll itself.
+  # From lg the source list can be long. It scrolls inside `#sidebar`.
+  # The wordmark above and the add-source link below stay outside the scrolling list.
+  # The whole header scrolls only in a window too short for those two.
+  # A pencil icon beside the sources links to their management, so the link bar is phone-only.
+  # The test checks computed `overflowY` and `display`, not actual scrolling.
   feature "the lg sidebar may scroll and hides the bar of links", %{session: session} do
     signed_in(session, "ada")
 
@@ -128,12 +129,13 @@ defmodule SikioWeb.TailwindTest do
     )
   end
 
-  # The dark ground, oklch(0.145 0 0), as sRGB.
+  # The dark background, oklch(0.145 0 0), in sRGB.
   @dark_page {10, 10, 10}
 
-  # A source whose picture cannot be had shows a mark of its kind instead. It comes as an image,
-  # out of reach of the page's colours, so it carries a dark scheme of its own. The mark has to
-  # stand 3:1 against its ground, the least a graphic needs, laid over the page's dark ground.
+  # A source without a fetchable image shows an SVG for its kind instead.
+  # An image does not inherit page colours, so the SVG has its own dark scheme.
+  # The mark needs 3:1 contrast against its background, the WCAG minimum for graphics.
+  # The SVG background is composited over the page's dark background first.
   feature "a source's fallback picture stands out in the dark", %{session: session} do
     for path <- ["/images/kind-audio.svg", "/images/kind-video.svg"] do
       session

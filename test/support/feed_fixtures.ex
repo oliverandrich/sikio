@@ -4,32 +4,33 @@ defmodule Sikio.FeedFixtures do
   @moduledoc false
 
   @doc """
-  A feed address no other test writes.
+  Returns a feed URL that no other test uses.
 
-  The same reasoning as `Sikio.DataCase.unique_username/1`, for the other row every second test
-  touches. The host may be anything: `config/test.exs` pins the resolver, so nothing reaches DNS.
+  Same reason as `Sikio.DataCase.unique_username/1`: about every second test writes a feed row.
+  Any host works. `config/test.exs` pins the resolver, so no DNS lookup happens.
   """
   def feed_url(path \\ "rss"), do: "https://feed#{Sikio.DataCase.unique()}.example.org/#{path}"
 
   @doc """
-  A YouTube channel feed address no other test writes.
+  Returns a YouTube channel feed URL that no other test uses.
 
-  The parser insists on YouTube's own host and on a channel id of the shape YouTube gives out,
-  so only the id varies. The document keeps its own id: nothing compares the two.
+  The parser requires YouTube's host and a channel id in YouTube's format, so only the id varies.
+  The fixture document keeps its own channel id. Nothing compares the two.
   """
   def youtube_feed_url do
     id = String.pad_leading(Sikio.DataCase.unique(), 22, "a")
     "https://www.youtube.com/feeds/videos.xml?channel_id=UC#{id}"
   end
 
-  @doc "A PeerTube instance feed address no other test writes."
+  @doc "Returns a PeerTube instance feed URL that no other test uses."
   def peertube_feed_url, do: feed_url("feeds/videos.xml")
 
   @doc """
-  Answers a stubbed request with `respond` once the test lets it go.
+  Blocks a stubbed request until it receives `:release`, then returns `respond.()`.
 
-  Each held request reports itself to `test`. Two reports before any release show that two
-  requests ran at once; one after another, the second never starts while the first waits.
+  Each held request sends `{:held, pid}` to `test`.
+  Two messages before any release show two concurrent requests.
+  With sequential requests, the second starts only after the first is released.
   """
   def held(test, respond) do
     send(test, {:held, self()})
@@ -39,7 +40,7 @@ defmodule Sikio.FeedFixtures do
     end
   end
 
-  @doc "Waits until `count` requests are held at once, then releases them and any that follow."
+  @doc "Waits until `count` requests are held at once, then releases them and any later ones."
   def release_together(%Task{} = task, count) do
     import ExUnit.Assertions
     held = for _ <- 1..count, do: assert_receive({:held, _pid}, 1_000) |> elem(1)
@@ -61,13 +62,13 @@ defmodule Sikio.FeedFixtures do
     end
   end
 
-  @doc "The resolver the test environment pins every host to, so no test reaches real DNS."
+  @doc "Test resolver. Maps every host to one address, so no test reaches DNS."
   def resolve(_host), do: {:ok, [{93, 184, 216, 34}]}
 
-  @doc "The page the podcast's episode names as its own."
+  @doc "The episode page URL in the podcast fixture."
   def podcast_page, do: "https://example.org/episodes/1"
 
-  @doc "The podcast as a later poll finds it, with an episode published since, titled Later."
+  @doc "The podcast fixture with a second episode, titled Later, published one day later."
   def podcast_later do
     String.replace(
       podcast(),
@@ -77,7 +78,7 @@ defmodule Sikio.FeedFixtures do
     )
   end
 
-  @doc "The website the podcast's channel names."
+  @doc "The website URL in the podcast fixture's channel."
   def podcast_site, do: "https://example.org/show"
 
   def podcast(title \\ "Small Hours") do
@@ -94,7 +95,7 @@ defmodule Sikio.FeedFixtures do
     """
   end
 
-  @doc "The same show, published by somebody who names no artwork, runtime, notes or page."
+  @doc "The podcast fixture without links, episode image, duration, description or show notes."
   def thin_podcast do
     podcast()
     |> String.replace("<link>#{podcast_site()}</link>", "")
@@ -105,7 +106,7 @@ defmodule Sikio.FeedFixtures do
     |> String.replace(~r|<content:encoded>.*?</content:encoded>|s, "")
   end
 
-  @doc "The same show, stating a runtime of the caller's choosing."
+  @doc "The podcast fixture with `duration` as the episode's `itunes:duration`."
   def podcast_lasting(duration) do
     String.replace(
       podcast(),
@@ -114,7 +115,7 @@ defmodule Sikio.FeedFixtures do
     )
   end
 
-  @doc "A PeerTube channel feed, carrying the elements an instance really publishes."
+  @doc "A PeerTube channel feed with the elements a real instance publishes."
   def peertube do
     """
     <?xml version="1.0" encoding="utf-8"?>
@@ -144,7 +145,7 @@ defmodule Sikio.FeedFixtures do
     """
   end
 
-  @doc "A YouTube channel page, reduced to the two elements the discovery reads."
+  @doc "A YouTube channel page with only the two elements that discovery reads."
   def channel_page do
     """
     <html><head>
@@ -154,7 +155,7 @@ defmodule Sikio.FeedFixtures do
     """
   end
 
-  # As YouTube serves it: the feed names its channel without the UC its entries' ids carry.
+  # YouTube's format: `yt:channelId` omits the `UC` prefix that the entries' ids carry.
   def youtube do
     """
     <feed xmlns="http://www.w3.org/2005/Atom" xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/">

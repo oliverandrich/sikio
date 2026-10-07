@@ -2,8 +2,8 @@
 
 defmodule SikioWeb.AppIconsTest do
   @moduledoc """
-  The icons a browser, a phone's home screen and an installed app take from the page: every one
-  the page names is served, and so is every one the manifest names.
+  Every icon linked from the page or listed in the web app manifest is served with its content
+  type.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -35,12 +35,12 @@ defmodule SikioWeb.AppIconsTest do
       served(conn, src, "image/png")
     end
 
-    # The wordmark stays inside the circle Android keeps, so the same picture may be cropped.
+    # The wordmark lies inside Android's mask safe zone, so the PNG can be marked maskable.
     assert Enum.any?(icons, &(&1["purpose"] == "maskable"))
   end
 
-  # An installed app knows itself by a stable id and keeps every page of Sikio inside its window.
-  # Its shortcuts lead to the places opened most.
+  # A stable `id` identifies the installed app. Scope `/` keeps every Sikio page in its window.
+  # The shortcuts point to the most used pages.
   test "the manifest names the app, its scope and its shortcuts", %{conn: conn} do
     manifest = served(conn, "/manifest.webmanifest", "application/manifest+json")
 

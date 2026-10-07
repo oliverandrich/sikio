@@ -24,11 +24,11 @@ defmodule SikioWeb.AudioFaceTest do
     |> Enum.map(fn {[at], [title]} -> {at, title} end)
   end
 
-  # The start needs no mark: the bar begins there. Every later chapter marks where it begins.
+  # A chapter at 0 gets no mark, since the bar starts there. Later chapters get a mark.
   test "a chapter marks where it begins on the bar, the first one aside" do
     html = face(length: 3600, position: 0, chapters: @chapters)
 
-    # Decoration only: the bar under it takes every press and drag.
+    # Marks are not buttons. The bar beneath handles clicks and drags.
     refute html =~ "<button data-audio-mark"
 
     assert marks(html) == [{"900", "Interview"}, {"1800", "Listener mail"}]
@@ -36,7 +36,7 @@ defmodule SikioWeb.AudioFaceTest do
     assert html =~ "--at: 0.5"
   end
 
-  # A played mark lies on the signal colour and is drawn in a colour of its own.
+  # Passed marks carry `data-played`, so CSS can colour them against the played part of the bar.
   test "a mark the thumb has passed says so" do
     html = face(length: 3600, position: 1000, chapters: @chapters)
     played = html |> LazyHTML.from_fragment() |> LazyHTML.query("[data-audio-mark][data-played]")
@@ -52,7 +52,7 @@ defmodule SikioWeb.AudioFaceTest do
     assert LazyHTML.text(label) =~ "Interview"
   end
 
-  # A mark needs the length to know where it goes. Without one the player measures it first.
+  # Mark positions are fractions of the length. Until the player reports a length, none render.
   test "no marks before the length is known, and none without chapters" do
     assert marks(face(position: 0, chapters: @chapters)) == []
     assert marks(face(length: 3600, position: 0)) == []

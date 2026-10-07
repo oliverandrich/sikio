@@ -2,10 +2,10 @@
 
 defmodule SikioWeb.MobileTest do
   @moduledoc """
-  The reader at phone width, where only a browser can say what lies where.
+  The layout at phone width, measured in Chrome.
 
-  Below `lg` the main navigation is a tab bar along the bottom, and the Library tab leads to
-  every place. The player sits in the item that plays and floats above that bar elsewhere.
+  Below `lg` the main navigation is a bottom tab bar. The Library tab links to every list.
+  The player is pinned in the playing item's detail and floats above the tab bar elsewhere.
   """
   use SikioWeb.FeatureCase
 
@@ -29,10 +29,11 @@ defmodule SikioWeb.MobileTest do
     %{account: account, entries: Map.new(Library.entries(account), &{&1.feed.kind, &1})}
   end
 
-  # An iPhone keeps its status bar above the page and its home indicator beneath it. The page
-  # reads both through `--safe-top` and `--safe-bottom`, which Chrome never fills; set here to an
-  # iPhone's, the bars must clear them. The tab bar follows Apple's 49 points above the indicator.
-  # Held sideways the notch is beside the page, read through `--safe-left` and `--safe-right`.
+  # iOS places the status bar above the page and the home indicator below it.
+  # The page reads both from `--safe-top` and `--safe-bottom`. Chrome leaves them unset.
+  # The test sets iPhone values, and the bars must clear them.
+  # The tab bar is Apple's 49 points tall above the indicator.
+  # In landscape the notch is at the side, read from `--safe-left` and `--safe-right`.
   feature "the bars clear an iPhone's status bar, home indicator and notch", context do
     %{session: session, entries: entries} = context
 
@@ -78,9 +79,9 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # Held sideways a phone has little height. The title stands in the bar from the start and the
-  # list's head closes up, so the list gets most of the screen. The large heading stays for
-  # screen readers.
+  # A phone in landscape has little height. The bar shows the title from the start.
+  # The list head is compact, so the list gets most of the screen.
+  # The large heading takes no height but stays for screen readers.
   @sessions [
     [
       capabilities:
@@ -110,8 +111,7 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # On a phone the filters fold away behind a button. Once open they stay open while the reader
-  # moves between them, however the page was reached.
+  # On a phone the filters are behind a toggle button. After a filter change they stay open.
   feature "the filters stay open while the reader changes them", context do
     %{session: session, entries: entries} = context
 
@@ -125,9 +125,9 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
   end
 
-  # As on YouTube: the video spans the screen at the top of its item and stays under the bar while
-  # the notes scroll beneath it. Its frame here is a page of Sikio's own and it has no picture, so
-  # nothing is asked of an instance.
+  # The video spans the screen width at the top of its item, as on YouTube.
+  # It stays below the bar while the notes scroll.
+  # Its embed URL is a Sikio page and it has no image, so no instance is requested.
   feature "a video plays across the top of its item and stays there", context do
     %{session: session, account: account} = context
     video = video_with_notes(account)
@@ -155,13 +155,14 @@ defmodule SikioWeb.MobileTest do
     end)
   end
 
-  # Held sideways the video fits between the bars and passes under them as the page scrolls. Cut
-  # off at the foot from the start, it still stays under the top bar once scrolled up to it.
+  # In landscape the video's height fits between the bars, and it scrolls under them.
+  # Initially its bottom is under the tab bar. Scrolled up, it stays below the top bar.
   feature "a video fits a phone held sideways", context do
     %{session: session, account: account} = context
     video = video_with_notes(account)
 
-    # The window leaves 247 pixels, so the poster lies under the tab bar: pressed where it is.
+    # The window leaves 247 px, so the play button lies under the tab bar.
+    # The test clicks it by script.
     session
     |> resize_window(844, 390)
     |> open(item_path(video))
@@ -181,7 +182,7 @@ defmodule SikioWeb.MobileTest do
         assert tabs, "the tab bar stays above the video"
       end
     )
-    # Just past the bar, while most of the slot is still in view.
+    # Scrolls just past the bar, with most of the slot still visible.
     |> execute_script("""
     const slot = document.getElementById('player-slot').getBoundingClientRect().top
     window.scrollTo(0, scrollY + slot - document.getElementById('masthead').getBoundingClientRect().bottom + 40)
@@ -197,10 +198,10 @@ defmodule SikioWeb.MobileTest do
     end)
   end
 
-  # The pinned player takes its width from the page script rather than from `anchor-size()`.
-  # Safari measured its container before that width was known, laid the buttons out for a
-  # narrow one and shifted them as the time changed. A width written on the panel is known from
-  # the start.
+  # The page script sets the pinned player's width instead of `anchor-size()`.
+  # Safari measured the container before that width was known.
+  # It laid out the buttons for a narrow container and shifted them as the time changed.
+  # An inline width is known from the start.
   feature "the pinned player has its slot's width from the start", context do
     %{session: session, entries: entries} = context
 
@@ -218,9 +219,10 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # An episode's controls sit in its card and stay under the bar as the notes scroll, rather than
-  # passing half under it. Before anything plays the card shows the player's likeness, which
-  # stays there too, so starting it changes nothing about where it is.
+  # An episode's controls sit in its card and stay below the bar while the notes scroll.
+  # They do not pass halfway under it.
+  # Before playback the card shows the `#audio-cue` placeholder, which also stays below the bar.
+  # Starting playback puts the panel on the same slot.
   feature "audio stays under the bar as its notes scroll, before and after it plays", context do
     %{session: session, entries: entries} = context
 
@@ -251,8 +253,8 @@ defmodule SikioWeb.MobileTest do
     end)
     |> click(css("#start-playback"))
     |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
-    # Starting patches the detail, which takes the padding with it, and the page jumps. The panel
-    # follows the slot once the intersection observer reports, which it does a frame later.
+    # Starting playback patches the detail and drops the padding, so the page jumps.
+    # The panel follows the slot after the intersection observer fires, one frame later.
     |> then(fn session ->
       script = "return (() => { #{edges()} })()[2] === 'slot'"
       assert {:ok, _} = retry(fn -> holds(session, script) end), "the panel lies on its slot"
@@ -266,8 +268,9 @@ defmodule SikioWeb.MobileTest do
     end)
   end
 
-  # Away from its item the player is a capsule above the tab bar: what plays, play or pause, and
-  # a way to close it. Its title leads back to the item, where the player is whole again.
+  # Away from its item the player is a capsule above the tab bar.
+  # It shows the title, play/pause and close.
+  # The title links back to the item and its full player.
   feature "away from its item the player is a capsule above the tabs", context do
     %{session: session, entries: entries} = context
 
@@ -294,7 +297,7 @@ defmodule SikioWeb.MobileTest do
         assert height <= 72, "a capsule, not a card"
       end
     )
-    # Its button drives the player as the keyboard does.
+    # The capsule button sends the `toggle` command, the same one the keyboard sends.
     |> execute_script("""
     window.sikioCommands = []
     document.querySelector('#player-panel [phx-hook=MediaPlayer]')
@@ -306,7 +309,7 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
   end
 
-  # A video keeps playing in the capsule, small.
+  # In the capsule a video keeps its iframe, shown at 96 by 54 px.
   feature "a video plays on in the capsule", context do
     %{session: session, account: account} = context
     video = video_with_notes(account)
@@ -325,8 +328,7 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # Publishers paste bare addresses as link text. A word longer than the screen breaks inside the
-  # notes rather than widening the page.
+  # Publishers use bare URLs as link text. A word wider than the screen must not widen the page.
   @sessions [
     [
       capabilities:
@@ -353,8 +355,8 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # The panel's left edge, how much narrower than the screen it is, and whether its top is the
-  # slot's.
+  # Returns the panel's left edge, the screen width minus the panel width,
+  # and `'slot'` when the panel top matches the slot top.
   defp edges do
     """
     const panel = document.getElementById('player-panel').getBoundingClientRect()

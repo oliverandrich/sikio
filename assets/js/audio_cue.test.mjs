@@ -28,7 +28,7 @@ function fixture({value = "42", max = "3723", length = max} = {}) {
   return {parts, starts, cleanup}
 }
 
-// Nothing loads before the card's player is used. Play starts where the episode was left.
+// Play calls `start` with `null`, which resumes at the saved position.
 test("play starts the episode where it was left", () => {
   const f = fixture()
   f.parts.play.dispatchEvent(new Event("click"))
@@ -56,8 +56,8 @@ test("a skip starts at the place it skips to, within the episode", () => {
   f.cleanup()
 })
 
-// A feed that names no length gives the bar no range, so the place is kept beside it and a skip
-// forward is not held at the saved place.
+// A feed without a length gives the seek bar no range. The cue keeps the position separately.
+// So a forward skip is not capped at the saved position.
 test("without a known length a skip still starts from the saved place", () => {
   const f = fixture({value: "600", max: "600", length: ""})
   f.parts.back.dispatchEvent(new Event("click"))
@@ -66,7 +66,7 @@ test("without a known length a skip still starts from the saved place", () => {
   f.cleanup()
 })
 
-// The card's bar names the chapter under the pointer too, before anything plays.
+// The card's seek bar shows the chapter under the pointer before playback.
 test("hovering the card's bar names the chapter under the pointer", () => {
   const f = fixture({value: "0", max: "3600"})
   f.parts.seek.dispatchEvent(Object.assign(new Event("pointermove"), {offsetX: 6 + 404 * 0.5}))

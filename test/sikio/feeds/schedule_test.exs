@@ -17,7 +17,7 @@ defmodule Sikio.Feeds.ScheduleTest do
     |> Kernel./(60)
   end
 
-  # A tenth of the newest entry's age: asked often after it published, less often as it ages.
+  # The interval is a tenth of the newest entry's age, so active feeds are checked more often.
   test "a feed is asked after a tenth of its newest entry's age" do
     assert after_hours(4 * 24) == 9.6
     assert after_hours(48) == 4.8
@@ -32,18 +32,18 @@ defmodule Sikio.Feeds.ScheduleTest do
     assert after_hours(90 * 24) == 24.0
   end
 
-  # The operator's interval is the shortest wait. A day is the longest one only above it.
+  # The base interval is the minimum. The one-day maximum applies only when it exceeds the base.
   test "a base interval longer than a day still holds" do
     assert after_hours(90 * 24, 48 * 60) == 48.0
   end
 
-  # No date to judge by, or one a publisher set in the future, says nothing about the pace.
+  # A missing or future publication date falls back to the base interval.
   test "a feed without a usable date is asked at the base interval" do
     assert after_hours(nil) == 1.0
     assert after_hours(-48) == 1.0
   end
 
-  # What the server asks for, in seconds, only ever makes the wait longer, and never past the cap.
+  # The server's wait, in seconds, can only lengthen the interval, up to the cap.
   test "the server may ask for a longer wait, not a shorter one" do
     assert after_hours(10, 60, 3 * 3600) == 3.0
     assert after_hours(4 * 24, 60, 60) == 9.6
@@ -51,8 +51,8 @@ defmodule Sikio.Feeds.ScheduleTest do
     assert after_hours(10, 48 * 60, 7 * 24 * 3600) == 48.0
   end
 
-  # Feeds imported together would otherwise be asked together for good. A tenth of the wait, at
-  # most ten minutes, is added at random; it postpones and never brings a request forward.
+  # Feeds imported together would otherwise stay synchronized. `spread/2` adds a random delay of
+  # up to a tenth of the wait, capped at ten minutes. It never moves a check earlier.
   test "spreading adds up to a tenth of the wait, at most ten minutes" do
     spread = fn minutes ->
       at = DateTime.add(@now, minutes, :minute)

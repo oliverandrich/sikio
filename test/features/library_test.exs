@@ -2,10 +2,10 @@
 
 defmodule SikioWeb.LibraryTest do
   @moduledoc """
-  The library's list in a real browser, where scrolling is what asks for more.
+  The library list and detail in Chrome, including loading more rows on scroll.
 
-  `Phoenix.LiveViewTest` can send the event a viewport sends, but not whether the browser sends
-  it when the list's end comes into view.
+  `Phoenix.LiveViewTest` can send the viewport event.
+  It cannot show whether the browser sends it when the list end enters the viewport.
   """
   use SikioWeb.FeatureCase
 
@@ -28,7 +28,7 @@ defmodule SikioWeb.LibraryTest do
     %{account: account}
   end
 
-  # The queue's rows move by their handles: dragged, or a place at a time with the arrow keys.
+  # Queue rows move by their handles: by pointer drag, or one position per arrow key.
   feature "the queue is put in order by dragging and by keys", %{
     session: session,
     account: account
@@ -49,7 +49,7 @@ defmodule SikioWeb.LibraryTest do
     |> resize_window(1280, 900)
     |> open("/queue")
     |> assert_has(css("#entries article", count: 3))
-    # Episode 3 dragged above the first row.
+    # Drags Episode 3 above the first row.
     |> execute_script("""
     const handle = document.getElementById('move-#{three}')
     const top = document.getElementById('move-#{one}').getBoundingClientRect().top
@@ -58,7 +58,7 @@ defmodule SikioWeb.LibraryTest do
     window.sikioTop = top + 5
     at('pointerdown', start); at('pointermove', top + 5)
     """)
-    # While it is held, the row it would push aside has made room already.
+    # While the pointer is held, the first row already has a transform to make room.
     |> execute_script(
       "return getComputedStyle(document.getElementById('move-#{one}').closest('article')).transform",
       fn transform -> assert transform =~ "matrix", "the first row stays put while held over" end
@@ -72,7 +72,7 @@ defmodule SikioWeb.LibraryTest do
       assert {:ok, _} = retry(fn -> in_order(session, order, wanted) end)
       session
     end)
-    # Episode 3 a place down by its handle's arrow key.
+    # Moves Episode 3 down one position with the arrow key on its handle.
     |> execute_script("document.getElementById('move-#{three}').focus()")
     |> send_keys([:down_arrow])
     |> then(fn session ->
@@ -87,25 +87,25 @@ defmodule SikioWeb.LibraryTest do
     if Process.delete(:order) == wanted, do: {:ok, session}, else: {:error, :not_yet}
   end
 
-  # Every key in one place: ? opens the overview from anywhere outside a field, the account menu
-  # opens it without a keyboard, and Escape closes it. f opens the search, beside j, k and m, and
-  # the f is not typed into it. The magnifier opens it too, and Escape clears it and folds it away.
+  # ? opens the shortcut overview and Escape closes it. The account menu also opens it.
+  # f opens the search, focused and empty. The magnifier button also opens it.
+  # Escape clears and closes the search and moves focus to the magnifier.
   feature "? shows every key, and f or the magnifier opens the search", %{session: session} do
     session
     |> resize_window(1440, 900)
     |> open("/all")
     |> assert_has(css("#entries article", count: 25))
     |> gone(css("#shortcuts[open]"))
-    # Chromedriver types ? as Shift and an underscore. A keyboard sends the character itself, in
-    # whichever layout puts it where, and that is what the page reads.
+    # chromedriver sends ? as Shift plus underscore. A keyboard sends the character in any layout.
+    # The page reads that character, so the test dispatches the event directly.
     |> execute_script(
       "document.body.dispatchEvent(new KeyboardEvent('keydown', {key: '?', shiftKey: true, bubbles: true}))"
     )
     |> assert_has(css("#shortcuts[open]", text: "Play or pause"))
     |> assert_has(css("#shortcuts", text: "Previous or next chapter"))
     |> assert_has(css("#entries article:nth-of-type(1) a[aria-current]"))
-    # The open overview keeps the keys from the page behind it. A key from outside it moves the
-    # list by one, and the page that follows leaves the overview open.
+    # Keys typed into the open overview do not reach the page.
+    # A `j` dispatched on the body moves the selection by one, and the overview stays open.
     |> send_keys(["j"])
     |> execute_script(
       "document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'j', bubbles: true}))"
@@ -138,20 +138,20 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#shortcuts[open]"))
   end
 
-  # The double check asks in a dialog that opens as it appears and takes the focus. Escape lets
-  # go of it. It offers to leave the player's item only while the player holds one; unticked, it
-  # counts one fewer and that item stays as it was. The rest is archived: still among all items,
-  # never among what was heard.
+  # The mark-all dialog takes focus when it opens, and Escape closes it.
+  # It offers to keep the player's item only while the player has one.
+  # Unticking that option lowers the count by one and leaves the item unarchived.
+  # The others are archived: still counted under all items, not under heard.
   feature "the double check marks a list after asking, and may leave the item in the player", %{
     session: session
   } do
-    # All items, since the item that plays stands in the queue and no longer in the inbox.
+    # Uses all items, because the playing item moves to the queue and leaves the inbox.
     session
     |> resize_window(1440, 900)
     |> open("/all")
     |> click(css("#mark-all"))
     |> assert_has(css("dialog#mark-all-confirm[open]", text: "40 items in this list"))
-    # The dialog takes the focus itself, so no button shows a ring before anybody tabs to it.
+    # The dialog element takes focus, so no button shows a focus ring before tabbing.
     |> execute_script("return document.activeElement.id", fn id ->
       assert id == "mark-all-confirm"
     end)
@@ -171,7 +171,7 @@ defmodule SikioWeb.LibraryTest do
     |> gone(css("#view-heard-count"))
   end
 
-  # Closed with Escape, a subscription's dialog hands the focus back to the row that opened it.
+  # Escape closes a subscription's dialog and returns focus to the element that opened it.
   feature "the subscriptions page gives the focus back after its dialog", %{
     session: session,
     account: account
@@ -190,8 +190,8 @@ defmodule SikioWeb.LibraryTest do
     end)
   end
 
-  # A link away from Sikio that names no target is still sent to a tab of its own, so an installed
-  # app never loads a stranger's page in its own window.
+  # A click on an external link without `target` sets `target="_blank"`.
+  # So an installed app never loads a foreign page in its own window.
   feature "a link away without a target opens in a tab of its own", %{session: session} do
     session
     |> open("/inbox")
@@ -207,9 +207,9 @@ defmodule SikioWeb.LibraryTest do
     |> execute_script("return window.awayTarget", fn target -> assert target == "_blank" end)
   end
 
-  # A source is given a tag in its own dialog, which stays open while it is typed in, and the tag
-  # then stands in the sidebar as a place of its own. The source is left from the same dialog,
-  # after a question that names it.
+  # A source gets a tag in its own dialog, which stays open while typing.
+  # The tag then appears in the sidebar as its own list.
+  # Unsubscribing uses the same dialog, after a confirmation that names the source.
   feature "a source is tagged and left from its own list", %{session: session} do
     session
     |> resize_window(1440, 900)
@@ -238,10 +238,11 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#library-heading", text: "Queue"))
   end
 
-  # From lg the window stands still. The list and the detail each scroll in their own column, and
-  # the other stays where it is. Each column takes the keyboard's focus to be scrolled: Chrome lets
-  # a scroll box take it unasked, Safari does not, so both stand in the tab order. Another item
-  # starts at its top, not where the last one was left.
+  # From lg the window does not scroll. The list and the detail scroll in separate columns.
+  # Scrolling the list leaves the detail in place.
+  # Both columns have `tabIndex` 0 for keyboard scrolling.
+  # Chrome focuses scroll containers without it, Safari does not.
+  # Selecting another item resets the detail to its top.
   feature "the list and the detail scroll on their own", %{session: session} do
     session
     |> resize_window(1440, 400)
@@ -270,8 +271,8 @@ defmodule SikioWeb.LibraryTest do
         assert page_room <= 0, "the page itself has nothing to scroll"
       end
     )
-    # Back at the top, so the row is not under the list's head when it is clicked. The detail is
-    # left scrolled, so the next item has a place to start from other than its top.
+    # Resets the list scroll, so the clicked row is not under the list head.
+    # The detail stays scrolled, so the reset for the next item is observable.
     |> execute_script(
       """
       document.getElementById('list-pane').scrollTop = 0
@@ -286,7 +287,7 @@ defmodule SikioWeb.LibraryTest do
     |> execute_script("return document.getElementById('item-detail').scrollTop", fn top ->
       assert top == 0
     end)
-    # Last, because a key scrolls smoothly and goes on moving the column after it moved.
+    # Runs last, because keyboard scrolling is smooth and keeps moving the column afterwards.
     |> execute_script("document.getElementById('item-detail').focus()")
     |> send_keys([" "])
     |> execute_script(
@@ -309,8 +310,8 @@ defmodule SikioWeb.LibraryTest do
     )
   end
 
-  # The chosen row stays in view beneath the list's head: moved to with j and k, or opened by its
-  # address far down the list.
+  # The selected row stays visible below the list head.
+  # Checked after moving with j and after opening a row's URL far down the list.
   feature "the chosen row stays in view", %{session: session} do
     session
     |> resize_window(1440, 500)
@@ -328,7 +329,7 @@ defmodule SikioWeb.LibraryTest do
     end)
     |> assert_has(css("#item-detail h2", text: "Episode 21"))
     |> execute_script(
-      # The row is scrolled to once the list has laid out, a frame or two after the page.
+      # The list scrolls to the row after layout, one or two frames after the page loads.
       """
       const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
       return frame().then(frame).then(() => { #{in_view(20)} })
@@ -348,8 +349,8 @@ defmodule SikioWeb.LibraryTest do
     """
   end
 
-  # Beside the list there is room for the detail, so a wide screen shows the first item. A phone
-  # stays on the list, where a chosen item would cover it.
+  # A wide screen has room for the detail beside the list, so it shows the first item.
+  # A phone shows only the list, because a selected item would cover it.
   feature "a wide screen shows the first item, a phone the list", %{session: session} do
     session
     |> resize_window(1440, 900)
@@ -357,8 +358,9 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#item-detail h2", text: "Episode 40"))
     |> resize_window(500, 900)
     |> open("/all")
-    # Absent before the page connects proves nothing; the hook only asks once it has. A search
-    # opened after that answers after anything the hook asked on mounting.
+    # An absence check before the socket connects proves nothing.
+    # The hook pushes its event only after connecting.
+    # Events are handled in order, so once the search opens, the hook's mount event is handled.
     |> assert_has(css("[data-phx-main].phx-connected"))
     |> assert_has(css("#entries article", count: 25))
     |> send_keys(["f"])

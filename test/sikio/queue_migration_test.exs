@@ -2,10 +2,10 @@
 
 defmodule Sikio.QueueMigrationTest do
   @moduledoc """
-  The migration that puts what is under way into the queue, where playing an item puts it now.
+  Tests the migration that queues `in_progress` playback states.
 
-  Without it, what was in progress before the inbox would stand in neither the inbox nor the
-  queue. The last played comes first.
+  Playing an item now queues it. Without the migration, older `in_progress` items would appear in
+  neither the inbox nor the queue. The queue is ordered by `updated_at`, newest first.
   """
   use Sikio.MigrationCase
 

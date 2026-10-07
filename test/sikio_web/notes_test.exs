@@ -7,8 +7,8 @@ defmodule SikioWeb.NotesTest do
   import SikioWeb.Notes
 
   describe "notes/1" do
-    # A bare string carrying markup is escaped by HEEx, and the reader meets the tags as text.
-    # Nothing warns about it, so the return type is what has to carry the decision.
+    # HEEx escapes a plain string, so markup would render as literal tags without a warning.
+    # The `{:safe, _}` return type prevents that.
     test "answers with markup a template will render rather than escape" do
       assert {:safe, _} = notes("<p>Hello</p>", :html)
     end
@@ -29,7 +29,7 @@ defmodule SikioWeb.NotesTest do
       refute html =~ "alert(1)"
     end
 
-    # The policy allows inline scripts, so an attribute handler that survived here would run.
+    # The content security policy allows inline scripts, so a kept event handler would run.
     test "drops event handlers and javascript targets" do
       html = rendered(~s|<a href="javascript:alert(1)" onclick="alert(2)">Tap</a>|)
 
@@ -56,8 +56,8 @@ defmodule SikioWeb.NotesTest do
       assert html =~ "<p>00:00 One</p>"
     end
 
-    # YouTube writes addresses as plain text. They become links, opening in a tab of their own;
-    # a full stop or a closing bracket after one is the sentence's, not the address's.
+    # YouTube descriptions contain plain-text URLs. They become links with `target="_blank"`.
+    # A trailing full stop or unmatched closing parenthesis stays outside the link.
     test "an address in text becomes a link" do
       html =
         rendered(
@@ -74,8 +74,8 @@ defmodule SikioWeb.NotesTest do
       assert html =~ ~s|href="https://de.wikipedia.org/wiki/Foo_(Bar)"|
     end
 
-    # The text is escaped before it is linked, so an address may end in an entity. Trimming
-    # punctuation never cuts into one.
+    # Text is escaped before linking, so a URL can end in an entity.
+    # Punctuation trimming never cuts into an entity.
     test "an address ending in an ampersand keeps it whole" do
       html = rendered("https://x.com/q?x=1& done", :text)
       assert html =~ ~s|href="https://x.com/q?x=1&amp;"|
@@ -96,15 +96,15 @@ defmodule SikioWeb.NotesTest do
   end
 
   describe "pictures and links inside notes" do
-    # The policy refuses a publisher's host, so a picture comes from this one or not at all.
+    # The content security policy blocks publishers' image hosts, so images go through Sikio.
     test "a picture is shown through Sikio's own host" do
       html = rendered(~s|<p><img src="https://img.example.org/chapter.jpg" alt="Map"></p>|)
       [src] = html |> Floki.parse_fragment!() |> Floki.attribute("img", "src")
 
       assert "/pictures/" <> reference = src
 
-      # Inside running text a picture that cannot be had disappears; a placeholder tile would
-      # stretch across the column.
+      # In running text an unavailable image falls back to an empty SVG.
+      # A placeholder tile would stretch across the column.
       assert {:ok, {["https://img.example.org/chapter.jpg"], "/images/nothing.svg"}} =
                SikioWeb.Pictures.verify(reference)
 
@@ -112,8 +112,8 @@ defmodule SikioWeb.NotesTest do
       assert html =~ ~s(loading="lazy")
     end
 
-    # Without the feed's own address there is no base to resolve a relative path against, and
-    # plain http would be fetched in the clear on the reader's behalf.
+    # Without the feed URL, a relative path has no base to resolve against.
+    # A plain HTTP image would be fetched unencrypted.
     test "a picture whose address cannot be checked is left out" do
       html =
         rendered(
@@ -125,7 +125,7 @@ defmodule SikioWeb.NotesTest do
       assert html =~ "After"
     end
 
-    # Following a link in place would leave the page, and the dock playing in it with it.
+    # Navigating in the same tab would leave Sikio and stop the player dock.
     test "a link opens beside the reader" do
       html = rendered(~s|<p><a href="https://example.org">Site</a></p>|)
 
@@ -134,8 +134,7 @@ defmodule SikioWeb.NotesTest do
     end
   end
 
-  # Notes that are empty once filtered are no notes, so the reader is told rather than shown a
-  # bare rule.
+  # Notes that are empty after filtering return nil, so no empty notes section renders.
   test "notes left empty by filtering are no notes" do
     assert notes(~s|<p><img src="http://cdn.example.org/x.jpg"></p>|, :html) == nil
     assert notes("<p> </p><div></div>", :html) == nil

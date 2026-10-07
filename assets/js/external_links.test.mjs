@@ -18,7 +18,7 @@ test("only the web's addresses count, not mail or a script", () => {
   assert.equal(leavesApp("javascript:void(0)", origin), false)
 })
 
-// A link that names no target of its own is sent to a tab of its own when it leaves the app.
+// An external link without a target gets `_blank` and `noopener noreferrer` on click.
 test("a click on a link away gives it a tab of its own", () => {
   const link = {href: "https://example.org/show", target: "", rel: ""}
   const event = {target: {closest: () => link}}

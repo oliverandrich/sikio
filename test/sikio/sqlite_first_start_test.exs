@@ -2,8 +2,9 @@
 
 defmodule Sikio.SQLiteFirstStartTest do
   @moduledoc """
-  The first start on an empty SQLite file, where every connection of the pool turns the file to
-  write-ahead logging at once.
+  Tests the first start on an empty SQLite file.
+
+  Every pool connection switches the file to WAL mode at the same time.
   """
   use ExUnit.Case, async: true
 
@@ -13,7 +14,7 @@ defmodule Sikio.SQLiteFirstStartTest do
 
   @moduletag :tmp_dir
 
-  # One start fails only now and then, so a number of them is what shows it.
+  # The lock error is intermittent, so the test repeats the start.
   @starts 30
   @pool_size 5
 
@@ -31,7 +32,7 @@ defmodule Sikio.SQLiteFirstStartTest do
     refute log =~ "database is locked"
   end
 
-  # Until every connection of the pool has connected, the failed ones after their retry included.
+  # Polls until every pool connection is ready, including connections that retried.
   defp await_connections(repo, deadline \\ System.monotonic_time(:millisecond) + 10_000) do
     %{pid: pool} = Ecto.Adapter.lookup_meta(repo)
     [%{ready_conn_count: ready}] = DBConnection.get_connection_metrics(pool)

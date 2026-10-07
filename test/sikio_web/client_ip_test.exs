@@ -2,17 +2,15 @@
 
 defmodule SikioWeb.ClientIpTest do
   @moduledoc """
-  Who a request is counted against, when a proxy stands in front.
+  Client address resolution behind a reverse proxy.
 
-  Every budget in this application is spent per address, so the address decides who a refusal
-  refuses. Behind Caddy the socket always comes from the same place, and counting that would give
-  every visitor one shared budget: one stranger could spend it and lock out everybody else.
+  Rate limits count per client address. Behind Caddy every socket peer has the same address.
+  Counting the peer gives all visitors one shared budget, so one client can lock out everyone.
 
-  The header that carries the real address is written by whoever sends it, so believing it
-  without asking where it came from is the opposite mistake. Then a visitor picks their own
-  budget and the limit means nothing at all.
+  Any client can set the forwarding header. Trusting it from any peer lets a client choose its
+  own budget.
   """
-  # Not `async: true`: two of these name a trusted proxy, which is application configuration.
+  # async: false, because several tests set trusted proxies in application configuration.
   use ExUnit.Case, async: false
 
   alias SikioWeb.ClientIp
@@ -30,7 +28,7 @@ defmodule SikioWeb.ClientIpTest do
 
   @forwarded [{"x-forwarded-for", "203.0.113.7"}]
 
-  # A proxy in a container is trusted by the network it lives on, whatever address it has today.
+  # A container proxy is trusted by its network range, because its address can change.
   test "a proxy anywhere in a trusted range speaks for the visitor it forwarded" do
     trusting([{{172, 20, 0, 0}, 16}, {{64_768, 0, 0, 0, 0, 0, 0, 0}, 64}])
 
@@ -45,15 +43,13 @@ defmodule SikioWeb.ClientIpTest do
     assert asked({64_768, 0, 0, 1, 0, 0, 0, 1}, @forwarded) == {64_768, 0, 0, 1, 0, 0, 0, 1}
   end
 
-  # What a dual-stack socket reports for a peer that connected over IPv4. Production binds `::`,
-  # so this is the form Caddy on the same host actually arrives in. Measured, not guessed.
+  # The IPv4-mapped form a dual-stack socket reports for an IPv4 peer.
+  # Production binds `::`, so Caddy on the same host arrives in this form. Measured, not assumed.
   @mapped_loopback {0, 0, 0, 0, 0, 65_535, 32_512, 1}
 
-  # The header is written by whoever sends the request, so its bytes are a visitor's to choose.
-  # `to_charlist/1` raises `UnicodeConversionError` on bytes that are not UTF-8, and this plug
-  # runs in front of everything — the raise would be a request nobody could make succeed, from a
-  # header nobody validates. The address is unreadable either way; what matters is that the
-  # socket still answers for it.
+  # Clients control the header bytes. `to_charlist/1` raises `UnicodeConversionError` on invalid
+  # UTF-8. This plug runs before every route, so a raise would fail the whole request.
+  # The invalid entry is skipped and the valid entry before it is used.
   test "a forwarded header that is not UTF-8 falls back to the socket" do
     header = [{"x-forwarded-for", <<"203.0.113.7, ", 0xFF, 0xFE>>}]
 
@@ -70,8 +66,7 @@ defmodule SikioWeb.ClientIpTest do
     assert asked({127, 0, 0, 1}, @forwarded) == {203, 0, 113, 7}
   end
 
-  # Two visitors behind one proxy are two addresses, which is the whole point: a budget spent by
-  # one of them is not a budget the other has lost.
+  # Visitors behind one proxy resolve to distinct addresses, so their budgets stay separate.
   test "two visitors behind one proxy are told apart" do
     first = asked({127, 0, 0, 1}, [{"x-forwarded-for", "203.0.113.7"}])
     second = asked({127, 0, 0, 1}, [{"x-forwarded-for", "198.51.100.4"}])
@@ -79,16 +74,15 @@ defmodule SikioWeb.ClientIpTest do
     refute first == second
   end
 
-  # The header is a claim, and a claim is only worth the connection it arrived on. Exposed
-  # directly, this is how somebody would buy themselves a fresh budget for every attempt.
+  # The header is ignored from an untrusted peer.
+  # Otherwise a directly connected client could claim a new address per attempt.
   test "a stranger speaking for somebody else is not believed" do
     assert asked({203, 0, 113, 9}, [{"x-forwarded-for", "198.51.100.4"}]) == {203, 0, 113, 9}
   end
 
-  # Caddy writes `X-Forwarded-For` and hands the rest of the request through untouched, so
-  # anything else naming an address is the visitor's own word. `RemoteIp` reads four headers
-  # unless told otherwise and the last one wins: a visitor sends `X-Real-IP` and picks their
-  # own budget, which is the whole thing this plug exists to prevent.
+  # Caddy writes `X-Forwarded-For` and passes other headers unchanged, so they are client input.
+  # `RemoteIp` reads four headers by default, and the last one wins.
+  # A client could then send `X-Real-IP` and choose its own budget.
   test "only the header the proxy writes is believed" do
     for {name, value} <- [
           {"x-real-ip", "9.9.9.9"},
@@ -101,8 +95,8 @@ defmodule SikioWeb.ClientIpTest do
     end
   end
 
-  # Matching only the plain form would leave this plug doing nothing on exactly the deployment it
-  # was written for, and no test built on `Plug.Test.conn/3` would ever notice.
+  # Matching only the plain loopback would disable the plug on the production deployment.
+  # Tests built on `Plug.Test.conn/3` use the plain form and would not catch it.
   test "a proxy that reached a dual-stack socket is still the loopback" do
     assert asked(@mapped_loopback, @forwarded) == {203, 0, 113, 7}
   end
@@ -111,9 +105,8 @@ defmodule SikioWeb.ClientIpTest do
     assert asked(@mapped_loopback, []) == {127, 0, 0, 1}
   end
 
-  # An instance on a home network, or reached over WireGuard, sees private visitor addresses.
-  # `RemoteIp` calls those reserved and answers with nothing at all, which would put the whole
-  # network back into one budget.
+  # On a home network or over WireGuard, visitors have private addresses.
+  # `RemoteIp` treats those as reserved and returns none. The network would share one budget.
   test "visitors on a private network are told apart" do
     first = asked({127, 0, 0, 1}, [{"x-forwarded-for", "192.168.1.50"}])
     second = asked({127, 0, 0, 1}, [{"x-forwarded-for", "192.168.1.51"}])
@@ -122,8 +115,8 @@ defmodule SikioWeb.ClientIpTest do
     refute first == second
   end
 
-  # An edge proxy, then one of ours on a private address. The inner one is ours, and mistaking it
-  # for the visitor puts everybody behind it back into one budget.
+  # An edge proxy forwards to a trusted internal proxy at a private address.
+  # Taking the internal proxy for the visitor would give everyone behind it one budget.
   test "a proxy of our own inside the chain is not the visitor" do
     trusting([{10, 0, 0, 2}])
 
@@ -132,8 +125,8 @@ defmodule SikioWeb.ClientIpTest do
     assert asked({10, 0, 0, 2}, forwarded) == {203, 0, 113, 7}
   end
 
-  # Two of ours in front, which is what an edge proxy plus an internal one looks like. Walking
-  # from the right has to pass both before it finds the visitor.
+  # An edge proxy and an internal proxy, both trusted.
+  # The right-to-left walk skips both to reach the visitor.
   test "a chain of our own proxies is walked past, not stopped at" do
     trusting([{10, 0, 0, 1}, {10, 0, 0, 2}])
 
@@ -142,8 +135,8 @@ defmodule SikioWeb.ClientIpTest do
     assert asked({10, 0, 0, 2}, forwarded) == {203, 0, 113, 7}
   end
 
-  # Nothing in the chain but our own machines: a health check from the proxy itself, or a probe
-  # that never came from anybody. There is no visitor to find, so the peer stands.
+  # The chain holds only loopback and trusted addresses, as in a proxy health check.
+  # Without a visitor entry, the peer address is kept.
   test "a chain holding nobody but us leaves the peer standing" do
     trusting([{10, 0, 0, 1}, {10, 0, 0, 2}])
 
@@ -152,8 +145,8 @@ defmodule SikioWeb.ClientIpTest do
     assert asked({10, 0, 0, 2}, forwarded) == {10, 0, 0, 2}
   end
 
-  # Giving each backend its own loopback address is an ordinary way to run several of them, and
-  # the documentation promises a proxy on the same machine needs no configuration.
+  # One loopback address per backend is a common setup.
+  # The documentation states that a same-host proxy needs no configuration.
   test "a proxy on another loopback address is still the loopback" do
     assert asked({127, 0, 0, 2}, @forwarded) == {203, 0, 113, 7}
   end
@@ -166,8 +159,8 @@ defmodule SikioWeb.ClientIpTest do
     assert asked({127, 0, 0, 1}, [{"x-forwarded-for", "not-an-address"}]) == {127, 0, 0, 1}
   end
 
-  # What Caddy actually sends when a visitor made the header up first: it appends rather than
-  # replaces, so the rightmost entry is the one it saw itself.
+  # Caddy appends to a client-supplied `X-Forwarded-For`.
+  # The rightmost entry is the address Caddy saw.
   test "an invented entry ahead of the real one does not win" do
     forged = [{"x-forwarded-for", "198.51.100.4, 203.0.113.7"}]
 
@@ -177,12 +170,10 @@ end
 
 defmodule SikioWeb.ClientIpBucketTest do
   @moduledoc """
-  The address a budget is counted against, which is not always the address itself.
+  Rate-limit bucket keys for client addresses.
 
-  A visitor with IPv6 usually holds a whole `/64` and can rotate the lower half for free. Before
-  the forwarding header was believed, a proxy collapsed everybody onto one socket address and
-  that was unreachable. Believing the header hands the key to whoever sends the request, so what
-  is counted has to be the allocation rather than the address.
+  An IPv6 client usually holds a whole `/64` and can rotate the lower 64 bits freely.
+  The forwarding header is client-controlled, so an IPv6 bucket is the `/64` allocation.
   """
   use ExUnit.Case, async: true
 

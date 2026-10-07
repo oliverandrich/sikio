@@ -2,14 +2,13 @@
 
 defmodule Sikio.IdentityTest do
   @moduledoc """
-  What an account is called here: a name, or an address.
+  Tests the account identifier mode: username or email address.
 
-  Ithibati binds the identifier field at compile time — `ithibati_account/0` expands to a literal
-  field name — so the two modes cannot be two fields. They are one column holding two kinds of
-  thing, and what tells them apart is the format. That makes the format the whole switch, which
-  is why it is asked of one module and tested here rather than spelled out at each schema.
+  Ithibati binds the identifier field at compile time. `ithibati_account/0` expands to a literal
+  field name, so both modes share one column. Only the validation format differs.
+  `Sikio.Identity` provides that format to both schemas.
   """
-  # async: false — the mode is application configuration and these set it.
+  # Not async: these tests set the mode in application env.
   use Sikio.DataCase, async: false
 
   alias Ithibati.Schema.Identifier
@@ -34,16 +33,15 @@ defmodule Sikio.IdentityTest do
       assert Identity.email?()
     end
 
-    # A value nobody knows is a mistake in the configuration, and guessing which one was meant
-    # would decide for an operator what their instance is.
+    # An unknown value is a configuration error. Falling back to a default would hide it.
     test "is refused when it is neither, and the message names the key" do
       as(:handle)
 
       assert_raise RuntimeError, ~r/account_identity/, &Identity.mode/0
     end
 
-    # Compared by source: two regexes built from the same pattern are not `==`, because each
-    # carries its own compiled form.
+    # Compared by `Regex.source/1`. Two regexes from the same pattern may differ in their compiled
+    # form, so `==` fails.
     test "carries the format that belongs to it" do
       assert Regex.source(Identity.format()) == Regex.source(Identifier.username_format())
 
@@ -53,13 +51,9 @@ defmodule Sikio.IdentityTest do
     end
   end
 
-  # An instance that addresses its accounts has to be able to reach them: the invitation is the
-  # only way in, and in that mode it is an address. Configured without a mailer, it would be an
-  # instance nobody can be invited to, and the first person to notice would be the operator with
-  # a guest waiting.
+  # In email mode, invitations are sent by mail. Without a mailer, nobody could be invited.
   describe "asking for addresses without being able to send any" do
-    # Both halves of the way out: the setting that asked for addresses, and the one that would
-    # make them deliverable. An operator sets the variable, so that is what is named.
+    # The message names both fixes: `account_identity` and the `MAIL_ENABLED` variable.
     test "is refused, and the message names both ways out" do
       as(:email)
 
@@ -75,14 +69,13 @@ defmodule Sikio.IdentityTest do
       assert Identity.verify!(true) == :ok
     end
 
-    # Names need no mailer. An invitation link is handed over however its sender likes.
+    # Username mode needs no mailer. The inviter shares the link directly.
     test "and names never need one" do
       assert Identity.verify!(false) == :ok
     end
 
-    # The two are wired together where the application starts, and that wiring is the only place
-    # either of them is asked. A test that called them separately would pass while the boot did
-    # nothing.
+    # `Sikio.Application` calls `Identity.verify!(Mailer.configured?())` at start. This test
+    # repeats that call with `:mail_enabled` unset and set. It does not start the application.
     test "and the answer comes from the mailer at boot" do
       as(:email)
 
@@ -96,9 +89,8 @@ defmodule Sikio.IdentityTest do
     end
   end
 
-  # Both schemas, because Ithibati refuses a pair that disagrees and this application declares the
-  # identifier twice. A format enforced on one of them only is a form that accepts what the
-  # ceremony then refuses.
+  # Both schemas declare the identifier, and Ithibati rejects a mismatch between them.
+  # A format on only one schema would let the form accept what registration rejects.
   describe "what an account and an invitation accept" do
     test "a name in name mode, and not an address" do
       assert valid?(User, "ada")
@@ -116,9 +108,8 @@ defmodule Sikio.IdentityTest do
       refute valid?(Invitation, "ada")
     end
 
-    # Ithibati skips minting a token and asking the accounts table when the changeset is already
-    # invalid, and carrying `:format` at `use` is what used to make it invalid in time. With the
-    # format asked per instance instead, the shape has to be checked before any of that.
+    # Ithibati skips token generation and the accounts lookup for an invalid changeset.
+    # The runtime format must therefore be validated before Ithibati's changeset steps.
     test "and a refused invitation costs no token" do
       as(:email)
 
@@ -129,9 +120,8 @@ defmodule Sikio.IdentityTest do
       refute Map.has_key?(changeset.changes, :token_hash)
     end
 
-    # Ectos default beside a name field is "has invalid format", which names the fault and not
-    # the rule. The sentence follows the mode, because the two modes refuse for different reasons
-    # and the person reading it is being asked to type something else.
+    # Ecto's default message is "has invalid format", which does not state the rule.
+    # The message depends on the mode and describes the expected input.
     test "and the refusal says what this instance asks for" do
       assert refusal(User, "Ada Lovelace") == [
                "must be 1-30 lowercase letters, numbers or underscores"
@@ -146,7 +136,7 @@ defmodule Sikio.IdentityTest do
       assert refusal(Invitation, "ada") == ["must look like grace@example.org"]
     end
 
-    # Ithibati keeps doing its half whatever the format is.
+    # Ithibati's required-field validation applies in every mode.
     test "and neither accepts nothing at all" do
       refute valid?(User, "")
       refute valid?(Invitation, "")

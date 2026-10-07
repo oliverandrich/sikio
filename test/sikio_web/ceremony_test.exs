@@ -2,17 +2,15 @@
 
 defmodule SikioWeb.CeremonyTest do
   @moduledoc """
-  The pipeline this example and the library's README both insist on, driven rather than described.
+  Requests through the ceremony route pipeline that Ithibati's README prescribes.
 
-  Both halves have been wrong here before. The routes went through `:browser` at first, whose
-  `accepts ["html"]` refused the hook's request with a 406 before the controller was reached; and
-  the README stated the 403 below without anything proving it.
+  The routes once used the `:browser` pipeline. Its `accepts ["html"]` answered the hook's
+  request with 406. The README stated the CSRF 403 without a test.
   """
   use SikioWeb.ConnCase
 
-  # Carrying what the operator's code buys, because a first-account challenge is not minted
-  # without it. Written into the session rather than bought at the endpoint: what this file is
-  # about is the pipeline, and the exchange has its own tests.
+  # `claiming_conn/0` writes the setup code proof into the session.
+  # A first-account challenge requires it. The code exchange endpoint has its own tests.
   defp signed_conn do
     conn = claiming_conn() |> get("/setup")
     [_, token] = Regex.run(~r/name="csrf-token" content="([^"]+)"/, html_response(conn, 200))
@@ -30,18 +28,16 @@ defmodule SikioWeb.CeremonyTest do
       |> post(~p"/auth/registration/challenge", %{"username" => "first_one"})
       |> json_response(200)
 
-    # The shape the browser is handed, and the three parts of it this library refuses to make
-    # optional: a discoverable credential, in both spellings, and the extension that reports back
-    # whether the authenticator honoured the wish.
+    # Ithibati always requires a discoverable credential, in both spellings, and `credProps`.
+    # `credProps` reports whether the authenticator created a discoverable credential.
     assert %{"challenge" => _, "rp" => %{"id" => _}} = response
     assert response["authenticatorSelection"]["residentKey"] == "required"
     assert response["authenticatorSelection"]["requireResidentKey"] == true
     assert response["extensions"]["credProps"] == true
   end
 
-  # `Plug.Test` sets `plug_skip_csrf_protection`, so every test connection is exempt by default and
-  # this assertion would pass against an application with no protection at all. Turning it back on
-  # is the only way the check is the thing being tested rather than the thing being skipped.
+  # `Plug.Test` sets `plug_skip_csrf_protection`, which skips the CSRF check.
+  # The test sets it to false, so the request goes through the check.
   test "and refuses the same request without a CSRF token" do
     {conn, _token} = signed_conn()
 

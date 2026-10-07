@@ -2,13 +2,13 @@
 
 defmodule Sikio.LoggingTest do
   @moduledoc """
-  What production writes to its log: one JSON object per line, and only the metadata Sikio names.
+  Tests the production log format: one JSON object per line, with allowlisted metadata only.
   """
   use ExUnit.Case, async: true
 
   alias Sikio.Logging
 
-  # A key a caller passes by accident, such as a name, never reaches the line.
+  # Metadata keys outside the allowlist, such as `username`, are dropped.
   test "a line is JSON and carries only the metadata Sikio allows" do
     {formatter, config} = Logging.formatter()
 
@@ -28,8 +28,8 @@ defmodule Sikio.LoggingTest do
     refute line =~ "grace_hopper"
   end
 
-  # Bandit logs a request that crashes with the connection attached, and the formatter would write
-  # its path, the visitor's address and agent. A path may hold an invitation's token.
+  # Bandit attaches the conn to a crash report. Its path, remote IP and user agent must not be
+  # logged. A path may contain an invitation token.
   test "a request that crashes reaches the line without its path, address or agent" do
     {formatter, config} = Logging.formatter()
 
@@ -50,7 +50,7 @@ defmodule Sikio.LoggingTest do
     refute line =~ "127.0.0.1"
   end
 
-  # debug would turn on LiveView's and Ecto's own lines, with sessions and query parameters.
+  # `debug` enables LiveView and Ecto logs, which include session data and query parameters.
   test "the level comes from LOG_LEVEL, info unless it says otherwise, and never debug" do
     assert Logging.level(nil) == :info
     assert Logging.level("") == :info

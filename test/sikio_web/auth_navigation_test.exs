@@ -16,8 +16,7 @@ defmodule SikioWeb.AuthNavigationTest do
     assert conn |> get("/") |> redirected_to() == "/login"
   end
 
-  # The instance protects its claim, so the setup page asks for the operator's code before it
-  # asks for anything else. Nothing here ever asks for an address.
+  # A setup code protects the instance claim. The setup page shows only the code field.
   test "an empty instance sends login to the setup page, which asks for the code", %{conn: conn} do
     assert conn |> get("/login") |> redirected_to() == "/setup"
     html = conn |> get("/setup") |> html_response(200)
@@ -43,7 +42,7 @@ defmodule SikioWeb.AuthNavigationTest do
     assert conn |> get("/setup") |> redirected_to() == "/login"
   end
 
-  # Every page asks for the whole screen, or iOS reports no safe areas for the bars to clear.
+  # Without `viewport-fit=cover`, iOS reports no safe-area insets for the bars.
   test "a page asks for the whole screen", %{conn: conn} do
     html = conn |> get("/setup") |> html_response(200)
     assert html =~ ~r/<meta name="viewport" content="[^"]*viewport-fit=cover/

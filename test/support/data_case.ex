@@ -2,18 +2,11 @@
 
 defmodule Sikio.DataCase do
   @moduledoc """
-  This module defines the setup for tests requiring
-  access to the application's data layer.
+  Test case for tests that use the Repo.
 
-  You may define functions here to be used as helpers in
-  your tests.
-
-  Finally, if the test case interacts with the database,
-  we enable the SQL sandbox, so changes done to the database
-  are reverted at the end of every test. If you are using
-  PostgreSQL, you can even run database tests asynchronously
-  by setting `use Sikio.DataCase, async: true`, although
-  this option is not recommended for other databases.
+  Imports `Ecto`, `Ecto.Changeset`, `Ecto.Query` and the helpers below.
+  Each test runs in an SQL sandbox transaction that is rolled back afterwards.
+  The sandbox is shared when the test is not `async`.
   """
 
   use ExUnit.CaseTemplate
@@ -22,22 +15,22 @@ defmodule Sikio.DataCase do
   alias Ithibati.Identity.Instance
 
   @doc """
-  A name no other test writes.
+  Returns a username that no other test uses.
 
-  Almost every test file is `async: true`, each in its own sandbox transaction. Two of them
-  writing the same account row take the same lock, and taking two such locks in opposite order
-  is how a suite deadlocks against itself. The cheapest way out is for no two tests to name the
-  same row. The prefix is for whoever reads the test, not for the database.
+  Most test files are `async: true`, each in its own sandbox transaction.
+  Two tests writing the same account row take the same row lock.
+  Taking two such locks in opposite order deadlocks the suite.
+  Unique names avoid shared rows. The prefix only aids readability.
   """
   def unique_username(prefix \\ "reader"), do: prefix <> unique()
 
-  @doc "The tail that makes a name or an address this test's own."
+  @doc "Returns a positive integer, unique within the VM, as a string suffix for names."
   def unique, do: Integer.to_string(System.unique_integer([:positive]))
 
   @doc """
-  Runs `fun` and returns its result with the SQL that process `pid` sent meanwhile.
+  Runs `fun` and returns `{result, sql}` with the queries that process `pid` sent meanwhile.
 
-  Repo telemetry runs in the process that queries, so other tests' queries never arrive here.
+  Repo telemetry handlers run in the querying process, so other tests' queries are not collected.
   """
   def queries(pid \\ self(), fun) do
     test = self()
@@ -59,7 +52,7 @@ defmodule Sikio.DataCase do
   end
 
   @doc false
-  # A module's function, because telemetry warns about a closure and calls it more slowly.
+  # A named function, because telemetry warns about anonymous handlers and calls them slower.
   def forward_query(_event, _measurements, %{query: query}, {pid, test, handler}) do
     if self() == pid, do: send(test, {handler, query})
   end
@@ -73,14 +66,14 @@ defmodule Sikio.DataCase do
   end
 
   @doc """
-  What the operator's code buys, for a test that makes the first account.
+  Returns a setup authorization proof for a test that creates the first account.
 
-  Every instance protects its claim, so nothing claims one without this. Bought by issuing a code
-  and spending it, rather than by writing a proof by hand, so the test walks the same path an
-  operator does.
+  Claiming an instance requires this proof.
+  The proof comes from issuing and authorizing a real code, the same path an operator takes.
 
-  Issued once per test and remembered. Issuing another code is what makes the previous one
-  worthless, so a helper that issued one per call would hand back proofs that the next call voids.
+  The proof is cached in the process dictionary for the test.
+  Issuing a new code invalidates the previous one.
+  A fresh code per call would therefore void earlier proofs.
   """
   def setup_authorization do
     case Process.get(__MODULE__) do
@@ -95,7 +88,7 @@ defmodule Sikio.DataCase do
     end
   end
 
-  @doc "A connection that has already spent the operator's code, with a session to hold it."
+  @doc "Returns a conn whose session holds the setup authorization proof."
   def claiming_conn(conn \\ Phoenix.ConnTest.build_conn()) do
     conn
     |> Plug.Test.init_test_session(%{})
@@ -127,7 +120,7 @@ defmodule Sikio.DataCase do
   end
 
   @doc """
-  A helper that transforms changeset errors into a map of messages.
+  Transforms changeset errors into a map of messages.
 
       assert {:error, changeset} = Accounts.create_user(%{password: "short"})
       assert "password is too short" in errors_on(changeset).password

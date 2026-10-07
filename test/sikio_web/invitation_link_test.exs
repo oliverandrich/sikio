@@ -2,7 +2,7 @@
 
 defmodule SikioWeb.InvitationLinkTest do
   @moduledoc """
-  What a link answers once it can no longer be accepted.
+  Responses to invitation links that can no longer be accepted.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -10,8 +10,8 @@ defmodule SikioWeb.InvitationLinkTest do
   alias Sikio.Invitations
   alias Sikio.Repo
 
-  # A used link, an expired one and one nobody ever held are one answer on purpose: anything else
-  # tells a guesser which of their guesses was once real.
+  # A used token and an unknown token get the same page.
+  # Distinct pages would reveal which guessed tokens once existed.
   test "a spent link and an invented one are answered exactly alike", %{conn: conn} do
     member = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, invitation} = Invitations.open(member, %{"username" => unique_username()})
@@ -20,7 +20,7 @@ defmodule SikioWeb.InvitationLinkTest do
     spent = main_text(conn, "/invite/#{invitation.token}")
     invented = main_text(conn, "/invite/a-token-nobody-ever-held")
 
-    # Word for word, because anything else is a signal.
+    # Compares the full text, because any difference reveals the token's state.
     assert spent == invented
     assert spent =~ "has been used already, or it has expired"
   end

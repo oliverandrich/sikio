@@ -22,13 +22,11 @@ defmodule Sikio.Accounts.CleanupTest do
     assert Repo.get(Invitation, invitation.id)
   end
 
-  # The worker on its own deletes nothing, because nothing runs it. This is the half that says
-  # maintenance actually happens on a deployed instance rather than only when somebody remembers.
+  # Asserts that the Oban crontab includes the worker, since an unscheduled worker never runs.
   #
-  # Read from the application environment rather than from `Oban.config/0`: `testing: :manual`
-  # empties the running instance's plugins and queues, so the schedule this asserts on is only
-  # visible in the configuration. `validate/1` is Oban's own answer to that, and it also refuses a
-  # cron expression that would otherwise fail at boot in production and nowhere else.
+  # Reads `Sikio.Application.oban/0`, not `Oban.config/0`. `testing: :manual` removes plugins and
+  # queues from the running instance. `Oban.Config.validate/1` also rejects an invalid cron
+  # expression, which would otherwise fail only at production boot.
   test "the schedule runs the job" do
     options = Sikio.Application.oban()
 

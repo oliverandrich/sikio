@@ -2,7 +2,7 @@
 
 defmodule SikioWeb.PicturesFeatureTest do
   @moduledoc """
-  A source's picture as the browser asks for it, from the server's own request process.
+  Source images requested by the browser and fetched in the server's request process.
   """
   use SikioWeb.FeatureCase
 
@@ -11,7 +11,7 @@ defmodule SikioWeb.PicturesFeatureTest do
   alias Sikio.Feeds.Parser
   alias Sikio.Library
 
-  # Nobody's server is asked in a test, so the picture cannot be had and its fallback stands in.
+  # `nobody_answers/1` stubs every outgoing request with a 404, so the fallback image is served.
   feature "a picture nobody can fetch falls back to the mark of its kind", %{session: session} do
     account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")

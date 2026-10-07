@@ -2,20 +2,17 @@
 
 defmodule Sikio.ClaimTest do
   @moduledoc """
-  The one claim mode this application supports, asked where an instance starts.
+  Tests `Sikio.Claim.verify!/0`, which permits only `initial_claim: :operator_code`.
 
-  Ithibati offers an open claim as well. Sikio does not: an instance answers on the network before
-  anybody has claimed it, so leaving that claim open is a race against strangers. The library
-  option therefore has one permitted value here, and an instance configured otherwise must say so
-  and stop rather than serve a claim anybody can take.
+  Ithibati also offers an open claim. Sikio is reachable on the network before the first account
+  exists, so an open claim goes to the first visitor. Any other value raises.
   """
   use ExUnit.Case, async: false
 
   alias Sikio.Claim
   alias Sikio.TestConfig
 
-  # The posture this ships with, asked of the configuration every environment actually loads.
-  # A posture that only holds in production is a posture nothing runs against.
+  # Checks the value from `config/config.exs`, which every environment loads.
   test "the mode this application ships with is the one it supports" do
     assert Claim.verify!() == :ok
   end
@@ -26,7 +23,7 @@ defmodule Sikio.ClaimTest do
     assert_raise RuntimeError, ~r/initial_claim/, fn -> Claim.verify!() end
   end
 
-  # The library refuses a value it cannot read at all, which says the same thing louder.
+  # Ithibati raises `ArgumentError` for an unknown mode.
   test "a mode the library cannot read is refused too" do
     TestConfig.put_env(:ithibati, :initial_claim, :operator_codes)
 

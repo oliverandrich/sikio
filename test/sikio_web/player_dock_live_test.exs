@@ -31,14 +31,13 @@ defmodule SikioWeb.PlayerDockLiveTest do
       assert Floki.find(document, "audio, iframe") == []
     end
 
-    # An unclaimed instance answers /setup here; what matters is that a visitor without an
-    # account is served no dock at all, on whichever public screen answers.
+    # An unclaimed test instance serves /setup. A response for a signed-out visitor has no dock.
     html = build_conn() |> get(~p"/setup") |> html_response(200)
     assert Floki.find(Floki.parse_document!(html), "#player-dock") == []
   end
 
-  # The dock renders from the root layout, so it belongs to no live_session and inherits no hook
-  # from one. Without its own it answers a German session in English.
+  # The dock renders in the root layout outside any live_session and inherits no `on_mount` hook.
+  # Without its own `SikioWeb.Locale` hook it renders in English.
   test "the dock speaks the language the session asked for", c do
     conn = Plug.Conn.put_session(c.conn, "locale", "de")
     {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
@@ -48,8 +47,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, "[data-audio-speed][aria-label='Wiedergabegeschwindigkeit']")
   end
 
-  # The system's controls name the episode by these; see assets/js/media_player.mjs. The picture
-  # comes through this host, as every other picture does.
+  # These data attributes fill the Media Session metadata in assets/js/media_player.mjs.
+  # Artwork is proxied through `/pictures/`, like every other image.
   test "the player carries what the system shows of the episode", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
@@ -90,7 +89,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
     refute has_element?(dock, "audio")
   end
 
-  # The dock hears what the account's library hears. A changed subscription concerns the list.
+  # The dock receives the account's library broadcasts.
+  # A subscription update must not stop playback.
   test "a subscription changed elsewhere leaves the player playing", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
@@ -124,8 +124,9 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, "#dock-notice", "no longer")
   end
 
-  # LiveView mounts the dock again after every reconnect. The browser names the player it still
-  # holds, and the dock takes it back only while that session still owns the entry.
+  # LiveView remounts the dock after a reconnect.
+  # Connect params carry the client's entry and session.
+  # The dock restores the player only while that session owns the entry.
   test "a reconnect restores the player the browser still holds", c do
     session = started_session(c)
 
@@ -175,8 +176,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
   defp rejoining(conn, id, session),
     do: put_connect_params(conn, %{"player_entry" => to_string(id), "player_session" => session})
 
-  # An ended item is heard and leaves the queue. Playing on, the dock starts what is first in it
-  # then; with playing on turned off, it starts nothing.
+  # With play-on enabled, `next` after an ended item starts the queue head.
+  # With play-on disabled, the dock keeps the ended item.
   test "the dock plays on with the queue when an item ends, unless told not to", c do
     {:ok, preview} = Parser.parse(FeedFixtures.podcast("Next"), FeedFixtures.feed_url("next"))
     {:ok, _} = Library.subscribe(c.user, preview)
@@ -201,9 +202,10 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, ~s|[phx-hook="MediaPlayer"][data-title="#{following.title}"]|)
   end
 
-  # Marked heard or archived by hand while it plays, an item is done with as if it had ended:
-  # playing on, the queue follows; otherwise the dock closes. Back in the inbox it only closes.
-  # None of this is news to the one who did it. Another player taking over still is.
+  # Marking the playing item archived or heard acts like its end.
+  # With play-on the queue head starts. Without it the dock closes.
+  # Marking it new closes the dock without starting the queue.
+  # The archive case shows no `#dock-notice`. A takeover by another player shows one.
   test "an item marked by hand while it plays is done with quietly", c do
     {:ok, preview} = Parser.parse(FeedFixtures.podcast("Next"), FeedFixtures.feed_url("next"))
     {:ok, _} = Library.subscribe(c.user, preview)
@@ -251,8 +253,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
       "ended" => false
     }
 
-  # Shift and an arrow move between chapters, so the player knows the starts of what it plays,
-  # by the same rule the detail lists them.
+  # Shift plus an arrow key seeks between chapters, so the player needs chapter starts.
+  # Chapters in show notes are parsed by the same rule as on the detail page.
   test "the player knows the chapters of what it plays", c do
     body =
       String.replace(
@@ -279,13 +281,13 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert [~s|[{"at":0,"title":"Intro"},{"at":118,"title":"Akkus"},{"at":291,"title":"Solar"}]|] ==
              chapters
 
-    # The face marks them on its bar, and names the one that plays.
+    # The audio face marks chapter starts on its seek bar and shows the current chapter title.
     assert has_element?(dock, ~s|[data-audio-face] [data-audio-mark][data-at="118"]|)
     assert has_element?(dock, "[data-audio-face] [data-audio-chapter]", "Intro")
   end
 
-  # A podcast's chapters file is fetched when somebody first wants it. A player started before
-  # anybody opened the item fetches it itself.
+  # A chapters file is fetched on first use.
+  # Starting playback before the detail page was opened triggers the fetch.
   test "the player fetches the chapters file of what it plays", c do
     tag =
       ~s|<podcast:chapters href="https://example.org/dock/chapters.json" type="application/json+chapters"/>|
@@ -309,7 +311,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
              ~s|data-chapters="[{&quot;at&quot;:0,&quot;title&quot;:&quot;A&quot;},{&quot;at&quot;:90,&quot;title&quot;:&quot;B&quot;}]"|
   end
 
-  # The card's player starts where it was dragged to.
+  # The card's seek bar sends `position` with `start`. Playback begins there.
   test "a start may name the place to begin at", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{"id" => c.entry.id, "position" => 600})
@@ -317,7 +319,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, "input[data-audio-seek][value='600']")
   end
 
-  # Audio plays under Sikio's own face. A video brings its own player inside its frame.
+  # Audio gets Sikio's controls. A video uses the embed's own controls inside the iframe.
   test "audio gets Sikio's face and a video does not", %{conn: conn, user: user} = c do
     {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
@@ -330,9 +332,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
     refute has_element?(dock, "[data-audio-face]")
   end
 
-  # The instance plays its own video, so the dock points at the embed the feed named and adds
-  # only what the api needs: permission to talk, and the place to resume from. What the feed
-  # names may already carry a query, and a second question mark hides everything after it.
+  # The iframe uses the embed URL from the feed and adds `api=1` for the player API.
+  # The URL must contain one `?`. A second one hides the parameters after it.
   test "a PeerTube entry is framed by the instance that holds it", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
@@ -348,8 +349,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
     src = Regex.run(~r|src="(https://video[^"]+)"|, html) |> Enum.at(1)
     assert String.contains?(src, "api=1")
     assert length(String.split(src, "?")) == 2, "an address gets one question mark, not two"
-    # Without peer to peer the instance alone serves the video: no mirror that may fail, and no
-    # other viewer who learns this one's address.
+    # `p2p=0` disables WebRTC peer loading. The instance alone serves the video.
+    # No peer can fail mid-stream, and no other viewer learns this viewer's IP address.
     assert src
            |> String.replace("&amp;", "&")
            |> URI.parse()
@@ -361,8 +362,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
     refute html =~ "youtube-nocookie", "nothing of YouTube's is loaded for a PeerTube video"
   end
 
-  # Pressing play on the detail's cue is the one click. The embed starts on its own, instead of
-  # showing its own picture with a second play button.
+  # Play on the detail page is the only click needed.
+  # `autoplay=1` skips the embed's poster with its second play button.
   test "both embeds start playing once they load", %{conn: conn, user: user} do
     for {body, url} <- [{peertube(), peertube_feed_url()}, {youtube(), youtube_feed_url()}] do
       {:ok, preview} = Parser.parse(body, url)
@@ -385,8 +386,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
     end
   end
 
-  # YouTube shows captions for some videos unasked. The address asks for none; the player unloads
-  # them as well, since YouTube does not always listen.
+  # YouTube enables captions for some videos by default. The URL sets `cc_load_policy=0`.
+  # The JS player also unloads captions, since YouTube sometimes ignores the parameter.
   test "a YouTube embed asks for no captions", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
@@ -400,8 +401,8 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert URI.decode_query(query)["cc_load_policy"] == "0"
   end
 
-  # What the feed names is the instance's own address and may already carry a query. A second
-  # question mark hides everything after it, so the embed never sees that it may speak.
+  # The feed's embed URL can already carry a query.
+  # A second `?` would hide `api=1` from the embed.
   test "an embed address that already has a query still gets one question mark", %{
     conn: conn,
     user: user

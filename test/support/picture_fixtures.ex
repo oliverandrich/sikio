@@ -9,10 +9,10 @@ defmodule Sikio.PictureFixtures do
   def png, do: <<0x89, "PNG\r\n", 0x1A, "\n">> <> "png body"
 
   @doc """
-  Answers every picture request through the feed stub, by path.
+  Stubs `Sikio.Feeds.HTTP` to serve images by request path.
 
   `routes` maps a path to `{content_type, body}`, or is a function from a path to that pair or
-  `nil`. Anything else is a 404. Each request is reported to the test as `{:fetched, path}`.
+  `nil`. Other paths get a 404. Each request sends `{:fetched, path}` to the test process.
   """
   def serving(routes) do
     owner = self()

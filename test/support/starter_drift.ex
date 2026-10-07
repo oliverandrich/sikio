@@ -2,20 +2,19 @@
 
 defmodule Sikio.StarterDrift do
   @moduledoc """
-  Compares this application's copies of generated files against the templates they came from.
+  Compares this application's copies of generated files with the Ithibati Starter templates.
 
-  Ithibati Starter generates the auth half of an application, so every file it writes exists at
-  least three times: here, in Chapisho, and in the template every new project is made from.
-  Nothing kept the copies together, and they drifted apart without anybody noticing — reading a
-  forwarding header with `to_charlist/1` raised on bytes a visitor writes, both applications had
-  it, and the template had the fix and a test for it. A fix found once, applied to one copy, and
-  the other two stayed wrong until somebody diffed them.
+  Ithibati Starter generates the auth half of an application.
+  Each generated file exists here, in Chapisho, and in the starter template.
+  The copies drifted apart unnoticed.
+  Example: reading a forwarding header with `to_charlist/1` raised on bytes a visitor sends.
+  Both applications had the bug. The template had the fix and a test for it.
 
-  So something diffs them. Prose is ignored and code is not: the moduledocs are reflowed and
-  reworded per application on purpose, while a differing expression is what nobody meant.
+  The comparison ignores prose and compares code.
+  Moduledocs are reworded per application on purpose. A differing expression is not intended.
   """
 
-  @doc "The starter's template directory, or `nil` when the dependency is not checked out."
+  @doc "Returns the starter's template directory, or `nil` when the dependency is not fetched."
   def templates do
     path = Path.join([File.cwd!(), "deps", "ithibati_starter", "priv", "templates", "auth"])
 
@@ -23,10 +22,9 @@ defmodule Sikio.StarterDrift do
   end
 
   @doc """
-  Every template that has a counterpart in this application, as `{template, local}` paths.
+  Returns every template with a counterpart in this application, as `{template, local}` paths.
 
-  Found rather than listed, so a file the starter grows is one this application has to classify
-  rather than one it silently ignores.
+  Templates are found by wildcard, not listed, so a new starter template is not skipped.
   """
   def pairs(root, app) do
     root
@@ -45,10 +43,10 @@ defmodule Sikio.StarterDrift do
   end
 
   @doc """
-  The code of a file, with prose, blank lines and the application's own names taken out.
+  Returns a file's code lines without prose, blank lines and the application's names.
 
-  What is left is what two copies have to agree about. A module name, a licence header and the
-  wording of a moduledoc are all things an application is entitled to its own version of.
+  Copies must agree on these lines.
+  Module names, the licence header and moduledoc wording may differ per application.
   """
   def code(path, app) do
     path
@@ -74,8 +72,8 @@ defmodule Sikio.StarterDrift do
     |> String.replace(app, "app")
   end
 
-  # `@moduledoc`/`@doc` heredocs and every comment. A `"""` inside code would confuse this, and
-  # none of the generated files has one — a test says so rather than trusting it.
+  # Drops `@moduledoc`/`@doc` heredocs and comment lines. A `"""` inside code would break this.
+  # No generated file has one, and a test checks that.
   defp drop_prose(lines) do
     {kept, _inside} =
       Enum.reduce(lines, {[], false}, fn line, {kept, inside} ->

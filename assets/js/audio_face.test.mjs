@@ -12,7 +12,7 @@ test("a clock shows hours only when there are any", () => {
   assert.equal(clock(NaN), "0:00")
 })
 
-// What is left reads as a countdown, with a real minus sign rather than a hyphen.
+// The remaining time is a countdown with a minus sign (U+2212), not a hyphen.
 test("the time left counts down to the end", () => {
   assert.equal(left(1421, 4443), "−50:22")
   assert.equal(left(10, NaN), "")
@@ -26,7 +26,7 @@ test("a skip stays between the start and the end", () => {
   assert.equal(skipped(40, 30, NaN), 70, "an unknown length does not hold a skip back")
 })
 
-// One button steps through the speeds and comes round again, starting from the one in use.
+// The speed button cycles through the listed speeds, starting after the current rate.
 test("the speed button steps through the speeds and wraps", () => {
   assert.equal(nextSpeed(1), 1.25)
   assert.equal(nextSpeed(2), 0.75)
@@ -62,8 +62,8 @@ function fixture({duration = 100, currentTime = 10, readyState = 1, seekValue = 
   return {audio, face, parts, marks, cleanup}
 }
 
-// Until the audio knows its length it answers zero for its place. The server already showed
-// the saved place, and that is kept rather than flashing back to the start.
+// Before metadata loads, the audio reports position zero.
+// The face keeps the server-rendered saved position instead of jumping to the start.
 test("the face keeps the saved place until the audio can say where it is", () => {
   const f = fixture({duration: NaN, currentTime: 0, readyState: 0, seekValue: "1421"})
   assert.equal(f.parts.seek.value, "1421")
@@ -88,8 +88,8 @@ test("the face plays and pauses and says which it will do", () => {
   f.cleanup()
 })
 
-// Dragging shows where it would land; only letting go moves the audio, so it does not buffer
-// every place in between. Meanwhile the playing audio does not pull the thumb back.
+// Dragging updates the time display. Only release seeks, so the audio does not buffer each value.
+// During a drag, `timeupdate` does not move the thumb.
 test("the bar follows the audio, except while it is dragged", () => {
   const f = fixture()
   f.audio.currentTime = 30
@@ -116,8 +116,8 @@ test("the bar follows the audio, except while it is dragged", () => {
   f.cleanup()
 })
 
-// Dragging away and back to the same second fires no change. Letting go still ends the drag, or
-// the bar would stop following the audio for good.
+// Dragging away and back to the same second fires no `change`.
+// `pointerup` still ends the drag, or the bar would stop following the audio.
 test("letting go ends a drag that changed nothing", () => {
   const f = fixture()
   f.parts.seek.value = "30"
@@ -150,7 +150,7 @@ test("cleaning up leaves the audio alone", () => {
 
 const chapters = [[0, "Intro"], [900, "Interview"], [1800, "Listener mail"], [5000, "Outtakes"]]
 
-// The time line names the chapter under the thumb, and so does what a screen reader hears.
+// The chapter line and the seek bar's `aria-valuetext` name the chapter under the thumb.
 test("the face names the chapter that is playing", () => {
   const f = fixture({duration: 3600, currentTime: 1000, chapters})
   assert.equal(f.parts.chapter.textContent, "Interview")
@@ -162,8 +162,8 @@ test("the face names the chapter that is playing", () => {
   f.cleanup()
 })
 
-// The server placed the marks by the length the feed named. The audio's own length decides, and a
-// chapter past it, or at the very start, has no mark.
+// The server placed marks by the feed's stated length. The audio's own duration replaces it.
+// A chapter at the start or past the end gets no visible mark.
 test("the marks move to the length the audio states", () => {
   const f = fixture({duration: 3600, chapters})
   const [start, interview, mail, outtakes] = f.marks
@@ -175,8 +175,8 @@ test("the marks move to the length the audio states", () => {
   f.cleanup()
 })
 
-// Hovering the bar names the chapter under the pointer; leaving it names the one that plays.
-// The thumb's centre runs from 6px to 6px short of the end, and so does the place.
+// Hovering names the chapter under the pointer. Leaving names the playing chapter.
+// The thumb centre spans from 6px to 6px before the end, and positions map to that range.
 test("hovering the bar names the chapter under the pointer", () => {
   const f = fixture({duration: 3600, currentTime: 100, chapters})
   f.parts.seek.max = "3600"
@@ -206,7 +206,7 @@ test("a mark the thumb has passed says so, and one ahead does not", () => {
   f.cleanup()
 })
 
-// The dock's face stays as it was rendered, so the marks for chapters learned later are drawn here.
+// The dock's face keeps its rendered markup, so script draws marks for chapters loaded later.
 test("marks are drawn anew for the chapters the page learned", () => {
   const made = []
   const doc = {createElement: tag => {
@@ -228,8 +228,8 @@ test("marks are drawn anew for the chapters the page learned", () => {
   assert.equal(bar.appended[1].attributes["aria-hidden"], "true")
 })
 
-// While it plays the audio reports its time several times a second. That must not take the
-// hovered chapter's name away before anybody could read it.
+// The audio fires `timeupdate` several times a second during playback.
+// That must not replace the hovered chapter's name.
 test("playing does not overwrite the chapter under the pointer", () => {
   const f = fixture({duration: 3600, currentTime: 100, chapters})
   f.parts.seek.max = "3600"

@@ -2,10 +2,10 @@
 
 defmodule Sikio.ReleaseTest do
   @moduledoc """
-  The command an operator runs before anybody can claim a fresh instance.
+  Tests `Sikio.Release.setup_code/0`, which issues the operator code for the first account.
 
-  Not `async: true`: one of these sets the claim mode, which is application configuration.
-  Synchronous tests run after every concurrent one, so nothing else is reading it while they do.
+  Not `async: true`: one test sets the claim mode in application env.
+  ExUnit runs synchronous tests after all async tests, so no other test reads it meanwhile.
   """
   use Sikio.DataCase, async: false
 
@@ -40,8 +40,7 @@ defmodule Sikio.ReleaseTest do
     assert {:ok, _proof} = Instance.authorize_code(second)
   end
 
-  # An instance with an account needs no code, and printing one that nobody can spend would be
-  # worse than saying so: it reads like the command worked.
+  # A claimed instance needs no code. A printed code would be unusable and suggest success.
   test "an instance somebody already claimed is told so rather than given a code" do
     claim()
 
@@ -52,9 +51,8 @@ defmodule Sikio.ReleaseTest do
     assert printed =~ "claimed"
   end
 
-  # This command runs through `eval`, which starts nothing, so the guard that refuses a wrong
-  # claim mode at startup never ran. An operator who typed the command has to be told the key to
-  # change rather than handed a code for a claim nobody protects.
+  # The command runs through `eval`, which starts no application.
+  # The startup check of the claim mode therefore has not run, so `setup_code/0` repeats it.
   test "an instance whose claim is not protected is refused, not given a code" do
     TestConfig.put_env(:ithibati, :initial_claim, :open)
 

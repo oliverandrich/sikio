@@ -2,15 +2,15 @@
 
 defmodule SikioWeb.BrowserDriver do
   @moduledoc """
-  Where the chromedriver the feature tests need comes from.
+  Locates the chromedriver for the feature tests.
 
-  Two places, and neither is `PATH`. GitHub's runner images ship a chromedriver matching their
-  Chrome and point `CHROMEWEBDRIVER` at it, which is one version fewer to keep in step; everywhere
-  else mise provides one, installed per machine because it has to match the Chrome that is here.
+  `CHROMEWEBDRIVER` takes precedence.
+  GitHub runner images set it to a driver that matches their Chrome.
+  Elsewhere `mise which chromedriver` supplies it.
+  It is installed per machine, because it must match the local Chrome.
+  `PATH` is not searched.
 
-  Failing loudly is deliberate. Skipping the browser tests when no driver is found is the
-  tempting alternative, and a suite that quietly stops covering anything is worse than one that
-  stops.
+  A missing driver raises. Skipping the feature tests instead would silently drop their coverage.
   """
 
   @doc "The driver's path, or a raise that says how to get one."
@@ -30,8 +30,8 @@ defmodule SikioWeb.BrowserDriver do
     end
   end
 
-  # The major is worked out rather than left to the reader: it is the one thing they cannot guess,
-  # and getting it wrong produces a session error that names neither Chrome nor the driver.
+  # The message includes Chrome's major version, which the driver version must match.
+  # A mismatch fails with a session error that names neither Chrome nor the driver.
   defp no_driver do
     """
     The browser tests need a chromedriver and there is none.
@@ -47,8 +47,7 @@ defmodule SikioWeb.BrowserDriver do
 
   defp chrome_major do
     Enum.find_value(@chrome, fn candidate ->
-      # `find_executable/1` resolves an absolute path as readily as a bare name, so one call covers
-      # both shapes.
+      # `find_executable/1` accepts both an absolute path and a bare name.
       with executable when is_binary(executable) <- System.find_executable(candidate),
            {output, 0} <- System.cmd(executable, ["--version"], stderr_to_stdout: true),
            [_, major] <- Regex.run(~r/\s(\d+)\./, output) do

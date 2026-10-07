@@ -2,10 +2,10 @@
 
 defmodule SikioWeb.SignedInTest do
   @moduledoc """
-  The shortcut most browser tests start with: a session written into the browser's cookie.
+  Covers `signed_in/2`, which writes a session cookie into the browser.
 
-  The passkey ceremony costs about as much as the rest of a typical test. The tests that are
-  about signing in keep it; the others are about what comes after, and start here.
+  The passkey ceremony takes about as long as the rest of a typical test.
+  Sign-in tests run the ceremony. All other features start with `signed_in/2`.
   """
   use SikioWeb.FeatureCase
 

@@ -2,12 +2,11 @@
 
 defmodule Sikio.InvitationsTest do
   @moduledoc """
-  What is outstanding, who made it, and taking one back.
+  Tests listing, creating and withdrawing pending invitations.
 
-  The table is this application's and the invariants are Ithibati's, so the queries come from
-  there: `pending_query/0` hands over the predicate `fetch/1` uses, and `withdraw/1` rechecks the
-  acceptance inside its delete. Writing either of them here would be writing a second opinion
-  about when an invitation is still good.
+  Sikio owns the table and Ithibati owns the invariants. `pending_query/0` returns the predicate
+  that `fetch/1` uses. `withdraw/1` rechecks acceptance inside its delete. Sikio duplicates
+  neither check.
   """
   use Sikio.DataCase, async: true
 
@@ -28,8 +27,8 @@ defmodule Sikio.InvitationsTest do
       assert invitation.invited_by_id == ada.id
     end
 
-    # The caller knows who is inviting and the form does not. An application handing its params
-    # straight through would otherwise let a visitor name whoever they liked.
+    # The inviter comes from the account argument, not the params.
+    # Otherwise a submitted `invited_by_id` could name any member.
     test "and not whoever the parameters claim" do
       ada = member("ada")
       someone_else = member("bob")
@@ -94,8 +93,8 @@ defmodule Sikio.InvitationsTest do
       refute Ithibati.Identity.Invitations.fetch(token)
     end
 
-    # Ithibati rechecks the acceptance inside the delete, so a withdrawal cannot remove an
-    # invitation that is being redeemed at that moment.
+    # Ithibati rechecks acceptance inside the delete.
+    # This prevents withdrawing an invitation during a concurrent redemption.
     test "refuses one that has already been accepted" do
       {:ok, invitation} = Invitations.open(member(), %{"username" => "grace"})
 

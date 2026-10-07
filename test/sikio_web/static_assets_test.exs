@@ -4,8 +4,8 @@ defmodule SikioWeb.StaticAssetsTest do
   @moduledoc false
   use SikioWeb.ConnCase, async: true
 
-  # A release build leaves compressed copies in priv/static. The tests must serve what
-  # `mix assets.build` just wrote, or every browser test runs the bundle of the last release.
+  # A release build leaves gzip copies in priv/static. The test endpoint must serve the files
+  # `mix assets.build` just wrote. Otherwise browser tests run the last release's bundle.
   test "the test endpoint serves a built file, not a compressed copy left beside it", %{
     conn: conn
   } do

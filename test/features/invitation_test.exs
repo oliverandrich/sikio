@@ -2,14 +2,13 @@
 
 defmodule SikioWeb.InvitationTest do
   @moduledoc """
-  The claim of an instance and an invitation accepted with a passkey, in a browser.
+  Claims an instance and accepts an invitation with a passkey, in a browser.
   """
   use SikioWeb.FeatureCase
 
   alias Sikio.Accounts.Invitation
 
-  # The link is shown once and never again — the row holds the token's digest — so it is read here
-  # or not at all.
+  # The page shows the link only once. The row stores only the token digest.
   defp invite_link(session, username) do
     session
     |> open("/invitations")
@@ -37,9 +36,9 @@ defmodule SikioWeb.InvitationTest do
     link = invite_link(session, "grace")
     assert link =~ "/invite/"
 
-    # A fresh session, because an invitation is for somebody who is not signed in — and checked
-    # here rather than after the fact: accepting signs you in as the invitee either way, so an
-    # assertion further down holds whether or not this line did anything.
+    # A fresh session, because an invitation is for a signed-out visitor.
+    # The check is here, not later: accepting signs in as the invitee either way.
+    # A later assertion would pass even if `clear_cookies/1` had no effect.
     session
     |> clear_cookies()
     |> open("/invitations")
@@ -47,8 +46,8 @@ defmodule SikioWeb.InvitationTest do
 
     session
     |> open(link)
-    # The page names the account it will create and offers no field to change it — the refusal
-    # `Invitations.accept/2` would give is turned into an interface that cannot ask for it.
+    # The page names the account to be created and has no username field.
+    # `Invitations.accept/2` would reject a different name, so the form does not offer one.
     |> assert_has(css("p", text: "The account will be called"))
     |> gone(css("input[name=username]"))
     |> click(button("Accept with a passkey"))

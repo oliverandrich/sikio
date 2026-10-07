@@ -4,9 +4,8 @@ defmodule SikioWeb.FontsTest do
   @moduledoc false
   use SikioWeb.ConnCase, async: true
 
-  # The typeface is served from this host, so the content security policy needs no font origin.
-  # A path the stylesheet names but the endpoint does not serve falls back to a system face
-  # without any error, which is why it is asked here.
+  # Fonts are self-hosted, so the content security policy needs no font origin.
+  # A missing font file falls back to a system font without an error, so each path is requested.
   test "every font the stylesheet names is served from this host", %{conn: conn} do
     stylesheet = File.read!("assets/css/app.css")
     fonts = Regex.scan(~r{url\((/fonts/[^)]+\.woff2)\)}, stylesheet, capture: :all_but_first)

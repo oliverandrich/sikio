@@ -32,7 +32,7 @@ defmodule Sikio.LibraryTest do
     assert Library.entries(ctx.bob) == []
   end
 
-  # The mini player's title shows what plays in the list on screen when that list holds it.
+  # The mini player uses `listed?/3` to check whether the current list contains the playing entry.
   test "says whether a list holds an entry, for the account alone", ctx do
     {:ok, _} = Library.subscribe(ctx.alice, ctx.preview)
     [entry] = Library.entries(ctx.alice)
@@ -82,7 +82,7 @@ defmodule Sikio.LibraryTest do
       "ended" => false
     })
 
-    # Playing an item puts it into the queue, out of the inbox.
+    # Playing an entry moves it from the inbox to the queue.
     assert [%{id: id}] =
              Library.entries(ctx.alice, %{"status" => "queue", "source" => to_string(sub.feed_id)})
 
@@ -93,7 +93,7 @@ defmodule Sikio.LibraryTest do
     assert Library.entries(ctx.alice, %{"status" => "queue"}) == []
   end
 
-  # Addresses and links from before the inbox still name the list they meant.
+  # Status values from before the inbox map to the current list names, so old URLs keep working.
   test "the old names of the lists still name them" do
     for {old, new} <- [{"new", "inbox"}, {"in_progress", "queue"}, {"completed", "heard"}] do
       assert Library.normalize_filters(%{"status" => old})["status"] == new
@@ -115,8 +115,8 @@ defmodule Sikio.LibraryTest do
     assert id == oldest.id
   end
 
-  # The inbox and all items run by publication, the queue by its own order first to last, what
-  # was heard by when it was heard, and loading more follows the same order.
+  # The default list sorts by publication date, the queue by rank and the history by
+  # `completed_at`. Pagination with `after:` follows the same order.
   test "each list sorts by its own date, and loading more follows it", ctx do
     episodes =
       for {n, day} <- [{1, 3}, {2, 2}, {3, 1}],
@@ -131,7 +131,7 @@ defmodule Sikio.LibraryTest do
     ids = Map.new(Library.entries(ctx.alice), &{&1.title, &1.id})
     titles = fn entries -> Enum.map(entries, & &1.title) end
 
-    # Episode 3 was published first, queued first and heard first.
+    # Episode 3 is the oldest, queued first and heard first.
     for title <- ["Episode 3", "Episode 1", "Episode 2"],
         do: {:ok, _} = Playback.enqueue(ctx.alice, ids[title], :last)
 
@@ -157,8 +157,8 @@ defmodule Sikio.LibraryTest do
 
   defp at(minute), do: DateTime.add(~U[2026-10-01 12:00:00.000000Z], minute, :minute)
 
-  # A search looks where a reader remembers words from: the title, the notes and the excerpt. It
-  # stays inside the account's own subscriptions and takes what was typed as text, not a pattern.
+  # Search matches title, notes and excerpt within the account's subscriptions. The query is
+  # literal text, so `%`, `_` and `*` are not wildcards.
   test "search finds words in titles, notes and excerpts", ctx do
     entry = hd(ctx.preview.entries)
 
@@ -190,18 +190,18 @@ defmodule Sikio.LibraryTest do
     assert titles.(%{"q" => "?"}) == ["Ask me? [live]"]
     assert titles.(%{"q" => "[live]"}) == ["Ask me? [live]"]
     assert titles.(%{"q" => "*"}) == []
-    # Words set apart by markup still read as one phrase.
+    # A phrase split by HTML tags still matches.
     assert titles.(%{"q" => "about old bridges"}) == ["Bread"]
-    # Case is ignored beyond ASCII as well.
+    # Matching is case-insensitive beyond ASCII.
     assert titles.(%{"q" => "ÄRGER"}) == ["Ärger im Hafen"]
-    # The notes are HTML. Their markup is not what anybody remembers.
+    # HTML markup in the notes is not searchable.
     assert titles.(%{"q" => "<p>"}) == []
     assert titles.(%{"q" => "p>"}) == []
     assert Library.count(ctx.alice, %{"q" => "bridges"}) == 3
     assert Library.entries(ctx.bob, %{"q" => "bridges"}) == []
   end
 
-  # The search follows the notes as a poll changes them, and forgets a source that is removed.
+  # The search index follows changed notes and drops deleted entries.
   test "search follows changed notes and forgets removed items", ctx do
     entry = %{hd(ctx.preview.entries) | title: "Bread", description: "<p>About bridges</p>"}
     {:ok, _} = Library.subscribe(ctx.alice, %{ctx.preview | entries: [entry]})
@@ -216,8 +216,7 @@ defmodule Sikio.LibraryTest do
     assert search.("tunnels") == []
   end
 
-  # A poll that leaves the notes out keeps the stored ones, and the search keeps finding them,
-  # even when the same poll changes something else about the item.
+  # A poll without notes keeps the stored notes searchable, even when it changes the title.
   test "search finds notes a later poll left out", ctx do
     entry = %{hd(ctx.preview.entries) | title: "Bread", description: "<p>About old bridges</p>"}
     Library.subscribe(ctx.alice, %{ctx.preview | entries: [entry]})
@@ -230,9 +229,8 @@ defmodule Sikio.LibraryTest do
     assert [%{title: "Bread rolls"}] = Library.entries(ctx.alice, %{"q" => "bridges"})
   end
 
-  # A list grows as it is scrolled. Each batch continues after the last entry shown, by date and
-  # then id, so an episode that arrives meanwhile neither repeats one nor skips one. Entries
-  # without a date come last.
+  # Infinite scroll uses keyset pagination by date, then id. Offsets would repeat or skip entries
+  # when new ones arrive. The pages must concatenate to the full list, including undated entries.
   test "entries continue after the last one shown", ctx do
     dated =
       for n <- 1..5,
@@ -285,9 +283,8 @@ defmodule Sikio.LibraryTest do
     assert Repo.aggregate(Entry, :count) == 1
   end
 
-  # Each subscription says where what its source publishes next goes: the inbox, the end of the
-  # queue, or straight to the archive. What the source held when somebody subscribed stays where
-  # it was, and so does what was there before a refresh.
+  # `delivery` sends new entries to the inbox, the queue tail or the archive.
+  # Entries present at subscription time stay in the inbox.
   test "new episodes go where each subscription sends them", ctx do
     carol = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, alices} = Library.subscribe(ctx.alice, ctx.preview)
@@ -318,8 +315,8 @@ defmodule Sikio.LibraryTest do
     assert Library.entries(ctx.bob, %{"status" => "inbox"}) |> Enum.map(& &1.id) == [first.id]
   end
 
-  # The feed is shared, so a name of one's own belongs to the subscription. Its entries carry it
-  # for the account alone, and a blank name gives the feed's back.
+  # Feeds are shared, so a custom name belongs to the subscription. Entries show it for that
+  # account only. A blank name restores the feed title.
   test "a subscription takes a name of its own, which its entries carry", ctx do
     {:ok, alices} = Library.subscribe(ctx.alice, ctx.preview)
     {:ok, _} = Library.subscribe(ctx.bob, ctx.preview)
@@ -345,8 +342,8 @@ defmodule Sikio.LibraryTest do
     assert length(Library.entries(ctx.alice)) == 1
   end
 
-  # Whether an entry is a Short is the channel's; whether it shows is each subscription's. Hiding is
-  # a view of the library, not a loss of the item: a player still saves its place.
+  # `short` is set per entry, visibility per subscription. A hidden Short leaves lists, counts and
+  # the queue. `visible_entry_id/2` and progress saves still work for it.
   test "a subscription leaves a channel's Shorts out until it asks for them", ctx do
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, _} = Library.subscribe(ctx.alice, preview)
@@ -377,8 +374,7 @@ defmodule Sikio.LibraryTest do
     assert Library.entries(ctx.alice) == []
   end
 
-  # A Short that a subscription hides is not sent anywhere for it. Shown later, it is new, not a
-  # crowd of old Shorts in the queue.
+  # A hidden Short is not delivered. Enabling Shorts later does not add it to the queue.
   test "a hidden Short is not delivered to the queue", ctx do
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, subscription} = Library.subscribe(ctx.alice, preview)
@@ -396,7 +392,7 @@ defmodule Sikio.LibraryTest do
     assert Playback.queue(ctx.alice) == []
   end
 
-  # Every open view reloads when it hears of a change, so a save that changes nothing is not one.
+  # Each broadcast reloads every open view, so an unchanged save broadcasts nothing.
   test "a subscription's settings tell the account's views only when they change", ctx do
     {:ok, subscription} = Library.subscribe(ctx.alice, ctx.preview)
     Events.subscribe(ctx.alice)
@@ -426,12 +422,12 @@ defmodule Sikio.LibraryTest do
           "ended" => false
         })
 
-      # Somebody else finishing the same episode changes nothing here.
+      # Another account's playback state does not affect these counts.
       {:ok, _} = Playback.mark(ctx.bob, entries.podcast.id, :new)
 
       counts = ctx.alice |> Library.counts() |> Library.tally(%{})
 
-      # Played, the video stands in the queue.
+      # Playing the video queued it.
       assert Map.take(counts, [:all, :inbox, :queue, :heard]) ==
                %{all: 3, inbox: 1, queue: 1, heard: 1}
 
@@ -442,8 +438,7 @@ defmodule Sikio.LibraryTest do
              }
     end
 
-    # The number beside a link is how many items that link shows, so it honours the filters the
-    # link keeps. A source without a status counts what is new.
+    # A count equals the entries its link would show, so it applies the active filters.
     test "a count honours the other filters in force", ctx do
       entries = ctx.entries
       {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :heard)
@@ -455,8 +450,8 @@ defmodule Sikio.LibraryTest do
       assert heard.sources[entries.youtube.feed_id] == 0
     end
 
-    # Heard stays heard when it is queued again, so the history lists it and counts it, and the
-    # queue does too. All items holds it once.
+    # A heard entry queued again stays heard. It counts in the history and the queue, and once in
+    # all items.
     test "a heard item queued again counts in the history and the queue", ctx do
       entries = ctx.entries
       {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :heard)
@@ -483,7 +478,7 @@ defmodule Sikio.LibraryTest do
     end
   end
 
-  # A podcast, a YouTube channel and a PeerTube instance, one entry each, for alice.
+  # Subscribes alice to a podcast, a YouTube channel and a PeerTube feed, one entry each.
   defp three_kinds(ctx) do
     {:ok, _} = Library.subscribe(ctx.alice, ctx.preview)
     {:ok, youtube} = Parser.parse(youtube(), youtube_feed_url())

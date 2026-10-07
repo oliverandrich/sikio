@@ -2,8 +2,8 @@
 
 defmodule SikioWeb.PlacesLiveTest do
   @moduledoc """
-  The Library page: every place of the library as a grouped list, which a phone moves through
-  instead of the sidebar.
+  The Library page lists views, tags and subscriptions in groups.
+  On a phone it replaces the sidebar.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -27,7 +27,7 @@ defmodule SikioWeb.PlacesLiveTest do
     {:ok, [tag]} = Sikio.Tags.set(c.user, c.sub.id, ["Must view"])
     {:ok, view, _} = live(c.conn, ~p"/library")
 
-    # What is new and what is in progress have tabs of their own.
+    # The queue has its own tab, so the views group omits it.
     refute has_element?(view, ~s|#places-views a[href="/queue"]|)
     assert has_element?(view, ~s|#places-views a[href="/history"]|, "History")
     assert has_element?(view, ~s|#places-views a[href="/all"]|, "All items")
@@ -44,7 +44,7 @@ defmodule SikioWeb.PlacesLiveTest do
     assert_redirect(view, "/feeds/#{c.sub.feed_id}-small-hours")
   end
 
-  # On a phone the sources are managed from the head of their group.
+  # On a phone, subscriptions are managed from their group heading.
   test "leads from the subscriptions' heading to managing them", c do
     {:ok, view, _} = live(c.conn, ~p"/library")
     assert has_element?(view, ~s|#places-sources #places-manage[href="/subscriptions"]|, "Manage")

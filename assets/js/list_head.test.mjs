@@ -4,7 +4,7 @@ import {test} from "node:test"
 import assert from "node:assert/strict"
 import {ListHead} from "./list_head.mjs"
 
-// The pane learns the head's height at once and again whenever the head changes size.
+// The hook sets `--list-head` on the pane on mount and again on each head resize.
 test("the list pane learns the height of its head", () => {
   const previous = globalThis.ResizeObserver
   let changed

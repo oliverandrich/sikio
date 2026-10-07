@@ -6,8 +6,8 @@ import {connect} from "./peertube_embed.mjs"
 
 const ORIGIN = "https://video.example.org"
 
-// The embed is another window that answers only through postMessage. This is that window,
-// speaking the format jschannel documents: JSON strings, methods carrying the channel's scope.
+// The embed is a cross-origin window that communicates only via postMessage.
+// This fixture simulates it in jschannel's format: JSON strings, methods prefixed by the scope.
 function fixture() {
   const previousWindow = globalThis.window
   globalThis.window = new EventTarget()
@@ -98,7 +98,7 @@ test("an error answer rejects the request that asked", async () => {
   } finally {f.cleanup()}
 })
 
-// Another window may post anything it likes. Only the instance holding this video is listened to.
+// Any window can post messages. Only messages from the video's instance origin are handled.
 test("a message from anywhere else is ignored", () => {
   const f = fixture()
   try {
@@ -122,9 +122,9 @@ test("nothing is said after the channel is destroyed", () => {
   } finally {f.cleanup()}
 })
 
-// Readiness is the hook's business, and it takes it from the position the embed reports. This
-// asked the embed twice a second from the handshake onwards, which for a video somebody loads
-// and never starts is a question without an end.
+// The hook derives readiness from the position the embed reports.
+// Regression: the channel polled the embed twice a second after the handshake.
+// For a video that is loaded but never started, that polling never stopped.
 test("nothing is asked on a timer", async () => {
   const f = fixture()
   try {
@@ -135,7 +135,7 @@ test("nothing is asked on a timer", async () => {
   } finally {f.cleanup()}
 })
 
-// The embed calls this side once. An unanswered call leaves it waiting on a promise of its own.
+// The embed calls this side once. Without a reply its call waits on an unresolved promise.
 test("an inbound request is answered, not mistaken for an answer", () => {
   const f = fixture()
   try {

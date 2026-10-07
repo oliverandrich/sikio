@@ -45,7 +45,7 @@ defmodule SikioWeb.OPMLTest do
 
     {:ok, view, _} = live(c.conn, "/subscriptions/import")
 
-    # The stub answers on the path, so the host may be this test's own.
+    # The stub matches on the request path only, so any host works.
     xml =
       ~s(<opml version="2.0"><body><outline text="Podcast" xmlUrl="#{feed_url()}"/><outline text="Broken" xmlUrl="#{feed_url("broken")}"/></body></opml>)
 
@@ -72,7 +72,7 @@ defmodule SikioWeb.OPMLTest do
     upload =
       file_input(view, "#opml-upload-form", :opml, [%{name: "mine.opml", content: "<opml/>"}])
 
-    # A drop lands on the input whose upload ref the zone names.
+    # A drop goes to the input whose upload ref the zone names in `phx-drop-target`.
     zone = view |> element("#opml-drop") |> render()
     [ref] = Regex.run(~r/data-phx-upload-ref="([^"]+)"/, zone, capture: :all_but_first)
     assert zone =~ ~s(phx-drop-target="#{ref}")
@@ -86,7 +86,7 @@ defmodule SikioWeb.OPMLTest do
     refute has_element?(view, "[id^='opml-file-']")
   end
 
-  # The input takes one file, but a drop of two reaches the server as two entries.
+  # The input accepts one file, but dropping two sends two entries to the server.
   test "two dropped files are refused, each on a row of its own", c do
     {:ok, view, _} = live(c.conn, "/subscriptions/import")
 
@@ -115,8 +115,8 @@ defmodule SikioWeb.OPMLTest do
     assert Library.subscriptions(c.user) == []
   end
 
-  # An import may add an instance whose videos this account may now be shown. What may be framed
-  # is decided on a document, and moving inside a LiveView produces none.
+  # An import can add a PeerTube instance the player must frame. The content security policy
+  # is set per document. LiveView navigation loads no new document, so the import redirects.
   test "importing an instance reloads the page that has to frame it", c do
     Req.Test.stub(HTTP, fn conn ->
       Plug.Conn.send_resp(conn, 200, peertube())

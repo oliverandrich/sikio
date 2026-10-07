@@ -2,9 +2,10 @@
 
 defmodule Sikio.DatabaseTest do
   @moduledoc """
-  One build serves both databases, chosen with SIKIO_DATABASE when the application starts. The
-  repository and the job queue follow that choice together, and either database holds the same
-  rules.
+  Tests the database selection and constraints shared by SQLite and PostgreSQL.
+
+  `SIKIO_DATABASE` selects the database at application start. The repo and the Oban engine
+  both follow it. Both databases enforce the same check constraints.
   """
   use Sikio.DataCase, async: true
 
@@ -24,16 +25,16 @@ defmodule Sikio.DatabaseTest do
     assert Oban.config().engine == engine
   end
 
-  # The repositories are started under Sikio.Repo's name and read its configuration. What is set
-  # there wins over Ecto's own defaults, such as its pool of ten.
+  # Both repos start under the `Sikio.Repo` name and read its configuration.
+  # It overrides Ecto defaults such as `pool_size: 10`.
   test "the repository runs with the configuration set for Sikio.Repo" do
     configured = Application.fetch_env!(:sikio, Repo)[:pool_size]
     refute configured == 10
     assert Repo.config()[:pool_size] == configured
   end
 
-  # The checks are in the database as well as in the code, because a row can arrive by a path the
-  # code does not guard. Each database names the rule it refused.
+  # Check constraints also cover writes that bypass changesets, such as `insert_all/2`.
+  # The error message names the violated constraint on both databases.
   test "the database itself refuses what no row may hold" do
     now = DateTime.utc_now()
 
@@ -67,8 +68,8 @@ defmodule Sikio.DatabaseTest do
     end
   end
 
-  # SQLite as dj-lite sets it up for Django: a write-ahead log, a writer that waits rather than
-  # fails, and transactions that take the write lock when they begin.
+  # The SQLite settings match dj-lite's Django defaults: WAL mode, a busy timeout and
+  # `IMMEDIATE` transactions.
   if Application.compile_env!(:sikio, :database) == :sqlite do
     test "a SQLite connection carries the production presets" do
       pragma = fn name -> Repo.query!("PRAGMA #{name}").rows end
@@ -80,7 +81,7 @@ defmodule Sikio.DatabaseTest do
       assert pragma.("journal_size_limit") == [[27_103_364]]
       assert pragma.("cache_size") == [[2000]]
       assert pragma.("foreign_keys") == [[1]]
-      # Neither has a pragma to read back: exqlite waits in a busy handler of its own.
+      # No pragma reports these two. exqlite implements the busy timeout in its own handler.
       assert Repo.config()[:busy_timeout] == 5000
       assert Repo.config()[:default_transaction_mode] == :immediate
     end

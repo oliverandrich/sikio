@@ -2,14 +2,13 @@
 
 defmodule SikioWeb.InvitationDeliveryTest do
   @moduledoc """
-  What happens to an invitation once it exists, in each of the two modes.
+  Invitation delivery in username mode and email mode.
 
-  An instance names its accounts or addresses them. Named, an invitation is a link its sender
-  passes on however they like, and nothing is sent. Addressed, the invitee's identifier *is* an
-  address, so the link goes to it — and the link is still shown, because a delivery that failed
-  must not take the invitation with it.
+  In username mode the inviter gets a link to pass on, and no mail is sent.
+  In email mode the link is mailed to the invitee's address.
+  The link is still shown, so a failed delivery does not lose the invitation.
   """
-  # async: false — the mode and the mail configuration are application configuration.
+  # async: false, because these tests change the identity mode and mail configuration.
   use SikioWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -77,8 +76,8 @@ defmodule SikioWeb.InvitationDeliveryTest do
     end)
   end
 
-  # A mail server that is down is not a reason to lose an invitation that already exists. The
-  # sender is told, and the link they can pass on by hand is right there.
+  # A mail server outage must not lose a stored invitation.
+  # The page reports the failure and still shows the link.
   test "a delivery that fails says so and leaves the link standing", %{conn: conn} do
     addressing()
     TestConfig.put_env(:sikio, Sikio.Mailer, adapter: FailingAdapter)
@@ -90,9 +89,9 @@ defmodule SikioWeb.InvitationDeliveryTest do
     assert html =~ "could not be sent"
   end
 
-  # Swoosh raises rather than answers for a configuration its adapter refuses, and gen_smtp does
-  # the same for a value it cannot use. The invitation is written by then and its token lives in
-  # this process alone, so a raise would take the only copy of the link with it.
+  # Swoosh raises when its adapter rejects the configuration, and gen_smtp raises on unusable
+  # values. The invitation is stored by then, and its token exists only in the LiveView process.
+  # A raise would lose the only copy of the link.
   test "a delivery that raises loses neither the invitation nor the link", %{conn: conn} do
     addressing()
     TestConfig.put_env(:sikio, Sikio.Mailer, adapter: RaisingAdapter)
@@ -104,8 +103,7 @@ defmodule SikioWeb.InvitationDeliveryTest do
     assert html =~ "could not be sent"
   end
 
-  # The form asks for what the mode can actually use, so nobody types a name into an instance
-  # that will refuse it after the fact.
+  # In email mode the form asks for an address, so nobody enters a username the server rejects.
   test "the form asks for an address when that is what an account is", %{conn: conn} do
     addressing()
 

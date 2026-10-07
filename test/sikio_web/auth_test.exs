@@ -2,12 +2,11 @@
 
 defmodule SikioWeb.AuthTest do
   @moduledoc """
-  The one function this example exists for, driven directly.
+  Tests the registration callbacks of `SikioWeb.Auth` directly.
 
-  The ceremony either side of it is the library's and is tested there; what is this application's
-  is who may start a registration and what the credential is then made into. Both callbacks are
-  called the way `Ithibati.Web.PasskeyController` calls them, which is the only way they are ever
-  called.
+  Ithibati tests the WebAuthn ceremony itself. These tests cover who may start a registration
+  and which account it creates. The callbacks are called as `Ithibati.Web.PasskeyController`
+  calls them.
   """
   use Sikio.DataCase, async: true
 
@@ -17,15 +16,14 @@ defmodule SikioWeb.AuthTest do
   alias Sikio.Accounts.User
   alias SikioWeb.Auth
 
-  # What `Ithibati.Identity.Passkeys.verify_registration/2` hands the handler, reduced to the two
-  # keys `Grant.with_key_and_codes/3` reads. A real credential would prove something about the
-  # ceremony; nothing here is about the ceremony.
+  # The two keys of the `Ithibati.Identity.Passkeys.verify_registration/2` result that
+  # `Grant.with_key_and_codes/3` reads. Random bytes suffice, since no test covers the ceremony.
   defp key_attrs do
     %{key_id: :crypto.strong_rand_bytes(16), public_key: :crypto.strong_rand_bytes(64)}
   end
 
-  # `Gate.log_in/2` renews the session, which raises unless one was fetched. The proof is what
-  # every instance now asks for before a first account, and one test below takes it away again.
+  # `Gate.log_in/2` renews the session and raises unless it was fetched.
+  # `claiming_conn/0` also carries the setup code proof that a first account requires.
   defp conn, do: claiming_conn()
 
   defp claim_instance(username) do
@@ -61,8 +59,8 @@ defmodule SikioWeb.AuthTest do
       assert {:error, :username_required} = Auth.registration_subject(conn(), %{})
     end
 
-    # The expensive order to get wrong: approving it here means a passkey dialog, a credential the
-    # authenticator then keeps, and only afterwards a refusal.
+    # Approving an invalid name here would open the passkey prompt and store a credential
+    # on the authenticator before the refusal.
     test "is refused when the name is one the schema could never store" do
       for value <- ["Alice Smith!", "alice.smith", String.duplicate("a", 31), ""] do
         assert {:error, :invalid_username} =
@@ -105,8 +103,8 @@ defmodule SikioWeb.AuthTest do
     end
   end
 
-  # A used link, an expired one and one nobody ever held are the same answer on purpose: anything
-  # else tells a guesser which of their guesses was once real.
+  # Used, expired and unknown tokens return the same error.
+  # Distinct errors would reveal which guessed tokens once existed.
   describe "a token that opens nothing" do
     setup do
       claim_instance("first_one")
@@ -139,9 +137,9 @@ defmodule SikioWeb.AuthTest do
     end
   end
 
-  # The browser sends the whole body again at the verify step, so the token arriving there is the
-  # client's word for which invitation this is — while the identifier that travelled with the
-  # challenge is this application's. When they disagree, the challenge wins.
+  # The browser resends the full body at the verify step, so that token is client input.
+  # The identifier in the challenge is set by the server. When they disagree, registration fails.
+  # The invitation named by the token stays open.
   test "the invitation accepted is the one the challenge approved, not the one the second request names" do
     claim_instance("first_one")
     invited = unique_username("invited")
@@ -156,16 +154,16 @@ defmodule SikioWeb.AuthTest do
     assert Invitations.fetch(other.token)
   end
 
-  # `register/4` takes the subject from the session, not from this request, so it is worth asking
-  # what it answers for one that should never have got there. "Taken" would be a lie about a name
-  # nobody holds — and the two errors come from different places, so only the constraint can say.
+  # `register/4` takes the subject from the session, not the request, so it is checked again.
+  # `:username_taken` would be false for a name nobody holds.
+  # The two errors come from different checks; only the unique constraint means taken.
   test "a subject the schema refuses is answered as malformed, not as taken" do
     assert {:error, :invalid_username} = Auth.register(conn(), key_attrs(), "Not A Name!", %{})
   end
 
-  # Two invitations may name one person — nothing stops that, and nothing should, since the first
-  # acceptance is the one that counts. What the second must not do is answer `verification_failed`,
-  # which is what a changeset reaching the controller collapses to.
+  # Two invitations may name the same username, and the first acceptance wins.
+  # The second must return `:username_taken`, not `verification_failed`.
+  # `verification_failed` is the controller's fallback for a changeset error.
   test "a name somebody already has is named as such, not collapsed into a generic failure" do
     claim_instance("first_one")
     first = invite("twin")

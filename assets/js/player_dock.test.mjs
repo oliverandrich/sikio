@@ -37,7 +37,7 @@ test("changing episodes waits for the current player's save before replacing it"
   } finally {f.cleanup()}
 })
 
-// A chapter of the item that already plays moves its player there rather than starting anew.
+// A chapter of the playing item seeks its player instead of starting it again.
 test("a place for the item that plays moves its player", () => {
   const f = fixture()
   const seeks = []
@@ -52,7 +52,7 @@ test("a place for the item that plays moves its player", () => {
   } finally {f.cleanup()}
 })
 
-// The card's player names the place it was dragged or skipped to.
+// The card's player passes the position it was dragged or skipped to.
 test("a start carries the place to begin at", () => {
   const f = fixture()
   try {
@@ -62,7 +62,7 @@ test("a start carries the place to begin at", () => {
   } finally {f.cleanup()}
 })
 
-// The page keeps the keyboard: a started player does not take the focus.
+// Starting a player does not move focus.
 test("a started player leaves the focus where it was", () => {
   const f = fixture()
   try {
@@ -75,7 +75,7 @@ test("a started player leaves the focus where it was", () => {
 const keydown = (key, extra = {}) =>
   Object.assign(new Event("keydown", {cancelable: true}), {key, ...extra})
 
-// The player's keys work on every page, through whichever player plays.
+// Player keys work on every page and go to the playing player. Handled keys are default-prevented.
 test("a player's key reaches the player that plays and goes no further", () => {
   const f = fixture()
   const commands = []
@@ -103,7 +103,7 @@ test("without a player the keys are the page's", () => {
   } finally {f.cleanup()}
 })
 
-// Without a player, p starts the item that is open, as its play button does.
+// Without a player, p clicks the open item's play button.
 test("without a player p starts the open item", () => {
   let pressed = 0
   const f = fixture({player: false, start: {click: () => pressed++}})
@@ -116,8 +116,8 @@ test("without a player p starts the open item", () => {
   } finally {f.cleanup()}
 })
 
-// A click into a video's frame takes the keyboard there, where the page cannot hear it. The
-// page takes it back at once and gives it to the panel.
+// A click into a video iframe moves keyboard focus out of reach of the page's handlers.
+// On window `blur`, the page focuses the panel again.
 test("the focus comes back from the player's frame", async () => {
   const f = fixture()
   try {
@@ -128,7 +128,8 @@ test("the focus comes back from the player's frame", async () => {
   } finally {f.cleanup()}
 })
 
-// Tab moves into the frame on purpose, to reach the embed's own controls; a click does not.
+// Tabbing into the frame is intentional, to reach the embed's controls, so focus stays there.
+// After a pointer click, focus returns to the panel.
 test("the keyboard that tabs into the player's frame stays there", async () => {
   const f = fixture()
   const settle = () => new Promise(resolve => setTimeout(resolve, 0))
@@ -170,8 +171,8 @@ test("a rejoin names the player the dock still holds, and nothing without one", 
   assert.deepEqual(rejoinParams(undefined), {}, "the socket also asks without a view")
 })
 
-// An item that ends hands on to the queue: the dock asks for the next once the last place is
-// saved. Whether to play on is the server's to say.
+// When an item ends, the dock requests the next one after the last position is saved.
+// The server decides whether playback continues.
 test("an ended item asks for the next once its place is saved", () => {
   const f = fixture()
   try {

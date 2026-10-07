@@ -2,10 +2,10 @@
 
 defmodule SikioWeb.LibraryDetailTest do
   @moduledoc """
-  The selected item, in the library's third column.
+  Tests for the item detail in the library's third column.
 
-  Selecting patches the address and keeps the list and the sidebar standing. The detail renders
-  beside the list from `lg` and alone below it.
+  Selecting an item patches the URL and keeps the list and sidebar mounted.
+  From `lg` the detail renders beside the list. Below `lg` it renders alone.
   """
   use SikioWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
@@ -19,8 +19,7 @@ defmodule SikioWeb.LibraryDetailTest do
 
   setup :sign_in_with_episode
 
-  # An item goes into the queue first or last, and out of it again. It can be marked heard, put
-  # aside, and brought back to the inbox, each from its card.
+  # The card's buttons queue first or last, dequeue, archive, mark new and mark heard.
   test "the card queues, marks and archives its item", c do
     {:ok, view, _} = live(c.conn, item_path(c.entry))
 
@@ -45,8 +44,9 @@ defmodule SikioWeb.LibraryDetailTest do
     assert %{playback: %{status: :heard}} = Library.entry(c.user, c.entry.id)
   end
 
-  # The card's head offers what comes next for its item, and a menu holds the rest. New, it is
-  # queued or archived; queued, it is marked heard; heard or archived, it is queued again.
+  # The card head shows the next action for the current status. A menu holds the rest.
+  # New items offer queue and archive. Queued items offer mark heard.
+  # Heard and archived items offer queueing again.
   test "the card's head offers what comes next for its item", c do
     {:ok, view, _} = live(c.conn, item_path(c.entry))
 
@@ -85,14 +85,13 @@ defmodule SikioWeb.LibraryDetailTest do
     assert %{playback: %{status: :new}} = Library.entry(c.user, c.entry.id)
   end
 
-  # Above the title is the player's place. Until play is pressed it shows what plays there and
-  # loads nothing from anybody else; marking and the original sit at the card's head.
+  # The player slot sits above the title. Mark as listened sits in the card head.
   test "the detail offers the player above its title and its actions at its head", c do
     {:ok, view, _} = live(c.conn, item_path(c.entry))
 
     assert has_element?(view, "#item-detail #player-slot #start-playback")
     refute has_element?(view, "#item-detail audio")
-    # An episode shows the player itself, which loads nothing until it is used.
+    # Before play an episode shows the audio face with a disabled speed button.
     assert has_element?(
              view,
              "#player-slot #audio-cue[data-audio-face] #start-playback[data-audio-play]"
@@ -103,8 +102,8 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#item-actions #mark-completed", "Mark as listened")
   end
 
-  # Every item with a page of its own offers it, named for where it leads, and its medium in the
-  # meta line leads there too.
+  # Each kind links its original page with a kind-specific label.
+  # The kind name in the meta line links there too.
   test "the detail opens the original page of each kind", c do
     for {body, url} <- [{peertube(), peertube_feed_url()}, {youtube(), youtube_feed_url()}] do
       {:ok, preview} = Parser.parse(body, url)
@@ -131,8 +130,8 @@ defmodule SikioWeb.LibraryDetailTest do
     end
   end
 
-  # An item imported before pages were kept has none until a poll names it again. A YouTube video
-  # is still found by its id; anything else offers nothing rather than a guessed address.
+  # Entries imported before `page_url` existed have none until the next poll.
+  # A YouTube URL is built from the video id. Other kinds show no link rather than a guessed URL.
   test "without a stored page only a YouTube video is still opened", c do
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, _} = Library.subscribe(c.user, preview)
@@ -153,8 +152,8 @@ defmodule SikioWeb.LibraryDetailTest do
     refute has_element?(view, "#playback-status a")
   end
 
-  # One way at a time: anything not finished can be marked as finished, and only a finished item
-  # can be put back. Started counts as not finished.
+  # The card shows only the mark that changes the status.
+  # A started item offers mark heard. A heard item offers mark new.
   test "the card offers the one mark that changes the status", c do
     {:ok, _} = Playback.start(c.user, c.entry.id)
     %{playback: %{session_id: session}} = Library.entry(c.user, c.entry.id)
@@ -177,8 +176,8 @@ defmodule SikioWeb.LibraryDetailTest do
     refute has_element?(view, "#mark-completed")
   end
 
-  # Chapters a publisher listed in the notes stand in a box between the title and the notes,
-  # and only there. Each starts the item at its place; the one reached is marked.
+  # Chapters parsed from the notes render in `#item-chapters` and are removed from the notes.
+  # Each chapter button plays from its start. The current chapter gets `aria-current`.
   test "the detail lists the chapters the notes name, once", c do
     chapters = "<p>Worum es geht.</p><p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>"
 
@@ -203,7 +202,7 @@ defmodule SikioWeb.LibraryDetailTest do
     assert play =~ "sikio:play"
     assert play =~ "&quot;position&quot;:118"
     refute has_element?(view, "#item-chapters [aria-current]")
-    # The card's player marks them on its bar before anything plays.
+    # The card's seek bar marks chapter starts before playback.
     assert has_element?(
              view,
              ~s|#audio-cue span[data-audio-mark][data-at="118"][data-title="Akkus"]|
@@ -221,8 +220,8 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, ~s|#item-chapters li:nth-child(2) button[aria-current="true"]|)
   end
 
-  # Chapters the feed names win over chapters read from the notes, from two upward, and the
-  # notes are then left as they are. A file of chapters is fetched once the item is opened.
+  # Feed chapters are listed when there are at least two.
+  # A linked chapters file is fetched when the item is opened.
   describe "chapters a podcast's feed names" do
     defp feed_entry(c, extra) do
       body = String.replace(podcast("Podigee"), "<itunes:duration>", extra <> "<itunes:duration>")
@@ -276,8 +275,8 @@ defmodule SikioWeb.LibraryDetailTest do
     end
   end
 
-  # A player that measures the length, or corrects one the feed got wrong, may make a list
-  # possible that the stated length ruled out. The detail reads the chapters again then.
+  # A chapter past the feed's duration hides the chapter list.
+  # A duration reported by the player can make the list valid. The detail then parses it again.
   test "chapters a wrong length hid appear once the length is measured", c do
     chapters = "<p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>"
 
@@ -311,8 +310,9 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#item-chapters li", "Solar")
   end
 
-  # A feed may name no length. The bar then has no range of its own, so it keeps the saved place
-  # rather than falling back to the start, and cannot be dragged before the audio knows its length.
+  # Without a feed duration the seek bar sets `max` to the saved position.
+  # It then shows that position instead of the start.
+  # It is disabled until the audio reports a duration.
   test "without a length the card's player keeps the saved place", c do
     {:ok, preview} = Parser.parse(thin_podcast(), feed_url())
     {:ok, _} = Library.subscribe(c.user, preview)
@@ -347,7 +347,7 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#audio-cue[phx-hook='AudioCue'][data-entry-id='#{c.entry.id}']")
     {:ok, dock, _} = live_isolated(c.conn, SikioWeb.PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
-    # Sikio's own face over an audio element that keeps no controls of its own.
+    # The dock renders Sikio's controls over an `audio` element without `controls`.
     assert has_element?(
              dock,
              "[phx-hook='MediaPlayer'][data-position='42.0'] audio:not([controls])"
@@ -393,8 +393,8 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#playback-status", "New")
   end
 
-  # The detail says what it is, when it appeared, how long it runs and where the reader stands:
-  # how much is left once started. Nothing else trails beneath the notes.
+  # A started item's meta line shows the remaining time.
+  # The former "Saved at" and hint texts below the notes stay removed.
   test "the detail's meta line says the status, and the time left once started", c do
     {:ok, %{session_id: session}} = Playback.start(c.user, c.entry.id)
     {:ok, _} = Playback.save(c.user, c.entry.id, session, %{sample(1, 900) | "duration" => 3723})
@@ -451,8 +451,7 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#playback-status", "Listened")
   end
 
-  # Only the number in an address is looked up. A title after it that reads otherwise, from a
-  # rename or typed by hand, is set right.
+  # Lookup uses only the id in the path. A mismatched slug redirects to the canonical slug.
   test "an address with another title after the number is corrected", c do
     {:ok, view, _} =
       c.conn
@@ -491,8 +490,8 @@ defmodule SikioWeb.LibraryDetailTest do
       assert has_element?(view, ~s|#play-#{c.entry.id}[aria-current="true"]|)
     end
 
-    # j and k, as readers have moved through lists since Google Reader. The browser half that
-    # decides which key presses count is `assets/js/reader_keys.mjs`.
+    # j and k follow the Google Reader convention.
+    # `assets/js/reader_keys.mjs` decides on the client which key presses are sent.
     test "j and k move to the next and the previous item", c do
       {:ok, view, _} = live(c.conn, item_path(c.entry))
 
@@ -503,8 +502,9 @@ defmodule SikioWeb.LibraryDetailTest do
       assert_patch(view, item_path(c.entry))
     end
 
-    # On a wide screen the browser asks for the first item when none is chosen. The address is
-    # replaced, so Back does not land on the empty view again.
+    # From `lg` the client sends `select_first` when nothing is selected. It is ignored otherwise.
+    # The patch uses `replace: true`, so Back skips the empty detail.
+    # This test does not check the replace.
     test "the first item is chosen when the browser asks and nothing is", c do
       {:ok, view, _} = live(c.conn, ~p"/inbox")
       render_hook(view, "select_first", %{})
@@ -515,8 +515,8 @@ defmodule SikioWeb.LibraryDetailTest do
       assert has_element?(view, "#item-detail h2", "A good video")
     end
 
-    # An item the page chose for a wide screen is let go when the screen turns narrow, where it
-    # would cover the list. One the reader chose stays.
+    # Below `lg` the detail covers the list.
+    # `release_first` deselects an item chosen by `select_first`. A user selection stays.
     test "an item chosen for a wide screen is let go when it narrows", c do
       {:ok, view, _} = live(c.conn, ~p"/inbox")
       render_hook(view, "select_first", %{})
@@ -529,8 +529,8 @@ defmodule SikioWeb.LibraryDetailTest do
       assert has_element?(view, "#item-detail h2", "A good video")
     end
 
-    # The row carries no buttons, so marking what is selected is a key beside j and k. Pressed
-    # again it takes the mark back.
+    # Rows have no buttons, so m marks the selected item from the keyboard.
+    # A second press marks it new.
     test "m marks the selected item done, and again marks it new", c do
       {:ok, view, _} = live(c.conn, item_path(c.entry))
 
@@ -547,8 +547,8 @@ defmodule SikioWeb.LibraryDetailTest do
       assert Library.entry(c.user, c.entry.id).playback == nil
     end
 
-    # A selected item keeps its place in the list, opened by address or after an update alike.
-    # Drawn again out of turn, it would sink to the bottom and j would skip what is on screen.
+    # The selected row keeps its list position on direct open and after `:library_changed`.
+    # Rendered out of order, it would move to the end and j would skip rows.
     test "the selected item keeps its place in the list", c do
       {:ok, view, _} = live(c.conn, item_path(c.entry))
       assert rows(view) == ["entries-#{c.entry.id}", "entries-#{c.video.id}"]

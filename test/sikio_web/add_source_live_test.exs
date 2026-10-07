@@ -2,7 +2,7 @@
 
 defmodule SikioWeb.AddSourceLiveTest do
   @moduledoc """
-  Adding a source: a link or a podcast search, previewed before anything is subscribed.
+  Tests for the add page. Input is a feed URL or an Apple Podcasts search term.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -21,12 +21,12 @@ defmodule SikioWeb.AddSourceLiveTest do
     %{conn: conn, user: user}
   end
 
-  # One field takes a link or a search, and says which links it knows.
+  # One input takes a URL or a search term. Its hint names the supported platforms.
   test "one field takes a link or a search", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/add")
     assert has_element?(view, "#add-form input[name=q]")
     assert has_element?(view, "#add-hint", "PeerTube")
-    # Words that are not a link go to Apple, and the page says so before anything is sent.
+    # The hint states that non-URL input is searched in Apple Podcasts.
     assert has_element?(view, "#add-hint", "searched for in Apple Podcasts")
     assert has_element?(view, ~s|#add-q[aria-describedby="add-hint"]|)
     refute has_element?(view, "#discover-form")
@@ -37,8 +37,8 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert has_element?(view, ~s|#tab-library[aria-current="page"]|)
   end
 
-  # A collection from another app comes in from here too, since a new member has no other way in.
-  # It is the rarer way, so it comes after the field.
+  # A new member has no other path to OPML import, so the add page links it.
+  # The link follows the input because it is used less often.
   test "offers the OPML import after the field", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/add")
     assert has_element?(view, ~s|#add-opml[href="/subscriptions/import"]|)
@@ -47,8 +47,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert form < opml
   end
 
-  # A source is previewed before anything is subscribed. Subscribing leads to the new source's
-  # own page, where its episodes, tags and deliveries are.
+  # A pasted URL shows a preview without subscribing. Subscribe redirects to the feed page.
   test "pasted URLs preview a source, and subscribing leads to its page", %{
     conn: conn,
     user: user
@@ -70,7 +69,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert html =~ "Subscribed to Small Hours."
   end
 
-  # A source subscribed to before keeps the name the member gave it, in the address and the flash.
+  # Subscribing again keeps the custom name in the redirect slug and the flash.
   test "subscribing again leads to the source under its own name", %{conn: conn, user: user} do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
     url = feed_url()
@@ -94,7 +93,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert html =~ "Subscribed to Late Night."
   end
 
-  # A search result subscribes in one click. The other results stay while its feed loads.
+  # A search result subscribes without a preview step. Other results stay while the feed loads.
   test "a search result subscribes in one click", %{conn: conn, user: user} do
     test = self()
 
@@ -108,7 +107,7 @@ defmodule SikioWeb.AddSourceLiveTest do
             ]
           })
 
-        # The feed responds after the test sees the disabled row.
+        # The stub blocks until the test has checked the disabled row.
         "/rss" ->
           send(test, {:fetching, self()})
 
@@ -135,7 +134,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert [%{feed: %{title: "Small Hours"}}] = Library.subscriptions(user)
   end
 
-  # The field clears with its results, for the next search.
+  # The clear button empties the input and removes the results.
   test "the search is cleared with its results", %{conn: conn} do
     Req.Test.stub(HTTP, fn conn ->
       Req.Test.json(conn, %{
@@ -157,7 +156,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     refute has_element?(view, "#clear-search")
   end
 
-  # A new search abandons a subscription still loading, so the page stays with the new results.
+  # A new search cancels a pending subscribe. The late feed response subscribes nothing.
   test "a new search abandons a subscription still loading", %{conn: conn, user: user} do
     test = self()
 
@@ -191,7 +190,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert has_element?(view, "#source-0 button:not([disabled])", "Subscribe")
   end
 
-  # A feed that cannot be read shows its error on its own row. The other results stay usable.
+  # A failed feed fetch shows an alert in its row. Other rows keep an enabled Subscribe button.
   test "a search result whose feed fails says so on its row", %{conn: conn, user: user} do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
@@ -232,15 +231,16 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert Library.subscriptions(user) == []
   end
 
-  # The form carries a phx-change handler, which is what lets a reconnecting browser put back what
-  # somebody had typed. Without it the text is silently replaced by the template's empty value.
+  # LiveView restores form input on reconnect only for forms with `phx-change`.
+  # Without it the template's empty value replaces the input.
+  # This test checks only that `render_change` keeps the value in the render.
   test "what was typed survives a reconnect", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/add")
     view |> form("#add-form", %{q: "https://example.org/rs"}) |> render_change()
     assert render(view) =~ "https://example.org/rs"
   end
 
-  # A word with a dot reads as an address. When it leads nowhere, the same words can be searched.
+  # Input with a dot is treated as a URL. On failure the page offers a search for that input.
   test "a link that finds nothing offers to search for it instead", %{conn: conn} do
     test = self()
 
@@ -260,7 +260,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     render_async(view)
     assert has_element?(view, "#discovery-error")
 
-    # Edited in the meantime, the field does not change what failed as a link.
+    # The search uses the failed input, not the edited field value.
     view |> form("#add-form", %{q: "something else"}) |> render_change()
     view |> element("#search-instead") |> render_click()
     render_async(view)
@@ -268,7 +268,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert_received {:search_term, "mr.robot"}
   end
 
-  # An address written out with its scheme was meant as one, so its failure offers no search.
+  # Input with an explicit scheme is a URL, so its failure offers no search.
   test "a written-out address that fails offers no search", %{conn: conn} do
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 404, "") end)
     {:ok, view, _} = live(conn, ~p"/add")
@@ -279,10 +279,9 @@ defmodule SikioWeb.AddSourceLiveTest do
     refute has_element?(view, "#search-instead")
   end
 
-  # The policy is written on a document, and moving inside a LiveView writes no document. A
-  # PeerTube instance subscribed to without one would not be in the policy the page loaded with,
-  # so its first video would be refused by the browser. Subscribing to a new instance therefore
-  # asks for a page.
+  # The CSP header is sent per HTTP response, and live navigation sends none.
+  # A new PeerTube instance is missing from the loaded `frame-src`, so its embed would be blocked.
+  # Subscribing to a new instance therefore uses a full redirect.
   test "subscribing to a new instance reloads the page that has to frame it", %{conn: conn} do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do

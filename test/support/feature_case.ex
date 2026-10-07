@@ -2,21 +2,19 @@
 
 defmodule SikioWeb.FeatureCase do
   @moduledoc """
-  A real browser, driving the real pages — and with them `priv/static/ithibati.js`, the half of
-  Ithibati that runs on somebody else's machine.
+  Case template for Wallaby features in Chrome.
 
-  These are not `Phoenix.LiveViewTest` tests and cannot be: a passkey ceremony is
-  `navigator.credentials`, a `fetch` that sets a cookie, and a redirect the hook follows. None of
-  that exists without a browser.
+  The features also cover `priv/static/ithibati.js`, the client half of Ithibati.
+  `Phoenix.LiveViewTest` cannot run them. A passkey ceremony needs `navigator.credentials`,
+  a `fetch` that sets a cookie, and a redirect followed by the hook.
 
-  Wallaby shares the test's sandboxed connection with the server, so a test may look in the
-  database at what the browser just did — which is how these assert that a ceremony *arrived*
-  rather than only that a page changed.
+  Wallaby shares the test's sandboxed connection with the server.
+  Tests can query the database to assert that a ceremony was stored, not only that a page changed.
   """
   use ExUnit.CaseTemplate
 
-  # The test modules get this through the `using` block below; this module needs it too, because
-  # `assert_has/2` is a macro that expands into `execute_query/2` and both have to be in scope here.
+  # `using` imports this for test modules. This module imports it too.
+  # `assert_has/2` is a macro that expands to `execute_query/2`, so both must be in scope here.
   import Wallaby.Browser
 
   alias Ithibati.Identity.Instance
@@ -34,8 +32,8 @@ defmodule SikioWeb.FeatureCase do
 
   using do
     quote do
-      # Wallaby.Feature without its setup, which starts a new Chrome for every feature; see
-      # sessions/1 below.
+      # Wallaby.Feature without its setup, which starts a new Chrome per feature.
+      # See sessions/1 below.
       ExUnit.Case.register_attribute(__MODULE__, :sessions)
       use Wallaby.DSL
       import Wallaby.Feature
@@ -59,17 +57,19 @@ defmodule SikioWeb.FeatureCase do
   end
 
   @doc """
-  Waits until nothing on the page matches `query`, and passes at once when nothing does.
+  Asserts that nothing matches `query`. Retries until the count is zero, passes at once if it is.
 
-  Wallaby's `refute_has/2` retries until the element appears, so it waits the whole
-  `max_wait_time` on a page without it, and fails at once on a page that has not yet removed it.
-  Where something must not appear after an action, assert first what the action does show.
+  Wallaby's `refute_has/2` waits the full `max_wait_time` when the element is absent.
+  It fails at once when the element is present and not yet removed.
+  To check that an action shows nothing, first assert what the action does show.
   """
   def gone(session, query), do: Wallaby.Browser.assert_has(session, Wallaby.Query.count(query, 0))
 
   @doc """
-  The browser for a feature: the shared session of `SikioWeb.BrowserPool`, reset, or sessions of
-  their own for a feature whose `@sessions` asks for other capabilities, such as a phone.
+  Setup callback that returns the browser session.
+
+  The default is the shared `SikioWeb.BrowserPool` session, reset.
+  A feature with `@sessions`, for example for a phone, gets new sessions with those capabilities.
   """
   def sessions(context) do
     metadata = Utils.maybe_checkout_repos(context[:async])
@@ -88,17 +88,17 @@ defmodule SikioWeb.FeatureCase do
     end
   end
 
-  # Wallaby screenshots a failed feature's sessions, found in its session store by the test's
-  # process. Registering the pooled one the usual way would have Wallaby end it with the test, so
-  # it is listed in that public table directly and taken out again afterwards. This leans on
-  # Wallaby.SessionStore's table name and key shape.
+  # Wallaby screenshots a failed feature's sessions, looked up by test pid in its session store.
+  # Registering the pooled session normally would make Wallaby end it with the test.
+  # So it is inserted into the public ETS table directly and removed on exit.
+  # This depends on Wallaby.SessionStore's table name and key shape.
   defp listed_for_screenshots(session) do
     key = {make_ref(), session.id, self()}
     :ets.insert(:session_store, {key, session})
     on_exit(fn -> :ets.delete(:session_store, key) end)
   end
 
-  @doc "A PeerTube video whose frame is a page of Sikio's own, without a picture, with notes to scroll."
+  @doc "Returns a PeerTube video embedding a Sikio URL, without image, with a long description."
   def video_with_notes(account) do
     {:ok, preview} = Parser.parse(FeedFixtures.peertube(), FeedFixtures.peertube_feed_url())
     {:ok, subscription} = Library.subscribe(account, preview)
@@ -115,46 +115,46 @@ defmodule SikioWeb.FeatureCase do
     )
   end
 
-  @doc "An item's address in the list of all items, as the library itself spells it."
+  @doc "Returns an entry's path in the unfiltered library list, as `SikioWeb.Sidebar` builds it."
   def item_path(entry), do: SikioWeb.ConnCase.item_path(entry)
 
   @doc """
-  Goes to a page and waits until its LiveView has actually connected.
+  Visits `path` and waits until the LiveView is connected.
 
-  Use this rather than `visit/2` for anything these tests then interact with. A page answers long
-  before its socket does, and until it does, `phx-submit` is not wired and the mount patch has not
-  run — so a click goes nowhere, and a `data-` attribute spoiled beforehand is quietly put back to
-  what the template says. Measured: without the wait the suite failed about one run in three, on a
-  different test each time, which reads as flakiness rather than as the race it is.
+  Use it instead of `visit/2` before interacting with the page.
+  The HTTP response arrives before the socket connects.
+  Until then `phx-submit` is not bound and the mount patch has not run.
+  A click has no effect. A `data-` attribute changed beforehand is reset to the template value.
+  Measured: without the wait, about one suite run in three failed, each time in a different test.
   """
   def open(session, path) do
     session |> visit(path) |> connected()
   end
 
   @doc """
-  Raises the setup budget for the length of one browser test.
+  Raises the setup and ceremony rate limits for one browser test.
 
-  Every test here that makes an account spends a code at the real endpoint, and a browser cannot
-  be given an address of its own, so they all arrive on the loopback and share one counter. The
-  shipped budget of ten a minute would then refuse the suite rather than a guesser, and the
-  features about signing in run faster than a hundred ceremonies a minute.
+  Every test that creates an account spends a code at the real endpoint.
+  Browser requests cannot get distinct addresses, so all share the loopback rate-limit counter.
+  The default budget of ten per minute would reject the suite.
+  The sign-in features run more than a hundred ceremonies a minute.
 
-  Only these tests need it. Everything else either writes the proof straight into the session or
-  is the budget's own test, which sets a budget and an address of its own.
+  Only these tests need it. Other tests write the proof into the session directly.
+  The rate limiter's own test sets its own budget and address.
   """
   def room_for_the_suites_own_codes do
     Sikio.TestConfig.put_budget(:setup, {1000, 60})
-    # Each sign-up is a passkey ceremony on the same loopback, so the same holds for those.
+    # Each sign-up is a passkey ceremony from the same loopback address and needs the same raise.
     Sikio.TestConfig.put_budget(:ceremony, {1000, 60})
   end
 
   @doc """
-  Answers every outgoing request of the server with a 404, until a test stubs its own.
+  Stubs every outgoing `Sikio.Feeds.HTTP` request with a 404 until a test sets its own stub.
 
-  The browser asks the server for a source's picture, and the server fetches it in a request
-  process of its own. That process is no test's, so a private stub never reaches it and the
-  request raises. Features run one at a time, so the stub is shared for the length of one. An
-  async feature would share it with every test running beside it, so it is refused.
+  The server fetches source images in its own request process, which belongs to no test.
+  A private `Req.Test` stub does not reach that process, and the request raises.
+  Features run sequentially, so the stub is set to shared mode for one feature.
+  An async feature would share the stub with concurrent tests, so it raises `ArgumentError`.
   """
   def nobody_answers(context) do
     if context[:async], do: raise(ArgumentError, "a browser feature cannot run async")
@@ -165,12 +165,13 @@ defmodule SikioWeb.FeatureCase do
   end
 
   @doc """
-  Signs the browser in as a new account named `username`, by a session cookie, and answers it.
+  Creates an account named `username` and signs the browser in by session cookie.
+  Returns the account.
 
-  The passkey ceremony costs about as much as the rest of a typical test. Tests about
-  signing in walk the ceremony themselves; the others are about what comes after, and start here. The cookie is the
-  one the endpoint writes, holding a session Ithibati issued, so the page and its socket both
-  find the account as they would after a real sign-in.
+  The passkey ceremony takes about as long as the rest of a typical test.
+  Sign-in tests run the ceremony themselves. All other features start here.
+  The cookie is the endpoint's session cookie and holds an Ithibati session token.
+  The page and its socket load the account as after a real sign-in.
   """
   def signed_in(session, username) do
     account = Repo.insert!(User.changeset(%User{}, %{username: username}))
@@ -186,7 +187,7 @@ defmodule SikioWeb.FeatureCase do
       |> Plug.Conn.put_session(Gate.session_key(), token)
       |> Plug.Conn.send_resp(200, "")
 
-    # A cookie belongs to a page of its host, so the browser stands on one, the smallest.
+    # A cookie can only be set on a page of its host. `/robots.txt` is the smallest.
     session
     |> visit("/robots.txt")
     |> set_cookie(options[:key], conn.resp_cookies[options[:key]].value)
@@ -195,18 +196,15 @@ defmodule SikioWeb.FeatureCase do
   end
 
   @doc """
-  Types the operator's code and leaves the browser on the form that asks for a name.
+  Submits a setup code and leaves the browser on the claim form.
 
-  Every instance protects its claim, so claiming one is two forms rather than one. A test that is
-  really about what comes after the name still walks through this, which is what makes the gate
-  something the suite drives rather than something it describes.
+  Claiming an instance takes two forms: the setup code, then the name.
+  Tests about later steps also submit the code, so the suite exercises the gate.
 
-  The submit button is found by its form rather than by its label, because one of these tests
-  runs the interface in German.
+  The submit button is selected by form id, not label, because one test runs in German.
 
-  Submitting is a full page load back to the same path, which is the swap `landed_on/2` cannot
-  wait for. So the new document is waited for by the form only it has, and the socket is asked
-  about afterwards, once there is one document to ask.
+  The submit is a full page load to the same path, which `landed_on/2` cannot detect.
+  So the function waits for `#claim-form`, which only the new document has, then for the socket.
   """
   def code_entered(session) do
     {:ok, code} = Instance.issue_code()
@@ -219,18 +217,19 @@ defmodule SikioWeb.FeatureCase do
   end
 
   @doc """
-  Waits until the browser has actually arrived at a path, and answers the session.
+  Waits until the browser's current path is `path` and returns the session.
 
-  For the moment after a ceremony, where the hook follows the handler's `%{redirect: …}` with a
-  full page load. Asserting on content across that swap is what produced the one failure this
-  suite could not explain: Wallaby finds the elements, then asks Chrome whether each is visible,
-  and if the document has been replaced in between Chrome answers *"Node with given id does not
-  belong to the document"*. Wallaby's `execute_query/2` rescues `StaleReferenceError` and would
-  have retried; this arrives as a bare `RuntimeError` from the HTTP client and escapes.
+  Use it after a ceremony, where the hook follows the handler's `%{redirect: …}` with a page load.
+  Asserting on content during that load caused intermittent failures.
+  Wallaby finds elements, then asks Chrome whether each is visible.
+  If the document is replaced in between, Chrome returns
+  *"Node with given id does not belong to the document"*.
+  Wallaby's `execute_query/2` rescues `StaleReferenceError` and retries.
+  This error arrives as a bare `RuntimeError` from the HTTP client and is not rescued.
 
-  `current_path/1` holds no element references, so it is safe to ask across the swap; once it
-  answers, the document a later query finds is the new one. Where the redirect leads back to the
-  page the browser is already on, this cannot help — see `through_navigation/1`.
+  `current_path/1` holds no element references, so it is safe during the load.
+  Once it matches, later queries find elements in the new document.
+  It cannot detect a redirect to the current path. See `through_navigation/2`.
   """
   def landed_on(session, path) do
     result =
@@ -248,14 +247,14 @@ defmodule SikioWeb.FeatureCase do
   end
 
   @doc """
-  Runs an assertion, and runs it again if the document was swapped underneath it.
+  Runs `assert_has/2` and retries up to `attempts` times if the document was replaced meanwhile.
 
-  For the redirect `landed_on/2` cannot wait for: one that leads to the path the browser is already
-  on, where the poll is satisfied before the navigation has even started. Signing in is that —
-  the handler answers `%{redirect: "/"}` from a page already at `/`.
+  Use it for a redirect to the current path, which `landed_on/2` cannot detect.
+  There the path check passes before the navigation starts.
+  Signing in is such a case: the handler returns `%{redirect: "/"}` from `/`.
 
-  So this one does not predict the swap; it notices it happened. Matching on Chrome's message is
-  narrow, which is why it is confined to the single site that cannot be solved by waiting.
+  It detects the replacement afterwards instead of waiting for it.
+  Matching Chrome's error message is fragile, so only this call site uses it.
   """
   def through_navigation(session, query, attempts \\ 10) do
     assert_has(session, query)
@@ -269,26 +268,26 @@ defmodule SikioWeb.FeatureCase do
   end
 
   @doc """
-  Waits where the browser already is, for a page it reached by clicking rather than by `open/2`.
+  Waits until the current page's LiveView is connected.
 
-  Same race, same reason: a full page load leaves a document that answers before its socket does,
-  and a `phx-click` on it goes nowhere until the view has joined.
+  For a page reached by a click instead of `open/2`.
+  A full page load serves the document before the socket connects.
+  A `phx-click` has no effect until the LiveView has joined.
   """
   def connected(session) do
-    # `find/2` blocks and raises if it never appears, which is the waiting and the check in one.
+    # `find/2` retries until the element appears and raises on timeout.
     find(session, Query.css("[data-phx-main].phx-connected"))
 
     session
   end
 
   @doc """
-  Attaches a virtual authenticator to this session's browser.
+  Adds a virtual WebAuthn authenticator to this session's Chrome.
 
-  Chrome's own, reached through chromedriver's CDP passthrough. Wallaby's `browserContext`
-  equivalent — Playwright's first-class `credentials` API — cannot serve this library: it hands the
-  page a synthetic credential whose `toJSON()` comes back empty, and `toJSON()` is exactly what the
-  library serialises with. Nothing is ever seeded: these tests register their own passkey, which is
-  the property worth proving.
+  Uses Chrome's own authenticator through chromedriver's CDP passthrough.
+  Playwright's `credentials` API cannot serve this library.
+  Its synthetic credential returns an empty `toJSON()`, which the library uses for serialization.
+  No credential is seeded. Each test registers its own passkey, so registration is covered.
   """
   def virtual_authenticator(session) do
     command(session, "WebAuthn.enable", %{})
@@ -297,8 +296,8 @@ defmodule SikioWeb.FeatureCase do
       command(session, "WebAuthn.addVirtualAuthenticator", %{
         options: %{
           protocol: "ctap2",
-          # A platform authenticator — Touch ID, Windows Hello — which is what a passkey for a web
-          # application actually is.
+          # A platform authenticator such as Touch ID or Windows Hello.
+          # Web application passkeys use this kind.
           transport: "internal",
           hasResidentKey: true,
           hasUserVerification: true,
@@ -311,12 +310,11 @@ defmodule SikioWeb.FeatureCase do
   end
 
   @doc """
-  Throws away every cookie this browser holds, signing it out.
+  Deletes all cookies of this browser session through WebDriver, which signs it out.
 
-  Through WebDriver rather than `document.cookie`: the session cookie is `HttpOnly`, so JavaScript
-  cannot see it, let alone expire it — measured, `document.cookie` answers `""` on a signed-in
-  page. A test that cleared it that way would go on being signed in and would quietly stop
-  exercising whatever it opened a fresh session to show.
+  `document.cookie` cannot do it. The session cookie is `HttpOnly` and hidden from JavaScript.
+  Measured: `document.cookie` returns `""` on a signed-in page.
+  A test that cleared cookies from JavaScript would stay signed in.
   """
   def clear_cookies(session) do
     {:ok, _} = Wallaby.HTTPClient.request(:delete, "#{session.url}/cookie")
@@ -324,7 +322,7 @@ defmodule SikioWeb.FeatureCase do
     session
   end
 
-  @doc "Every credential the *page* registered, so a test can say whether a ceremony reached one."
+  @doc "Returns every credential on the authenticator, to check whether a ceremony created one."
   def credentials(session, authenticator) do
     %{"credentials" => credentials} =
       command(session, "WebAuthn.getCredentials", %{authenticatorId: authenticator})
@@ -339,8 +337,8 @@ defmodule SikioWeb.FeatureCase do
     session
   end
 
-  # chromedriver answers the WebDriver envelope — `sessionId`, `status`, `value` — and what CDP
-  # returned is inside `value`.
+  # chromedriver wraps the CDP result in a WebDriver envelope: `sessionId`, `status`, `value`.
+  # The CDP result is in `value`.
   defp command(session, cmd, params) do
     {:ok, %{"value" => value}} =
       Wallaby.HTTPClient.request(:post, "#{session.url}/chromium/send_command_and_get_result", %{

@@ -8,8 +8,8 @@ defmodule SikioWeb.MediaComponentsTest do
 
   defp entry(kind, playback \\ nil), do: %{feed: %{kind: kind}, playback: playback}
 
-  # A PeerTube video is watched, not listened to. The wording followed a single comparison
-  # against YouTube, so a third kind of video would have been described as an episode.
+  # PeerTube videos use video wording. The wording once checked only for YouTube.
+  # Any other video kind then got episode wording.
   describe "wording for a kind that is video but not YouTube" do
     test "a finished video was watched" do
       assert status_label(entry(:peertube, %{status: :heard})) == "Watched"
@@ -22,7 +22,7 @@ defmodule SikioWeb.MediaComponentsTest do
     end
   end
 
-  # A runtime is read at a glance in a list, so an hour gets its own place and nothing else does.
+  # Runtimes show hours only when nonzero, to stay short in lists.
   describe "runtime/1" do
     test "minutes and seconds, and hours only when there are any" do
       assert runtime(2900) == "48:20"
@@ -30,7 +30,7 @@ defmodule SikioWeb.MediaComponentsTest do
       assert runtime(59) == "0:59"
     end
 
-    # A player measures its media in fractions of a second.
+    # Players report durations in fractional seconds. The runtime truncates to whole seconds.
     test "a measured length counts whole seconds" do
       assert runtime(3723.6) == "1:02:03"
       assert runtime(59.9) == "0:59"
@@ -41,7 +41,7 @@ defmodule SikioWeb.MediaComponentsTest do
     end
   end
 
-  # A failed refresh is stored as its reason. The reader is told what it means, in a sentence.
+  # A failed refresh is stored as a reason code. `refresh_problem/1` turns it into a sentence.
   describe "refresh_problem/1" do
     test "says what went wrong in words, and something general for the rest" do
       assert refresh_problem("invalid_feed") =~ "no longer serves a feed"
@@ -54,7 +54,7 @@ defmodule SikioWeb.MediaComponentsTest do
     end
   end
 
-  # A row has little room, and the source's kind is all it needs to say.
+  # Rows have little space, so the label names only the source kind.
   describe "medium_label/1" do
     test "names the platform or the podcast, nothing more" do
       assert medium_label(%{feed: %{kind: :youtube}}) == "YouTube"
@@ -63,7 +63,7 @@ defmodule SikioWeb.MediaComponentsTest do
     end
   end
 
-  # A date sits in translated text, so its month is translated too.
+  # Dates appear in translated text, so month names are localized.
   describe "date/1" do
     test "names the month in the reader's language" do
       published = ~U[2026-09-18 09:00:00Z]
@@ -75,7 +75,7 @@ defmodule SikioWeb.MediaComponentsTest do
     end
   end
 
-  # A list is mostly this year, so it leaves the year out until it differs.
+  # Most list items are from the current year, so the year appears only for other years.
   describe "short_date/2" do
     test "drops the year of this year and keeps any other" do
       today = ~D[2026-10-02]
