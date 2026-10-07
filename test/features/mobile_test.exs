@@ -251,8 +251,13 @@ defmodule SikioWeb.MobileTest do
     end)
     |> click(css("#start-playback"))
     |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
-    |> execute_script(edges(), fn [_left, _width, top] -> assert top == "slot" end)
-    # Starting patches the detail, which takes the padding with it.
+    # Starting patches the detail, which takes the padding with it, and the page jumps. The panel
+    # follows the slot once the intersection observer reports, which it does a frame later.
+    |> then(fn session ->
+      script = "return (() => { #{edges()} })()[2] === 'slot'"
+      assert {:ok, _} = retry(fn -> holds(session, script) end), "the panel lies on its slot"
+      session
+    end)
     |> execute_script(scrolled_past_the_slot)
     |> then(fn session ->
       script = under_the_bar.("player-panel")
