@@ -412,6 +412,23 @@ defmodule Sikio.FeedsTest do
       assert Repo.get(Entry, entry.id).chapters == []
     end
 
+    # A poll may link another file while the old one downloads. Its chapters are not the new one's.
+    test "chapters of a file the item no longer links are not stored" do
+      {:ok, feed} = Feeds.store(preview())
+      Repo.update_all(Entry, set: [chapters_url: "https://example.org/c.json"])
+      entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+      Repo.update_all(Entry, set: [chapters_url: "https://example.org/d.json"])
+
+      Sikio.PictureFixtures.serving(%{
+        "/c.json" =>
+          {"application/json",
+           ~s|{"version":"1.2.0","chapters":[{"startTime":0,"title":"A"},{"startTime":60,"title":"B"}]}|}
+      })
+
+      assert {:ok, [_, _]} = Feeds.chapters(entry)
+      assert Repo.get(Entry, entry.id).chapters == nil
+    end
+
     test "an item without a chapters file has nothing to fetch" do
       {:ok, feed} = Feeds.store(preview())
       entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)

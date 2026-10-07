@@ -99,7 +99,11 @@ defmodule Sikio.Feeds do
     case HTTP.get(url, max_bytes: 256_000) do
       {:ok, %{status: 200, body: body}} ->
         chapters = Chapters.from_json(body)
-        Repo.update_all(from(e in Entry, where: e.id == ^id), set: [chapters: chapters])
+        # A poll may have linked another file meanwhile; these chapters are not its.
+        Repo.update_all(from(e in Entry, where: e.id == ^id and e.chapters_url == ^url),
+          set: [chapters: chapters]
+        )
+
         {:ok, chapters}
 
       {:ok, %{status: status}} ->
