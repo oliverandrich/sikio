@@ -4,9 +4,10 @@ defmodule Sikio.Library do
   @moduledoc """
   Account-scoped subscriptions and imported media.
 
-  Every function here takes the account as its first argument, and every query is written against
-  it rather than filtered afterwards. Feed content is shared; what an account subscribed to, and
-  how far it got, is not.
+  Every function on an account's data takes the account as its first argument, and every query is
+  written against it rather than filtered afterwards. `deliver/2` and `active_feed?/1` concern a
+  feed across all accounts. Feed content is shared; what an account subscribed to, and how far it
+  got, is not.
   """
   import Ecto.Query
 
@@ -416,7 +417,7 @@ defmodule Sikio.Library do
 
   defp choice(value, values), do: if(value in values, do: value, else: "")
 
-  # Two kinds, by what a reader does with them. The platform names are what links said before.
+  # A source's id from an address: a positive 64-bit integer as text, or "" for anything else.
   defp source_id(value) when is_binary(value) do
     case Integer.parse(value) do
       {id, ""} when id > 0 and id <= 9_223_372_036_854_775_807 -> Integer.to_string(id)

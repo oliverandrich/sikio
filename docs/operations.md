@@ -136,7 +136,7 @@ keys: `feed_id`, `feed_title`, `host`, `account_id`, `reason`, `worker`, `job_id
 | `warning` | `feed refresh failed`, with the feed's id, title and host and why; `job failed`, with a reason cut to 200 characters |
 | `info` | `instance claimed`, `invitation made`, `invitation accepted`, `signed in`, by account id; migrations as they run |
 
-Sikio keeps no access log: no line names a visitor's address, a username, an item or a code. A
+Sikio keeps no access log. The lines Sikio writes name no visitor's address, username, item or code. A
 feed's address is left out too, since a private feed may carry a token in it. A proxy in front
 logs access if wanted; Caddy does with a `log` directive in its site block. `LOG_LEVEL=warning`
 leaves only what needs attention. `debug` is not offered: it would log sessions and query

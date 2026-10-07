@@ -4,8 +4,8 @@ defmodule Sikio.Logging do
   @moduledoc """
   What production writes to its log: one JSON object per line on stdout, at `LOG_LEVEL`.
 
-  Only the metadata named here reaches a line, so a name, a code or a token passed by accident
-  stays out of it. See docs/operations.md.
+  Only the metadata named here reaches a line. Messages and `reason` are not filtered, so callers
+  keep names, codes and tokens out of them. See docs/operations.md.
   """
 
   alias LoggerJSON.Formatters.Basic

@@ -1,6 +1,6 @@
 # Authentication
 
-Ithibati is pinned to 0.7.0. On an empty database the first account asks for a code
+Ithibati is pinned to 0.7.1. On an empty database the first account asks for a code
 the operator issues on the host with `bin/setup-code`, and only then for a username
 and passkey. The code is stored as a digest, buys a proof that lasts ten minutes,
 and is spent by the account it makes; issuing another code voids the previous one
