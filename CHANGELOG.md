@@ -28,5 +28,6 @@ group of people on one instance.
 - Accounts with passkeys and recovery codes. The first account claims the instance with an
   operator's code; everybody after it arrives on an invitation.
 - A Mix release that serves SQLite or PostgreSQL, chosen with `SIKIO_DATABASE`, and migrates
-  its database as it starts.
+  its database as it starts. The same as an image, `ghcr.io/oliverandrich/sikio`, for amd64 and
+  arm64, with its data in `/data`.
 - English and German.

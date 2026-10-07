@@ -1,6 +1,7 @@
 name: Release
-# A tag vX.Y.Z builds a release for each architecture, smoke-tests each against a disposable
-# database of each kind, and publishes the tarballs with their checksums and the changelog section.
+# A tag vX.Y.Z builds a release and an image for each architecture, smoke-tests each against a
+# disposable database of each kind, and publishes the tarballs with their checksums and the
+# changelog section, and the image on ghcr.io as X.Y.Z, X.Y and latest.
 # Run by hand, it builds and smoke-tests the version in mix.exs and publishes nothing.
 on:
   push:
@@ -102,10 +103,105 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  # The image, built natively on each architecture rather than under emulation, and smoke-tested.
+  # It is kept as an artifact; nothing is pushed until everything passed.
+  image:
+    name: image on ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The versions CI and the tarball use. No build cache, for the same reason as the release:
+      # nothing from before ends up in it.
+      - name: Build the image
+        run: |
+          elixir="$(sed -nE 's/^elixir = "([0-9.]+)-otp-.*"/\1/p' mise.toml)"
+          otp="$(sed -nE 's/^erlang = "([0-9.]+)"/\1/p' mise.toml)"
+          docker build --pull --no-cache \
+            --build-arg ELIXIR_VERSION="$elixir" --build-arg OTP_VERSION="$otp" -t sikio:smoke .
+
+      - run: scripts/smoke_image.sh sikio:smoke
+
+      - name: Keep the image for publishing
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: docker save sikio:smoke | gzip > "image-$ARCH.tar.gz"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-${{ matrix.arch }}
+          path: image-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  # On a tag, once the checks, the releases and both images passed: each architecture's image is
+  # pushed, and they are joined under one name. Only plain versions move X.Y and latest.
+  image-publish:
+    runs-on: ubuntu-latest
+    needs: [checks, build, image]
+    if: github.event_name == 'push'
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: image-*
+          merge-multiple: true
+
+      - name: Push the architectures and join them
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          version="${REF_NAME#v}"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          for arch in amd64 arm64; do
+            docker load < "image-$arch.tar.gz"
+            docker tag sikio:smoke "$IMAGE:$version-$arch"
+            docker push "$IMAGE:$version-$arch"
+          done
+          tags=(-t "$IMAGE:$version")
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            tags+=(-t "$IMAGE:${version%.*}" -t "$IMAGE:latest")
+          fi
+          docker buildx imagetools create "${tags[@]}" "$IMAGE:$version-amd64" "$IMAGE:$version-arm64"
+
   # Its own job because it needs `contents: write`, which the jobs that build must not have.
+  # After the image, so the release never announces an image that is not there.
   publish:
     runs-on: ubuntu-latest
-    needs: [checks, build]
+    needs: [checks, build, image-publish]
     if: github.event_name == 'push'
     permissions:
       contents: write

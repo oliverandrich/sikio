@@ -1,6 +1,7 @@
 # Running a release
 
-Sikio ships as a Mix release containing the application and its Erlang runtime.
+Sikio ships as a Mix release containing the application and its Erlang runtime, and as a
+container image built from it; see [Run the image](#run-the-image).
 Build for a compatible OS version, architecture and system libraries; a build on
 one platform is not a portability guarantee for another. No Elixir, Mix or build
 toolchain is needed on the target. Platform support must be verified separately.
@@ -114,6 +115,24 @@ believed on a connection from anywhere else, so an instance exposed directly sti
 counts the address it actually sees.
 
 `GET /health` checks HTTP liveness, not database readiness.
+
+## Run the image
+
+The image is `ghcr.io/oliverandrich/sikio`, for `linux/amd64` and `linux/arm64`. Each version
+is tagged `X.Y.Z`, its minor line `X.Y` and `latest`. It runs the release above and takes the
+same variables. It starts with `bin/server`, which migrates the database before it serves.
+
+It keeps its data in the volume `/data`: the SQLite file at `/data/sikio.db` and the pictures in
+`/data/pictures`. With SQLite only `SECRET_KEY_BASE` and `PHX_HOST` remain to set. For
+PostgreSQL, set `SIKIO_DATABASE=postgres` and `DATABASE_URL`; `/data` then holds the pictures.
+The image runs as `nobody`, so the volume must be writable for that user.
+
+A proxy on the host reaches the container through the container network's gateway, not the
+loopback. Name that gateway in `TRUSTED_PROXIES`, or every visitor counts as one address.
+[compose.yaml](compose.yaml) is an example with SQLite, a fixed network and a port on the
+loopback for the proxy.
+
+Back up the volume, or the PostgreSQL database and the volume, before every update.
 
 ## Naming or addressing accounts
 

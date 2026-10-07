@@ -140,6 +140,12 @@ must be served with HSTS. It removes only that database and a temporary director
 It needs the build machine's Elixir, the `sqlite3` client and the PostgreSQL client tools;
 these test tools are not runtime dependencies of the application.
 
+The `Dockerfile` builds the image from source, as `mise run release` builds the tarball. Build it
+with `docker build -t sikio .`, or with Apple's `container build -t sikio .` on a Mac, which builds
+natively for arm64. `scripts/smoke_image.sh IMAGE` starts it with SQLite and with PostgreSQL. It
+needs Docker with host networking and PG* settings for a server with CREATEDB, which the release
+workflow provides on both architectures.
+
 ## Changelog
 
 Record each user-visible change in `CHANGELOG.md` under **Unreleased**, in the

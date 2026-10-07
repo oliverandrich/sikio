@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# What the image does not need to build: history, dependencies and builds of the host, tests,
+# local databases and tickets.
+.dockerignore
+.git
+.github
+.beans
+.beans.yml
+/cover/
+/doc/
+/test/
+/tmp/
+/screenshots/
+.elixir_ls
+/_build/
+/deps/
+*.ez
+erl_crash.dump
+/assets/node_modules/
+/priv/static/assets/
+/priv/static/cache_manifest.json
+# What `mix assets.deploy` wrote on the host, as in .gitignore. The image digests its own.
+/priv/static/**/*.gz
+/priv/static/**/*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].*

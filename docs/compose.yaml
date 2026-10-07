@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# An example for running Sikio's image with SQLite; see docs/operations.md. Copy it next to a
+# sikio.env that holds SECRET_KEY_BASE, and adjust the host name. A proxy on the host, such as
+# Caddy, terminates TLS and forwards to 127.0.0.1:4000.
+services:
+  sikio:
+    image: ghcr.io/oliverandrich/sikio:0.1
+    restart: unless-stopped
+    env_file: sikio.env
+    environment:
+      PHX_HOST: sikio.example.org
+      # The proxy reaches the container through this network's gateway.
+      TRUSTED_PROXIES: 172.30.0.1
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - sikio-data:/data
+
+volumes:
+  sikio-data:
+
+# A fixed subnet, so the gateway named in TRUSTED_PROXIES stays the same.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
