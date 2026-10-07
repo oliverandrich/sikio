@@ -37,4 +37,15 @@ defmodule Sikio.Feeds.Feed do
     |> validate_length(:title, max: 512)
     |> unique_constraint(:url)
   end
+
+  @doc "The YouTube channel a feed follows whole, or nil. Only a channel has Shorts to leave out."
+  def channel_id(%{kind: :youtube, url: url}) do
+    query = URI.parse(url).query || ""
+    URI.decode_query(query)["channel_id"]
+  end
+
+  def channel_id(_feed), do: nil
+
+  @doc "Whether a feed follows a whole YouTube channel."
+  def channel?(feed), do: channel_id(feed) != nil
 end

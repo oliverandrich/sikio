@@ -240,7 +240,8 @@ defmodule Sikio.FeedsTest do
         duration: 99,
         description: "<p>New notes</p>",
         description_format: :text,
-        excerpt: "New notes"
+        excerpt: "New notes",
+        short: true
       ] do
     test "a changed #{field} is written" do
       {:ok, stored} = Feeds.store(preview())
@@ -347,6 +348,17 @@ defmodule Sikio.FeedsTest do
     assert entry.duration == 3723
     assert entry.excerpt == "Notes with a link."
     assert entry.page_url == podcast_page()
+  end
+
+  # A Short drops out of the channel's Shorts feed long before it leaves the channel's own, so a
+  # poll that does not name it a Short says nothing about it.
+  test "an entry once known as a Short stays one" do
+    [entry] = preview().entries
+    {:ok, _feed} = Feeds.store(%{preview() | entries: [Map.put(entry, :short, true)]})
+
+    {:ok, _feed} = Feeds.store(preview())
+
+    assert Repo.one(from e in Entry, select: e.short)
   end
 
   # The search reads one stored text. A poll without notes keeps the notes, so the text has to

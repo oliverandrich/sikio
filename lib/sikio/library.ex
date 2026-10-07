@@ -40,6 +40,10 @@ defmodule Sikio.Library do
   def visible_entry_ids(%User{id: user_id}),
     do: from(e in subscribed_entries(user_id), select: e.id)
 
+  @doc "A query for the ids of the entries the account's lists show, which leaves out hidden Shorts."
+  def listed_entry_ids(%User{id: user_id}),
+    do: from(e in listed_entries(user_id), select: e.id)
+
   def subscribe(%User{id: user_id}, preview) do
     result =
       Repo.transaction(fn ->
@@ -68,14 +72,25 @@ defmodule Sikio.Library do
 
   @doc """
   Changes a subscription's own settings: a name of the account's own, blank for the feed's
-  title, and where what its source publishes next goes.
+  title, where what its source publishes next goes, and whether a channel's Shorts show. The
+  account's views hear of it as `{:subscription_changed, subscription_id}`.
   """
   def update_subscription(account, id, attrs) do
     case owned(account, id) do
-      nil -> {:error, :not_found}
-      subscription -> subscription |> Subscription.settings_changeset(attrs) |> Repo.update()
+      nil ->
+        {:error, :not_found}
+
+      subscription ->
+        changeset = Subscription.settings_changeset(subscription, attrs)
+        changeset |> Repo.update() |> tap(&announce(account, changeset, &1))
     end
   end
+
+  # Every open view reloads when it hears of it, so a save that changes nothing stays quiet.
+  defp announce(account, %{changes: changes}, {:ok, updated}) when changes != %{},
+    do: Events.broadcast(account, {:subscription_changed, updated.id})
+
+  defp announce(_account, _changeset, _result), do: :ok
 
   @doc """
   Sends a source's new entries where each subscription to it says: to the end of its account's
@@ -84,6 +99,9 @@ defmodule Sikio.Library do
   """
   def deliver(feed_id, entry_ids) do
     now = DateTime.utc_now()
+    # A subscription that hides Shorts is sent none of them.
+    shorts = Repo.all(from e in Entry, where: e.id in ^entry_ids and e.short, select: e.id)
+    without_shorts = entry_ids -- shorts
 
     Repo.all(
       from s in Subscription,
@@ -91,11 +109,12 @@ defmodule Sikio.Library do
         # The refresh's transaction holds every queue until it commits, so two refreshes take
         # them in one order.
         order_by: s.user_id,
-        select: {s.user_id, s.delivery}
+        select: {s.user_id, s.delivery, s.shorts}
     )
-    |> Enum.each(fn {user_id, delivery} ->
+    |> Enum.each(fn {user_id, delivery, with_shorts} ->
+      ids = if with_shorts, do: entry_ids, else: without_shorts
       lock_queue(user_id)
-      Repo.insert_all(State, delivered(user_id, delivery, entry_ids, now), on_conflict: :nothing)
+      Repo.insert_all(State, delivered(user_id, delivery, ids, now), on_conflict: :nothing)
     end)
   end
 
@@ -478,9 +497,15 @@ defmodule Sikio.Library do
       on: s.feed_id == e.feed_id and s.user_id == ^user_id
   end
 
+  # What the account's lists show. A Short shows only where its subscription asks for it. Hiding is
+  # a view, so a player holding a Short still saves its place.
+  defp listed_entries(user_id) do
+    from [e, s] in subscribed_entries(user_id), where: s.shorts or not e.short
+  end
+
   # The left join carries this account's progress onto the shared row.
   defp scoped_entries(user_id) do
-    from [e, s] in subscribed_entries(user_id),
+    from [e, s] in listed_entries(user_id),
       left_join: p in State,
       on: p.entry_id == e.id and p.user_id == ^user_id,
       join: f in assoc(e, :feed)

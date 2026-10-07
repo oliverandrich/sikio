@@ -65,6 +65,18 @@ defmodule Sikio.MigrationCase do
     end
   end
 
+  @doc """
+  Writes an entry as its table stood at the version migrated to, and answers a map of its id.
+
+  The schema names the table's columns as they are now. One added later would refuse the row.
+  """
+  def entry!(feed_id, attrs) do
+    now = DateTime.utc_now()
+    row = Map.merge(%{feed_id: feed_id, inserted_at: now, updated_at: now}, Map.new(attrs))
+    {1, [%{id: id}]} = Repo.insert_all("entries", [row], returning: [:id])
+    %{id: id}
+  end
+
   @doc "The error the build's database raises when it refuses a statement."
   def database_error do
     case Application.fetch_env!(:sikio, :database) do

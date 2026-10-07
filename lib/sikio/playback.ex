@@ -99,11 +99,11 @@ defmodule Sikio.Playback do
   defp queued(user_id),
     do: from(p in State, where: p.user_id == ^user_id and not is_nil(p.queue_rank))
 
-  # The same, as far as the account may still see them, in the order the queue is played and
+  # The same, as far as the account's lists show them, in the order the queue is played and
   # shown. The entry breaks a tie, as in the list that shows the queue.
   defp visible_queue(account) do
     from p in queued(account.id),
-      where: p.entry_id in subquery(Library.visible_entry_ids(account)),
+      where: p.entry_id in subquery(Library.listed_entry_ids(account)),
       order_by: [asc: p.queue_rank, asc: p.entry_id]
   end
 

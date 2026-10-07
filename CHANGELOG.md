@@ -22,6 +22,7 @@ group of people on one instance.
   search, sources and tags.
 - A player that keeps playing while one moves through the library, saves the position, and
   marks a podcast's chapters on its seek bar. YouTube and PeerTube play in their own embeds.
+- A YouTube subscription leaves the channel's Shorts out unless its dialog asks for them.
 - Feeds are asked at most every `FEED_POLL_MINUTES`, less often when they rarely publish, and
   as rarely as their servers ask.
 - Accounts with passkeys and recovery codes. The first account claims the instance with an

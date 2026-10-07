@@ -90,6 +90,14 @@ defmodule SikioWeb.PlayerDockLiveTest do
     refute has_element?(dock, "audio")
   end
 
+  # The dock hears what the account's library hears. A changed subscription concerns the list.
+  test "a subscription changed elsewhere leaves the player playing", c do
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+    {:ok, _} = Library.update_subscription(c.user, c.sub.id, %{"name" => "Renamed"})
+    assert has_element?(dock, "audio")
+  end
+
   test "switching to a different episode invalidates the old session", c do
     {:ok, preview} = Parser.parse(podcast("Another show"), "https://other.example.org/rss")
     {:ok, second_sub} = Library.subscribe(c.user, preview)

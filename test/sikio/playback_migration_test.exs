@@ -11,7 +11,7 @@ defmodule Sikio.PlaybackMigrationTest do
   use Sikio.MigrationCase
 
   alias Sikio.Accounts.User
-  alias Sikio.Feeds.{Entry, Feed}
+  alias Sikio.Feeds.Feed
 
   @before 20_261_005_090_000
   @version 20_261_006_090_000
@@ -33,7 +33,7 @@ defmodule Sikio.PlaybackMigrationTest do
 
     for {title, status, position, duration, length} <- rows do
       entry =
-        Repo.insert!(%Entry{feed_id: feed.id, external_id: title, title: title, duration: length})
+        entry!(feed.id, external_id: title, title: title, duration: length)
 
       now = DateTime.utc_now()
 
@@ -76,7 +76,7 @@ defmodule Sikio.PlaybackMigrationTest do
     feed = Repo.insert!(%Feed{url: "https://example.org/rss", kind: :podcast, title: "F"})
 
     for {title, status} <- [{"heard", "heard"}, {"archived", "archived"}, {"new", "new"}] do
-      entry = Repo.insert!(%Entry{feed_id: feed.id, external_id: title, title: title})
+      entry = entry!(feed.id, external_id: title, title: title)
       now = DateTime.utc_now()
 
       Repo.insert_all("playback_states", [

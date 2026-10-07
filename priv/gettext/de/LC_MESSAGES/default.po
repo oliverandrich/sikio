@@ -763,8 +763,8 @@ msgstr "Das ist keine gültige OPML-Aboliste."
 msgid "This page or feed is too large to import. Try a direct feed URL."
 msgstr "Diese Seite oder dieser Feed ist zu groß für den Import. Versuche eine direkte Feed-URL."
 
-#: lib/sikio_web/live/subscription_settings.ex:207
-#: lib/sikio_web/live/subscription_settings.ex:215
+#: lib/sikio_web/live/subscription_settings.ex:227
+#: lib/sikio_web/live/subscription_settings.ex:235
 #: lib/sikio_web/live/subscriptions_live.ex:215
 #: lib/sikio_web/live/subscriptions_live.ex:216
 #, elixir-autogen, elixir-format
@@ -815,7 +815,7 @@ msgstr "← Deine Abos"
 msgid "Add a source"
 msgstr "Quelle hinzufügen"
 
-#: lib/sikio_web/live/player_dock_live.ex:332
+#: lib/sikio_web/live/player_dock_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Close player"
 msgstr "Player schließen"
@@ -876,7 +876,7 @@ msgstr "Als gesehen markieren"
 msgid "New"
 msgstr "Neu"
 
-#: lib/sikio_web/live/player_dock_live.ex:278
+#: lib/sikio_web/live/player_dock_live.ex:279
 #, elixir-autogen, elixir-format
 msgid "Now playing"
 msgstr "Läuft gerade"
@@ -886,9 +886,9 @@ msgstr "Läuft gerade"
 msgid "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
 msgstr "Füge einen YouTube-Kanal, ein Video oder eine Podcast-Webseite ein. Oder finde deinen nächsten Hörtipp in Apple Podcasts."
 
-#: lib/sikio_web/components/audio_face.ex:38
+#: lib/sikio_web/components/audio_face.ex:40
 #: lib/sikio_web/components/media_components.ex:51
-#: lib/sikio_web/live/player_dock_live.ex:386
+#: lib/sikio_web/live/player_dock_live.ex:387
 #, elixir-autogen, elixir-format
 msgid "Play"
 msgstr "Abspielen"
@@ -926,52 +926,52 @@ msgstr "Nicht verfügbare Quelle"
 msgid "Watched"
 msgstr "Gesehen"
 
-#: lib/sikio_web/live/player_dock_live.ex:359
+#: lib/sikio_web/live/player_dock_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Connection lost. Playback paused; your latest position will save when reconnected."
 msgstr "Verbindung verloren. Die Wiedergabe pausiert; deine letzte Position wird gespeichert, sobald die Verbindung zurück ist."
 
-#: lib/sikio_web/live/player_dock_live.ex:364
+#: lib/sikio_web/live/player_dock_live.ex:365
 #, elixir-autogen, elixir-format
 msgid "Reconnect before switching or closing, so your place can be saved."
 msgstr "Stelle die Verbindung wieder her, bevor du wechselst oder schließt, damit deine Position gespeichert werden kann."
 
-#: lib/sikio_web/live/player_dock_live.ex:368
+#: lib/sikio_web/live/player_dock_live.ex:369
 #, elixir-autogen, elixir-format
 msgid "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
 msgstr "Dieses Audio konnte nicht geladen werden. Der Anbieter ist eventuell nicht erreichbar oder das Format wird nicht unterstützt. Versuche es später erneut."
 
-#: lib/sikio_web/live/player_dock_live.ex:379
+#: lib/sikio_web/live/player_dock_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "This video cannot be embedded. You can open it on YouTube."
 msgstr "Dieses Video lässt sich nicht einbetten. Du kannst es auf YouTube öffnen."
 
-#: lib/sikio_web/live/player_dock_live.ex:378
+#: lib/sikio_web/live/player_dock_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "This video is private or has been removed."
 msgstr "Dieses Video ist privat oder wurde entfernt."
 
-#: lib/sikio_web/live/player_dock_live.ex:393
+#: lib/sikio_web/live/player_dock_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "YouTube cannot play this video. Try opening it on YouTube."
 msgstr "YouTube kann dieses Video nicht abspielen. Versuche, es auf YouTube zu öffnen."
 
-#: lib/sikio_web/live/player_dock_live.ex:376
+#: lib/sikio_web/live/player_dock_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "YouTube could not be loaded. Check your connection or content blocker."
 msgstr "YouTube konnte nicht geladen werden. Prüfe deine Verbindung oder deinen Inhaltsblocker."
 
-#: lib/sikio_web/live/player_dock_live.ex:381
+#: lib/sikio_web/live/player_dock_live.ex:382
 #, elixir-autogen, elixir-format
 msgid "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
 msgstr "YouTube konnte diese Seite nicht zuordnen. Prüfe die Datenschutzeinstellungen des Browsers oder öffne es auf YouTube."
 
-#: lib/sikio_web/live/player_dock_live.ex:357
+#: lib/sikio_web/live/player_dock_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "Your progress changed elsewhere. Press Play to continue here."
 msgstr "Dein Fortschritt hat sich anderswo geändert. Drücke Abspielen, um hier weiterzuhören."
 
-#: lib/sikio_web/live/player_dock_live.ex:373
+#: lib/sikio_web/live/player_dock_live.ex:374
 #, elixir-autogen, elixir-format
 msgid "This instance could not be reached. It may be down or blocking this page."
 msgstr ""
@@ -1203,7 +1203,7 @@ msgstr "Auf YouTube öffnen"
 msgid "Selected item"
 msgstr "Ausgewählter Eintrag"
 
-#: lib/sikio_web/live/library_live.ex:1698
+#: lib/sikio_web/live/library_live.ex:1699
 #, elixir-autogen, elixir-format
 msgid "The publisher sent no notes for this item."
 msgstr "Zu diesem Eintrag hat der Herausgeber keine Notizen geschickt."
@@ -1353,38 +1353,38 @@ msgstr "Seite der Folge öffnen"
 msgid "Open on PeerTube"
 msgstr "Auf PeerTube öffnen"
 
-#: lib/sikio_web/live/library_live.ex:1684
-#: lib/sikio_web/live/player_dock_live.ex:389
+#: lib/sikio_web/live/library_live.ex:1685
+#: lib/sikio_web/live/player_dock_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "%{position} of %{duration}"
 msgstr "%{position} von %{duration}"
 
-#: lib/sikio_web/components/audio_face.ex:66
+#: lib/sikio_web/components/audio_face.ex:83
 #, elixir-autogen, elixir-format
 msgid "15 seconds back"
 msgstr "15 Sekunden zurück"
 
-#: lib/sikio_web/components/audio_face.ex:75
+#: lib/sikio_web/components/audio_face.ex:92
 #, elixir-autogen, elixir-format
 msgid "30 seconds forward"
 msgstr "30 Sekunden vor"
 
-#: lib/sikio_web/live/player_dock_live.ex:387
+#: lib/sikio_web/live/player_dock_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Pause"
 msgstr "Pause"
 
-#: lib/sikio_web/components/audio_face.ex:85
+#: lib/sikio_web/components/audio_face.ex:102
 #, elixir-autogen, elixir-format
 msgid "Playback speed"
 msgstr "Wiedergabegeschwindigkeit"
 
-#: lib/sikio_web/components/audio_face.ex:48
+#: lib/sikio_web/components/audio_face.ex:51
 #, elixir-autogen, elixir-format
 msgid "Position"
 msgstr "Position"
 
-#: lib/sikio_web/live/player_dock_live.ex:366
+#: lib/sikio_web/live/player_dock_live.ex:367
 #, elixir-autogen, elixir-format
 msgid "The browser did not start it. Press play."
 msgstr "Der Browser hat nicht gestartet. Drücke Abspielen."
@@ -1431,7 +1431,7 @@ msgid "Next or previous item"
 msgstr "Nächster oder vorheriger Eintrag"
 
 #: lib/sikio_web/components/layouts.ex:487
-#: lib/sikio_web/live/player_dock_live.ex:323
+#: lib/sikio_web/live/player_dock_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "Play or pause"
 msgstr "Abspielen oder anhalten"
@@ -1563,12 +1563,12 @@ msgstr "Heute"
 msgid "Yesterday"
 msgstr "Gestern"
 
-#: lib/sikio_web/live/subscription_settings.ex:220
+#: lib/sikio_web/live/subscription_settings.ex:240
 #, elixir-autogen, elixir-format
 msgid "Its items leave your library. Your progress stays, should you subscribe again."
 msgstr "Die Einträge verschwinden aus deiner Bibliothek. Dein Fortschritt bleibt, falls du es wieder abonnierst."
 
-#: lib/sikio_web/live/subscription_settings.ex:214
+#: lib/sikio_web/live/subscription_settings.ex:234
 #, elixir-autogen, elixir-format
 msgid "Unsubscribe from %{title}?"
 msgstr "„%{title}“ nicht mehr abonnieren?"
@@ -1585,7 +1585,7 @@ msgstr "Aktuelle Folge im Player einschließen"
 
 #: lib/sikio_web/components/layouts.ex:354
 #: lib/sikio_web/live/places_live.ex:50
-#: lib/sikio_web/live/subscription_settings.ex:174
+#: lib/sikio_web/live/subscription_settings.ex:194
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "Tags"
@@ -1595,12 +1595,12 @@ msgstr "Tags"
 msgid "Unavailable tag"
 msgstr "Nicht verfügbarer Tag"
 
-#: lib/sikio_web/live/subscription_settings.ex:192
+#: lib/sikio_web/live/subscription_settings.ex:212
 #, elixir-autogen, elixir-format
 msgid "New tag"
 msgstr "Neuer Tag"
 
-#: lib/sikio_web/live/subscription_settings.ex:191
+#: lib/sikio_web/live/subscription_settings.ex:211
 #, elixir-autogen, elixir-format
 msgid "New tag, or several set apart by commas"
 msgstr "Neuer Tag, oder mehrere mit Kommas getrennt"
@@ -1628,7 +1628,7 @@ msgid "Delete tag"
 msgstr "Tag löschen"
 
 #: lib/sikio_web/live/library_live.ex:972
-#: lib/sikio_web/live/subscription_settings.ex:145
+#: lib/sikio_web/live/subscription_settings.ex:151
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -1797,22 +1797,22 @@ msgstr "%{title} in der Queue verschieben"
 msgid "Play on with the queue"
 msgstr "Mit der Queue weiterspielen"
 
-#: lib/sikio_web/live/subscription_settings.ex:157
+#: lib/sikio_web/live/subscription_settings.ex:163
 #, elixir-autogen, elixir-format
 msgid "New episodes go to"
 msgstr "Neue Folgen landen"
 
-#: lib/sikio_web/live/subscription_settings.ex:122
+#: lib/sikio_web/live/subscription_settings.ex:128
 #, elixir-autogen, elixir-format
 msgid "The archive, unheard"
 msgstr "ungehört im Archiv"
 
-#: lib/sikio_web/live/subscription_settings.ex:121
+#: lib/sikio_web/live/subscription_settings.ex:127
 #, elixir-autogen, elixir-format
 msgid "The end of the queue"
 msgstr "am Ende der Queue"
 
-#: lib/sikio_web/live/subscription_settings.ex:120
+#: lib/sikio_web/live/subscription_settings.ex:126
 #, elixir-autogen, elixir-format
 msgid "The inbox"
 msgstr "in der Inbox"
@@ -1825,7 +1825,7 @@ msgstr "in der Inbox"
 msgid "Edit subscription"
 msgstr "Abo bearbeiten"
 
-#: lib/sikio_web/live/subscription_settings.ex:133
+#: lib/sikio_web/live/subscription_settings.ex:139
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Speichern"
@@ -2000,3 +2000,8 @@ msgid "Active sources refresh at most every minute, less often when they rarely 
 msgid_plural "Active sources refresh at most every %{count} minutes, less often when they rarely publish."
 msgstr[0] "Aktive Quellen werden höchstens jede Minute aktualisiert, seltener, wenn sie selten veröffentlichen."
 msgstr[1] "Aktive Quellen werden höchstens alle %{count} Minuten aktualisiert, seltener, wenn sie selten veröffentlichen."
+
+#: lib/sikio_web/live/subscription_settings.ex:191
+#, elixir-autogen, elixir-format
+msgid "Show Shorts"
+msgstr "Shorts anzeigen"

@@ -8,6 +8,7 @@ defmodule Sikio.Feeds.Discovery do
   homepage, an Apple Podcasts link. None of those is a feed, and every path here ends at one, or at
   an error that says why. No personal API key is needed for any of it.
   """
+  alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
   alias Sikio.Feeds.Parser
 
@@ -88,7 +89,8 @@ defmodule Sikio.Feeds.Discovery do
     case Parser.parse(response.body, response.url) do
       {:ok, feed} ->
         ttl = feed.ttl && feed.ttl * 60
-        {{:ok, Map.merge(feed, validators(response))}, longest(max_age(response), ttl)}
+        feed = feed |> with_shorts() |> Map.merge(validators(response))
+        {{:ok, feed}, longest(max_age(response), ttl)}
 
       error ->
         {error, nil}
@@ -105,6 +107,27 @@ defmodule Sikio.Feeds.Discovery do
 
   defp answered({:error, reason}), do: {{:error, reason}, nil}
   defp answered(_other), do: {{:error, :unavailable}, nil}
+
+  # A YouTube channel's feed does not say which of its videos are Shorts. The channel's Shorts
+  # playlist has a feed of its own, and its entries are marked. A channel without Shorts has no
+  # such feed. A failing one marks nothing and leaves the channel's poll alone.
+  defp with_shorts(feed) do
+    case Feed.channel_id(feed) do
+      "UC" <> id ->
+        shorts = shorts("https://www.youtube.com/feeds/videos.xml?playlist_id=UUSH" <> id)
+        %{feed | entries: Enum.map(feed.entries, &Map.put(&1, :short, &1.video_id in shorts))}
+
+      _ ->
+        feed
+    end
+  end
+
+  defp shorts(url) do
+    case fetch(url) do
+      {:ok, %{entries: entries}} -> MapSet.new(entries, & &1.video_id)
+      _ -> MapSet.new()
+    end
+  end
 
   defp longest(nil, other), do: other
   defp longest(one, nil), do: one
@@ -417,7 +440,7 @@ defmodule Sikio.Feeds.Discovery do
   defp webpage_response(response) do
     case Parser.parse(response.body, response.url) do
       {:ok, feed} ->
-        {:ok, [Map.merge(feed, validators(response))]}
+        {:ok, [feed |> with_shorts() |> Map.merge(validators(response))]}
 
       _ ->
         # An instance that cannot name a feed for this address answers with its refusal rather

@@ -12,6 +12,7 @@ defmodule Sikio.LibraryTest do
   alias Sikio.Feeds.HTTP
   alias Sikio.Feeds.Parser
   alias Sikio.Library
+  alias Sikio.Library.Events
   alias Sikio.Playback
 
   setup do
@@ -342,6 +343,70 @@ defmodule Sikio.LibraryTest do
     assert {:error, :unavailable} = Feeds.refresh(sub.feed_id)
     assert [%{feed: %{last_error: "unavailable"}}] = Library.subscriptions(ctx.alice)
     assert length(Library.entries(ctx.alice)) == 1
+  end
+
+  # Whether an entry is a Short is the channel's; whether it shows is each subscription's. Hiding is
+  # a view of the library, not a loss of the item: a player still saves its place.
+  test "a subscription leaves a channel's Shorts out until it asks for them", ctx do
+    {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
+    {:ok, _} = Library.subscribe(ctx.alice, preview)
+    {:ok, subscription} = Library.subscribe(ctx.bob, preview)
+    [entry] = Library.entries(ctx.alice)
+    {:ok, _} = Playback.enqueue(ctx.alice, entry.id, :last)
+    {:ok, %{session_id: session}} = Playback.start(ctx.alice, entry.id)
+    Repo.update_all(from(e in Entry, where: e.id == ^entry.id), set: [short: true])
+
+    assert Library.entries(ctx.alice) == []
+    assert Library.counts(ctx.alice) == []
+    assert Playback.queue(ctx.alice) == []
+    assert Library.visible_entry_id(ctx.alice, entry.id) == entry.id
+
+    assert {:ok, _} =
+             Playback.save(ctx.alice, entry.id, session, %{
+               "sequence" => 1,
+               "position" => 30,
+               "duration" => 100,
+               "ended" => false
+             })
+
+    assert {:ok, %{shorts: true}} =
+             Library.update_subscription(ctx.bob, subscription.id, %{"shorts" => "true"})
+
+    assert [%{id: id}] = Library.entries(ctx.bob)
+    assert id == entry.id
+    assert Library.entries(ctx.alice) == []
+  end
+
+  # A Short that a subscription hides is not sent anywhere for it. Shown later, it is new, not a
+  # crowd of old Shorts in the queue.
+  test "a hidden Short is not delivered to the queue", ctx do
+    {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
+    {:ok, subscription} = Library.subscribe(ctx.alice, preview)
+    {:ok, _} = Library.update_subscription(ctx.alice, subscription.id, %{"delivery" => "queue"})
+    [entry] = preview.entries
+    short = %{entry | external_id: "yt:video:zzzzzzzzzzz", video_id: "zzzzzzzzzzz"}
+
+    {:ok, _} =
+      Feeds.store(
+        %{preview | entries: [Map.put(short, :short, true) | preview.entries]},
+        &Library.deliver/2
+      )
+
+    {:ok, _} = Library.update_subscription(ctx.alice, subscription.id, %{"shorts" => "true"})
+    assert Playback.queue(ctx.alice) == []
+  end
+
+  # Every open view reloads when it hears of a change, so a save that changes nothing is not one.
+  test "a subscription's settings tell the account's views only when they change", ctx do
+    {:ok, subscription} = Library.subscribe(ctx.alice, ctx.preview)
+    Events.subscribe(ctx.alice)
+
+    {:ok, _} = Library.update_subscription(ctx.alice, subscription.id, %{"delivery" => "inbox"})
+    refute_received {:subscription_changed, _}
+
+    {:ok, _} = Library.update_subscription(ctx.alice, subscription.id, %{"delivery" => "queue"})
+    assert_received {:subscription_changed, id}
+    assert id == subscription.id
   end
 
   describe "counts/1" do

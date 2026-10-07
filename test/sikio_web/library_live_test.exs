@@ -102,6 +102,18 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#entries article", "Another source")
   end
 
+  # Showing a channel's Shorts changes what the list holds. A tab other than the one that saved
+  # hears of it as it hears of a subscription that ends.
+  test "a subscription's settings changed elsewhere update the library", c do
+    {video, subscription} = short_video(c)
+
+    {:ok, view, _} = live(c.conn, ~p"/all")
+    refute has_element?(view, "#entries-#{video.id}")
+
+    {:ok, _} = Library.update_subscription(c.user, subscription.id, %{"shorts" => "true"})
+    assert has_element?(view, "#entries-#{video.id}")
+  end
+
   test "invalid query parameters are harmless and another account cannot alter our status", c do
     # The same source on purpose: a co-subscriber may write playback, and what this asks is that
     # writing it leaves our own status alone. Give them a feed of their own and the write is
@@ -247,6 +259,49 @@ defmodule SikioWeb.LibraryLiveTest do
 
     assert has_element?(view, "#library-heading", "Late Night")
     assert has_element?(view, "#source-#{c.sub.feed_id}", "Late Night")
+  end
+
+  # The setup's YouTube video, marked a Short, and the subscription that shows it.
+  defp short_video(c) do
+    [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
+    [subscription] = Enum.filter(Library.subscriptions(c.user), &(&1.feed_id == video.feed_id))
+    Repo.update_all(from(e in Sikio.Feeds.Entry, where: e.id == ^video.id), set: [short: true])
+    {video, subscription}
+  end
+
+  # Only a YouTube channel has Shorts, so only its dialog asks about them. A new subscription leaves
+  # them out, and asking for them shows the ones the library holds.
+  test "a YouTube source's dialog shows its Shorts on request, a podcast's does not ask", c do
+    {video, subscription} = short_video(c)
+
+    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    view |> element("#edit-subscription") |> render_click()
+    refute has_element?(view, ~s|#subscription-form input[name="shorts"]|)
+
+    {:ok, view, _} = live(c.conn, "/feeds/#{video.feed_id}-good-channel")
+    refute has_element?(view, "#entries-#{video.id}")
+    view |> element("#edit-subscription") |> render_click()
+
+    refute has_element?(
+             view,
+             ~s|#subscription-form input[name="shorts"][type="checkbox"][checked]|
+           )
+
+    view |> form("#subscription-form", %{"shorts" => "true"}) |> render_change()
+    view |> element("#confirm-edit-subscription") |> render_click()
+
+    assert [%{shorts: true}] =
+             Library.subscriptions(c.user) |> Enum.filter(&(&1.id == subscription.id))
+
+    assert has_element?(view, "#entries-#{video.id}")
+
+    # A playlist has no Shorts to leave out.
+    playlist = "https://www.youtube.com/feeds/videos.xml?playlist_id=PLabcdefghijklmnopqrstuv"
+    {:ok, preview} = Parser.parse(youtube(), playlist)
+    {:ok, listed} = Library.subscribe(c.user, preview)
+    {:ok, view, _} = live(c.conn, "/feeds/#{listed.feed_id}-good-channel")
+    view |> element("#edit-subscription") |> render_click()
+    refute has_element?(view, ~s|#subscription-form input[name="shorts"]|)
   end
 
   # Within a source the statuses are a filter; elsewhere they are the place itself.

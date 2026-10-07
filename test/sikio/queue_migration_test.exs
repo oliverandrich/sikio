@@ -10,7 +10,7 @@ defmodule Sikio.QueueMigrationTest do
   use Sikio.MigrationCase
 
   alias Sikio.Accounts.User
-  alias Sikio.Feeds.{Entry, Feed}
+  alias Sikio.Feeds.Feed
 
   @before 20_261_006_090_000
   @version 20_261_006_100_000
@@ -33,11 +33,7 @@ defmodule Sikio.QueueMigrationTest do
 
     for {account, title, status, minutes_ago} <- rows do
       entry =
-        Repo.insert!(%Entry{
-          feed_id: feed.id,
-          external_id: "#{account.id}-#{title}",
-          title: title
-        })
+        entry!(feed.id, external_id: "#{account.id}-#{title}", title: title)
 
       at = DateTime.add(DateTime.utc_now(), -minutes_ago, :minute)
 

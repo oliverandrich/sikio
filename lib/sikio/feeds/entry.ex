@@ -24,6 +24,8 @@ defmodule Sikio.Feeds.Entry do
     field :published_at, :utc_datetime_usec
     field :image_url, :string
     field :duration, :integer
+    # A YouTube Short, as the channel's Shorts feed names it. Once known, it stays known.
+    field :short, :boolean, default: false
     # The publisher's own notes, byte for byte, filtered on the way out rather than on the way
     # in, so a better filter tomorrow applies to what was imported yesterday. A podcast writes
     # markup and YouTube writes plain text, and only the element they came from says which.

@@ -2,7 +2,8 @@
 
 defmodule SikioWeb.SubscriptionSettings do
   @moduledoc """
-  The dialogs for one subscription: its name, where new episodes go and its tags, and leaving it.
+  The dialogs for one subscription: its name, where new episodes go, a YouTube channel's Shorts and
+  its tags, and leaving it.
 
   A page opens it with `send_update/2` and an `:open` of `{:edit, subscription, trigger}` or
   `{:leave, subscription, trigger}`. The trigger is the id that gets the focus back on cancel.
@@ -30,6 +31,7 @@ defmodule SikioWeb.SubscriptionSettings do
          subscription: subscription,
          name: subscription.name || "",
          delivery: Atom.to_string(subscription.delivery),
+         shorts: subscription.shorts,
          chosen: Enum.map(tags, & &1.name),
          new: ""
        }
@@ -50,6 +52,7 @@ defmodule SikioWeb.SubscriptionSettings do
       socket.assigns.editing
       | name: params["name"] || "",
         delivery: params["delivery"] || socket.assigns.editing.delivery,
+        shorts: shorts(params, socket.assigns.editing.shorts),
         chosen: params["tags"] || [],
         new: params["new"] || ""
     }
@@ -72,12 +75,11 @@ defmodule SikioWeb.SubscriptionSettings do
 
   # Several new tags may be typed at once, set apart by commas.
   def handle_event("confirm_edit_subscription", _params, socket) do
-    %{subscription: subscription, name: name, delivery: delivery, chosen: chosen, new: new} =
-      socket.assigns.editing
-
+    %{subscription: subscription, chosen: chosen, new: new} = editing = socket.assigns.editing
     account = socket.assigns.current_account
+    settings = Map.take(editing, [:name, :delivery, :shorts])
 
-    case Library.update_subscription(account, subscription.id, %{name: name, delivery: delivery}) do
+    case Library.update_subscription(account, subscription.id, settings) do
       {:ok, _} ->
         Tags.set(account, subscription.id, chosen ++ String.split(new, ","))
         send(self(), {__MODULE__, :saved})
@@ -111,6 +113,10 @@ defmodule SikioWeb.SubscriptionSettings do
 
     {:noreply, assign(socket, :unsubscribing, nil)}
   end
+
+  # Only a YouTube channel's form carries the box. Unticked, it sends the hidden field before it.
+  defp shorts(%{"shorts" => value}, _current), do: value == "true"
+  defp shorts(_params, current), do: current
 
   defp give_back_focus(%{assigns: %{trigger: nil}} = socket), do: socket
   defp give_back_focus(socket), do: push_event(socket, "focus", %{id: socket.assigns.trigger})
@@ -170,6 +176,20 @@ defmodule SikioWeb.SubscriptionSettings do
               {label}
             </label>
           </fieldset>
+          <label
+            :if={Sikio.Feeds.Feed.channel?(@editing.subscription.feed)}
+            class="flex items-center gap-2.5 text-label text-ink"
+          >
+            <input type="hidden" name="shorts" value="false" />
+            <input
+              type="checkbox"
+              name="shorts"
+              value="true"
+              checked={@editing.shorts}
+              class="size-4 accent-accent"
+            />
+            {gettext("Show Shorts")}
+          </label>
           <fieldset class="flex flex-col gap-2">
             <legend class="mb-1.5 text-label font-semibold text-ink">{gettext("Tags")}</legend>
             <input type="hidden" name="tags[]" value="" />

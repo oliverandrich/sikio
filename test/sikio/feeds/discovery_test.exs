@@ -105,8 +105,10 @@ defmodule Sikio.Feeds.DiscoveryTest do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
         "/feeds/videos.xml" ->
-          assert conn.query_string == "channel_id=UCabcdefghijklmnopqrstuv"
-          Plug.Conn.send_resp(conn, 200, youtube())
+          case conn.query_string do
+            "channel_id=UCabcdefghijklmnopqrstuv" -> Plug.Conn.send_resp(conn, 200, youtube())
+            "playlist_id=UUSHabcdefghijklmnopqrstuv" -> Plug.Conn.send_resp(conn, 404, "")
+          end
 
         "/channel/UCabcdefghijklmnopqrstuv" ->
           Plug.Conn.send_resp(conn, 200, channel_page())
@@ -115,6 +117,49 @@ defmodule Sikio.Feeds.DiscoveryTest do
 
     assert {:ok, [%{kind: :youtube, title: "Good Channel"}]} =
              Discovery.discover("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos")
+  end
+
+  # A channel's feed does not say which of its videos are Shorts. The channel's Shorts playlist
+  # has a feed of its own, and what it names is marked.
+  describe "a YouTube channel's Shorts" do
+    @channel_feed "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"
+
+    defp answering_shorts(answer) do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.query_string do
+          "channel_id=UCabcdefghijklmnopqrstuv" -> Plug.Conn.send_resp(conn, 200, youtube())
+          "playlist_id=UUSHabcdefghijklmnopqrstuv" -> answer.(conn)
+        end
+      end)
+    end
+
+    defp shorts(result) do
+      assert {{:ok, %{entries: entries}}, _wait} = result
+      Enum.map(entries, & &1.short)
+    end
+
+    test "are marked as the channel's Shorts feed names them" do
+      answering_shorts(&Plug.Conn.send_resp(&1, 200, youtube()))
+      assert shorts(Discovery.poll(@channel_feed, [])) == [true]
+    end
+
+    test "are none for a channel the Shorts feed knows nothing of" do
+      answering_shorts(&Plug.Conn.send_resp(&1, 404, ""))
+      assert shorts(Discovery.poll(@channel_feed, [])) == [false]
+    end
+
+    # A playlist has no Shorts to leave out, the Shorts playlist itself included.
+    test "are not looked up for a playlist" do
+      Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, youtube()) end)
+      playlist = "https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHabcdefghijklmnopqrstuv"
+      assert {{:ok, %{entries: [entry]}}, _wait} = Discovery.poll(playlist, [])
+      refute entry[:short]
+    end
+
+    test "are not marked when the Shorts feed fails, and the poll still succeeds" do
+      answering_shorts(&Plug.Conn.send_resp(&1, 500, ""))
+      assert shorts(Discovery.poll(@channel_feed, [])) == [false]
+    end
   end
 
   test "YouTube feed URLs themselves can be pasted" do

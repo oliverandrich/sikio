@@ -213,7 +213,8 @@ defmodule Sikio.Feeds do
     rows =
       Enum.map(entries, fn entry ->
         entry
-        |> Map.take([:external_id | @replaced_entry_fields ++ @kept_entry_fields])
+        |> Map.take([:external_id, :short | @replaced_entry_fields ++ @kept_entry_fields])
+        |> Map.put_new(:short, false)
         |> Map.merge(%{feed_id: feed_id, inserted_at: now, updated_at: now})
         |> Map.update(:published_at, nil, &microseconds/1)
         |> Map.put(:search_text, SearchText.of(with_kept_text(entry, kept)))
@@ -271,6 +272,9 @@ defmodule Sikio.Feeds do
   # would set. The guard and the update name their columns separately; the tests change each
   # column on its own and expect a write, so a column left out of the guard fails one of them.
   #
+  # A Short stays one. The channel's Shorts feed names only its latest Shorts. A poll without the
+  # mark says nothing about an entry.
+  #
   # SQLite stores a list of no chapters as the JSON text `null` rather than as NULL. `NULLIF`
   # against a nil dumped the same way turns it back into NULL there, and is a no-op on Postgres.
   defp keep_content do
@@ -278,12 +282,13 @@ defmodule Sikio.Feeds do
       where:
         fragment(
           """
-          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IS DISTINCT FROM
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IS DISTINCT FROM
           (EXCLUDED.title, EXCLUDED.media_url, EXCLUDED.video_id, EXCLUDED.embed_url,
            EXCLUDED.published_at, COALESCE(EXCLUDED.image_url, ?), COALESCE(EXCLUDED.duration, ?),
            COALESCE(EXCLUDED.description, ?), COALESCE(EXCLUDED.description_format, ?),
            COALESCE(EXCLUDED.excerpt, ?), COALESCE(EXCLUDED.page_url, ?),
-           COALESCE(NULLIF(EXCLUDED.chapters, ?), ?), COALESCE(EXCLUDED.chapters_url, ?))
+           COALESCE(NULLIF(EXCLUDED.chapters, ?), ?), COALESCE(EXCLUDED.chapters_url, ?),
+           EXCLUDED.short OR ?)
           """,
           e.title,
           e.media_url,
@@ -298,6 +303,7 @@ defmodule Sikio.Feeds do
           e.page_url,
           e.chapters,
           e.chapters_url,
+          e.short,
           e.image_url,
           e.duration,
           e.description,
@@ -306,7 +312,8 @@ defmodule Sikio.Feeds do
           e.page_url,
           type(^nil, {:array, :map}),
           e.chapters,
-          e.chapters_url
+          e.chapters_url,
+          e.short
         ),
       update: [
         set: [
@@ -333,6 +340,7 @@ defmodule Sikio.Feeds do
               e.chapters
             ),
           chapters_url: fragment("COALESCE(EXCLUDED.chapters_url, ?)", e.chapters_url),
+          short: fragment("EXCLUDED.short OR ?", e.short),
           # Derived from the columns above, notes kept included, so the guard need not compare it.
           search_text: fragment("EXCLUDED.search_text"),
           updated_at: fragment("EXCLUDED.updated_at")
