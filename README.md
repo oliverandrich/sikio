@@ -7,6 +7,8 @@
 
 **Your time. Your queue.**
 
+![Sikio's inbox beside a video with its chapters](docs/images/screenshot.webp)
+
 *Sikio* is Swahili for "ear". A self-hosted media library for YouTube and podcasts: you decide
 what lands in your list and what you have already watched or heard.
 [Word origin](https://en.wiktionary.org/wiki/sikio).
