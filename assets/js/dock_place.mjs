@@ -48,9 +48,6 @@ function place() {
     const pinned = panel && where === "pinned"
     slot.style.height = pinned ? `${room}px` : ""
     slot.toggleAttribute("data-pinned", pinned)
-    // With `data-playing`, app.css hides the card's audio cue.
-    // It is set while the detail shows the playing entry.
-    slot.toggleAttribute("data-playing", Boolean(panel) && shown !== null && shown === playing)
   }
 }
 

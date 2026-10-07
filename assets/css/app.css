@@ -199,9 +199,6 @@
 #player-panel[data-place="compact"] { top: auto; left: .75rem; right: auto; bottom: 1rem; width: 480px; }
 /* The pinned panel covers the slot, so the slot's own preview content is hidden. */
 #player-slot[data-pinned] > * { display: none; }
-/* Hides the audio cue while the slot's entry plays, so the episode never shows two players.
-   dock_place.mjs then also sets data-pinned, whose rule above hides the cue as well. */
-#player-slot[data-playing] > #audio-cue { display: none; }
 /* The detail already shows source and title, so the pinned panel hides its heading. */
 #player-panel[data-place="pinned"] .player-heading { display: none; }
 /* Metadata separated by dots. Each item has a ::before dot.
@@ -416,9 +413,6 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
     background: var(--color-ground);
     box-shadow: 0 0 0 100vmax var(--color-ground); clip-path: inset(0 -100vmax);
   }
-  /* Raises the bottom navigation while it contains an open #user-menu.
-     #user-menu currently renders in #masthead, so this selector matches nothing. */
-  #main-navigation:has(#user-menu[open]) { z-index: 50; }
   body:has(#player-panel:not([data-place="pinned"])) #page-content { padding-bottom: 6rem; }
 
   /* Floating: one row above the tab bar with artwork or video, title, play/pause and close.

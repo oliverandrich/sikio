@@ -1657,7 +1657,7 @@ defmodule SikioWeb.LibraryLive do
       a preview and loads no third-party resources. See assets/js/dock_place.mjs. --%>
       <div
         id="player-slot"
-        phx-mounted={JS.ignore_attributes(["style", "data-pinned", "data-playing"])}
+        phx-mounted={JS.ignore_attributes(["style", "data-pinned"])}
         class="-mx-6 sm:-mx-12 lg:-mx-6"
       >
         <button
