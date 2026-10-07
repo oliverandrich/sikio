@@ -150,13 +150,16 @@ defmodule Sikio.Playback do
     do: Repo.all(from p in visible_queue(account), where: p.id != ^state.id, select: p.queue_rank)
 
   # Whole numbers in the present order. Items of a source left since keep their places among them.
+  # Taking an item out does not hold the queue, so an update skips an item that left since the read.
   defp renumber(user_id) do
     Repo.all(
       from p in queued(user_id), order_by: [asc: p.queue_rank, asc: p.entry_id], select: p.id
     )
     |> Enum.with_index(1)
     |> Enum.each(fn {id, rank} ->
-      Repo.update_all(from(p in State, where: p.id == ^id), set: [queue_rank: rank / 1])
+      Repo.update_all(from(p in State, where: p.id == ^id and not is_nil(p.queue_rank)),
+        set: [queue_rank: rank / 1]
+      )
     end)
   end
 
