@@ -2,8 +2,8 @@
 
 ## Get started
 
-Install **mise**, then prepare and start the application. **PostgreSQL 18** is needed for
-`mise run check`, `mise run test` and `mise run smoke`, which cover both databases:
+Install **mise**, then set up and start the application. `mise run check`, `mise run test` and
+`mise run smoke` test both databases and need **PostgreSQL 18**:
 
 ```sh
 mise trust
@@ -13,20 +13,19 @@ mise run setup-code
 mise run dev
 ```
 
-Open **http://localhost:4000** and enter the code `mise run setup-code` printed.
-`mise run setup` explicitly creates, migrates and seeds the development database,
-then builds assets. Every instance protects its first account with an operator's
-code, development included, so `mise run reset` is followed by another
-`mise run setup-code`.
+Open **http://localhost:4000** and enter the code from `mise run setup-code`.
+`mise run setup` creates, migrates and seeds the development database, then builds assets.
+Every instance requires a setup code for the first account, including development.
+After `mise run reset`, run `mise run setup-code` again.
 
 ## Configure the database
 
-One build serves SQLite and PostgreSQL. `SIKIO_DATABASE` chooses one when the application
-starts, and SQLite is the default. Switching recompiles nothing. The development and test
-databases under SQLite are `tmp/sikio_dev.db` and `tmp/sikio_test.db`.
+One build supports SQLite and PostgreSQL. `SIKIO_DATABASE` selects one at startup. SQLite is
+the default. Switching does not require a recompile. The SQLite development and test databases
+are `tmp/sikio_dev.db` and `tmp/sikio_test.db`.
 
-To develop against PostgreSQL, set the variable in the ignored `mise.local.toml` as a default,
-so a value given on the command line still wins:
+To develop against PostgreSQL, set a default in the ignored `mise.local.toml`. A value set on
+the command line still takes precedence:
 
 ```toml
 [env]
@@ -43,10 +42,10 @@ export PGUSER=postgres
 export PGPASSWORD=postgres
 ```
 
-Tests use a separate `sikio_test` database, optionally suffixed with
-`MIX_TEST_PARTITION`. Never point tests at development or production data. Under SQLite the
-tests take turns, because the database has one writer and each test holds a transaction.
-Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`; see
+Tests use a separate `sikio_test` database, optionally suffixed with `MIX_TEST_PARTITION`.
+Never point tests at development or production data. Under SQLite the tests run with
+`max_cases: 1`. SQLite allows one writer, and each test holds a write transaction.
+Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`. See
 [Operations](docs/operations.md).
 
 ## Command reference
@@ -68,54 +67,55 @@ Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`; see
 | `mise run smoke` | Build one release and run it against a disposable database of each kind |
 | `mise run icons` | Draw the app icons, favicon and README logo from the wordmark; needs Chrome |
 
-`scripts/icons.py` outlines the wordmark from the project's IBM Plex Sans. Edit its geometry and
-colours there, run the task and commit what it writes.
+`scripts/icons.py` converts the wordmark in IBM Plex Sans to outlines. Edit geometry and colours
+there, run the task and commit the generated files.
 
-`mise run check` and `mise run test` also run the player's JavaScript tests through node's
-own runner over `assets/js/*.test.mjs`. No npm package is installed for them.
+`mise run check` and `mise run test` also run the player's JavaScript tests in
+`assets/js/*.test.mjs` with the node test runner. No npm package is installed for them.
 
-Keep migration history unchanged. A migration may branch for the database it runs on, and a
-branch added later must leave every existing database's schema as it was. Credo scans source, tests and all migrations;
-Jump inspects inline HEEx and files reached through embed_templates. ExSlop and
-Jump rules are explicitly selected. Audit findings are separate from PR gates.
-Tailwind and esbuild are Mix-managed. Node is needed only to run the player's JavaScript
-tests; no npm package is installed.
+Do not change existing migrations. A migration may branch on the database adapter. A branch
+added later must leave the schema of every existing database unchanged. Credo scans source,
+tests and all migrations. Jump inspects inline HEEx and files loaded through `embed_templates`.
+ExSlop and Jump rules are enabled one by one. Audit findings do not block pull requests.
+Tailwind and esbuild are managed by Mix. Node is needed only for the player's JavaScript tests.
+No npm package is installed.
 Use Lucide components directly, for example `<Lucideicons.chevron_down class="size-4" aria-hidden="true" />`.
-Decorative icons are hidden from assistive technology; label icon-only buttons.
-The `lucide_icons` dependency supplies SVG components without a Tailwind icon plugin. The UI helpers use the CSP's inline-script/style allowances.
+Hide decorative icons from assistive technology with `aria-hidden="true"`. Label icon-only buttons.
+The `lucide_icons` dependency provides SVG components without a Tailwind icon plugin.
+The UI helpers rely on `'unsafe-inline'` for scripts and styles in the CSP.
 
-`mise dev`, `mise reset`, `mise migrate` and `mise release` are the short forms
-of `mise run …`. Development tasks explicitly use `MIX_ENV=dev`; release builds
-use `prod`. `mise reset` deletes the development database and runs its migrations
-and seeds again. It is an explicit local action, never part of startup or checks.
+`mise dev`, `mise reset`, `mise migrate` and `mise release` are short forms of `mise run …`.
+Development tasks set `MIX_ENV=dev`. Release builds use `prod`. `mise reset` drops the
+development database, then runs migrations and seeds. Run it only by hand. No startup task or
+check runs it.
 
-Oban tests use `testing: :manual`, so jobs run only when a test explicitly executes them.
+Oban tests use `testing: :manual`. Jobs run only when a test executes them.
 
 ## Browser tests
 
-Browser tests are mandatory: install Chrome and a matching Chromedriver. On CI,
-CHROMEWEBDRIVER points at the runner's driver directory. Locally configure a matching
-`chromedriver` in ignored `mise.local.toml`, or set CHROMEWEBDRIVER. Check both
-versions after browser updates. `mise run check` builds assets before browser tests;
-for direct `mise run test`, build them with `mix assets.build` first. Tests start
-an endpoint on port 4102; override PORT to isolate concurrent suites. Missing browser
-infrastructure fails instead of silently skipping coverage. The browser features run against
-SQLite only; `SIKIO_DATABASE=postgres mix test --include feature` runs them against PostgreSQL.
+Browser tests are mandatory. Install Chrome and a matching Chromedriver. On CI,
+CHROMEWEBDRIVER is the runner's driver directory. Locally, set a matching `chromedriver` in the
+ignored `mise.local.toml`, or set CHROMEWEBDRIVER. Check both versions after browser updates.
+`mise run check` builds assets before the browser tests. Before a direct `mise run test`, run
+`mix assets.build`. Tests start an endpoint on port 4102. Set PORT to run suites concurrently.
+A missing Chrome or Chromedriver fails the run. The browser tests are not skipped. They run
+against SQLite only. `SIKIO_DATABASE=postgres mix test --include feature` runs them against
+PostgreSQL.
 
-`mix ithibati.doctor` is part of the test-environment gate after schema setup.
+`mix ithibati.doctor` runs in the test environment after the schema is migrated.
 
 ## Testing on a phone
 
-Passkeys need HTTPS and a host name, so a phone reaches the development server through a
-private tunnel. With Tailscale on the Mac and the phone:
+Passkeys require HTTPS and a host name. A phone therefore connects to the development server
+through a private tunnel. With Tailscale on the Mac and the phone:
 
 ```bash
 tailscale serve --bg 4000
 SIKIO_DEV_URL=https://<mac>.<tailnet>.ts.net mise run dev
 ```
 
-SIKIO_DEV_URL names the endpoint's host, which passkeys are bound to. Passkeys made for
-`localhost` do not work there; sign in with a recovery code and add one on the phone.
+SIKIO_DEV_URL sets the endpoint host. Passkeys are bound to that host. Passkeys created for
+`localhost` do not work there. Sign in with a recovery code and add a passkey on the phone.
 
 Do not expose the development server through a public tunnel. Its error pages show source code.
 
@@ -127,31 +127,31 @@ mise run check
 mise run smoke
 ```
 
-`mise run smoke` builds one release and checks it with SQLite and with PostgreSQL. CI runs it
-beside the check.
+`mise run smoke` builds one release and tests it with SQLite and with PostgreSQL. CI runs it as
+a separate job.
 
-The smoke test checks that the package contains no backup operations. It starts the
-release on its own randomly named disposable database, which the release migrates as it
-starts, checks the schema and serves HTTP on a free loopback port. It then repeats
-`bin/migrate`, and on a second disposable database migrates by hand with
-`SIKIO_MIGRATE_ON_START=false` before starting. It asks for a host outside
-the `force_ssl` exclude list: plain HTTP must redirect, and `x-forwarded-proto: https`
-must be served with HSTS. It removes only that database and a temporary directory afterward.
-It needs the build machine's Elixir, the `sqlite3` client and the PostgreSQL client tools;
-these test tools are not runtime dependencies of the application.
+The smoke test checks that the release has no `ops` directory for backup operations. It starts
+the release on a disposable database with a random name. The release migrates it on start. The
+test checks that the table `ithibati_setup_codes` exists. It requests the landing page over HTTP
+on a free loopback port. It then runs `bin/migrate` again. On a second disposable database it
+sets `SIKIO_MIGRATE_ON_START=false` and runs `bin/migrate` before the server starts. It sends
+requests with a host outside the `force_ssl` exclude list. Plain HTTP must redirect to HTTPS.
+A request with `x-forwarded-proto: https` must get a response with HSTS. Afterwards it deletes
+only those databases and their temporary directories. It needs Elixir on the build machine, the
+`sqlite3` client and the PostgreSQL client tools. These are test tools, not runtime dependencies.
 
 The `Dockerfile` builds the image from source, as `mise run release` builds the tarball. Build it
-with `docker build -t sikio .`, or with Apple's `container build -t sikio .` on a Mac, which builds
-natively for arm64. `scripts/smoke_image.sh IMAGE` starts it with SQLite and with PostgreSQL. It
-needs Docker with host networking and PG* settings for a server with CREATEDB, which the release
-workflow provides on both architectures.
+with `docker build -t sikio .`. On a Mac, Apple's `container build -t sikio .` builds natively
+for arm64. `scripts/smoke_image.sh IMAGE` starts the image with SQLite and with PostgreSQL. It
+needs Docker with host networking and PG* settings for a server with CREATEDB. The release
+workflow provides both on both architectures.
 
 ## Changelog
 
 Record each user-visible change in `CHANGELOG.md` under **Unreleased**, in the
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) sections. A change that asks
-something of the operator also goes under **Upgrading**: a migration, a new or changed
-setting, a step before or after the update. Such a change raises the minor version.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) sections. A change that requires
+operator action also goes under **Upgrading**. Examples are a migration, a new or changed
+setting, or a manual step before or after the update. Such a change raises the minor version.
 
 ## Cutting a version
 
@@ -159,40 +159,39 @@ setting, a step before or after the update. Such a change raises the minor versi
 2. Set the same version in `mix.exs` and commit both as `chore(release): X.Y.Z`.
 3. Tag it with `git tag -a vX.Y.Z -m vX.Y.Z` and push `main` and the tag.
 
-The tag starts `.github/workflows/release.yml`. It runs the checks of CI on the tagged commit.
-It builds one release each for Linux x86_64 and arm64 on Ubuntu 22.04 and smoke-tests each with
-both databases. Once all of that passes, it publishes them with `SHA256SUMS` and the changelog
-section as notes. Run it by hand from the Actions tab to build
-and test the version in `mix.exs` without publishing anything.
+The tag triggers `.github/workflows/release.yml`. The workflow runs the CI checks on the tagged
+commit. It builds a release for Linux x86_64 and arm64 on Ubuntu 22.04. It smoke-tests each
+release with both databases. If all jobs pass, it publishes the releases with `SHA256SUMS` and the
+changelog section as release notes. A manual run from the Actions tab builds and tests the
+version in `mix.exs` and publishes nothing.
 
 ## Local Beans tracking
 
-Install Beans separately. Search unfinished tickets before creating work; update
-progress and finish with a Summary of Changes. Run `beans check` after changes.
-`.beans/` and `.beans.yml` are ignored and not backed up by Git pushes.
+Install Beans separately. Search unfinished tickets before creating new ones. Record progress
+in the ticket and finish with a Summary of Changes. Run `beans check` after changes.
+`.beans/` and `.beans.yml` are ignored by Git, so a push does not back them up.
 
 ## Translations
 
-With Ithibati, all auth/member screens, ceremony errors, clipboard messages and
-validation errors have English/German support. English is the source language;
-German catalogs live under `priv/gettext/de/LC_MESSAGES`. Use
-`mix gettext.extract --merge` after adding `gettext` calls, then fill in the PO
-translations. Clipboard messages are translated on the server, not duplicated in JS.
+Auth and member screens, ceremony errors, clipboard messages and validation errors are
+translated into English and German. English is the source language. German catalogs are in
+`priv/gettext/de/LC_MESSAGES`. Run `mix gettext.extract --merge` after adding `gettext` calls,
+then fill in the PO translations. Clipboard messages are translated on the server, not in JS.
 
 ## Making changes
 
-Use focused regression tests for behavior changes and run `mise check` before
-submitting. Follow the TDD and Conventional Commit rules in [AGENTS.md](AGENTS.md).
+Add focused regression tests for behavior changes. Run `mise check` before submitting.
+Follow the TDD and Conventional Commit rules in [AGENTS.md](AGENTS.md).
 
 ## License markers
 
-Every file we wrote carries `SPDX-License-Identifier: AGPL-3.0-or-later` in its first lines,
-in whatever comment its language uses. A file that leaves this repository on its own still
-says what it is; the license file does not travel with it.
+Every source file of the project has `SPDX-License-Identifier: AGPL-3.0-or-later` in its first
+five lines, in the comment syntax of its language. A file copied out of the repository keeps its
+license statement without the license file.
 
-`.mise/tasks/license` checks this and `mise run check` runs it. The task answers to its own
-rule. Third party code under `assets/vendor` is excluded, because marking somebody else's
-file with our license would be a false claim.
+`.mise/tasks/license` checks the files under the paths it lists, and `mise run check` runs it.
+The task file carries the marker too. Third-party code under `assets/vendor` is excluded,
+because it is under its own license.
 
 ## Further reading
 

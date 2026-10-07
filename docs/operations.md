@@ -1,132 +1,130 @@
 # Operations
 
-The reference for running Sikio: its settings, logs, accounts, updates and background work. To
-install it, follow one of the guides:
+This is the reference for running Sikio: settings, logs, accounts, updates and background jobs.
+For installation, follow one of the guides:
 
 - [Run Sikio with Docker](install/docker.md): the image with Docker Compose, behind Caddy.
 - [Run Sikio from a release under systemd](install/systemd.md): a release tarball as a service,
   behind Caddy.
 
-Sikio ships as a Mix release containing the application and its Erlang runtime, for Linux x86_64
-and arm64, and as a container image built from it. The examples the guides use are
+Sikio ships as a Mix release for Linux x86_64 and arm64. The release includes the Erlang runtime.
+A container image is built from the same release. The guides use the examples
 [compose.yaml](compose.yaml) and [sikio.service](sikio.service).
 
 ## Choose a database
 
-A release serves SQLite or PostgreSQL, chosen with `SIKIO_DATABASE` when it starts. SQLite is
-the default and needs no database server: the data lives in one file on the host. PostgreSQL
-suits an instance whose database runs elsewhere or is managed with other databases. Switching
-later means moving the data, which Sikio does not do for you.
+A release supports SQLite and PostgreSQL. `SIKIO_DATABASE` selects one at startup. SQLite is the
+default and needs no database server. Its data is one file on the host. PostgreSQL fits a
+database on another host or one managed alongside other databases. Sikio has no command to move
+data from one database to the other.
 
 ## Build from source
 
-For a platform without a release, build one on a machine like the target: a build on one
-platform is not a portability guarantee for another. With the pinned tools installed:
+For a platform without a published release, build on a machine with the target's OS and
+architecture. A build for one platform is not guaranteed to run on another. With the pinned
+tools installed, run:
 
 ```sh
 mise run release
 ```
 
-The release lands in `_build/prod/rel/sikio` and serves either database. Copy
-the complete directory, or archive and unpack it on the target. Keep configuration and
-persistent data outside that directory.
+The release is written to `_build/prod/rel/sikio` and supports both databases. Copy the complete
+directory to the target, or archive it and unpack it there. Keep configuration and persistent
+data outside that directory.
 
 ## Configure and start
 
-For SQLite, choose an absolute path for the database file outside the release, in a
-directory the service can write to. Migration creates the file. SQLite keeps a write-ahead
-log beside it, `-wal` and `-shm`, which belong to the database. For PostgreSQL,
-provide PostgreSQL 18 and an existing database with a dedicated owner. Migration creates the
-`pg_trgm` extension for the library's search index; since PostgreSQL 13 the database's owner
-may do that without further rights.
+For SQLite, choose an absolute path for the database file outside the release. The service user
+needs write access to its directory. The first migration creates the file. SQLite runs in WAL
+mode and writes the `-wal` and `-shm` files beside the database. They are part of the database.
+For PostgreSQL, provide PostgreSQL 18 and an existing database with a dedicated owner. A migration
+creates the `pg_trgm` extension for the library's search index. Since PostgreSQL 13 the database
+owner may create it without further privileges.
 
-Export these variables in the environment used for both migration and startup:
+Set these environment variables for both migration and startup:
 
 | Variable | Meaning |
 | --- | --- |
 | `SIKIO_DATABASE` | `sqlite`, the default, or `postgres`; any other value stops the boot |
 | `DATABASE_PATH` | SQLite: absolute path of the database file; a missing or relative path stops the boot |
 | `DATABASE_URL` | PostgreSQL: `ecto://USER:URL_ENCODED_PASSWORD@HOST/DATABASE` |
-| `SECRET_KEY_BASE` | Generate with `mix phx.gen.secret` on the build machine; keep permanently |
-| `PHX_HOST` | Stable public hostname without scheme or port; a missing value stops the boot |
+| `SECRET_KEY_BASE` | Generate with `mix phx.gen.secret` on the build machine; never change it |
+| `PHX_HOST` | Public hostname without scheme or port; must not change; a missing value stops the boot |
 | `PORT` | Internal HTTP port, 4000 by default |
-| `PHX_BIND_IP` | Address the HTTP listener binds to, all interfaces by default; `127.0.0.1` behind a proxy on the same host |
+| `PHX_BIND_IP` | Listen address, all interfaces by default; `127.0.0.1` with a reverse proxy on the same host |
 | `POOL_SIZE` | Database connections, 5 by default for SQLite and 10 for PostgreSQL |
-| `ECTO_IPV6` | PostgreSQL: `true` to reach the database over IPv6 |
-| `DNS_CLUSTER_QUERY` | DNS name that lists other nodes to cluster with; unset for a single node |
-| `PICTURE_CACHE_DIR` | Absolute path for pictures fetched from publishers; outside the release, writable by the service |
-| `SIKIO_MIGRATE_ON_START` | `false` to migrate by hand with `bin/migrate`; the release migrates on start by default |
-| `LOG_LEVEL` | `info` (the default), `notice`, `warning`, `error`, `critical`, `alert` or `emergency`, in any case; anything else stops the boot |
-| `FEED_POLL_MINUTES` | How often a source is asked at most, in whole minutes; 60 by default, at least 5 |
-| `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
-| `TRUSTED_PROXIES` | Addresses or ranges such as `172.20.0.0/16` that may forward a visitor's own; only needed for a proxy that is not on the loopback |
-| `ACCOUNT_IDENTITY` | `username` (the default) or `email`; anything else stops the boot. `email` requires the mail settings below |
-| `MAIL_ENABLED` | `true` to deliver invitations; required by `ACCOUNT_IDENTITY=email` |
-| `MAIL_FROM` | The address invitations come from |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Submission server; the port defaults to 587 |
+| `ECTO_IPV6` | PostgreSQL: `true` to connect to the database over IPv6 |
+| `DNS_CLUSTER_QUERY` | DNS name that resolves to the other cluster nodes; unset for a single node |
+| `PICTURE_CACHE_DIR` | Absolute path for cached publisher pictures; outside the release, writable by the service |
+| `SIKIO_MIGRATE_ON_START` | `false` to migrate manually with `bin/migrate`; by default the release migrates on start |
+| `LOG_LEVEL` | `info` (the default), `notice`, `warning`, `error`, `critical`, `alert` or `emergency`, case-insensitive; any other value stops the boot |
+| `FEED_POLL_MINUTES` | Minimum poll interval per feed, in whole minutes; 60 by default, at least 5 |
+| `SOURCE_URL` | URL of this deployment's source code; only needed for a modified Sikio |
+| `TRUSTED_PROXIES` | Addresses or ranges such as `172.20.0.0/16` whose `X-Forwarded-For` is trusted; only needed for a proxy outside the loopback |
+| `ACCOUNT_IDENTITY` | `username` (the default) or `email`; any other value stops the boot. `email` requires the mail settings below |
+| `MAIL_ENABLED` | `true` to send invitations by email; required by `ACCOUNT_IDENTITY=email` |
+| `MAIL_FROM` | Sender address of invitation emails |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` | SMTP submission server; the port defaults to 587 |
 
-`PICTURE_CACHE_DIR` holds thumbnails and artwork that Sikio fetches on the reader's behalf.
-Browsers load them from this host, so publishers never see who reads their feed. A missing or
-relative path stops the boot. The directory is a cache: deleting it loses nothing, and a daily
-job removes pictures nobody was served for thirty days.
+`PICTURE_CACHE_DIR` holds thumbnails and artwork that Sikio downloads from publishers. Browsers
+load these pictures from the Sikio host. Publishers do not receive the reader's address for
+them. A missing or relative path stops the boot. The directory is a cache, and deleting it loses
+no data. A daily job deletes pictures that were not served for thirty days.
 
-`SOURCE_URL` is the source code link in the sidebar and the About dialog. AGPL §13 asks an
-operator to offer it. Leave it unset to point at the upstream repository. A value that is not an absolute http or https URL
-stops the boot, so a typo is refused by `bin/migrate` and `bin/server` rather than shown as a
-link that goes nowhere.
+`SOURCE_URL` sets the source code link in the sidebar and the About dialog. AGPL §13 requires a
+deployment of a modified version to offer its source. If unset, the link points to the upstream
+repository. A value that is not an absolute http or https URL stops the boot. `bin/migrate` and
+`bin/server` both fail on it.
 
-The HTTP listener binds to `::` (all interfaces) unless `PHX_BIND_IP` names an address.
-A value that is not an address stops the boot. `PORT` is configurable.
-The release does not automatically load a `.env` file. Use a protected network
-path for a remote PostgreSQL database; the current configuration does not enable database TLS.
+The HTTP listener binds to `::` (all interfaces) unless `PHX_BIND_IP` sets an address. A value
+that is not an IP address stops the boot. `PORT` sets the port. The release does not load a
+`.env` file. Database TLS is not enabled. Reach a remote PostgreSQL database over a protected
+network path.
 
-SQLite runs as dj-lite sets it up for Django: a write-ahead log, `synchronous=NORMAL`, temporary
-tables in memory, a 128 MiB memory map, transactions that take the write lock when they begin,
-and a writer that waits up to five seconds for another. Every release sets them; PostgreSQL
-ignores them.
+Every release configures SQLite with the dj-lite settings for Django. These are WAL mode,
+`synchronous=NORMAL`, temporary tables in memory and a 128 MiB memory map. Transactions take the
+write lock at `BEGIN`. A writer waits up to five seconds for the lock. PostgreSQL ignores these
+settings.
 From the unpacked release directory:
 
 ```sh
 bin/server
 ```
 
-The release migrates its database as it starts, before it serves anything. A
-migration that fails stops the start and is logged; a supervisor that restarts the
-service tries it again each time. Set `SIKIO_MIGRATE_ON_START=false`
-to migrate by hand instead, with `bin/migrate` before `bin/server`. Repeating a
-migration is safe once all are applied. Migration does not create a PostgreSQL
-database. `bin/server` enables Phoenix; when using `bin/sikio start`, set
-`PHX_SERVER=true`.
+The release migrates its database on start, before it accepts requests. A failed migration is
+logged and stops the start. A supervisor that restarts the service retries the migration on each
+start. To migrate manually, set `SIKIO_MIGRATE_ON_START=false` and run `bin/migrate` before
+`bin/server`. Running `bin/migrate` again after all migrations are applied changes nothing.
+Migrations do not create a PostgreSQL database. `bin/server` sets `PHX_SERVER=true`. With
+`bin/sikio start`, set `PHX_SERVER=true` yourself.
 
-The host manages process supervision and HTTPS. Caddy on the same machine is the
-tested shape: it terminates TLS, proxies to `PORT` on the loopback, and forwards
-the visitor's address. The proxy must support WebSockets and set
-`X-Forwarded-Proto`; the public URL uses HTTPS on port 443. Expose only the proxy
-publicly; with Caddy on the same machine, `PHX_BIND_IP=127.0.0.1` keeps the plain port off
-the network.
+Process supervision and TLS are the host's responsibility. The documented setup is Caddy on the
+same host. Caddy terminates TLS, proxies to `PORT` on the loopback and forwards the client
+address. Any reverse proxy must support WebSockets and set `X-Forwarded-Proto`. The public URL is
+HTTPS on port 443. Expose only the proxy publicly. With Caddy on the same host,
+`PHX_BIND_IP=127.0.0.1` keeps the HTTP port off the network.
 
-Making an invitation is limited too, but per signed-in account rather than per
-address: 20 in a 24-hour window, configurable with the other budgets. The counter
-lives in memory on the node that served the request, so several nodes each keep
-their own and a cluster-wide quota needs a shared limit at the edge. An edge rule
-keyed by address does not replace it: the budget exists for an account somebody else
-is holding, and that account can arrive from anywhere.
+Authentication requests are rate-limited per client address. Sikio reads the client address
+from `X-Forwarded-For` only on a connection from a trusted proxy. IPv6 addresses are counted per
+`/64` prefix. The loopback is always trusted, so a proxy on the same host needs no configuration.
+List any other proxy in `TRUSTED_PROXIES`, comma-separated. An entry is an address or a CIDR
+range. Use a range for a proxy container whose address changes when it is recreated, such as
+the subnet of a shared Docker network. An entry that is neither stops the boot. On connections
+from any other peer, `X-Forwarded-For` is ignored and the peer address is counted.
 
-Authentication limits count per visitor, taken from the forwarding header. That
-header is believed only on a connection from a trusted proxy. The loopback is
-trusted already, so a proxy on the same machine needs no configuration. Any other is named
-in `TRUSTED_PROXIES`, comma separated: an address, or a range for a proxy in a container whose
-address changes when it is made again, such as the subnet of a shared Docker network. An entry
-that is neither stops the boot rather than being dropped quietly. Nothing forwarded is
-believed on a connection from anywhere else, so an instance exposed directly still
-counts the address it actually sees.
+Creating invitations is also rate-limited, per account rather than per address. The limit is 20
+in a 24-hour window. It is set in the application config `:auth_rate_limits`, not by an
+environment variable. Each node keeps its counters in memory. With several nodes, each counts
+separately, so a cluster-wide limit needs a rate limit at the reverse proxy. A proxy limit per
+address does not replace the per-account limit. A compromised account can send requests from any
+address.
 
-`GET /health` checks HTTP liveness, not database readiness.
+`GET /health` checks HTTP liveness. It does not check the database.
 
 ## Logs
 
-A release writes one JSON object per line to stdout, where systemd's journal or Docker collects
-it. Each line has `time`, `severity`, `message` and `metadata`. The metadata holds only these
+A release writes one JSON object per line to stdout. The systemd journal or Docker collects it.
+Each line has `time`, `severity`, `message` and `metadata`. The metadata contains only these
 keys: `feed_id`, `feed_title`, `host`, `account_id`, `reason`, `worker`, `job_id`, `attempt` and
 `request_id`.
 
@@ -136,77 +134,76 @@ keys: `feed_id`, `feed_title`, `host`, `account_id`, `reason`, `worker`, `job_id
 | `warning` | `feed refresh failed`, with the feed's id, title and host and why; `job failed`, with a reason cut to 200 characters |
 | `info` | `instance claimed`, `invitation made`, `invitation accepted`, `signed in`, by account id; migrations as they run |
 
-Sikio keeps no access log. The lines Sikio writes name no visitor's address, username, item or code. A
-feed's address is left out too, since a private feed may carry a token in it. A proxy in front
-logs access if wanted; Caddy does with a `log` directive in its site block. `LOG_LEVEL=warning`
-leaves only what needs attention. `debug` is not offered: it would log sessions and query
-parameters.
+Sikio writes no access log. The events in the table do not contain client addresses,
+usernames, items or codes. Feed URLs are omitted, because a private feed URL may contain a token.
+Messages and `reason` values are not filtered. Crash reports and stack traces may contain other
+data. A reverse proxy can write an access log. In Caddy, add a `log` directive to the site
+block. `LOG_LEVEL=warning` drops `notice` and `info` lines. `debug` is not supported, because it
+logs sessions and query parameters.
 
-A crash is logged as an `error` with its stack trace. When a LiveView process crashes, the report
-includes the message it was handling, which may hold what a member typed.
+A crash is logged at `error` with its stack trace. A LiveView crash report includes the message
+the process was handling. That message may contain text a member typed.
 
 ## Naming or addressing accounts
 
-An account is called one of two things here, and the instance chooses which before anybody
-registers.
+An account identifier is either a username or an email address. Choose the mode before the
+first account registers.
 
-By default it is a username, and an invitation is a link whoever made it passes on however they
-like. Nothing is sent and no mail is configured.
+The default is a username. An invitation is a link that the inviter shares by any means. Sikio
+sends no email, and no mail settings are needed.
 
-`ACCOUNT_IDENTITY=email` makes it an address instead. The invitation is then addressed to that
-address and delivered to it, which is also what proves the address belongs to whoever answers.
-That requires the mail settings: `MAIL_ENABLED=true` and the `SMTP_*` variables beside it.
-Submission is authenticated and the server's certificate is verified. An instance that asks for
-addresses without being able to send any refuses to start and says so.
+`ACCOUNT_IDENTITY=email` makes the identifier an email address. Sikio then sends the invitation
+to that address. Receiving the link confirms that the invitee controls the address. This mode
+requires `MAIL_ENABLED=true` and the `SMTP_*` variables. With `MAIL_ENABLED=true`, a missing
+`SMTP_HOST`, `MAIL_FROM`, `SMTP_USERNAME` or `SMTP_PASSWORD` stops the boot. SMTP authentication
+is always used, and the server certificate is verified. Port 465 uses implicit TLS, every other
+port STARTTLS. With `ACCOUNT_IDENTITY=email` and mail not enabled, the boot stops with an error.
 
-Choose once, before the first account. Turning an instance that already has accounts from names
-to addresses would leave every identifier it holds failing the new format.
+Choose once, before the first account. After a switch from usernames to email addresses,
+existing identifiers fail validation.
 
 ## Claim the instance
 
-An instance answers on the network before anybody has claimed it, so the first
-account asks for a code only the operator has. Issue one on the host, once the
-release has started and migrated and the public hostname is final:
+An instance is reachable on the network before it has an account. The first registration
+therefore requires a setup code from the operator. Issue one on the host after the release has
+started and migrated, and after the public hostname is final:
 
 ```sh
 bin/setup-code
 ```
 
-The code is printed once and nothing else keeps it; only its digest is stored.
-Issuing another code makes the previous one worthless, which is how a lost one is
-replaced. The command refuses to print anything for an instance that already has
-an account.
+The command prints the code once. Only its digest is stored. Issuing a new code invalidates the
+previous one, so a lost code is replaced by issuing another. If an account exists, the command
+issues no code and exits with status 1.
 
-Then open the final HTTPS host, enter the code, and register the first passkey.
-Keep the recovery codes, which are shown once. Passkeys are bound to the domain
-they were made on, so claiming over a temporary hostname leaves a passkey the
-public one cannot use.
+Then open the final HTTPS host, enter the code and register the first passkey. Save the recovery
+codes, which are shown once. Passkeys are bound to the domain they were created on. A passkey
+created on a temporary hostname does not work on the public one.
 
-The code buys a proof that lasts ten minutes and is spent by the account it makes.
-Somebody slower than that meets the code field again rather than a refusal after
-the passkey dialogue.
+A valid code stores a setup proof in the session. The proof expires after ten minutes and is
+consumed by the first account. A setup page loaded after the proof expires shows the code field
+again.
 
 ## Updates and data protection
 
-The operator manages database backups and OS-level backups, including runtime
+Database backups and OS-level backups are the operator's responsibility. They include runtime
 configuration and secrets. For SQLite, copy a running database with `sqlite3 DATABASE_PATH
-".backup BACKUP_PATH"` rather than copying the file, which may miss what the write-ahead log
-still holds. For PostgreSQL, use `pg_dump`. Sikio has no backup or restore commands, retention
-scheduler, remote backup service or self-updater.
+".backup BACKUP_PATH"`. A plain file copy may miss data still in the WAL file. For PostgreSQL,
+use `pg_dump`. Sikio has no backup or restore commands, retention scheduler, remote backup
+service or self-updater.
 
-For an update, back up the database first: the new release migrates it as it
-starts. Then stop the old application and start the new release's `bin/server`
-with the existing environment. Check `/health` and application access. Keep the old
-release until the update is verified. Returning to it is safe only if it supports
-the resulting database schema; replacing application files does not undo migrations.
-To go back, stop the new release so a restart cannot migrate again, undo its migrations with
+Back up the database before an update, because the new release migrates it on start. Then stop
+the old release and start the new release's `bin/server` with the existing environment. Check
+`/health` and sign in. Keep the old release until the update is verified. The old release only
+works if it supports the migrated schema. Replacing release files does not revert migrations.
+To go back, stop the new release so a restart cannot migrate again. Revert its migrations with
 its rollback command, then start the old release.
 
 
 ## Migration rollback
 
-For an explicitly reviewed rollback, replace the example version below with the
-oldest migration version to undo (the boundary version is also rolled back):
+For a reviewed rollback, replace the example version below with the oldest migration version to
+revert. That version is reverted as well:
 
 ```sh
 bin/sikio eval 'Sikio.Release.rollback(Sikio.Repo, 20260918000000)'
@@ -215,14 +212,14 @@ bin/sikio eval 'Sikio.Release.rollback(Sikio.Repo, 20260918000000)'
 
 ## Background work
 
-Oban runs on the application's own database, so no separate broker is needed. The `feeds`
-queue refreshes each source when its next check has come. That is a tenth of its newest entry's
-age after the last request, at least `FEED_POLL_MINUTES` and at most a day; a failed request is
-tried again after `FEED_POLL_MINUTES`. A server's `Retry-After` and `Cache-Control: max-age`
-can only lengthen that wait, up to the same day or `FEED_POLL_MINUTES` if longer. A feed's
-`<ttl>` does the same after an answer with content; a `304` carries none. A server that names
-its wait is not retried before it. Each next request is postponed by up to a tenth of its wait,
-at most ten minutes, so feeds imported together do not stay in step. The scheduler looks every five minutes, so the requests
-spread over the interval. `maintenance` runs
-`Sikio.AuthCleanup` every 15 minutes, which expires sessions, abandoned challenges and
-unaccepted invitations.
+Oban runs on the application database, so no separate message broker is needed. The `feeds`
+queue refreshes each feed when its next check is due. The interval is a tenth of the newest
+entry's age, at least `FEED_POLL_MINUTES` and at most one day. After a failed request, the next
+check is after `FEED_POLL_MINUTES`. A `Cache-Control: max-age` header can only lengthen the
+interval. So can `Retry-After` on a `429` or `503` response, and a feed's `<ttl>` on a `200`
+response. A `304` response has no `<ttl>`. The lengthened interval is capped at one day, or at
+`FEED_POLL_MINUTES` if that is longer. A feed with a server-requested wait is not retried before
+it ends. Each next check gets a random delay of up to a tenth of its interval, at most ten
+minutes. Feeds imported together therefore do not stay synchronized. The scheduler runs every
+five minutes. The `maintenance` queue runs `Sikio.AuthCleanup` every 15 minutes. It deletes
+expired sessions, expired challenges and unaccepted invitations that have expired.

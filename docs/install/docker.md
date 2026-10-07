@@ -1,19 +1,19 @@
 # Run Sikio with Docker
 
-This guide runs Sikio's image with Docker Compose on a Linux host, behind Caddy, which gets
-the TLS certificate. At the end the instance is claimed and you have signed in with a passkey.
-[Operations](../operations.md) is the reference for every setting.
+This guide runs the Sikio image with Docker Compose on a Linux host, behind Caddy. Caddy
+obtains the TLS certificate. The last steps claim the instance and register your passkey.
+[Operations](../operations.md) documents every setting.
 
 ## What you need
 
 - A Linux host, amd64 or arm64, with Docker Engine and the Compose plugin.
-- A domain name pointing at the host, for example `sikio.example.org`. Passkeys are bound to
-  the name they are made on, so choose the final one now.
-- Caddy on the same host, or another proxy that terminates TLS and supports WebSockets.
+- A domain name that resolves to the host, for example `sikio.example.org`. Passkeys are bound
+  to the domain they are created on, so use the final domain from the start.
+- Caddy on the same host, or another reverse proxy that terminates TLS and supports WebSockets.
 
-The image is `ghcr.io/oliverandrich/sikio`. Each version is tagged `X.Y.Z`, its minor line
-`X.Y` and `latest`. Following `X.Y` brings fixes without a migration; a new minor version may
-migrate the database and is chosen by hand.
+The image is `ghcr.io/oliverandrich/sikio`. Each version is tagged `X.Y.Z`, `X.Y` and `latest`.
+The `X.Y` tag receives patch releases, which contain no migrations. A new minor version may
+contain migrations. Switch to it by changing the tag manually.
 
 ## 1. Lay out the directory
 
@@ -22,20 +22,20 @@ mkdir -p /opt/sikio && cd /opt/sikio
 curl -fsSLO https://raw.githubusercontent.com/oliverandrich/sikio/main/docs/compose.yaml
 ```
 
-[compose.yaml](../compose.yaml) runs the image with SQLite, keeps its data in the volume
-`sikio-data`, and publishes the port on the loopback only, for Caddy. Change `PHX_HOST` to your
+[compose.yaml](../compose.yaml) runs the image with SQLite and stores its data in the volume
+`sikio-data`. It publishes the port on the loopback only, for Caddy. Set `PHX_HOST` to your
 domain.
 
 ## 2. Write the environment file
 
-The secret signs sessions and must stay the same for the life of the instance.
+`SECRET_KEY_BASE` signs sessions. Never change it after the first start.
 
 ```sh
 umask 077
 printf 'SECRET_KEY_BASE=%s\n' "$(openssl rand -base64 48 | tr -d '\n')" > sikio.env
 ```
 
-Further settings go into the same file, one `NAME=value` per line; see
+Add further settings to the same file, one `NAME=value` per line. See
 [Operations](../operations.md#configure-and-start). Keep `sikio.env` out of version control.
 
 ## 3. Start it
@@ -45,8 +45,8 @@ docker compose up -d
 docker compose logs -f sikio
 ```
 
-On its first start Sikio creates the database and migrates it. A line `Running SikioWeb.Endpoint`
-says it serves. Check it from the host:
+On the first start, the migration creates the SQLite database. The log line
+`Running SikioWeb.Endpoint` means the server accepts requests. Check it from the host:
 
 ```sh
 curl -fsS http://127.0.0.1:4000/health
@@ -60,27 +60,27 @@ sikio.example.org {
 }
 ```
 
-Caddy fetches the certificate and forwards the visitor's address. Sikio sees the connection
-from the container network's gateway, which `compose.yaml` fixes at `172.30.0.1` and names in
-`TRUSTED_PROXIES`. Reload Caddy and open `https://sikio.example.org`.
+Caddy obtains the certificate and sends the client address in `X-Forwarded-For`. Inside the
+container, connections come from the network gateway. `compose.yaml` fixes the gateway at
+`172.30.0.1` and lists it in `TRUSTED_PROXIES`. Reload Caddy and open `https://sikio.example.org`.
 
 ## 5. Claim the instance
 
-The first account needs a code that only the operator can issue:
+The first account requires a setup code. Issue it on the host:
 
 ```sh
 docker compose exec sikio bin/setup-code
 ```
 
-It prints the code once. Open your domain, enter the code, choose your username and create a
-passkey. Save the recovery codes the next page shows; they are shown once. A new code replaces
-a lost one. [Operations](../operations.md#claim-the-instance) has the details.
+The command prints the code once. Open your domain, enter the code, choose a username and
+create a passkey. Save the recovery codes on the next page, which are shown only once. If the
+code is lost, issue a new one. See [Operations](../operations.md#claim-the-instance) for details.
 
-Everybody after you arrives on an invitation, made under Invitations in the account menu.
+Further members join through invitations. Create them under Invitations in the account menu.
 
 ## 6. Back up
 
-The volume holds everything Sikio keeps. A copy taken while Sikio is stopped is consistent:
+The volume holds the SQLite database and the picture cache. Stop Sikio for a consistent copy:
 
 ```sh
 docker compose stop sikio
@@ -89,9 +89,9 @@ docker run --rm -v sikio_sikio-data:/data -v "$PWD":/backup busybox \
 docker compose start sikio
 ```
 
-The volume's name starts with the Compose project, which is the directory's name, here `sikio`.
-`docker volume ls` lists it. Keep `sikio.env` with the backup; without its secret every session
-ends.
+The volume name is prefixed with the Compose project name. That is the directory name, here
+`sikio`. `docker volume ls` lists it. Keep `sikio.env` with the backup. With a different
+`SECRET_KEY_BASE`, all existing sessions become invalid.
 
 ## 7. Update
 
@@ -103,19 +103,19 @@ docker compose up -d
 docker compose logs -f sikio
 ```
 
-The new version migrates the database as it starts. For a new minor version, change the tag in
-`compose.yaml` before pulling. Going back means restoring the backup, since an older version
-does not undo a newer one's migrations.
+The new version migrates the database on start. For a new minor version, change the tag in
+`compose.yaml` before pulling. To go back, restore the backup. An older version does not revert
+a newer version's migrations.
 
 ## With PostgreSQL
 
-Sikio migrates a PostgreSQL database but does not create it. The database and its owner must
-exist before the first start.
+Sikio migrates a PostgreSQL database but does not create it. Create the database and its owner
+before the first start.
 
 ### Its own database container
 
-Add a database service and point Sikio at it. The `postgres` image creates the database named
-in `POSTGRES_DB` when it starts on an empty volume. In `compose.yaml`:
+Add a database service and set Sikio's `DATABASE_URL` to it. On an empty volume, the `postgres`
+image creates the database named in `POSTGRES_DB`. In `compose.yaml`:
 
 ```yaml
 services:
@@ -146,9 +146,9 @@ volumes:
   sikio-db:
 ```
 
-Put `POSTGRES_PASSWORD=` with a long random value into a file `.env` beside `compose.yaml`,
-which Compose reads for `${…}`. Sikio's volume then holds only the picture cache. Back up the
-database with `pg_dump`:
+Set `POSTGRES_PASSWORD=` to a long random value in a file `.env` beside `compose.yaml`.
+Compose reads it to substitute `${…}`. Sikio's volume then holds only the picture cache. Back up
+the database with `pg_dump`:
 
 ```sh
 docker compose exec db pg_dump -U sikio sikio | gzip > sikio-$(date +%F).sql.gz
@@ -156,17 +156,17 @@ docker compose exec db pg_dump -U sikio sikio | gzip > sikio-$(date +%F).sql.gz
 
 ### A shared database and Caddy on Docker networks
 
-A host may run one PostgreSQL and one Caddy for several services, each reached on a Docker
-network of its own: here `db`, where the database answers as `postgres`, and `caddy`, where a
-Caddy that reads container labels finds the services. The administrator creates a database and
-an owner for Sikio:
+A host may run one PostgreSQL server and one Caddy for several services. Each is attached to
+its own Docker network. Here the database server is `postgres` on the network `db`. Caddy is on
+the network `caddy` and reads its configuration from container labels. The administrator creates
+a database and an owner for Sikio:
 
 ```sql
 CREATE ROLE sikio LOGIN PASSWORD '…';
 CREATE DATABASE sikio OWNER sikio;
 ```
 
-Sikio then joins both networks and publishes no port:
+Sikio is attached to both networks and publishes no port:
 
 ```yaml
 services:
@@ -197,7 +197,7 @@ networks:
     external: true
 ```
 
-Caddy reaches Sikio from its own address on the `caddy` network, which changes when its
-container is made again, so `TRUSTED_PROXIES` names the network's whole subnet. The volume holds
-only the picture cache, which Sikio fetches again when it is gone; the database's backup is the
-administrator's. Get the setup code as in step 5.
+Caddy connects from its address on the `caddy` network. That address changes when the Caddy
+container is recreated, so `TRUSTED_PROXIES` lists the whole subnet. The volume holds only the
+picture cache. Sikio downloads missing pictures again. Database backups are the administrator's
+responsibility. Issue the setup code as in step 5.

@@ -1,16 +1,18 @@
 # Localization
 
-The application resolves the language from `Accept-Language` on every HTTP
-request, falling back to `en`. Supported defaults are `en` and `de`. There is no
-stored account preference. A changed browser language takes effect on the next
-HTTP request/full page load; an already connected LiveView keeps its current
-language until then. The session only transports the latest HTTP choice to
-LiveView and never overrides a new request header.
+The locale is set from the `Accept-Language` header on every HTTP request. The
+fallback is `en`. The supported locales are `en` and `de` by default. Accounts
+store no language preference.
 
-Header parsing follows the first supported base language in tag order;
-q-value weighting is not implemented. Configure `:locales` on the
-application and `:default_locale` on its Gettext backend. New `live_session`
-blocks should include the application's `{Locale, :set}` hook after account loading.
-`Locale.accept_locale/1` also works before a session has been fetched.
+A changed browser language applies from the next HTTP request or full page load.
+A connected LiveView keeps its locale until then. The session carries the locale
+of the latest HTTP request into the LiveView. It never overrides the header of a
+new request.
+
+The first supported base language in the header wins, in tag order. q-values are
+ignored. Configure `:locales` on the application and `:default_locale` on its
+Gettext backend. Add the `{Locale, :set}` hook to every new `live_session`, after
+the account hook. `Locale.accept_locale/1` does not read the session, so it works
+before the session is fetched.
 
 For translation editing commands, see [Contributing](../CONTRIBUTING.md#translations).

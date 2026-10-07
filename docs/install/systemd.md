@@ -1,22 +1,22 @@
 # Run Sikio from a release under systemd
 
-This guide installs a release tarball on a Linux host, runs it as a systemd service behind
-Caddy, and claims the instance. A release carries its own Erlang runtime; nothing else of
-Elixir is needed on the host. [Operations](../operations.md) is the reference for every setting.
+This guide installs a release tarball on a Linux host and runs it as a systemd service behind
+Caddy. The last steps claim the instance. A release includes the Erlang runtime. The host needs
+no Erlang or Elixir installation. [Operations](../operations.md) documents every setting.
 
 ## What you need
 
 - Linux on x86_64 or arm64 with glibc 2.35 or newer, as on Ubuntu 22.04 or Debian 12. The
   releases are built on Ubuntu 22.04.
 - systemd, `curl`, `sha256sum`, and `sqlite3` for backups.
-- A domain name pointing at the host, for example `sikio.example.org`. Passkeys are bound to
-  the name they are made on, so choose the final one now.
-- Caddy on the same host, or another proxy that terminates TLS and supports WebSockets.
+- A domain name that resolves to the host, for example `sikio.example.org`. Passkeys are bound
+  to the domain they are created on, so use the final domain from the start.
+- Caddy on the same host, or another reverse proxy that terminates TLS and supports WebSockets.
 
 ## 1. Download and verify a release
 
-Each release on GitHub has a tarball per architecture and a `SHA256SUMS`. Set the version and
-your architecture, `x86_64` or `arm64`:
+Each GitHub release has one tarball per architecture and a `SHA256SUMS` file. Set the version
+and your architecture, `x86_64` or `arm64`:
 
 ```sh
 version=0.1.0
@@ -29,7 +29,7 @@ sha256sum --check --ignore-missing SHA256SUMS
 
 ## 2. Create the user and directories
 
-Each version is unpacked into a directory of its own, and a symlink names the current one:
+Each version is unpacked into its own directory. A symlink points to the current one:
 
 ```text
 /opt/sikio/releases/0.1.0/    an unpacked release
@@ -45,7 +45,7 @@ sudo tar -xzf sikio-$version-linux-$arch.tar.gz -C /opt/sikio/releases/$version 
 sudo ln -sfn releases/$version /opt/sikio/current
 ```
 
-The release directory stays owned by root; the service only reads it.
+The release directory stays owned by root. The service user has read access only.
 
 ## 3. Write the environment file
 
@@ -64,14 +64,15 @@ DATABASE_PATH=/var/lib/sikio/sikio.db
 PICTURE_CACHE_DIR=/var/lib/sikio/pictures
 ```
 
-The secret signs sessions and must stay the same for the life of the instance. systemd reads
-the file as root before it starts the service, so it stays unreadable for the service user.
-[Operations](../operations.md#configure-and-start) lists every setting, PostgreSQL's included.
+`SECRET_KEY_BASE` signs sessions. Never change it after the first start. systemd reads the file
+as root before it starts the service. The service user has no read access to it.
+[Operations](../operations.md#configure-and-start) lists every setting, including PostgreSQL.
 
 ## 4. Install the unit and start
 
-[sikio.service](../sikio.service) runs `bin/server` as the user `sikio`, creates
-`/var/lib/sikio`, and keeps the rest of the system read-only for the service.
+[sikio.service](../sikio.service) runs `bin/server` as the user `sikio` and creates
+`/var/lib/sikio`. `ProtectSystem=strict` makes the rest of the file system read-only for the
+service.
 
 ```sh
 sudo curl -fsSL -o /etc/systemd/system/sikio.service \
@@ -81,8 +82,8 @@ sudo systemctl enable --now sikio
 journalctl -u sikio -f
 ```
 
-On its first start Sikio creates the database and migrates it. A line `Running SikioWeb.Endpoint`
-says it serves. Check it from the host:
+On the first start, the migration creates the SQLite database. The log line
+`Running SikioWeb.Endpoint` means the server accepts requests. Check it from the host:
 
 ```sh
 curl -fsS http://127.0.0.1:4000/health
@@ -96,40 +97,39 @@ sikio.example.org {
 }
 ```
 
-Caddy fetches the certificate and forwards the visitor's address; Sikio trusts the loopback
-already. Reload Caddy and open `https://sikio.example.org`.
+Caddy obtains the certificate and sends the client address in `X-Forwarded-For`. Sikio trusts
+the loopback by default. Reload Caddy and open `https://sikio.example.org`.
 
 ## 6. Claim the instance
 
-The first account needs a code that only the operator can issue. Run it with the service's
-user and environment:
+The first account requires a setup code. Issue it with the service user and environment:
 
 ```sh
 sudo systemd-run --uid=sikio --gid=sikio -p EnvironmentFile=/etc/sikio/sikio.env \
   --pipe --wait /opt/sikio/current/bin/setup-code
 ```
 
-It prints the code once. Open your domain, enter the code, choose your username and create a
-passkey. Save the recovery codes the next page shows; they are shown once. A new code replaces
-a lost one. [Operations](../operations.md#claim-the-instance) has the details.
+The command prints the code once. Open your domain, enter the code, choose a username and
+create a passkey. Save the recovery codes on the next page, which are shown only once. If the
+code is lost, issue a new one. See [Operations](../operations.md#claim-the-instance) for details.
 
-Everybody after you arrives on an invitation, made under Invitations in the account menu.
+Further members join through invitations. Create them under Invitations in the account menu.
 
 ## 7. Back up
 
-`sqlite3` copies a running database consistently, including what the write-ahead log holds:
+The `sqlite3` command `.backup` copies a running database consistently, including data in the WAL:
 
 ```sh
 sudo -u sikio sqlite3 /var/lib/sikio/sikio.db ".backup /var/lib/sikio/backup-$(date +%F).db"
 ```
 
-Move the copy off the host, and keep `/etc/sikio/sikio.env` with it; without its secret every
-session ends. With PostgreSQL, use `pg_dump` instead.
+Move the copy off the host and keep `/etc/sikio/sikio.env` with it. With a different
+`SECRET_KEY_BASE`, all existing sessions become invalid. With PostgreSQL, use `pg_dump` instead.
 
 ## 8. Update
 
-Read the version's entry in the [changelog](../../CHANGELOG.md) first. Back up, download and
-verify the new version as in step 1, then:
+Read the version's entry in the [changelog](../../CHANGELOG.md) first. Back up, then download
+and verify the new version as in step 1. Then run:
 
 ```sh
 sudo mkdir -p /opt/sikio/releases/$version
@@ -140,6 +140,6 @@ curl -fsS http://127.0.0.1:4000/health
 ```
 
 The restart migrates the database. Keep the previous directory until the update is verified.
-Going back is not only switching the symlink: an older release does not undo a newer one's
-migrations. Restore the backup, or roll back as in
+Switching the symlink back is not enough to downgrade. An older release does not revert a newer
+release's migrations. Restore the backup, or roll back as in
 [Operations](../operations.md#migration-rollback) before you start the older release.
