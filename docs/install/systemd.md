@@ -9,6 +9,7 @@ no Erlang or Elixir installation. [Operations](../operations.md) documents every
 - Linux on x86_64 or arm64 with glibc 2.35 or newer, as on Ubuntu 22.04 or Debian 12. The
   releases are built on Ubuntu 22.04.
 - systemd, `curl`, `sha256sum`, and `sqlite3` for backups.
+- `libsctp1`. Without it the Erlang runtime prints an SCTP warning on every command.
 - A domain name that resolves to the host, for example `sikio.example.org`. Passkeys are bound
   to the domain they are created on, so use the final domain from the start.
 - Caddy on the same host, or another reverse proxy that terminates TLS and supports WebSockets.

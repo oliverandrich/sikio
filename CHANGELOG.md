@@ -9,6 +9,14 @@ or changed setting, a step to take before or after the update. A release migrate
 as it starts unless `SIKIO_MIGRATE_ON_START=false`; back up the database before every update.
 Its own section becomes the version's release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- The image installs `libsctp1`. Without it every command, `bin/setup-code` included, printed an
+  SCTP warning. A host running the release tarball needs the package too; see
+  [Run Sikio from a release under systemd](docs/install/systemd.md).
+
 ## [0.1.0] - 2026-10-07
 
 ### Added

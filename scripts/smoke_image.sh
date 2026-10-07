@@ -40,6 +40,15 @@ docker run -d --name sikio-image-sqlite -p 127.0.0.1:4601:4000 -v "$data:/data" 
 landing 4601 sqlite sikio-image-sqlite
 test -f "$data/sikio.db" || { echo "sqlite: no database in /data" >&2; exit 1; }
 
+# The operator reads the code from this output, so the runtime must print no warning beside it.
+code_output="$(docker exec sikio-image-sqlite bin/setup-code 2>&1)"
+if printf '%s\n' "$code_output" | grep -q WARNING; then
+  printf '%s\n' "$code_output" >&2
+  echo "sqlite: bin/setup-code printed a warning." >&2
+  exit 1
+fi
+echo "sqlite: bin/setup-code printed no warning."
+
 createdb "$database"
 encode() { python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"; }
 docker run -d --name sikio-image-postgres --network host \
