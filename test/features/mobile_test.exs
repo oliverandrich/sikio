@@ -310,7 +310,7 @@ defmodule SikioWeb.MobileTest do
   end
 
   # In the capsule a video keeps its iframe, shown at 96 by 54 px.
-  feature "a video plays on in the capsule", context do
+  feature "a video stays in the capsule at 96 by 54", context do
     %{session: session, account: account} = context
     video = video_with_notes(account)
 

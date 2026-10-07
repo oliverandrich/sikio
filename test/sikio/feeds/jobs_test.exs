@@ -100,7 +100,7 @@ defmodule Sikio.Feeds.JobsTest do
 
   # A 429 with `Retry-After` returns `:ok`, so Oban does not retry. `next_check_at` carries the
   # wait.
-  test "a refresh job leaves a server alone that asked to wait", ctx do
+  test "a refresh job returns :ok when the server asked to wait", ctx do
     Req.Test.stub(HTTP, fn conn ->
       conn |> Plug.Conn.put_resp_header("retry-after", "3600") |> Plug.Conn.send_resp(429, "")
     end)

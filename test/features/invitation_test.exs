@@ -19,7 +19,7 @@ defmodule SikioWeb.InvitationTest do
     |> String.trim()
   end
 
-  feature "the first account claims the instance, and everyone after it arrives on a link", %{
+  feature "the first account claims the instance, and the next arrives on a link", %{
     session: session
   } do
     virtual_authenticator(session)

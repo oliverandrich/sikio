@@ -76,7 +76,7 @@ defmodule Sikio.IdentityTest do
 
     # `Sikio.Application` calls `Identity.verify!(Mailer.configured?())` at start. This test
     # repeats that call with `:mail_enabled` unset and set. It does not start the application.
-    test "and the answer comes from the mailer at boot" do
+    test "and Mailer.configured?/0 decides it in email mode" do
       as(:email)
 
       assert_raise RuntimeError, ~r/MAIL_ENABLED/, fn ->

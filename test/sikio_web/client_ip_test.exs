@@ -50,7 +50,7 @@ defmodule SikioWeb.ClientIpTest do
   # Clients control the header bytes. `to_charlist/1` raises `UnicodeConversionError` on invalid
   # UTF-8. This plug runs before every route, so a raise would fail the whole request.
   # The invalid entry is skipped and the valid entry before it is used.
-  test "a forwarded header that is not UTF-8 falls back to the socket" do
+  test "a forwarded header with invalid UTF-8 uses its last valid entry" do
     header = [{"x-forwarded-for", <<"203.0.113.7, ", 0xFF, 0xFE>>}]
 
     assert asked({127, 0, 0, 1}, header) == {203, 0, 113, 7}

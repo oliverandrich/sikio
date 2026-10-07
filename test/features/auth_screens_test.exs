@@ -3,7 +3,9 @@
 defmodule SikioWeb.AuthScreensTest do
   use SikioWeb.FeatureCase
 
-  feature "setup, copy codes, home, login and recovery form a complete flow", %{session: session} do
+  feature "setup, copy codes, home and login form a flow, and recovery toggles", %{
+    session: session
+  } do
     virtual_authenticator(session)
 
     session

@@ -216,7 +216,7 @@ defmodule Sikio.RuntimeConfigTest do
   # `SIKIO_DATABASE` decides which variable is required. These tests follow the suite's database.
   describe "the database" do
     if Application.compile_env!(:sikio, :database) == :sqlite do
-      test "DATABASE_PATH names the SQLite file, outside the release" do
+      test "DATABASE_PATH names the SQLite file" do
         assert get_in(prod(), [:sikio, Sikio.Repo, :database]) == "/var/lib/sikio/sikio.db"
       end
 

@@ -144,7 +144,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
   end
 
   # Escape closes the dialog and pushes a `focus` event for the row's edit button.
-  test "Escape closes the dialog and gives the focus back to its row", %{conn: conn, user: user} do
+  test "Escape closes the dialog and pushes a focus event for its row", %{conn: conn, user: user} do
     {:ok, preview} = Parser.parse(podcast(), feed_url())
     {:ok, subscription} = Library.subscribe(user, preview)
     {:ok, view, _} = live(conn, ~p"/subscriptions")

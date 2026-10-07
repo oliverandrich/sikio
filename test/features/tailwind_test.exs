@@ -44,7 +44,7 @@ defmodule SikioWeb.TailwindTest do
 
   # Durations, dates and counts use the mono font. The test checks the runtime element only.
   # Browsers load a font face only when used. A missing face falls back without an error.
-  feature "metadata is set in IBM Plex Mono, and the face is loaded", %{session: session} do
+  feature "the runtime is set in IBM Plex Mono, and the face is loaded", %{session: session} do
     account = signed_in(session, "ada")
 
     {:ok, preview} =
@@ -78,7 +78,9 @@ defmodule SikioWeb.TailwindTest do
         })
     ]
   ]
-  feature "a dialog's answers stack at a finger's height on a phone", %{session: session} do
+  feature "a dialog's confirm button spans the width at a finger's height on a phone", %{
+    session: session
+  } do
     feed = subscribed(session)
 
     session

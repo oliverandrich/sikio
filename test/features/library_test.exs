@@ -192,7 +192,7 @@ defmodule SikioWeb.LibraryTest do
 
   # A click on an external link without `target` sets `target="_blank"`.
   # So an installed app never loads a foreign page in its own window.
-  feature "a link away without a target opens in a tab of its own", %{session: session} do
+  feature "a link away without a target gets target=_blank on click", %{session: session} do
     session
     |> open("/inbox")
     |> execute_script("""

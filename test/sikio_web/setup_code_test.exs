@@ -63,7 +63,7 @@ defmodule SikioWeb.SetupCodeTest do
   end
 
   # One code creates one account.
-  test "a proof is spent by the account it made", %{conn: conn, code: code} do
+  test "a proof from the code registers the first account", %{conn: conn, code: code} do
     {:ok, proof} = Instance.authorize_code(code)
     conn = Plug.Conn.put_session(conn, :setup_authorization, proof)
 
@@ -108,7 +108,7 @@ defmodule SikioWeb.SetupCodeTest do
     end
 
     # An unknown code stores no proof, and the response does not say why it failed.
-    test "a code it does not know changes nothing", %{conn: conn} do
+    test "a code it does not know stores no proof", %{conn: conn} do
       conn = exchange(conn, "not-the-code")
 
       assert redirected_to(conn) == ~p"/setup"

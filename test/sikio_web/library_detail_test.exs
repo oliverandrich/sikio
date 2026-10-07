@@ -230,7 +230,7 @@ defmodule SikioWeb.LibraryDetailTest do
       Enum.find(Library.entries(c.user), &(&1.feed.title == "Podigee"))
     end
 
-    test "are listed in place of the notes' own, which stay as they are", c do
+    test "are listed from a psc:chapters element", c do
       entry =
         feed_entry(c, """
         <psc:chapters xmlns:psc="http://podlove.org/simple-chapters">
@@ -504,8 +504,7 @@ defmodule SikioWeb.LibraryDetailTest do
 
     # From `lg` the client sends `select_first` when nothing is selected. It is ignored otherwise.
     # The patch uses `replace: true`, so Back skips the empty detail.
-    # This test does not check the replace.
-    test "the first item is chosen when the browser asks and nothing is", c do
+    test "select_first chooses the first item only while nothing is selected", c do
       {:ok, view, _} = live(c.conn, ~p"/inbox")
       render_hook(view, "select_first", %{})
       assert_patch(view, "/inbox/#{c.entry.id}-one-two")

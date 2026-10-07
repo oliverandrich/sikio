@@ -17,7 +17,7 @@ defmodule SikioWeb.LibraryPathsTest do
 
   defp filters(changes), do: Map.merge(@none, changes)
 
-  test "a list by status is its own path, and the inbox is the library's front" do
+  test "a list by status is its own path, and no filter is /all" do
     assert Sidebar.library_path(filters(%{"status" => "inbox"})) == "/inbox"
     assert Sidebar.library_path(filters(%{"status" => "queue"})) == "/queue"
     assert Sidebar.library_path(filters(%{"status" => "heard"})) == "/history"

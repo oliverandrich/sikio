@@ -233,8 +233,7 @@ defmodule SikioWeb.AddSourceLiveTest do
 
   # LiveView restores form input on reconnect only for forms with `phx-change`.
   # Without it the template's empty value replaces the input.
-  # This test checks only that `render_change` keeps the value in the render.
-  test "what was typed survives a reconnect", %{conn: conn} do
+  test "what was typed stays in the field after a change event", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/add")
     view |> form("#add-form", %{q: "https://example.org/rs"}) |> render_change()
     assert render(view) =~ "https://example.org/rs"
