@@ -107,7 +107,8 @@ defmodule SikioWeb.TailwindTest do
   # From lg the sources may run long. They scroll, while the wordmark above and the offer of the
   # source below stay where they are. Only a window too short for those two scrolls the whole
   # column. A pencil beside the sources leads to managing them, so the bar of links is the phone's.
-  feature "the sidebar scrolls between a standing wordmark and its foot", %{session: session} do
+  # This checks the computed overflow and display, not a scroll itself.
+  feature "the lg sidebar may scroll and hides the bar of links", %{session: session} do
     signed_in(session, "ada")
 
     session
