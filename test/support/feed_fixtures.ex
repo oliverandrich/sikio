@@ -154,10 +154,11 @@ defmodule Sikio.FeedFixtures do
     """
   end
 
+  # As YouTube serves it: the feed names its channel without the UC its entries' ids carry.
   def youtube do
     """
     <feed xmlns="http://www.w3.org/2005/Atom" xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/">
-      <title>Good Channel</title><yt:channelId>UCabcdefghijklmnopqrstuv</yt:channelId>
+      <title>Good Channel</title><yt:channelId>abcdefghijklmnopqrstuv</yt:channelId>
       <entry><id>yt:video:abcdefghijk</id><yt:videoId>abcdefghijk</yt:videoId><title>A good video</title>
       <link rel="alternate" href="https://www.youtube.com/watch?v=abcdefghijk"/>
       <published>2026-09-17T12:00:00+00:00</published>

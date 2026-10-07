@@ -46,9 +46,9 @@ defmodule Sikio.Feeds.Parser do
   # The channel id has to come with a YouTube host, because the id is what the application will
   # poll later and an arbitrary server may name any channel it likes.
   defp feed({"feed", _, _} = root, url) do
-    channel_id = value(root, "yt:channelId")
+    channel_id = channel_id(value(root, "yt:channelId"))
 
-    if Regex.match?(~r/\A(?:UC)?[\w-]{22}\z/, channel_id) and
+    if Regex.match?(~r/\AUC[\w-]{22}\z/, channel_id) and
          URI.parse(url).host in ["www.youtube.com", "youtube.com"] do
       entries =
         root
@@ -73,6 +73,10 @@ defmodule Sikio.Feeds.Parser do
   end
 
   defp feed(_root, _url), do: {:error, :invalid_feed}
+
+  # YouTube names a feed's channel without the UC that its entries and its page address carry.
+  defp channel_id(id) when byte_size(id) == 22, do: "UC" <> id
+  defp channel_id(id), do: id
 
   defp rss_feed(kind, channel, items, url) do
     reader = if kind == :peertube, do: &peertube_entry/2, else: &podcast_entry/2
