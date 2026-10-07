@@ -9,7 +9,7 @@ or changed setting, a step to take before or after the update. A release migrate
 as it starts unless `SIKIO_MIGRATE_ON_START=false`; back up the database before every update.
 Its own section becomes the version's release notes.
 
-## [Unreleased]
+## [0.1.0] - 2026-10-07
 
 ### Added
 
@@ -33,5 +33,6 @@ group of people on one instance.
 - `TRUSTED_PROXIES` takes address ranges such as `172.20.0.0/16`, for a proxy in a container on
   a shared Docker network.
 - Logs as JSON lines on stdout at `LOG_LEVEL`: failing feeds and jobs, and sign-ins and
-  invitations by account id. No access log, and no names, addresses or codes.
+  invitations by account id. No access log. The events Sikio logs carry no names, addresses or
+  codes.
 - English and German.
