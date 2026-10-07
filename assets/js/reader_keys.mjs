@@ -19,6 +19,12 @@ export function shownEntry(event) {
   return event.target?.closest?.("[data-show-entry]")?.dataset.showEntry ?? null
 }
 
+// When the queue plays on, the detail follows from the item that ended to the next one. It does so
+// only from the item that ended, and only to one the list on screen holds. Answers an id or null.
+export function followed({selected, from, to, listed}) {
+  return to && listed && selected === from ? to : null
+}
+
 // Beside the list there is room for the detail, so a wide screen always shows something there.
 // On a phone the detail would cover the list, so nothing is chosen for the reader.
 export function wantsFirst({wide, selected, rows}) {
@@ -74,6 +80,13 @@ export const ReaderKeys = {
       this.pushEvent("show", {id})
     }
     document.addEventListener("click", this.onClick, {capture: true})
+    // The dock says when the queue played on; see assets/js/player_dock.mjs.
+    this.onPlayedOn = ({detail: {from, to}}) => {
+      const listed = Boolean(document.getElementById(`entries-${to}`))
+      const id = followed({selected: this.el.dataset.selected, from, to, listed})
+      if (id) this.pushEvent("show", {id})
+    }
+    window.addEventListener("sikio:played-on", this.onPlayedOn)
     this.chooseFirst = () => {
       const {selected, rows} = this.el.dataset
       if (wantsFirst({wide: WIDE.matches, selected, rows: Number(rows)})) this.pushEvent("select_first", {})
@@ -96,6 +109,7 @@ export const ReaderKeys = {
   destroyed() {
     window.removeEventListener("keydown", this.onKey)
     document.removeEventListener("click", this.onClick, {capture: true})
+    window.removeEventListener("sikio:played-on", this.onPlayedOn)
     WIDE.removeEventListener("change", this.fitWidth)
   }
 }

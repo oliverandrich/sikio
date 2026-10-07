@@ -32,7 +32,14 @@ export const PlayerDock = {
     }
     this.close = () => this.change("close", {})
     // What played has ended. Once its place is saved the server may start the next in the queue.
-    this.next = () => this.change("next", {})
+    // The page hears which item followed which, so a detail showing the one that ended can follow.
+    this.next = () => {
+      const from = this.el.dataset.entryId
+      this.change("next", {}, () => {
+        const to = this.el.dataset.entryId
+        if (to && to !== from) window.dispatchEvent(new CustomEvent("sikio:played-on", {detail: {from, to}}))
+      })
+    }
     // The page keeps the keyboard on every page and hands the player's keys to whichever player
     // plays. Without one, p starts the open item as its play button does; the rest are the page's.
     this.onKey = event => {
@@ -63,13 +70,13 @@ export const PlayerDock = {
     window.addEventListener("blur", this.onBlur)
     window.addEventListener("pointerdown", this.onPointer)
   },
-  change(event, params) {
+  change(event, params, done = () => {}) {
     if (this.busy || this.closed) return
     this.busy = true
     const proceed = saved => {
       if (this.closed) return
       if (!saved) {this.busy = false; return}
-      this.pushEvent(event, params, () => {this.busy = false})
+      this.pushEvent(event, params, () => {this.busy = false; done()})
     }
     const media = this.el.querySelector("[phx-hook='MediaPlayer']")
     if (media) media.dispatchEvent(new CustomEvent("sikio:flush", {detail: {done: proceed}}))

@@ -109,6 +109,44 @@ defmodule SikioWeb.PlayerTest do
     |> assert_has(css(~s|#player-control[data-entry-id="#{following.id}"]|))
   end
 
+  # Played on from the detail of the item that ended, the detail follows to the next item when
+  # the list on screen holds it, and the player lies in it again. The list stays where it is.
+  feature "the detail follows the queue to the next item", context do
+    follows_the_queue(context, {1280, 900})
+  end
+
+  # On a phone the detail covers the list, which still holds the next item.
+  feature "on a phone the detail follows the queue to the next item", context do
+    follows_the_queue(context, {500, 900})
+  end
+
+  defp follows_the_queue(%{session: session, account: account, entry: entry}, {width, height}) do
+    following = queued_after(account, entry)
+
+    session
+    |> resize_window(width, height)
+    |> open(SikioWeb.Sidebar.library_path(%{"status" => "queue"}, entry))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
+    |> execute_script(
+      "document.querySelector('#player-panel audio').dispatchEvent(new Event('ended'))"
+    )
+    |> assert_has(css(~s|#player-control[data-entry-id="#{following.id}"]|))
+    |> assert_has(css(~s|#item-detail[data-entry-id="#{following.id}"]|))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"]|))
+    |> then(&assert(current_path(&1) =~ ~r|^/queue/#{following.id}-|))
+  end
+
+  # The queue holds the entry and, after it, an episode of another show.
+  defp queued_after(account, entry) do
+    {:ok, preview} = Parser.parse(podcast("Next up"), feed_url("next"))
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [following] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+    {:ok, _} = Sikio.Playback.enqueue(account, entry.id, :last)
+    {:ok, _} = Sikio.Playback.enqueue(account, following.id, :last)
+    following
+  end
+
   feature "the player survives a dropped and restored socket", context do
     %{session: session, account: account, entry: entry} = context
 

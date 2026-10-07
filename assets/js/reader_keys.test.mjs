@@ -2,7 +2,7 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {closesSearch, readerKey, wantsFirst, reveal, shownEntry} from "./reader_keys.mjs"
+import {closesSearch, readerKey, wantsFirst, reveal, shownEntry, followed} from "./reader_keys.mjs"
 
 const press = (key, extra = {}) => ({key, target: {tagName: "BODY"}, ...extra})
 
@@ -76,4 +76,13 @@ test("a plain click on the mini player's title names the entry to show", () => {
   assert.equal(shownEntry(click({shiftKey: true})), null)
   assert.equal(shownEntry(click({button: 1})), null)
   assert.equal(shownEntry({button: 0, target: {closest: () => null}}), null)
+})
+
+// The detail follows the player only from the item that ended, and only to an item the list holds.
+test("the detail follows the queue to the next item it lists", () => {
+  assert.equal(followed({selected: "1", from: "1", to: "2", listed: true}), "2")
+  assert.equal(followed({selected: "1", from: "1", to: "2", listed: false}), null)
+  assert.equal(followed({selected: "3", from: "1", to: "2", listed: true}), null)
+  assert.equal(followed({selected: undefined, from: "1", to: "2", listed: true}), null)
+  assert.equal(followed({selected: "1", from: "1", to: undefined, listed: false}), null)
 })
