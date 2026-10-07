@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# An example unit for running a Sikio release under systemd; see docs/operations.md. It expects
+# the release in /opt/sikio/current, a user `sikio`, and the environment in /etc/sikio/sikio.env.
+# Copy it to /etc/systemd/system/sikio.service and adjust what differs.
+[Unit]
+Description=Sikio
+Documentation=https://github.com/oliverandrich/sikio/blob/main/docs/operations.md
+Wants=network-online.target
+After=network-online.target
+# With PostgreSQL on the same host, start after it.
+# After=network-online.target postgresql.service
+
+[Service]
+Type=exec
+User=sikio
+Group=sikio
+EnvironmentFile=/etc/sikio/sikio.env
+# bin/server migrates the database before it serves, unless SIKIO_MIGRATE_ON_START=false.
+ExecStart=/opt/sikio/current/bin/server
+Restart=on-failure
+RestartSec=5
+# /var/lib/sikio, owned by the service, for the SQLite file and the picture cache.
+StateDirectory=sikio
+StateDirectoryMode=0750
+UMask=0077
+
+# The release writes nothing into its own directory, so the system can stay read-only.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+# Not MemoryDenyWriteExecute: the BEAM's JIT writes the code it then runs.
+
+[Install]
+WantedBy=multi-user.target

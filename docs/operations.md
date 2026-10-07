@@ -116,6 +116,63 @@ counts the address it actually sees.
 
 `GET /health` checks HTTP liveness, not database readiness.
 
+## Run under systemd
+
+[sikio.service](sikio.service) is an example unit for a release on a Linux host. Sikio installs
+none of this; it is one layout among others.
+
+Each version is unpacked into a directory of its own, and a symlink names the current one:
+
+```text
+/opt/sikio/releases/0.1.0/    an unpacked release
+/opt/sikio/current            -> releases/0.1.0
+/etc/sikio/sikio.env          the environment, readable by root only
+/var/lib/sikio/               the SQLite file and the picture cache, owned by the service
+```
+
+Create a system user without a login, then the environment file:
+
+```sh
+useradd --system --home-dir /var/lib/sikio --shell /usr/sbin/nologin sikio
+install -d -m 0755 /etc/sikio
+install -m 0600 /dev/null /etc/sikio/sikio.env
+```
+
+```sh
+# /etc/sikio/sikio.env
+SECRET_KEY_BASE=...
+PHX_HOST=sikio.example.org
+PHX_BIND_IP=127.0.0.1
+DATABASE_PATH=/var/lib/sikio/sikio.db
+PICTURE_CACHE_DIR=/var/lib/sikio/pictures
+```
+
+systemd reads the file as root before it starts the service, so it stays unreadable for the
+service user. The unit creates `/var/lib/sikio` through `StateDirectory`. It keeps the rest of the
+system read-only, which the release allows: it writes nothing into its own directory as it
+starts. Install and start it:
+
+```sh
+cp sikio.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now sikio
+journalctl -u sikio -f
+```
+
+An update follows the order in [Updates and data protection](#updates-and-data-protection):
+
+```sh
+sqlite3 /var/lib/sikio/sikio.db ".backup /var/backups/sikio-$(date +%F).db"
+mkdir /opt/sikio/releases/0.2.0
+tar -xzf sikio-0.2.0-linux-arm64.tar.gz -C /opt/sikio/releases/0.2.0 --strip-components=1
+ln -sfn releases/0.2.0 /opt/sikio/current
+systemctl restart sikio
+curl -fsS http://127.0.0.1:4000/health
+```
+
+The restart migrates the database. Keep the previous directory until the update is verified;
+returning to it is described under [Migration rollback](#migration-rollback).
+
 ## Run the image
 
 The image is `ghcr.io/oliverandrich/sikio`, for `linux/amd64` and `linux/arm64`. Each version
