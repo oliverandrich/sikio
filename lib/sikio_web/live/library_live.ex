@@ -339,6 +339,17 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
+  # The player played out the item the detail shows, and nothing follows. Where the list no longer
+  # holds it, the detail empties; a mark by hand keeps it, so it can be taken back.
+  def handle_event("played_out", %{"id" => id}, socket) do
+    %{current_account: account, filters: filters, selected: selected} = socket.assigns
+
+    if selected && to_string(selected.id) == id &&
+         not Library.listed?(account, filters, selected.id),
+       do: {:noreply, push_patch(socket, to: address(socket, filters))},
+       else: {:noreply, socket}
+  end
+
   # A wide screen keeps something in the detail; the browser asks when nothing is chosen. The
   # address is replaced, so Back does not return to the empty view.
   def handle_event(

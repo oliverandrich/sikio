@@ -269,6 +269,44 @@ defmodule SikioWeb.LibraryLiveTest do
     {video, subscription}
   end
 
+  # The player played out the item the detail shows, and nothing follows. Where the list no longer
+  # holds it, the detail empties; where the list still does, it stays.
+  describe "an item played out with nothing after it" do
+    setup c do
+      {:ok, _} = Playback.enqueue(c.user, c.audio.id, :last)
+      :ok
+    end
+
+    test "leaves the detail empty where the list no longer holds it", c do
+      {:ok, view, _} =
+        live(c.conn, SikioWeb.Sidebar.library_path(%{"status" => "queue"}, c.audio))
+
+      assert has_element?(view, "#item-detail h2")
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
+
+      render_hook(view, "played_out", %{"id" => to_string(c.audio.id)})
+      assert_patch(view, "/queue")
+    end
+
+    test "keeps the detail where the list still holds it", c do
+      {:ok, view, _} = live(c.conn, SikioWeb.Sidebar.library_path(%{"status" => ""}, c.audio))
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
+
+      render_hook(view, "played_out", %{"id" => to_string(c.audio.id)})
+      assert has_element?(view, "#item-detail[data-entry-id='#{c.audio.id}']")
+    end
+
+    test "keeps the detail when it shows another item", c do
+      {:ok, view, _} =
+        live(c.conn, SikioWeb.Sidebar.library_path(%{"status" => "queue"}, c.audio))
+
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
+
+      render_hook(view, "played_out", %{"id" => "999999"})
+      assert has_element?(view, "#item-detail[data-entry-id='#{c.audio.id}']")
+    end
+  end
+
   # Only a YouTube channel has Shorts, so only its dialog asks about them. A new subscription leaves
   # them out, and asking for them shows the ones the library holds.
   test "a YouTube source's dialog shows its Shorts on request, a podcast's does not ask", c do

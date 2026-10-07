@@ -137,6 +137,28 @@ defmodule SikioWeb.PlayerTest do
     |> then(&assert(current_path(&1) =~ ~r|^/queue/#{following.id}-|))
   end
 
+  # The last item of the queue ends and nothing follows. The queue is empty, so the detail is too,
+  # rather than showing an item the list no longer holds.
+  feature "the detail empties when the queue plays out its last item", context do
+    %{session: session, account: account, entry: entry} = context
+    {:ok, _} = Sikio.Playback.enqueue(account, entry.id, :last)
+
+    session
+    |> resize_window(1280, 900)
+    |> open(SikioWeb.Sidebar.library_path(%{"status" => "queue"}, entry))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
+    # Nothing is served to play, so the audio's own events are sent: it loaded, and it ended. Only
+    # a player that loaded saves its end, which is what takes the item out of the queue.
+    |> execute_script("""
+    const audio = document.querySelector('#player-panel audio')
+    audio.dispatchEvent(new Event('loadedmetadata'))
+    audio.dispatchEvent(new Event('ended'))
+    """)
+    |> gone(css("#item-detail h2"))
+    |> then(&assert(current_path(&1) == "/queue"))
+  end
+
   # The queue holds the entry and, after it, an episode of another show.
   defp queued_after(account, entry) do
     {:ok, preview} = Parser.parse(podcast("Next up"), feed_url("next"))

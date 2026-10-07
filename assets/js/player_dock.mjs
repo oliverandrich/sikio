@@ -36,8 +36,10 @@ export const PlayerDock = {
     this.next = () => {
       const from = this.el.dataset.entryId
       this.change("next", {}, () => {
-        const to = this.el.dataset.entryId
-        if (to && to !== from) window.dispatchEvent(new CustomEvent("sikio:played-on", {detail: {from, to}}))
+        // When nothing follows, the dock keeps what ended; the page hears of that as no next item.
+        const next = this.el.dataset.entryId || null
+        const to = next === from ? null : next
+        window.dispatchEvent(new CustomEvent("sikio:played-on", {detail: {from, to}}))
       })
     }
     // The page keeps the keyboard on every page and hands the player's keys to whichever player

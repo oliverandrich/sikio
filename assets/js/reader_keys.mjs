@@ -82,9 +82,12 @@ export const ReaderKeys = {
     document.addEventListener("click", this.onClick, {capture: true})
     // The dock says when the queue played on; see assets/js/player_dock.mjs.
     this.onPlayedOn = ({detail: {from, to}}) => {
-      const listed = Boolean(document.getElementById(`entries-${to}`))
-      const id = followed({selected: this.el.dataset.selected, from, to, listed})
+      const selected = this.el.dataset.selected
+      const listed = Boolean(to && document.getElementById(`entries-${to}`))
+      const id = followed({selected, from, to, listed})
       if (id) this.pushEvent("show", {id})
+      // Whether the list still holds what ended is the server's to say: its reload may come later.
+      else if (!to && selected === from) this.pushEvent("played_out", {id: from})
     }
     window.addEventListener("sikio:played-on", this.onPlayedOn)
     this.chooseFirst = () => {
