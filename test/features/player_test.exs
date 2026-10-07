@@ -205,6 +205,31 @@ defmodule SikioWeb.PlayerTest do
     gone(session, css("#player-panel"))
   end
 
+  # From lg a pinned video is as wide as its detail and at most as tall as the window. The panel
+  # around it never scrolls; a window too short for the picture fits it inside the frame.
+  feature "from lg a video grows to the window's height and the panel never scrolls", context do
+    %{session: session, account: account} = context
+    video = video_with_notes(account)
+
+    session
+    |> resize_window(1920, 500)
+    |> open(item_path(video))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
+    |> execute_script(
+      """
+      const panel = document.getElementById('player-panel')
+      const frame = panel.querySelector('iframe').getBoundingClientRect()
+      return [panel.scrollHeight - panel.clientHeight, frame.height,
+              Math.min(frame.width * 9 / 16, innerHeight)]
+      """,
+      fn [overflow, height, expected] ->
+        assert overflow == 0, "the panel scrolls by #{overflow}px"
+        assert_in_delta height, expected, 1
+      end
+    )
+  end
+
   describe "from lg, the player's place" do
     setup %{account: account} do
       {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())

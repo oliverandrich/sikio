@@ -23,6 +23,9 @@ defmodule SikioWeb.FeatureCase do
   alias Ithibati.Identity.Sessions
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
+  alias Sikio.FeedFixtures
+  alias Sikio.Feeds.Parser
+  alias Sikio.Library
   alias Sikio.Repo
   alias SikioWeb.BrowserPool
   alias SikioWeb.Endpoint
@@ -93,6 +96,23 @@ defmodule SikioWeb.FeatureCase do
     key = {make_ref(), session.id, self()}
     :ets.insert(:session_store, {key, session})
     on_exit(fn -> :ets.delete(:session_store, key) end)
+  end
+
+  @doc "A PeerTube video whose frame is a page of Sikio's own, without a picture, with notes to scroll."
+  def video_with_notes(account) do
+    {:ok, preview} = Parser.parse(FeedFixtures.peertube(), FeedFixtures.peertube_feed_url())
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
+
+    Repo.update!(
+      Ecto.Changeset.change(video,
+        embed_url: "/robots.txt",
+        image_url: nil,
+        description: notes,
+        description_format: :html
+      )
+    )
   end
 
   @doc "An item's address in the list of all items, as the library itself spells it."

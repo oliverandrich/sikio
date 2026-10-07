@@ -353,23 +353,6 @@ defmodule SikioWeb.MobileTest do
     )
   end
 
-  # A PeerTube video whose frame is a page of Sikio's own, without a picture, with notes to scroll.
-  defp video_with_notes(account) do
-    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
-    {:ok, subscription} = Library.subscribe(account, preview)
-    [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
-    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
-
-    Sikio.Repo.update!(
-      Ecto.Changeset.change(video,
-        embed_url: "/robots.txt",
-        image_url: nil,
-        description: notes,
-        description_format: :html
-      )
-    )
-  end
-
   # The panel's left edge, how much narrower than the screen it is, and whether its top is the
   # slot's.
   defp edges do

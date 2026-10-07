@@ -183,8 +183,11 @@
    left; assets/js/dock_place.mjs decides and sets data-place. In the bar audio keeps its play
    button and seek bar, and a video stays visible with its own controls. */
 #player-panel[data-place="pinned"] {
-  box-shadow: none; max-height: 60vh; border: 0; border-radius: 0; background: transparent; padding: 0;
+  box-shadow: none; max-height: none; border: 0; border-radius: 0; background: transparent; padding: 0;
 }
+/* Pinned, the panel never scrolls. A video is as wide as its slot and no taller than the window;
+   its player fits the picture inside. */
+#player-panel[data-place="pinned"] iframe { min-height: 0; max-height: 100dvh; }
 /* Pinned, the panel lies on the detail's player slot and the browser keeps it there as the column
    scrolls. It hides while the slot is out of view. Its width is the slot's, written by
    assets/js/dock_place.mjs. */
@@ -407,9 +410,8 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
   }
   /* Pinned, the panel is part of the page: it passes under the bars, and held sideways a video is
      no taller than the room between them. Its player fits the picture inside. */
-  #player-panel[data-place="pinned"] { z-index: 20; max-height: none; }
+  #player-panel[data-place="pinned"] { z-index: 20; }
   #player-panel[data-place="pinned"] iframe {
-    min-height: 0;
     max-height: calc(100dvh - var(--top-bar) - var(--safe-top) - var(--nav-bar) - var(--safe-bottom));
   }
   #player-panel[data-place="pinned"][data-stuck] { top: calc(var(--top-bar) + var(--safe-top)); }
