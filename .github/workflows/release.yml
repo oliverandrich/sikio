@@ -19,7 +19,7 @@ jobs:
   checks:
     uses: $/.github/workflows/ci.yml
     with:
-      smoke: false
+      skip_smoke: true
 
   build:
     name: ${{ matrix.arch }}

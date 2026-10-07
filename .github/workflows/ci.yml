@@ -8,9 +8,9 @@ on:
   workflow_call:
     inputs:
       # The release builds and smoke-tests its own, on the systems it ships for.
-      smoke:
+      skip_smoke:
         type: boolean
-        default: true
+        default: false
 permissions:
   contents: read
 # A task installs only what the job asked mise-action for.
@@ -98,8 +98,8 @@ jobs:
 
   # The release reads config/runtime.exs at boot, which no test above runs end to end.
   smoke:
-    # Not an input on push or pull_request, where it reads as empty.
-    if: inputs.smoke != false
+    # On push and pull_request there are no inputs, and an empty one is not true.
+    if: ${{ !inputs.skip_smoke }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
