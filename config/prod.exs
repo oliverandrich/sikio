@@ -21,8 +21,10 @@ config :sikio, SikioWeb.Endpoint,
     ]
   ]
 
-# Do not print debug messages in production
-config :logger, level: :info
+# No access log: Phoenix's lines for requests and sockets name what a member opened, and its
+# socket lines carry the player's session. A proxy logs access if wanted. Crashes are still
+# logged. The level and the JSON format are set in config/runtime.exs; see Sikio.Logging.
+config :phoenix, :logger, false
 
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.

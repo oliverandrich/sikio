@@ -52,8 +52,10 @@ config :sikio, SikioWeb.Endpoint,
   secret_key_base: "bzKS9Jh1ns5yilHq+s+kM1Jn6i985JEDr8HyOJ/bKi0s7+31fZEsBP9rYY/PfYRe",
   server: true
 
-# Print only warnings and errors during test
-config :logger, level: :warning
+# Info reaches the handlers, so a test can read what production logs; the console prints only
+# warnings and errors.
+config :logger, level: :info
+config :logger, :default_handler, level: :warning
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime

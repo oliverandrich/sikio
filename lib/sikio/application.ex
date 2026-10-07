@@ -13,6 +13,7 @@ defmodule Sikio.Application do
     # request, because the first stranger to arrive would be the one who claims it.
     Sikio.Claim.verify!()
     Sikio.Identity.verify!(Sikio.Mailer.configured?())
+    Sikio.Logging.attach_job_failures()
 
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options

@@ -10,6 +10,8 @@ defmodule SikioWeb.InvitationsLive do
   """
   use SikioWeb, :live_view
 
+  require Logger
+
   alias Sikio.AuthRateLimiter
   alias Sikio.Identity
   alias Sikio.Invitations
@@ -96,6 +98,8 @@ defmodule SikioWeb.InvitationsLive do
       # The token is the only copy there will ever be: the row holds its sha256, and the virtual
       # field is empty on anything read back later. So it goes on the screen now or not at all.
       {:ok, invitation} ->
+        # Who made it, never whom it is for.
+        Logger.info("invitation made", account_id: socket.assigns.current_account.id)
         link = url(~p"/invite/#{invitation.token}")
 
         {:noreply,

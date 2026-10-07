@@ -175,6 +175,13 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
+  # One JSON object per line on stdout, at LOG_LEVEL, info unless it says otherwise.
+  config :logger, level: Sikio.Logging.level(System.get_env("LOG_LEVEL"))
+
+  config :logger, :default_handler,
+    formatter: Sikio.Logging.formatter(),
+    filters: [sikio_drop_request: {&Sikio.Logging.drop_request/2, nil}]
+
   # A release brings its schema up to date as it starts. An operator who migrates by hand, with
   # bin/migrate, turns that off. Development data is never migrated by starting a server.
   migrate_on_start =

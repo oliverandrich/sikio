@@ -14,6 +14,8 @@ defmodule SikioWeb.Auth do
   import Phoenix.Controller, only: [json: 2]
   import Plug.Conn, only: [get_session: 2, put_session: 3]
 
+  require Logger
+
   alias Ecto.Multi
   alias Ithibati.Identity.Grant
   alias Ithibati.Identity.Instance
@@ -115,7 +117,14 @@ defmodule SikioWeb.Auth do
     |> acceptance(username, params["token"], key_attrs)
     |> Repo.transaction()
     |> case do
-      {:ok, %{account: account, recovery_codes: codes}} ->
+      {:ok, %{account: account, recovery_codes: codes} = changes} ->
+        event =
+          if Map.has_key?(changes, :bootstrap),
+            do: "instance claimed",
+            else: "invitation accepted"
+
+        Logger.info(event, account_id: account.id)
+
         {:ok,
          conn
          |> Gate.log_in(account)
@@ -178,7 +187,12 @@ defmodule SikioWeb.Auth do
   def authenticate(conn, account) do
     if Reauth.pending?(conn),
       do: Reauth.complete(conn, account),
-      else: {:ok, conn |> Gate.log_in(account) |> json(%{redirect: "/"})}
+      else: {:ok, conn |> signed_in(account) |> json(%{redirect: "/"})}
+  end
+
+  defp signed_in(conn, account) do
+    Logger.info("signed in", account_id: account.id)
+    Gate.log_in(conn, account)
   end
 
   @impl true
@@ -193,7 +207,7 @@ defmodule SikioWeb.Auth do
       true ->
         {:ok,
          conn
-         |> Gate.log_in(account)
+         |> signed_in(account)
          |> put_session(:recovery_codes, fresh)
          |> json(%{redirect: "/recovery-codes"})}
     end

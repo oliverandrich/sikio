@@ -5,9 +5,10 @@
 # The browser features test the interface, which behaves alike on both databases, so they run on
 # SQLite alone. What differs between the two, the queries, locks and migrations, is tested on
 # both. `mix test --include feature` runs them on PostgreSQL as well.
+# Logs are kept and shown only for a test that fails.
 if Application.fetch_env!(:sikio, :database) == :sqlite,
-  do: ExUnit.start(max_cases: 1),
-  else: ExUnit.start(exclude: [:feature])
+  do: ExUnit.start(max_cases: 1, capture_log: true),
+  else: ExUnit.start(exclude: [:feature], capture_log: true)
 
 Ecto.Adapters.SQL.Sandbox.mode(Sikio.Repo, :manual)
 

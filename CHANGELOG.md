@@ -30,4 +30,6 @@ group of people on one instance.
 - A Mix release that serves SQLite or PostgreSQL, chosen with `SIKIO_DATABASE`, and migrates
   its database as it starts. The same as an image, `ghcr.io/oliverandrich/sikio`, for amd64 and
   arm64, with its data in `/data`.
+- Logs as JSON lines on stdout at `LOG_LEVEL`: failing feeds and jobs, and sign-ins and
+  invitations by account id. No access log, and no names, addresses or codes.
 - English and German.

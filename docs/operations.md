@@ -50,6 +50,7 @@ Export these variables in the environment used for both migration and startup:
 | `DNS_CLUSTER_QUERY` | DNS name that lists other nodes to cluster with; unset for a single node |
 | `PICTURE_CACHE_DIR` | Absolute path for pictures fetched from publishers; outside the release, writable by the service |
 | `SIKIO_MIGRATE_ON_START` | `false` to migrate by hand with `bin/migrate`; the release migrates on start by default |
+| `LOG_LEVEL` | `info` (the default), `notice`, `warning`, `error`, `critical`, `alert` or `emergency`, in any case; anything else stops the boot |
 | `FEED_POLL_MINUTES` | How often a source is asked at most, in whole minutes; 60 by default, at least 5 |
 | `SOURCE_URL` | Where this deployment offers its source; only needed for a modified Sikio |
 | `TRUSTED_PROXIES` | Addresses that may forward a visitor's own; only needed for a proxy on another host |
@@ -115,6 +116,28 @@ believed on a connection from anywhere else, so an instance exposed directly sti
 counts the address it actually sees.
 
 `GET /health` checks HTTP liveness, not database readiness.
+
+## Logs
+
+A release writes one JSON object per line to stdout, where systemd's journal or Docker collects
+it. Each line has `time`, `severity`, `message` and `metadata`. The metadata holds only these
+keys: `feed_id`, `feed_title`, `host`, `account_id`, `reason`, `worker`, `job_id`, `attempt` and
+`request_id`.
+
+| Severity | Events |
+| --- | --- |
+| `error` | Crashes, with their stack trace |
+| `warning` | `feed refresh failed`, with the feed's id, title and host and why; `job failed`, with a reason cut to 200 characters |
+| `info` | `instance claimed`, `invitation made`, `invitation accepted`, `signed in`, by account id; migrations as they run |
+
+Sikio keeps no access log: no line names a visitor's address, a username, an item or a code. A
+feed's address is left out too, since a private feed may carry a token in it. A proxy in front
+logs access if wanted; Caddy does with a `log` directive in its site block. `LOG_LEVEL=warning`
+leaves only what needs attention. `debug` is not offered: it would log sessions and query
+parameters.
+
+A crash is logged as an `error` with its stack trace. When a LiveView process crashes, the report
+includes the message it was handling, which may hold what a member typed.
 
 ## Run under systemd
 

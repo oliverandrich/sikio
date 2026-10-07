@@ -90,6 +90,8 @@ defmodule Sikio.MixProject do
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
       {:ecto_sqlite3, "~> 0.24"},
+      # One JSON object per line in production; see Sikio.Logging.
+      {:logger_json, "~> 7.0"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.2.0"},

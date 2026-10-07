@@ -92,10 +92,21 @@ config :tailwind,
     env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
   ]
 
-# Configure Elixir's Logger
+# Plain lines for development and tests. Production writes JSON; see Sikio.Logging, whose list of
+# metadata this repeats, since configuration is read before the application compiles.
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [
+    :request_id,
+    :feed_id,
+    :feed_title,
+    :host,
+    :account_id,
+    :reason,
+    :worker,
+    :job_id,
+    :attempt
+  ]
 
 # Swoosh talks to an SMTP server directly, so it needs no HTTP client of its own.
 config :swoosh, :api_client, false

@@ -10,6 +10,8 @@ defmodule Sikio.Feeds do
   """
   import Ecto.Query
 
+  require Logger
+
   alias Sikio.Chapters
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Entry
@@ -167,6 +169,14 @@ defmodule Sikio.Feeds do
       # or later when the server said so.
       {{:error, reason}, wait} ->
         now = DateTime.utc_now()
+        # The operator has to know which source fails: its title and host say so. A private feed
+        # may carry a token in its address, so the address itself stays out.
+        Logger.warning("feed refresh failed",
+          feed_id: feed.id,
+          feed_title: feed.title,
+          host: URI.parse(feed.url).host,
+          reason: reason
+        )
 
         Repo.update_all(from(f in Feed, where: f.id == ^feed.id),
           set: [
