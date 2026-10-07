@@ -116,17 +116,24 @@ defmodule Sikio.Tags do
         {:error, :blank}
 
       {tag, [name]} ->
-        if taken?(user_id, String.downcase(name), tag.id),
-          do: {:error, :taken},
-          else: named_anew(account, tag, name)
+        named_anew(account, tag, name)
     end
   end
 
+  # The index decides whether another tag holds the name, so two renames at once cannot both pass.
   defp named_anew(account, tag, name) do
     tag
     |> Ecto.Changeset.change(name: name, key: String.downcase(name))
+    |> Ecto.Changeset.unique_constraint([:user_id, :key])
     |> Repo.update()
-    |> tap(fn _ -> Events.broadcast(account, {:tags_changed, nil}) end)
+    |> case do
+      {:ok, tag} ->
+        Events.broadcast(account, {:tags_changed, nil})
+        {:ok, tag}
+
+      {:error, _changeset} ->
+        {:error, :taken}
+    end
   end
 
   @doc "Deletes the account's tag `id`. Its subscriptions stay; only the tag leaves them."
@@ -141,10 +148,6 @@ defmodule Sikio.Tags do
         |> tap(fn _ -> Events.broadcast(account, {:tags_changed, nil}) end)
     end
   end
-
-  defp taken?(user_id, key, id),
-    do:
-      Repo.exists?(from t in Tag, where: t.user_id == ^user_id and t.key == ^key and t.id != ^id)
 
   # Names as typed: trimmed, short enough, none empty, each once in whatever letters.
   defp cleaned(names) do
