@@ -9,7 +9,7 @@ defmodule Sikio.Tags.Tag do
   schema "tags" do
     belongs_to :user, User
     field :name, :string
-    # The name in lowercase, which makes a tag unique within its account.
+    # The lowercase name. A unique index on user and key keeps names unique per account.
     field :key, :string
     timestamps(type: :utc_datetime_usec)
   end

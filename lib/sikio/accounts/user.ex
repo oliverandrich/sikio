@@ -2,17 +2,18 @@
 
 defmodule Sikio.Accounts.User do
   @moduledoc """
-  The account table is ours. Ithibati contributes the identifier field, three associations and the
-  changeset pieces that validate them — everything else here is this application's.
+  The account schema, owned by this application. Ithibati contributes the identifier field,
+  three associations and the changeset steps that validate the identifier. The rest is this
+  application's.
   """
   use Ecto.Schema
 
   alias Ithibati.Schema.User
 
-  # The format is named, not written. An instance names its accounts or addresses them, and that
-  # is the only thing the two modes differ by, so it is asked of `Sikio.Identity` per changeset
-  # rather than fixed here when this compiles. A pair and not a capture: the option is escaped
-  # into the generated changeset, and only a pair survives that unchanged.
+  # The format is a `{module, function}` reference, not a regex. It is the only difference
+  # between modes, so `Sikio.Identity` returns it per changeset instead of at compile time.
+  # A pair, not a capture: the option is escaped into the generated changeset.
+  # Only a pair survives that escape unchanged.
   use User,
     identifier: :username,
     format: {Sikio.Identity, :format},

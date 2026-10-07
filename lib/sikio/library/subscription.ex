@@ -13,18 +13,18 @@ defmodule Sikio.Library.Subscription do
     belongs_to :user, User
     belongs_to :feed, Feed
     field :paused, :boolean, default: false
-    # A name of the account's own for the source; nil, the feed's title stands.
+    # The account's custom name for the source. nil shows the feed title.
     field :name, :string
-    # Where what the source publishes next goes: the inbox, the end of the queue, or the archive.
+    # Where new entries go: the inbox, the end of the queue, or the archive.
     field :delivery, Ecto.Enum, values: [:inbox, :queue, :skip], default: :inbox
-    # Whether a YouTube channel's Shorts show. A new subscription leaves them out.
+    # Whether a YouTube channel's Shorts show. New subscriptions hide them.
     field :shorts, :boolean, default: false
     timestamps(type: :utc_datetime_usec)
   end
 
   @doc """
-  The settings an account changes itself: a name of its own, where new entries go, and whether
-  a YouTube channel's Shorts show.
+  Casts the account-editable settings: custom name, delivery of new entries, and Shorts.
+  A blank name is stored as nil. Names are limited to 200 characters.
   """
   def settings_changeset(subscription, attrs) do
     subscription

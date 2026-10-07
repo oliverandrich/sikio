@@ -2,19 +2,19 @@
 
 defmodule Sikio.Feeds.Parser do
   @moduledoc """
-  Reads podcast RSS and YouTube Atom without external entity expansion.
+  Parses podcast RSS, PeerTube RSS and YouTube Atom without external entity expansion.
 
-  The document arrives from a stranger, so a declared entity is refused outright rather than
-  resolved. Only two shapes are accepted: a podcast feed with audio enclosures, and a YouTube
-  channel feed served by YouTube. A general blog feed is not something this application can play.
+  Feed documents are untrusted, so any DTD or entity declaration is rejected, not resolved.
+  YouTube Atom must come from a YouTube host.
+  Generic blog feeds are rejected, because the player cannot play them.
   """
   alias Sikio.Feeds.HTTP
 
   @doc """
-  Whether a document declares no DTD or entity.
+  Returns whether a document has no DTD or entity declaration.
 
-  Asked before any XML from a stranger is parsed, here and by the OPML reader, so that tightening
-  the rule tightens it everywhere.
+  The feed parser and the OPML reader both call it before parsing untrusted XML.
+  A single check keeps the rule identical in both places.
   """
   def entity_free?(body) when is_binary(body),
     do: not Regex.match?(~r/<!\s*(DOCTYPE|ENTITY)/i, body)
@@ -30,9 +30,8 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # Two different things arrive as RSS. PeerTube declares the podcast namespace as well, so the
-  # namespace cannot tell them apart; what an item offers to play can, and an instance that has
-  # published nothing still says what generated its feed.
+  # PeerTube RSS also declares the podcast namespace, so the namespace cannot tell them apart.
+  # The item enclosures can. An instance without items still identifies itself in `<generator>`.
   defp feed({"rss", attrs, _} = root, url) do
     channel = child(root, "channel")
     items = children(channel, "item")
@@ -43,8 +42,8 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # The channel id has to come with a YouTube host, because the id is what the application will
-  # poll later and an arbitrary server may name any channel it likes.
+  # The channel id must come from a YouTube host. The application polls that id later, and any
+  # other server could name any channel.
   defp feed({"feed", _, _} = root, url) do
     channel_id = channel_id(value(root, "yt:channelId"))
 
@@ -63,7 +62,7 @@ defmodule Sikio.Feeds.Parser do
          kind: :youtube,
          icon_url: nil,
          ttl: nil,
-         # Built from the id checked above rather than read from a stranger's link.
+         # Built from the validated id, not from a link in the document.
          page_url: "https://www.youtube.com/channel/" <> channel_id,
          entries: Enum.take(entries, 500)
        }}
@@ -74,7 +73,7 @@ defmodule Sikio.Feeds.Parser do
 
   defp feed(_root, _url), do: {:error, :invalid_feed}
 
-  # YouTube names a feed's channel without the UC that its entries and its page address carry.
+  # The feed's `yt:channelId` may omit the `UC` prefix that entries and channel URLs carry.
   defp channel_id(id) when byte_size(id) == 22, do: "UC" <> id
   defp channel_id(id), do: id
 
@@ -93,7 +92,7 @@ defmodule Sikio.Feeds.Parser do
     }
   end
 
-  # How many minutes the channel says it may be cached. Anything but a whole number says nothing.
+  # The channel's `<ttl>` in minutes. Anything but a positive integer is ignored.
   defp ttl(channel) do
     case Integer.parse(value(channel, "ttl")) do
       {minutes, ""} when minutes > 0 -> minutes
@@ -101,12 +100,12 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # What generated the document decides, because it is the one statement about the whole of it.
-  # Only when it says nothing does the shape of the items answer, and audio wins there: a show
-  # that publishes one video is still a show, and reading its episodes as videos drops them all.
+  # `<generator>` decides first, because it describes the whole document. Otherwise the item
+  # enclosures decide, and audio wins. A podcast with one video episode stays a podcast. Parsed
+  # as PeerTube, its audio episodes would be dropped.
   #
-  # An empty podcast is a real thing, a show that has not published yet, but an empty document
-  # with a channel element is also what a blog feed looks like after its entries are rejected.
+  # A podcast without items is valid, for a show that has not published yet. A blog feed whose
+  # items were all rejected looks the same, so only the iTunes or podcast namespace accepts it.
   defp rss_kind(channel, items, attrs) do
     cond do
       String.starts_with?(value(channel, "generator"), "PeerTube") -> :peertube
@@ -117,7 +116,7 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # An embed to play and a video to download. A podcast has neither.
+  # A PeerTube item has a `media:embed` and a video enclosure. A podcast item has neither.
   defp peertube_item?(item) do
     attr(child(item, "media:embed"), "url") != "" and
       String.starts_with?(enclosure_type(item), "video/")
@@ -160,9 +159,8 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # The instance holds the video and its own player shows it, so nothing here names a file. The
-  # embed is what the page will load, and the feed states it rather than it being built from
-  # parts that a future release may spell differently.
+  # The instance hosts and plays the video, so no media URL is stored. The embed URL comes from
+  # the feed. Building it from parts could break when a PeerTube release changes the URL format.
   defp peertube_entry(item, feed_url) do
     embed = HTTP.resolve(attr(child(item, "media:embed"), "url"), feed_url)
     group = child(item, "media:group")
@@ -191,7 +189,7 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # Every rendition states the same runtime, so the first one that states anything answers.
+  # All renditions carry the same duration, so the first non-empty one is used.
   defp playable_duration(group) do
     group
     |> children("media:content")
@@ -224,13 +222,12 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # An item's own page, or a channel's, where the publisher shows it. RSS names it as text, and it
-  # is not cut the way a title is: a shortened address leads somewhere else. It is a stranger's
-  # address bound for a link, so it passes the check artwork passes.
+  # The item's or channel's page from `<link>`. It is not truncated like a title, because a
+  # truncated URL points elsewhere. It is untrusted, so it passes the same check as artwork.
   defp rss_page(item, feed_url),
     do: item |> child("link") |> text() |> String.trim() |> HTTP.resolve(feed_url)
 
-  # Atom names several links. The alternate one is the video's page.
+  # Atom lists several links. The `alternate` link is the video page.
   defp youtube_page(item, feed_url) do
     item
     |> children("link")
@@ -238,12 +235,12 @@ defmodule Sikio.Feeds.Parser do
     |> HTTP.resolve(feed_url)
   end
 
-  # Neither a runtime nor a chapter's start reaches beyond a week; see duration/1.
+  # Upper bound for runtimes and chapter starts: one week. See duration/1.
   @longest_runtime 7 * 24 * 60 * 60
 
-  # Podlove Simple Chapters: a start in normal play time and a title, in the item itself. Kept as
-  # the database keeps them, string keys, so a chapter reads the same before storing and after.
-  # Fewer than two usable chapters are no list, and leave room for a linked file instead.
+  # Podlove Simple Chapters: a start in Normal Play Time and a title, inside the item. They use
+  # string keys, as the database returns them, so stored and fresh chapters have one shape.
+  # Fewer than two valid chapters return nil, so a linked chapters file can be used instead.
   defp listed_chapters(item) do
     chapters =
       item
@@ -262,9 +259,8 @@ defmodule Sikio.Feeds.Parser do
     if length(chapters) >= 2, do: chapters
   end
 
-  # Normal play time: seconds, or minutes and seconds, or hours too, perhaps with a fraction. The
-  # number is a stranger's, so each part is bounded before it is multiplied, and a start beyond
-  # a week is none, as a runtime is.
+  # Normal Play Time: SS, MM:SS or HH:MM:SS, with an optional fraction. Each untrusted part is
+  # bounded before multiplication. A start beyond one week returns nil, as a runtime does.
   defp play_time(value) do
     parts = String.split(value, ":")
 
@@ -283,15 +279,15 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # Podcasting 2.0 links a JSON file of chapters, fetched once somebody opens the item. The
-  # namespace says `url`; Podigee writes `href`.
+  # Podcasting 2.0 links a JSON chapters file, fetched on demand by `Sikio.Feeds.chapters/1`.
+  # The specification uses `url`. Podigee writes `href`.
   defp chapters_url(item, feed_url) do
     link = child(item, "podcast:chapters")
     HTTP.resolve(nonempty(attr(link, "url"), attr(link, "href")), feed_url)
   end
 
-  # Artwork is named three different ways depending on who is publishing. The URL still comes from
-  # a stranger, so it goes through the same check as a media URL rather than straight into a page.
+  # Publishers put artwork in one of three elements. The URL is untrusted, so it passes the same
+  # check as a media URL.
   defp image_url(node, feed_url) do
     [
       attr(child(node, "itunes:image"), "href"),
@@ -305,9 +301,8 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # `itunes:duration` is seconds, or minutes and seconds, or hours and minutes and seconds.
-  # The number is a stranger's and the column holds four bytes, so anything outside a week is
-  # treated as the nonsense it is rather than raised out of the importer.
+  # `itunes:duration` is SS, MM:SS or HH:MM:SS. The value is untrusted and the column is a
+  # 4-byte integer. Values outside one second to one week return nil instead of raising.
 
   defp duration(value) do
     parts = String.split(value, ":")
@@ -321,11 +316,9 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # The first element that carries anything wins, so a show that sends both rich and plain notes
-  # keeps the rich one. Each name comes with the shape that element holds by specification, and
-  # the answer carries it: nothing here guesses whether a blob is markup by looking at it.
-  # Not truncated the way a title is, but still bounded: this is a stranger's document and the
-  # column it lands in is not a bucket.
+  # The first non-empty element wins, so HTML notes take precedence over plain text.
+  # Each element name carries the format its specification defines. The format is never guessed.
+  # Notes are not truncated like a title, but capped at 20,000 characters as untrusted input.
   defp notes(node, names) do
     Enum.find_value(names, {nil, nil}, fn {name, format} ->
       case node |> child(to_string(name)) |> text() |> String.trim() do
@@ -335,10 +328,10 @@ defmodule Sikio.Feeds.Parser do
     end)
   end
 
-  # What the list under a title shows. Tags come out, so the excerpt is text and nothing else.
-  # Separating the text nodes keeps two paragraphs from running into one word. Punctuation that
-  # followed a link would inherit that separator, so it is pulled back against the word. Plain
-  # text is already the answer and needs no parser.
+  # The excerpt shown under a title in lists. Tags are stripped, so the excerpt is plain text.
+  # Text nodes are joined with a space, so adjacent paragraphs do not merge into one word.
+  # That separator also lands before punctuation after a link, so such spaces are removed.
+  # Plain text skips the HTML parser.
   defp excerpt(nil, _format), do: nil
   defp excerpt(notes, :text), do: notes |> collapse() |> String.slice(0, 300) |> presence()
 
@@ -375,9 +368,8 @@ defmodule Sikio.Feeds.Parser do
   defp attr({_, attrs, _}, name), do: attrs |> List.keyfind(name, 0, {name, ""}) |> elem(1)
   defp attr(_, _), do: ""
 
-  # The identifier is what makes an episode the same episode on the next poll, so it is not
-  # truncated the way a title is. A GUID too long for the index is hashed rather than cut, because
-  # two long identifiers usually differ at the end.
+  # The identifier matches an episode across polls, so it is not truncated like a title.
+  # A GUID over 2,000 bytes is hashed with SHA-256. Long identifiers often differ at the end.
   defp identifier(item, fallback) do
     guid = item |> child("guid") |> text() |> String.trim() |> nonempty(fallback)
 

@@ -2,18 +2,15 @@
 
 defmodule Sikio.Invitations do
   @moduledoc """
-  What is outstanding, who made it, and taking one back.
+  Creates, lists, fetches and withdraws invitations.
 
-  Nobody can be removed from this instance once they are in. The only moment anybody can
-  influence who joins is before a link is redeemed, which is exactly the moment that used to be
-  invisible: the table was written and never read. Every member may invite and every member may
-  withdraw, because dividing members into classes is the answer this application does not want.
+  The application cannot remove an account. Withdrawing an invitation before it is redeemed is
+  the only control over who joins. Every member may invite and withdraw; there is no admin role.
 
-  The table is this application's and the invariants are Ithibati's, so the queries come from
-  there. `pending_query/0` hands over the predicate `fetch/1` uses, and `withdraw/1` rechecks the
-  acceptance inside its delete, so a withdrawal cannot remove an invitation that is being
-  redeemed at that moment. Writing either here would be a second opinion about when an invitation
-  is still good, and the two would drift.
+  The table belongs to this application; the invariants and queries belong to Ithibati.
+  `pending_query/0` returns the predicate `fetch/1` uses. `withdraw/1` rechecks acceptance
+  inside its delete, so it cannot remove an invitation accepted concurrently. Local copies of
+  these queries could drift from Ithibati's.
   """
   import Ecto.Query
 
@@ -24,14 +21,13 @@ defmodule Sikio.Invitations do
   alias Sikio.Repo
 
   @doc """
-  Writes an invitation and records who made it.
+  Inserts an invitation with `inviter` as `invited_by_id`.
 
-  The inviter is put on the changeset rather than cast from the attributes. Who is inviting is
-  known to the caller and to nobody else, least of all to the form, and this page hands its
-  parameters straight through.
+  The inviter is set with `put_change/3`, not cast from `attrs`. The invitations page passes form
+  parameters through unchanged, so casting would let the form choose the inviter.
 
-  The plaintext token is on the returned struct and nowhere else: the row holds its digest, and
-  anything read back later has an empty one.
+  Only the returned struct carries the plaintext token. The row stores its digest. A struct
+  loaded later has no token.
   """
   def open(%User{} = inviter, attrs) do
     %Invitation{}
@@ -41,13 +37,11 @@ defmodule Sikio.Invitations do
   end
 
   @doc """
-  Every invitation that is neither accepted nor run out, soonest to expire first.
+  Returns invitations that are neither accepted nor expired, soonest expiry first.
 
-  Ordered by expiry rather than by when it was made: the list is read to decide about what is
-  about to happen, and the one closest to being used is the one worth seeing first.
+  The list serves decisions about pending invitations, so the one closest to expiry comes first.
 
-  The inviter comes with it, and is `nil` for a row written before the column existed. That is a
-  real answer, not a missing one.
+  `invited_by` is preloaded. It is `nil` for a row written before the column existed.
   """
   def pending do
     Invitations.pending_query()
@@ -57,12 +51,11 @@ defmodule Sikio.Invitations do
   end
 
   @doc """
-  One invitation by id, or `nil` for an id that names none.
+  Returns the invitation with `id`, or `nil` when none matches or `id` does not cast.
 
-  The id arrives from a form and nothing upstream says it is a number, so it is cast here rather
-  than handed to `Repo.get/2`, which raises `Ecto.Query.CastError` on anything its primary key
-  cannot hold. Asked of the schema rather than assumed: the key type is a setting, and a guess
-  written here would be wrong the moment it changes.
+  `id` comes from a form unvalidated. `Repo.get/2` raises `Ecto.Query.CastError` on a value the
+  primary key type rejects, so `id` is cast first. The type is read from the schema, because the
+  primary key type is configurable.
   """
   def get(id) do
     type = Invitation.__schema__(:type, :id)
@@ -74,10 +67,10 @@ defmodule Sikio.Invitations do
   end
 
   @doc """
-  Takes back an invitation that has not been accepted, and its link stops working at once.
+  Deletes an invitation that has not been accepted. Its link stops working immediately.
 
-  Answers `{:error, :already_accepted}` for one that was redeemed in the meantime. Nothing here
-  changes an acceptance or an expiry.
+  Returns `{:ok, invitation}`, or `{:error, :already_accepted}` when it was accepted or deleted
+  in the meantime. Acceptance and expiry are not modified.
   """
   defdelegate withdraw(invitation), to: Invitations
 end

@@ -2,14 +2,15 @@
 
 defmodule Sikio.Feeds.SearchText do
   @moduledoc """
-  What the library's search reads: an entry's title, excerpt and notes as plain lowercase text.
+  Builds the text library search matches: an entry's title, excerpt and notes, lowercased.
 
-  It is written on import because neither database can do all of it alike. Markup comes out, so
-  a tag is never a match, and the space it leaves is one space, so a phrase across it still is.
-  Case is folded here, in Unicode, because SQLite folds only ASCII.
+  It is computed on import, because SQLite and PostgreSQL cannot compute it identically.
+  HTML tags are stripped, so tag names never match. Whitespace collapses to one space, so a
+  phrase still matches across a removed tag. Case folding uses Unicode here, because SQLite
+  folds only ASCII.
   """
 
-  @doc "The searchable text of an entry's fields, or nil when it has none."
+  @doc "Returns the searchable text of an entry's fields, or nil when it is empty."
   def of(entry) do
     [entry[:title], entry[:excerpt], plain(entry[:description], entry[:description_format])]
     |> Enum.reject(&(&1 in [nil, ""]))

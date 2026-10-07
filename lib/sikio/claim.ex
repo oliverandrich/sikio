@@ -2,21 +2,19 @@
 
 defmodule Sikio.Claim do
   @moduledoc """
-  Sikio protects the first account with an operator's code, and supports nothing else.
+  Sikio requires an operator's code for the first account and supports no other claim mode.
 
-  Ithibati offers `initial_claim: :open` as well, which suits an instance nobody can reach before
-  its owner does. Sikio is not that: it answers on the network from the moment it starts, so an
-  open claim is a race against whoever finds the host first.
+  Ithibati also offers `initial_claim: :open`. It suits an instance unreachable before its owner
+  registers. Sikio listens on the network from start, so an open claim goes to the first visitor.
 
-  The library option therefore has one permitted value here. This says so once, and `verify!/0`
-  is asked where an instance starts, so a wrong value is a refusal to boot rather than a door
-  standing open in production.
+  `:operator_code` is the only permitted value. `Sikio.Application` calls `verify!/0` at start,
+  so any other value stops the boot.
   """
   alias Ithibati.Config
 
   @supported :operator_code
 
-  @doc "Answers `:ok`, or raises naming the key to change and the value it takes."
+  @doc "Returns `:ok`, or raises naming the key to change and its required value."
   def verify! do
     case Config.initial_claim_mode() do
       @supported ->

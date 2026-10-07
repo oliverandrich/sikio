@@ -2,39 +2,37 @@
 
 defmodule Sikio.Feeds.Transport do
   @moduledoc """
-  One connection, one request, closed afterwards.
+  Opens one connection per request and closes it afterwards.
 
-  This exists because of what pinning costs through a pool. Connecting to a checked address while
-  the original name carries SNI and the certificate check means the name is part of the
-  connection's options, and a pool is keyed by its options: `Req` hashes them into a module name,
-  which interns an atom and starts a supervised `Finch` under it. Measured, twenty hostnames cost
-  twenty supervision trees and a hundred and ninety atoms, and nothing gives either back. The
-  atom table is capped, and running out of it kills the machine.
+  DNS pinning makes a connection pool expensive. Pinning connects to the checked address and
+  passes the hostname for SNI and certificate verification. The hostname thus becomes a
+  connection option, and pools are keyed by their options. `Req` hashes the options into a module
+  name. That interns an atom and starts a supervised `Finch` pool under it. Measured: twenty
+  hostnames cost twenty supervision trees and 190 atoms, and neither is released. The atom table
+  is capped, and exhausting it crashes the VM.
 
-  A feed is asked once per interval, an hour by default, so a pool would have nothing to reuse.
-  Opening a connection for the one request and closing it is both cheaper and bounded.
+  A feed is polled once per interval, an hour by default, so a pool would rarely reuse a
+  connection. One connection per request is cheaper and bounded.
 
-  Only HTTP/1 is spoken. A feed is one document, and the second protocol buys nothing here that
-  would pay for its flow control.
+  Only HTTP/1 is used. A feed is one document, so HTTP/2 flow control gains nothing here.
   """
   @connect_timeout 5_000
   @read_timeout 10_000
   @response_timeout 15_000
 
   @doc """
-  Fetches one document from an address that has already been checked.
+  Fetches one document from an already checked address.
 
-  `uri` says what was asked for and `address` says where to go, which are deliberately not the
-  same thing: the connection goes to the address that was checked, while the name in the uri
-  still carries SNI and the certificate check.
+  `uri` is the requested URL and `address` the connection target. They differ on purpose.
+  The connection goes to the checked address. The hostname in `uri` is used for SNI and
+  certificate verification.
 
-  A plug may stand in for the peer, which is what every test in this application answers with.
-  It belongs here because substituting a plug for a socket is this module's business. `plug:` is
-  an option rather than only a setting so that the socket can be asked for by name, which is how
-  the tests for this module reach it while the rest of the suite is answered by a stub.
+  A plug can replace the peer. All tests use one through the `:feed_http_plug` setting.
+  The substitution lives here, because replacing the socket is this module's concern. The
+  `plug:` option overrides the setting. This module's tests pass `plug: nil` to use a real socket.
 
-  `cacerts:` replaces the system trust store. Only tests pass it, with a certificate authority
-  they made themselves, so the certificate check can be asked of a real handshake.
+  `cacerts:` replaces the system trust store. Only tests pass it, with their own certificate
+  authority, to verify certificates in a real TLS handshake.
   """
   def fetch(uri, address, headers, limit, opts \\ []) do
     case Keyword.get(opts, :plug, Application.get_env(:sikio, :feed_http_plug)) do
@@ -62,19 +60,17 @@ defmodule Sikio.Feeds.Transport do
       {:error, _reason} -> {:error, :unavailable}
     end
   rescue
-    # Connecting can raise rather than answer: a machine with no trust store for the system to
-    # read makes Mint say so by throwing. That is a feed this host cannot fetch, which is what
-    # the caller is told. Letting it through would end an Oban job with an exception, and the
-    # rescue above it would call it an unsafe address, which is the wrong cause.
+    # Connecting can raise, for example when the host has no system trust store. The caller then
+    # gets `:unavailable`. Unrescued, the exception would fail the Oban job, or the rescue in
+    # `Sikio.Feeds.HTTP` would report `:unsafe_url`, which is the wrong cause.
     _error -> {:error, :unavailable}
   end
 
-  # The connection is built for the address the request would go to, carrying the headers it
-  # would carry, so a stub may assert on the pinning without a socket being involved.
+  # The conn targets the pinned address and carries the real request headers. A stub can assert
+  # on pinning without a socket.
   #
-  # Nothing here is rescued. A stub that raises is a test saying something, and the loudest
-  # thing it says is that somebody forgot to register one: swallowing that would let such a
-  # test read a plausible server failure and pass while proving nothing.
+  # Nothing is rescued here. A raising stub usually means a test forgot to register one.
+  # Rescuing would turn that into a plausible server failure, and the test would pass wrongly.
   defp through(plug, uri, headers) do
     {module, options} = if is_tuple(plug), do: plug, else: {plug, []}
 
@@ -85,16 +81,15 @@ defmodule Sikio.Feeds.Transport do
     |> answered()
   end
 
-  # Written onto the connection rather than through `put_req_header/3`, which refuses `host`: a
-  # plug is being handed a request, not building one, and the host is what the pinning is about.
+  # Appended to `req_headers` directly, because `put_req_header/3` rejects `host`.
+  # The plug receives the request as sent, and `host` carries the original hostname for pinning.
   defp put_headers(conn, headers) do
     sent = Enum.map(headers, fn {name, value} -> {String.downcase(name), value} end)
     %{conn | req_headers: conn.req_headers ++ sent}
   end
 
-  # A plug that answers with the connection it was handed has sent nothing, and nothing is not
-  # an empty document: reading a body off it would raise somewhere that reports an unsafe
-  # address, which says the wrong thing about what happened.
+  # A plug that returns the conn without a response has no status. It is not an empty body.
+  # Reading a body from it would raise, and the error would be reported as `:unsafe_url`.
   defp answered(%{status: nil}), do: {:error, :unavailable}
 
   defp answered(conn) do
@@ -124,12 +119,11 @@ defmodule Sikio.Feeds.Transport do
 
   defp blank, do: %{status: nil, headers: [], body: ""}
 
-  # One byte past the limit is kept and no more: that byte is what tells the caller it was
-  # exceeded, and everything beyond it is memory nobody asked this to hold. The cut happens as
-  # the bytes arrive, because a single read hands over everything the socket had buffered.
+  # The body keeps at most one byte past the limit. That byte signals the overflow to the caller.
+  # The cut happens per chunk, because one read returns everything the socket buffered.
   #
-  # Two budgets, as the pool had: how long one read may wait, and how long the whole answer has.
-  # A peer that goes silent is refused by the first, one that trickles forever by the second.
+  # Two timeouts, as the former pool had: one per read and one for the whole response.
+  # The first stops a silent peer, the second a peer that sends data slowly without end.
   defp receive_response(conn, ref, limit, deadline, acc) do
     remaining = deadline - System.monotonic_time(:millisecond)
 
@@ -158,9 +152,9 @@ defmodule Sikio.Feeds.Transport do
 
   defp collect([message | rest], ref, limit, acc) do
     case message do
-      # A status line starts an answer, so everything gathered before it belonged to a previous
-      # one. A peer may answer before it answers, and what an early hint said about compression
-      # is not what the document it hints at is encoded with.
+      # A status line starts a new response, so earlier data belonged to a previous one.
+      # A peer may send a 1xx response such as 103 Early Hints first. Its `content-encoding`
+      # does not apply to the final response.
       {:status, ^ref, status} ->
         collect(rest, ref, limit, %{blank() | status: status})
 
@@ -186,8 +180,7 @@ defmodule Sikio.Feeds.Transport do
     binary_part(data, 0, min(byte_size(data), room))
   end
 
-  # One entry per name holding every value sent under it, which is how a peer may send the same
-  # header twice and mean both.
+  # Groups values by lowercased header name, because a peer may send one header several times.
   defp headers(sent) do
     Enum.reduce(sent, %{}, fn {name, value}, grouped ->
       Map.update(grouped, String.downcase(name), [value], &(&1 ++ [value]))

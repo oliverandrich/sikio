@@ -5,19 +5,18 @@ defmodule Sikio.Repo.Postgres do
 
   @defaults []
 
-  # `Sikio.Repo`, spelled from this module's name. Naming it, or sharing this module's code with
-  # the other repository through a module of their own, would make this file depend on others while
-  # `Sikio.Repo` reads its functions when it compiles. The two repositories repeat it instead.
+  # `Sikio.Repo`, derived from this module's name. `Sikio.Repo` reads this module's functions
+  # at compile time. Naming it here, or sharing code through a third module, adds a dependency
+  # to this file. So both repositories repeat this line.
   @name __MODULE__ |> Module.split() |> Enum.drop(-1) |> Module.concat()
 
-  # It runs under that name, so whoever asks for `Sikio.Repo` by name finds it, and its own
-  # calls go there too.
+  # The repository registers under that name, so name lookups for `Sikio.Repo` find it.
+  # Its own calls default to that name too.
   use Ecto.Repo, otp_app: :sikio, adapter: Ecto.Adapters.Postgres, default_dynamic_repo: @name
 
-  # Started through `Sikio.Repo`, the configuration set there already lies beneath the start's
-  # own options. Asked for its configuration without a start, it lies above Ecto's defaults.
-  # The adapter's defaults lie beneath both. Migrations and telemetry keep the names of a
-  # single repository.
+  # Under `:supervisor`, `Sikio.Repo` has already merged its configuration beneath the start
+  # options. Under `:runtime`, the `Sikio.Repo` configuration overrides the given one.
+  # `@defaults` sit beneath both. `priv` and the telemetry prefix match a single repository.
   @impl true
   def init(type, config) do
     config =

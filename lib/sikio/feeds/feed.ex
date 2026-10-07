@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 defmodule Sikio.Feeds.Feed do
-  @moduledoc "A shared source; personal membership lives in subscriptions."
+  @moduledoc "A feed shared between accounts. Per-account membership lives in subscriptions."
   use Ecto.Schema
 
   import Ecto.Changeset
@@ -38,7 +38,7 @@ defmodule Sikio.Feeds.Feed do
     |> unique_constraint(:url)
   end
 
-  @doc "The YouTube channel a feed follows whole, or nil. Only a channel has Shorts to leave out."
+  @doc "Returns the channel id of a whole YouTube channel feed, or nil. Only those have Shorts."
   def channel_id(%{kind: :youtube, url: url}) do
     query = URI.parse(url).query || ""
     URI.decode_query(query)["channel_id"]
@@ -46,6 +46,6 @@ defmodule Sikio.Feeds.Feed do
 
   def channel_id(_feed), do: nil
 
-  @doc "Whether a feed follows a whole YouTube channel."
+  @doc "Returns whether a feed follows a whole YouTube channel."
   def channel?(feed), do: channel_id(feed) != nil
 end

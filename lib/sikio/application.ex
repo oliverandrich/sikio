@@ -9,8 +9,8 @@ defmodule Sikio.Application do
 
   @impl true
   def start(_type, _args) do
-    # Before anything binds a port. An instance whose claim is not protected must not serve one
-    # request, because the first stranger to arrive would be the one who claims it.
+    # These checks run before any child starts, so before the endpoint binds a port.
+    # With an open initial claim, the first visitor could claim the instance.
     Sikio.Claim.verify!()
     Sikio.Identity.verify!(Sikio.Mailer.configured?())
     Sikio.Logging.attach_job_failures()
@@ -27,8 +27,8 @@ defmodule Sikio.Application do
       Sikio.AuthRateLimiter,
       SikioWeb.Telemetry,
       Sikio.Repo,
-      # A release migrates here, before the queue whose tables it may create and before the
-      # endpoint serves anything; see config/runtime.exs. Elsewhere it is skipped.
+      # Migrates when `:migrate_on_start` is true, the release default; see config/runtime.exs.
+      # It runs before Oban, whose tables a migration may create, and before the endpoint.
       {Ecto.Migrator,
        repos: Application.fetch_env!(:sikio, :ecto_repos),
        skip: !Application.get_env(:sikio, :migrate_on_start, false)},
@@ -40,14 +40,16 @@ defmodule Sikio.Application do
     ]
   end
 
-  @doc "The options the job queue starts with. Its engine follows the database the application uses."
+  @doc """
+  Returns the Oban options. The engine is `Oban.Engines.Basic` on PostgreSQL and
+  `Oban.Engines.Lite` on SQLite.
+  """
   def oban do
     engine = if Sikio.Repo.postgres?(), do: Oban.Engines.Basic, else: Oban.Engines.Lite
     Keyword.put(Application.fetch_env!(:sikio, Oban), :engine, engine)
   end
 
-  # Tell Phoenix to update the endpoint configuration
-  # whenever the application is updated.
+  # Passes configuration changes from a release upgrade to the endpoint.
   @impl true
   def config_change(changed, _new, removed) do
     SikioWeb.Endpoint.config_change(changed, removed)

@@ -4,19 +4,19 @@ defmodule Sikio.Feeds.HTTP do
   @moduledoc """
   Bounded public HTTP requests with DNS pinning and per-hop validation.
 
-  Every address in this application comes from somebody pasting it or from a feed somebody
-  subscribed to, so each one is treated as a request to fetch a URL a stranger chose. That is server-side request forgery unless the
-  destination is checked, and checking the hostname is not enough: the name is resolved once, every
-  answer is required to be public, and the connection then goes to the address that was checked
-  while the original hostname still carries the `Host` header and the TLS handshake.
+  Every URL comes from user input or from a subscribed feed, so every request target is untrusted.
+  Without destination checks this allows server-side request forgery (SSRF).
+  A hostname check alone is insufficient. The host is resolved once, and every address must be
+  public. The connection goes to the checked address. The original hostname is still sent as the
+  `Host` header and used for TLS SNI and certificate verification.
   """
   import Bitwise
 
   alias Sikio.Feeds.Transport
 
-  # Unspecified, private, carrier-grade NAT, loopback, link-local, the three documentation ranges,
-  # benchmarking, multicast and reserved. Written as network and prefix length rather than as CIDR
-  # strings so the comparison is two shifts.
+  # Unspecified, private, carrier-grade NAT, loopback, link-local, IETF protocol assignments, the
+  # three documentation ranges, benchmarking, multicast and reserved. Stored as network and prefix
+  # length instead of CIDR strings, so a comparison is two shifts.
   @blocked_v4 [
     {0x00000000, 8},
     {0x0A000000, 8},
@@ -39,10 +39,10 @@ defmodule Sikio.Feeds.HTTP do
   end
 
   @doc """
-  Parses a pasted address into a URI this application is willing to fetch.
+  Parses a pasted URL into a URI this application may fetch.
 
-  The length limit is the database's as much as this module's: the URL is a unique index, and an
-  address longer than the page it would sit on cannot be stored.
+  The 2,048-byte limit also protects the database. The feed URL has a unique index, and an index
+  entry must fit in an index page.
   """
   def normalize(url) when is_binary(url) and byte_size(url) <= 2048 do
     url = String.trim(url)
@@ -63,11 +63,11 @@ defmodule Sikio.Feeds.HTTP do
   def normalize(_url), do: {:error, :unsafe_url}
 
   @doc """
-  An address written inside a document, resolved against that document and then checked.
+  Resolves an `href` against the URL of the document that contains it, then validates it.
 
-  `normalize/1` answers for something somebody pasted, where a bare host is the likely intent.
-  An `href` is not pasted: `art/1.jpg` names a file beside the feed, and prefixing a scheme
-  turns it into a host called `art`. Answers the address, or `nil` when there is none to trust.
+  `normalize/1` handles pasted input, where a bare host is the likely intent. An `href` may be
+  relative: `art/1.jpg` is a file next to the feed. Prefixing a scheme would make `art` the host.
+  Returns the URL string, or `nil` when it is empty or fails validation.
   """
   def resolve(href, base) when is_binary(href) and is_binary(base) do
     case href |> String.trim() |> merged(base) |> normalize() do
@@ -80,8 +80,8 @@ defmodule Sikio.Feeds.HTTP do
 
   def resolve(_href, _base), do: nil
 
-  # Merging nothing against an address answers that address, so an absent href would resolve to
-  # the document that does not carry it.
+  # `URI.merge` with an empty href returns the base URL. An absent href would then resolve to the
+  # document itself.
   defp merged("", _base), do: ""
   defp merged(href, base), do: base |> URI.merge(href) |> URI.to_string()
 
@@ -112,8 +112,8 @@ defmodule Sikio.Feeds.HTTP do
     _error in [ArgumentError, URI.Error] -> {:error, :unsafe_url}
   end
 
-  # Followed here rather than below, because every hop is a new destination and has to be
-  # resolved and checked like the first one.
+  # Redirects are followed here, not in the transport. Each hop is a new destination and is
+  # resolved and checked like the first.
   defp received(%{status: status} = response, uri, opts, remaining)
        when status in [301, 302, 303, 307, 308] do
     case Map.get(response.headers, "location", []) do
@@ -134,8 +134,8 @@ defmodule Sikio.Feeds.HTTP do
       end
 
     case result do
-      # Every answer has to be public, not just the one that will be used: a name that resolves to
-      # a public address and a private one is the shape of a rebinding attempt.
+      # Every resolved address must be public, not only the one used. A mix of public and private
+      # addresses is a DNS rebinding pattern.
       {:ok, [first | _] = addresses} ->
         if Enum.all?(addresses, &public_address?/1), do: {:ok, first}, else: {:error, :unsafe_url}
 
@@ -144,8 +144,8 @@ defmodule Sikio.Feeds.HTTP do
     end
   end
 
-  # Both families at once, so a name without an answer for one costs its timeout once. The order
-  # stays IPv4 first, which is the address a request then uses.
+  # Both families are queried concurrently, so a missing record type costs one timeout, not two.
+  # IPv4 addresses come first, and the request uses the first address.
   defp resolve(host) do
     name = String.to_charlist(host)
 
@@ -180,8 +180,8 @@ defmodule Sikio.Feeds.HTTP do
       byte_size(response.body) > limit ->
         {:error, :too_large}
 
-      # Identity encoding was asked for. A peer that compressed anyway would have its body decoded
-      # by nobody, and a decompressor is a size limit's way around itself.
+      # The request sets `accept-encoding: identity`. Nothing decodes a compressed body.
+      # Decompression would also bypass the size limit.
       Map.get(response.headers, "content-encoding", []) not in [[], ["identity"]] ->
         {:error, :unsupported_encoding}
 

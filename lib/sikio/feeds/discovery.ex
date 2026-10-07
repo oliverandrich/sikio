@@ -4,9 +4,9 @@ defmodule Sikio.Feeds.Discovery do
   @moduledoc """
   Resolves pasted links into previewable subscription sources.
 
-  What somebody pastes is whatever their browser showed them: a channel page, a video, a podcast
-  homepage, an Apple Podcasts link. None of those is a feed, and every path here ends at one, or at
-  an error that says why. No personal API key is needed for any of it.
+  Input is a URL copied from a browser: a channel page, a video, a podcast homepage or an Apple
+  Podcasts link. Each path resolves to a feed or to an error with a reason. No personal API key
+  is required.
   """
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
@@ -17,10 +17,10 @@ defmodule Sikio.Feeds.Discovery do
   @video ~r/\A[a-zA-Z0-9_-]{11}\z/
 
   @doc """
-  Reads one line of input as `{:link, address}`, `{:search, term}` or `:empty`.
+  Classifies one input line as `{:link, address}`, `{:search, term}` or `:empty`.
 
-  An address carries `://`, or is a single word with a dot before letters, as a bare host is.
-  Everything else is a search term.
+  A link contains `://`, or is one word with a dot followed by two or more letters, like a host.
+  Anything else is a search term.
   """
   def intent(input) when is_binary(input) do
     input = String.trim(input)
@@ -69,7 +69,7 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  @doc "Fetches one known feed URL and parses it, carrying its cache validators along."
+  @doc "Fetches and parses a known feed URL. The result includes ETag and Last-Modified."
   def fetch(url, headers \\ []) do
     case poll(url, headers) do
       {:not_modified, _wait} -> :not_modified
@@ -78,10 +78,10 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   @doc """
-  Fetches a feed as `fetch/2` does, beside how long its server asks to be left alone.
+  Fetches a feed as `fetch/2` does and also returns the server's requested wait.
 
-  The wait is in seconds, or nil when the server says nothing: a feed's `Cache-Control: max-age`
-  or `<ttl>`, whichever is longer, and a busy or failing server's `Retry-After`.
+  The wait is in seconds, or nil when absent. A 200 uses the longer of `max-age` and `<ttl>`.
+  A 304 uses `Cache-Control: max-age`. A 429 or 503 uses `Retry-After`.
   """
   def poll(url, headers), do: url |> HTTP.get(headers: headers) |> answered()
 
@@ -99,7 +99,7 @@ defmodule Sikio.Feeds.Discovery do
 
   defp answered({:ok, %{status: 304} = response}), do: {:not_modified, max_age(response)}
 
-  # Gone for good, rather than down for a while.
+  # 404 and 410 count as permanent, not as a temporary outage.
   defp answered({:ok, %{status: status}}) when status in [404, 410], do: {{:error, :gone}, nil}
 
   defp answered({:ok, %{status: status} = response}) when status in [429, 503],
@@ -108,9 +108,9 @@ defmodule Sikio.Feeds.Discovery do
   defp answered({:error, reason}), do: {{:error, reason}, nil}
   defp answered(_other), do: {{:error, :unavailable}, nil}
 
-  # A YouTube channel's feed does not say which of its videos are Shorts. The channel's Shorts
-  # playlist has a feed of its own, and its entries are marked. A channel without Shorts has no
-  # such feed. A failing one marks nothing and leaves the channel's poll alone.
+  # A YouTube channel feed does not mark Shorts. The channel's `UUSH` Shorts playlist has its own
+  # feed. A channel without Shorts has no such feed. A failed Shorts fetch marks nothing and does
+  # not fail the channel poll.
   defp with_shorts(feed) do
     case Feed.channel_id(feed) do
       "UC" <> id ->
@@ -140,11 +140,11 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  # Zero asks for no cache, which lengthens nothing.
+  # `max-age=0` disables caching and adds no wait.
   defp positive(0), do: nil
   defp positive(seconds), do: seconds
 
-  # Seconds to wait, or the moment to come back as an HTTP date. Sent twice, the first counts.
+  # Delay in seconds or an HTTP date. With repeated headers, the first value counts.
   defp retry_after(response) do
     value = response.headers |> Map.get("retry-after", [""]) |> hd() |> String.trim()
 
@@ -180,18 +180,15 @@ defmodule Sikio.Feeds.Discovery do
 
   defp first_header(response, name), do: response.headers |> Map.get(name, []) |> List.first()
 
-  # Any host may run PeerTube, so there is no list to check a name against. The instance states
-  # what it runs, and only that answer decides. A host that runs something else falls through to
-  # the ordinary search for a feed, which is what it deserves.
+  # Any host may run PeerTube, so there is no host list. NodeInfo reports the software, and only
+  # that decides. Other software falls through to feed link discovery.
   #
-  # This runs before the page is searched for links, and the reason is correctness. A PeerTube
-  # page does advertise feeds, but not the ones somebody means: a video page offers the feed of
-  # its own comments and the feed of the whole instance, and a channel page offers only its
-  # Podcasting 2.0 rendering. Searching the page first would subscribe somebody to a comment
-  # feed because they pasted a video.
+  # This runs before link discovery for correctness. A PeerTube video page links its comment feed
+  # and the instance feed. A channel page links only its Podcasting 2.0 feed. Link discovery on a
+  # video page would subscribe to a comment feed.
   #
-  # It runs after the address itself was tried as a feed, so a URL that already is one, from a
-  # directory or from somebody who knew it, costs nothing here.
+  # It runs after the URL itself was parsed as a feed. A URL that is already a feed skips the
+  # NodeInfo requests.
   defp peertube(url) when is_binary(url) do
     case HTTP.normalize(url) do
       {:ok, uri} -> peertube(uri)
@@ -220,8 +217,8 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  # The document names several schema versions. Only the one this reads is followed, and only to
-  # the host that offered it, because a link in a stranger's document may name anywhere.
+  # NodeInfo lists several schema versions. Only the 2.0 link is followed, and only on the same
+  # host. A link in a third-party document may point to any host.
   defp nodeinfo_href(links) when is_list(links) do
     Enum.find_value(links, fn link ->
       with %{"rel" => rel, "href" => href} <- link,
@@ -235,16 +232,15 @@ defmodule Sikio.Feeds.Discovery do
 
   defp nodeinfo_href(_links), do: nil
 
-  # The feed wants a numeric id, and a channel address carries a name. The instance's own API is
-  # what turns one into the other.
+  # The feed URL needs a numeric id, but a channel URL carries a name. The instance API maps the
+  # name to the id.
   defp peertube_feed(uri) do
     origin = origin(uri)
 
     route(origin, String.split(uri.path || "", "/", trim: true))
   end
 
-  # Each address an instance answers under, written as a person would copy it and as the
-  # application links to it.
+  # The URL forms a PeerTube instance serves, in short (`/w`, `/c`, `/a`) and long spelling.
   defp route(origin, path) when path in [[], ["videos"]],
     do: {:ok, origin <> "/feeds/videos.xml"}
 
@@ -259,8 +255,7 @@ defmodule Sikio.Feeds.Discovery do
 
   defp route(_origin, _path), do: :error
 
-  # A channel and an account are the same shape under different words, and both are addressed
-  # twice: once as a person would write it and once as the application links to it.
+  # Channels and accounts share one API shape under different paths.
   defp owner_feed(origin, resource, param, name) do
     case json("#{origin}/api/v1/#{resource}/#{URI.encode(name)}") do
       {:ok, %{"id" => id}} when is_integer(id) ->
@@ -271,8 +266,7 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  # A pasted video subscribes to the channel that published it, the same choice the YouTube path
-  # makes: what somebody wants is the source, not the one video they happened to open.
+  # A pasted video resolves to its channel's feed, as on YouTube.
   defp video_channel_feed(origin, id) do
     case json(origin <> "/api/v1/videos/" <> URI.encode(id)) do
       {:ok, %{"channel" => %{"id" => channel_id}}} when is_integer(channel_id) ->
@@ -318,8 +312,8 @@ defmodule Sikio.Feeds.Discovery do
   defp video_id(uri, ["watch"]), do: URI.decode_query(uri.query || "")["v"]
   defp video_id(_, _), do: nil
 
-  # oEmbed answers with the channel that published the video. Scraping the watch page instead would
-  # subscribe somebody to whatever YouTube decided to recommend beside it that day.
+  # oEmbed returns the channel that published the video. The watch page also links recommended
+  # channels, so scraping it could pick the wrong one.
   defp video_channel(id) when is_binary(id) do
     if Regex.match?(@video, id) do
       query = URI.encode_query(%{url: "https://www.youtube.com/watch?v=" <> id, format: "json"})
@@ -339,9 +333,9 @@ defmodule Sikio.Feeds.Discovery do
 
   defp video_channel(_), do: {:error, :not_found}
 
-  # An Atom feed from YouTube names no artwork, so the picture comes from the channel's own page.
-  # A caller that already read that page passes what it found, including nothing: a page that
-  # states no picture is not a reason to load a second copy of the same channel.
+  # YouTube's Atom feed has no artwork, so the picture comes from the channel page. A caller that
+  # already parsed that page passes its result, including nil. A missing picture does not cause a
+  # second page fetch.
   defp channel_feed(id), do: channel_feed(id, :unread)
 
   defp channel_feed(id, found) when is_binary(id) do
@@ -360,7 +354,7 @@ defmodule Sikio.Feeds.Discovery do
   defp resolve_picture(id, :unread), do: channel_picture(id)
   defp resolve_picture(_id, found), do: found
 
-  # Decoration, so every failure is the same failure: no picture, and the subscription proceeds.
+  # The picture is optional. Every failure returns nil and the subscription proceeds.
   defp channel_picture(id) do
     url = "https://www.youtube.com/channel/" <> id
 
@@ -386,16 +380,14 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  # Two places the page states it. The value is an href in a document like any other, so it is
-  # resolved against the page rather than read as though somebody had pasted it.
+  # The page states the picture in two places. The value is an href, resolved against the page.
   defp picture(doc, page_url) do
     Floki.attribute(doc, "meta[property='og:image']", "content")
     |> Enum.concat(Floki.attribute(doc, "link[rel=image_src]", "href"))
     |> Enum.find_value(&HTTP.resolve(&1, page_url))
   end
 
-  # Three places the id may be, in the order they are worth trusting: the page's own feed link, the
-  # metadata tag, and finally the embedded data blob.
+  # Three id sources, most reliable first: feed link, metadata tag, `ytInitialData` blob.
   defp channel_id(doc) do
     alternate = doc |> Floki.find("link[rel=alternate]") |> Floki.attribute("href")
 
@@ -433,18 +425,17 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  # Three answers in the order they cost. What already is a feed is one, whatever published it.
-  # What is not gets asked whether it runs PeerTube, because that answer names the right feed.
-  # Only then is the page searched for what it advertises, which is the least trustworthy of the
-  # three and the reason the PeerTube question comes before it.
+  # Three checks, cheapest first. A response that parses as a feed is used directly.
+  # Otherwise NodeInfo is checked, because PeerTube names the correct feed.
+  # Link discovery runs last, because it is the least reliable.
   defp webpage_response(response) do
     case Parser.parse(response.body, response.url) do
       {:ok, feed} ->
         {:ok, [feed |> with_shorts() |> Map.merge(validators(response))]}
 
       _ ->
-        # An instance that cannot name a feed for this address answers with its refusal rather
-        # than falling through: what its pages advertise is a comment feed, not what was meant.
+        # A PeerTube instance without a feed for this URL returns its error. Link discovery on its
+        # pages would find comment feeds.
         case peertube(response.url) do
           nil -> discover_links(response.body, response.url)
           answer -> answer
@@ -452,9 +443,8 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  # Five candidates at most, and each one is fetched. A page that advertises a hundred links is not
-  # worth a hundred requests to somebody else's server. The five are asked at once, so whoever
-  # pasted the page waits for the slowest, not for all of them in turn.
+  # At most five candidates are fetched, to bound requests to a third-party server. They are
+  # fetched concurrently, so the latency is that of the slowest.
   defp discover_links(body, base_url) do
     with {:ok, doc} <- Floki.parse_document(body) do
       urls =
@@ -497,8 +487,7 @@ defmodule Sikio.Feeds.Discovery do
     Regex.match?(~r/(?:\.(?:rss|xml)|\/(?:feed|rss)\/?)(?:\z)/i, path)
   end
 
-  # Apple's own lookup, rather than the page a browser would show: the show page is a client-side
-  # application, and the feed URL is not in its HTML at all.
+  # Uses Apple's lookup API. The show page renders client-side, and its HTML has no feed URL.
   defp apple_link(uri) do
     with [_, id] <- Regex.run(~r/\/id(\d+)(?:\/|\z)/, uri.path || ""),
          {:ok, %{"results" => [%{"feedUrl" => url} | _]}} <-

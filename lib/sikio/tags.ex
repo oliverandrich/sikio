@@ -2,11 +2,10 @@
 
 defmodule Sikio.Tags do
   @moduledoc """
-  An account's own tags on its own subscriptions.
+  Account-scoped tags on the account's subscriptions.
 
-  A subscription may carry several tags or none. Tags hang on subscriptions, which belong to an
-  account, so the feeds beneath stay shared and know nothing of them. A tag is made where it is
-  first given and stays when its last subscription lets go of it, until it is deleted.
+  A subscription has zero or more tags. Tags attach to subscriptions, not to the shared feeds.
+  A tag is created on first use. It persists without subscriptions until it is deleted.
   """
   import Ecto.Query
 
@@ -19,11 +18,11 @@ defmodule Sikio.Tags do
 
   @longest 40
 
-  @doc "The account's tags, in the order of their names."
+  @doc "Returns the account's tags, sorted case-insensitively by name."
   def list(%User{id: user_id}),
     do: Repo.all(from t in Tag, where: t.user_id == ^user_id, order_by: t.key)
 
-  @doc "Each of the account's tags with the feeds its subscriptions follow: `%{tag_id => [feed_id]}`."
+  @doc "Returns each of the account's tags with its feeds: `%{tag_id => [feed_id]}`."
   def feeds(%User{id: user_id}) do
     Repo.all(
       from t in Tag,
@@ -38,7 +37,7 @@ defmodule Sikio.Tags do
     |> Map.new(fn {tag, feeds} -> {tag, Enum.reject(feeds, &is_nil/1)} end)
   end
 
-  @doc "The feeds the account's tag `id` gathers, as a query to use inside another."
+  @doc "Returns a query for the feed ids tagged `id`, for use as a subquery."
   def feed_ids(%User{id: user_id}, id) do
     from s in Subscription,
       join: st in SubscriptionTag,
@@ -49,7 +48,7 @@ defmodule Sikio.Tags do
       select: s.feed_id
   end
 
-  @doc "The tags the account's subscription `id` carries, or none for a subscription not its own."
+  @doc "Returns the tags on subscription `id`, or `[]` for another account's subscription."
   def of(%User{id: user_id}, id) do
     Repo.all(
       from t in Tag,
@@ -63,9 +62,9 @@ defmodule Sikio.Tags do
   end
 
   @doc """
-  Gives the account's subscription `id` exactly the tags `names` names, making those it has not
-  named before. Answers the tags, or `{:error, :not_found}` for a subscription not its own. The
-  account's views hear of it as `{:tags_changed, subscription_id}`.
+  Replaces the tags on subscription `id` with `names`, creating missing tags.
+  Returns `{:ok, tags}`, or `{:error, :not_found}` for another account's subscription.
+  Broadcasts `{:tags_changed, subscription_id}` to the account.
   """
   def set(%User{id: user_id} = account, id, names) do
     case Repo.get_by(Subscription, id: cast_id(id), user_id: user_id) do
@@ -99,13 +98,15 @@ defmodule Sikio.Tags do
     end)
   end
 
-  @doc "Adds the tags `names` names to the account's subscription `id`, beside those it carries."
+  @doc "Adds the tags `names` to subscription `id`, keeping its current tags."
   def add(account, id, []), do: {:ok, of(account, id)}
   def add(account, id, names), do: set(account, id, Enum.map(of(account, id), & &1.name) ++ names)
 
   @doc """
-  Gives the account's tag `id` a new name. Answers the tag, or `{:error, :blank}`, `{:error,
-  :taken}` for a name another of its tags holds, or `{:error, :not_found}`.
+  Renames the account's tag `id`.
+  Returns `{:ok, tag}`, `{:error, :blank}` or `{:error, :not_found}`.
+  Returns `{:error, :taken}` when another of the account's tags has the name.
+  Broadcasts `{:tags_changed, nil}` to the account on success.
   """
   def rename(%User{id: user_id} = account, id, name) do
     case {Repo.get_by(Tag, id: cast_id(id), user_id: user_id), cleaned([name])} do
@@ -120,7 +121,8 @@ defmodule Sikio.Tags do
     end
   end
 
-  # The index decides whether another tag holds the name, so two renames at once cannot both pass.
+  # The unique index on `[:user_id, :key]` rejects duplicates.
+  # Two concurrent renames to one name therefore cannot both succeed.
   defp named_anew(account, tag, name) do
     tag
     |> Ecto.Changeset.change(name: name, key: String.downcase(name))
@@ -136,7 +138,7 @@ defmodule Sikio.Tags do
     end
   end
 
-  @doc "Deletes the account's tag `id`. Its subscriptions stay; only the tag leaves them."
+  @doc "Deletes the account's tag `id`. Its subscriptions remain without the tag."
   def delete(%User{id: user_id} = account, id) do
     case Repo.get_by(Tag, id: cast_id(id), user_id: user_id) do
       nil ->
@@ -149,7 +151,7 @@ defmodule Sikio.Tags do
     end
   end
 
-  # Names as typed: trimmed, short enough, none empty, each once in whatever letters.
+  # Trims names, caps them at 40 characters, drops blanks and case-insensitive duplicates.
   defp cleaned(names) do
     names
     |> Enum.map(&(&1 |> String.trim() |> String.slice(0, @longest)))

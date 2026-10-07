@@ -2,12 +2,12 @@
 
 defmodule Sikio.Repo do
   @moduledoc """
-  The application's database: SQLite or PostgreSQL, whichever `:database` names when it starts.
+  The application's repository. The `:database` setting selects SQLite or PostgreSQL at runtime.
 
-  Ecto fixes a repository's adapter when it compiles. So each database has a repository of its
-  own, `Sikio.Repo.SQLite` and `Sikio.Repo.Postgres`, and this module hands every call on to the
-  one chosen. Both read their configuration from `Sikio.Repo`. Neither calls back into this
-  module, which reads their functions when it compiles.
+  Ecto fixes a repository's adapter at compile time. So each database has its own repository,
+  `Sikio.Repo.SQLite` and `Sikio.Repo.Postgres`, and this module delegates every call to the
+  selected one. Both read their configuration from the `Sikio.Repo` key. This module reads their
+  functions at compile time, so neither references it.
   """
 
   import Ecto.Query, only: [lock: 2]
@@ -15,7 +15,7 @@ defmodule Sikio.Repo do
   alias Sikio.Repo.Postgres
   alias Sikio.Repo.SQLite
 
-  @doc "The repository the configuration chose."
+  @doc "Returns the repository module selected by `:database`."
   def repo do
     case Application.fetch_env!(:sikio, :database) do
       :sqlite -> SQLite
@@ -23,19 +23,20 @@ defmodule Sikio.Repo do
     end
   end
 
-  @doc "Whether the chosen database is PostgreSQL."
+  @doc "Returns whether the selected database is PostgreSQL."
   def postgres?, do: repo() == Postgres
 
-  # Every function a repository has, handed on. Both repositories have the same ones.
+  # Delegates every repository function except the start functions below.
+  # Both repositories define the same functions.
   for {name, arity} <- SQLite.__info__(:functions),
       name not in [:init, :start_link, :child_spec] do
     args = Macro.generate_arguments(arity, __MODULE__)
     def unquote(name)(unquote_splicing(args)), do: repo().unquote(name)(unquote_splicing(args))
   end
 
-  # The chosen repository runs under this module's name. Code that asks for a repository by name,
-  # as `Ecto.Adapters.SQL.query/4` does, finds it there. It starts with the configuration set for
-  # this module, beneath whatever the start names itself and above Ecto's own defaults.
+  # The selected repository registers under this module's name, so name lookups find it.
+  # `Ecto.Adapters.SQL.query/4` is one such lookup.
+  # Start options override the `Sikio.Repo` configuration, which overrides Ecto's defaults.
   def child_spec(opts), do: repo().child_spec(started(opts))
   def start_link(opts \\ []), do: repo().start_link(started(opts))
 
@@ -47,14 +48,16 @@ defmodule Sikio.Repo do
   end
 
   @doc """
-  Locks the rows `query` selects until the transaction ends. Postgres locks the rows. A SQLite
-  transaction already holds the database's only write lock from its start, so it needs none.
+  Locks the rows `query` selects until the transaction ends. PostgreSQL adds `FOR UPDATE`.
+  SQLite returns `query` unchanged: an `:immediate` transaction holds the only write lock from
+  its start.
   """
   def for_update(query), do: if(postgres?(), do: lock(query, "FOR UPDATE"), else: query)
 
   @doc """
-  Locks the rows `query` selects against each other, as `for_update/1` does, without stopping an
-  insert that refers to them. Postgres checks such a reference with a lock this one allows.
+  Locks the rows `query` selects against other row locks, but not against foreign key checks.
+  PostgreSQL adds `FOR NO KEY UPDATE`. Foreign key checks take `FOR KEY SHARE`, which it
+  allows, so inserts referencing the rows proceed. SQLite returns `query` unchanged.
   """
   def for_no_key_update(query),
     do: if(postgres?(), do: lock(query, "FOR NO KEY UPDATE"), else: query)

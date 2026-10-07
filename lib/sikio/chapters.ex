@@ -2,33 +2,33 @@
 
 defmodule Sikio.Chapters do
   @moduledoc """
-  The chapters a publisher wrote into an item's description, and the description without them.
+  Parses chapters from an item's description and returns the description without them.
 
-  Feeds rarely carry chapters as data, but many publishers list them in the notes, a line each:
-  a time and a title. They are read from the stored description each time it is shown, like the
-  notes themselves, so a better reading tomorrow applies to what was imported yesterday.
+  Few feeds carry chapters as data, but many publishers list them in the notes: one timestamp and
+  title per line. They are parsed from the stored description on each render, like the notes.
+  Parser improvements therefore apply to existing entries.
 
-  Only a list that reads unmistakably as chapters is taken: at least three, each later than the
-  one before, none beyond the item's length when that is known. Anything less may be a sentence
-  that happens to begin with a time, and the notes then stay as they are.
+  Only an unambiguous list counts: at least three chapters, strictly increasing, none beyond the
+  known duration. Otherwise a sentence that starts with a time could match. The notes then stay
+  unchanged.
   """
 
   @minimum 3
 
-  # A time at the start of a line, perhaps in brackets, perhaps followed by a dash or a colon.
+  # A timestamp at line start, optionally bracketed, optionally followed by a separator character.
   @line ~r/^\s*[\(\[]?((?:\d{1,2}:)?\d{1,2}:\d{2})[\)\]]?\s*[-–—:|•]?\s+(\S.*?)\s*$/u
-  # A second time inside a line, set off by a dash, where a publisher lost a line break.
+  # A second timestamp inside a line, set off by a dash or pipe, from a missing line break.
   @inline ~r/\s+((?:\d{1,2}:)?\d{1,2}:\d{2})\s+[-–—|]\s+/u
-  # Where a line ends in markup or in text. Kept, so what is not a chapter is put back as it was.
-  # In Unicode mode, or \R finds a next-line byte inside a character such as ✅.
+  # Line ends in HTML or plain text. Captured, so non-chapter text is restored unchanged.
+  # The `u` flag is required, or \R matches a next-line byte inside a character such as ✅.
   @breaks ~r{(<br\s*/?>|</(?:p|li|ul|ol|div|blockquote|h[1-6])>|\R)}iu
 
   @doc """
-  An entry's chapters and the notes to show beside them, by one rule for every place that asks.
+  Returns an entry's chapters and the notes to show beside them, with one rule for every caller.
 
-  Chapters the feed names are meant as chapters, so two make a list, and the notes stay whole.
-  Otherwise the notes may list them, and then their lines leave the notes. `length` is what the
-  entry is known to last, which a player may have measured.
+  Chapters from the feed are explicit, so two suffice and the notes stay whole. Otherwise
+  chapters are parsed from the notes, and their lines are removed. `length` is the entry's known
+  duration in seconds, possibly measured by a player.
   """
   def of(%{chapters: [_, _ | _] = chapters, description: description}, _length) do
     {Enum.map(chapters, &%{at: &1["at"], title: &1["title"]}), description}
@@ -37,8 +37,9 @@ defmodule Sikio.Chapters do
   def of(entry, length), do: split(entry.description, entry.description_format || :html, length)
 
   @doc """
-  The chapters in `description` and the description without their lines, or no chapters and the
-  description untouched. `format` is `:html` or `:text`, `duration` the length in seconds or nil.
+  Returns the chapters in `description` and the description without their lines. Without
+  chapters, returns `[]` and the unchanged description. `format` is `:html` or `:text`.
+  `duration` is the length in seconds or nil.
   """
   def split(nil, _format, _duration), do: {[], nil}
 
@@ -59,7 +60,7 @@ defmodule Sikio.Chapters do
     end
   end
 
-  # A title holding another time set off by a dash is two chapters.
+  # A title containing further dash-separated timestamps yields several chapters.
   defp inline([{at, title}]) do
     case Regex.split(@inline, title, include_captures: true, trim: true) do
       [title] ->
@@ -98,8 +99,8 @@ defmodule Sikio.Chapters do
       (is_nil(duration) or List.last(times) <= duration)
   end
 
-  # A chapter line leaves only its markup behind, and the break after it goes with it. A
-  # paragraph or a list item that held nothing else is dropped, and so is a list left empty.
+  # A chapter line keeps only its tags, and the following line break is removed. Paragraphs or
+  # list items left empty are dropped, and so are empty lists.
   defp without(pieces, read) do
     pieces
     |> Enum.zip(read)
@@ -125,9 +126,8 @@ defmodule Sikio.Chapters do
   defp drop_breaks([]), do: []
 
   @doc """
-  The chapters in a Podcasting 2.0 chapters file: a start in seconds and a title each, in the
-  stored shape. A chapter marked `"toc": false` is a hidden marker and left out. A file that is
-  not one reads as no chapters.
+  Parses a Podcasting 2.0 chapters file into the stored shape: a start in seconds and a title.
+  Chapters marked `"toc": false` are hidden markers and skipped. An invalid file returns `[]`.
   """
   def from_json(body) do
     case Jason.decode(body) do

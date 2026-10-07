@@ -2,34 +2,35 @@
 
 defmodule Sikio.Pictures do
   @moduledoc """
-  Pictures from a publisher's server, fetched by Sikio and kept on its own disk.
+  Fetches publisher pictures on the server and caches them on local disk.
 
-  A browser that loaded them directly would tell every publisher who is reading, and the content
-  security policy refuses them anyway. Each fetch goes through `Sikio.Feeds.HTTP`, so a picture
-  address is checked like a feed address.
+  Direct loading would expose each reader's IP address to the publisher. The content security
+  policy blocks it as well. Each fetch goes through `Sikio.Feeds.HTTP`, so picture URLs get the
+  same checks as feed URLs.
 
-  Only raster formats are kept. An SVG may carry script, and it would be served from this origin.
+  Only raster formats are cached. An SVG can contain script and would be served from this origin.
 
-  Every file this module touches is the operator's directory joined with a SHA-256 hash, never a
-  name a caller chose. That is why the file functions below skip Sobelow's traversal check.
+  Every file path is the configured directory joined with a SHA-256 hash, never a caller's name.
+  The file functions below therefore skip Sobelow's traversal check.
   """
   alias Sikio.Feeds.HTTP
 
   @max_bytes 2_000_000
 
-  # A failed address is asked again after a day. Every page that lists the item would otherwise
-  # ask on every render.
+  # A failed URL is retried after one day. Otherwise every page listing the item would refetch
+  # it on each render.
   @retry_after 86_400
 
-  # A cached picture, a remembered failure, or a write that did not finish. Nothing else in the
-  # directory is the cache's to remove.
+  # Matches a cached picture, a failure marker or an unfinished write. Pruning removes nothing
+  # else from the directory.
   @own_file ~r/\A[A-Za-z0-9_-]{43}(\.failed|\.\d+\.partial)?\z/
 
   @doc """
-  The addresses to try for an entry, best first.
+  Returns the URLs to try for an entry, best first. The feed icon is the last fallback.
 
-  YouTube derives every size from the video id. The feed names the letterboxed 4 by 3 one, so the
-  widescreen sizes are asked for instead, the largest first because not every video has it.
+  YouTube serves every thumbnail size under the video id. The feed links the letterboxed 4:3
+  size, so the widescreen sizes are used instead. `maxresdefault` comes first, but not every
+  video has it.
   """
   def candidates(entry) do
     own =
@@ -44,19 +45,19 @@ defmodule Sikio.Pictures do
   end
 
   @doc """
-  The first candidate that yields a picture, from the cache or fetched into it.
+  Returns the first candidate that yields a picture, from the cache or freshly fetched.
 
-  Answers `{:ok, %{type: type, path: path}}`, or `:error` when no candidate does. A cache file
-  that is missing, unreadable or not a picture is fetched again.
+  Returns `{:ok, %{type: type, path: path}}`, or `:error` when no candidate does. A missing,
+  unreadable or invalid cache file is fetched again, unless the URL failed within the last day.
   """
   def fetch(urls, dir \\ cache_dir()) do
     Enum.find_value(urls, :error, &picture(&1, dir))
   end
 
   @doc """
-  Removes every cache file that was not served for `max_age` seconds.
+  Deletes every cache file not served for `max_age` seconds.
 
-  Serving a picture renews its modification time, so this is the age since anybody asked.
+  Serving a picture updates its modification time, so the age counts from the last request.
   """
   # sobelow_skip ["Traversal.FileModule"]
   def prune(dir \\ cache_dir(), max_age) do
@@ -73,7 +74,7 @@ defmodule Sikio.Pictures do
     :ok
   end
 
-  @doc "Where pictures are kept. Configured by the operator, outside the release."
+  @doc "Returns the picture cache directory. The operator configures it outside the release."
   def cache_dir, do: Application.fetch_env!(:sikio, :picture_cache_dir)
 
   defp picture(url, dir) do
@@ -85,7 +86,7 @@ defmodule Sikio.Pictures do
     end
   end
 
-  # Only the first bytes are read: they say the type, and the file is sent as it is.
+  # Reads only the first 12 bytes to detect the type. The file is sent unchanged.
   # sobelow_skip ["Traversal.FileModule"]
   defp served(path) do
     with {:ok, head} when is_binary(head) <-
@@ -105,7 +106,7 @@ defmodule Sikio.Pictures do
     end
   end
 
-  # A cache that cannot be written costs the picture, not the page, so a failed write is a miss.
+  # An unwritable cache loses the picture, not the page. A failed write counts as a miss.
   defp download(url, path) do
     with {:ok, %{status: 200} = response} <- HTTP.get(url, max_bytes: @max_bytes),
          true <- claims_raster?(response.headers),
@@ -130,14 +131,14 @@ defmodule Sikio.Pictures do
     end
   end
 
-  # The type is read from the bytes, not from the publisher's header.
+  # The returned type comes from the magic bytes, not from the publisher's `content-type`.
   defp type(<<0xFF, 0xD8, 0xFF, _::binary>>), do: "image/jpeg"
   defp type(<<0x89, "PNG\r\n", 0x1A, "\n", _::binary>>), do: "image/png"
   defp type(<<"GIF8", v, "a", _::binary>>) when v in [?7, ?9], do: "image/gif"
   defp type(<<"RIFF", _::32, "WEBP", _::binary>>), do: "image/webp"
   defp type(_bytes), do: nil
 
-  # Written beside its final name and renamed, so a reader never sees half a file.
+  # Writes a temporary file and renames it, so a reader never sees a partial file.
   # sobelow_skip ["Traversal.FileModule"]
   defp write(path, body) do
     partial = path <> ".#{System.unique_integer([:positive])}.partial"

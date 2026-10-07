@@ -2,10 +2,10 @@
 
 defmodule Sikio.Pictures.Cleanup do
   @moduledoc """
-  Removes pictures nobody was served for thirty days.
+  Deletes cached pictures not served for thirty days.
 
-  The cache grows with every picture any list ever showed. One attempt, because the next run is a
-  day away and would remove the same files.
+  The cache grows with every picture any list displays. One attempt suffices, because the next
+  daily run deletes the same files.
   """
   use Oban.Worker, queue: :maintenance, max_attempts: 1
 

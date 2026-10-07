@@ -2,10 +2,10 @@
 
 defmodule Sikio.Release do
   @moduledoc """
-  Explicit entry points an operator runs against an assembled release.
+  Commands an operator runs against an assembled release.
 
-  Each starts the application's repository and nothing else, so one may be run beside a server
-  without binding a second port or waking the workers.
+  Each starts only the repository, not the application. One can run beside a server without
+  binding a second port or starting Oban.
   """
   alias Ithibati.Identity.Instance
   alias Sikio.Claim
@@ -23,14 +23,13 @@ defmodule Sikio.Release do
   end
 
   @doc """
-  Issues the code that lets somebody claim this instance, and prints it once.
+  Issues a setup code for claiming this instance and prints it to stdout once.
 
-  The code exists in one place for one moment: this output. Only its digest is stored, so an
-  operator who loses it issues another, and issuing another is what makes the previous one
-  worthless. Nothing writes it to a log, a file or a response.
+  Only its digest is stored. A lost code cannot be shown again; issue a new one instead.
+  Issuing a new code invalidates the previous one. This function writes it nowhere else.
 
-  An instance that already has an account needs no code. Printing one nobody could spend would
-  read like the command had worked.
+  Returns `{:error, :already_claimed}` without a code when an account exists.
+  Printing a code nobody can use would look like success.
   """
   def setup_code do
     case issue() do
@@ -49,7 +48,7 @@ defmodule Sikio.Release do
     end
   end
 
-  @doc "`setup_code/0` for a shell, which reads an exit status rather than a return value."
+  @doc "Runs `setup_code/0` and halts with exit status 1 on error, for shell scripts."
   def setup_code! do
     case setup_code() do
       :ok -> :ok
@@ -57,9 +56,8 @@ defmodule Sikio.Release do
     end
   end
 
-  # Asked here as well as at startup, because this runs through `eval`, which loads the
-  # configuration and starts nothing. An instance configured wrongly would otherwise meet the
-  # library's own refusal, which names a library being used wrongly rather than the key to change.
+  # `eval` loads the configuration but starts no application, so the start-up check does not run.
+  # Without this call, Ithibati returns `:claim_is_open`, which does not name the key to change.
   defp issue do
     Claim.verify!()
     with_repo(&Instance.issue_code/0)
@@ -71,8 +69,8 @@ defmodule Sikio.Release do
     :ok
   end
 
-  # The repository, started for the length of one call and stopped after. The same thing
-  # `migrate/0` leans on, which is why neither wakes an endpoint or a queue.
+  # Starts the repository for one call and stops it afterwards, as `migrate/0` does.
+  # Neither starts the endpoint or Oban.
   defp with_repo(fun) do
     Application.load(@app)
     repo = hd(Application.fetch_env!(@app, :ecto_repos))

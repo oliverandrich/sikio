@@ -3,9 +3,9 @@
 defmodule Sikio.Repo.SQLite do
   @moduledoc "The repository for SQLite. Reached through `Sikio.Repo`."
 
-  # SQLite as dj-lite sets it up for Django: a write-ahead log so readers never wait for the
-  # writer, a writer that waits up to five seconds rather than failing, and transactions that take
-  # the write lock when they begin, so two never deadlock upgrading a read.
+  # Pragmas follow dj-lite's defaults for Django. WAL lets readers proceed during a write.
+  # `busy_timeout` waits up to five seconds for a lock instead of failing.
+  # `:immediate` transactions take the write lock at BEGIN, so none deadlocks upgrading a read.
   @defaults [
     journal_mode: :wal,
     synchronous: :normal,
@@ -18,19 +18,18 @@ defmodule Sikio.Repo.SQLite do
     custom_pragmas: [mmap_size: 134_217_728]
   ]
 
-  # `Sikio.Repo`, spelled from this module's name. Naming it, or sharing this module's code with
-  # the other repository through a module of their own, would make this file depend on others while
-  # `Sikio.Repo` reads its functions when it compiles. The two repositories repeat it instead.
+  # `Sikio.Repo`, derived from this module's name. `Sikio.Repo` reads this module's functions
+  # at compile time. Naming it here, or sharing code through a third module, adds a dependency
+  # to this file. So both repositories repeat this line.
   @name __MODULE__ |> Module.split() |> Enum.drop(-1) |> Module.concat()
 
-  # It runs under that name, so whoever asks for `Sikio.Repo` by name finds it, and its own
-  # calls go there too.
+  # The repository registers under that name, so name lookups for `Sikio.Repo` find it.
+  # Its own calls default to that name too.
   use Ecto.Repo, otp_app: :sikio, adapter: Ecto.Adapters.SQLite3, default_dynamic_repo: @name
 
-  # Started through `Sikio.Repo`, the configuration set there already lies beneath the start's
-  # own options. Asked for its configuration without a start, it lies above Ecto's defaults.
-  # The adapter's defaults lie beneath both. Migrations and telemetry keep the names of a
-  # single repository.
+  # Under `:supervisor`, `Sikio.Repo` has already merged its configuration beneath the start
+  # options. Under `:runtime`, the `Sikio.Repo` configuration overrides the given one.
+  # `@defaults` sit beneath both. `priv` and the telemetry prefix match a single repository.
   @impl true
   def init(type, config) do
     config =
@@ -48,10 +47,10 @@ defmodule Sikio.Repo.SQLite do
     {:ok, config}
   end
 
-  # Turns a new file to WAL with one connection before the pool opens its own. Each of those turns
-  # it too as it connects, and on an empty file they collide: SQLite refuses all but one at once
-  # rather than wait, and the others log "database is locked" before they retry. A file already in
-  # WAL needs no lock to stay there. A file that cannot be opened is left for the pool to report.
+  # Sets WAL on one connection before the pool opens. Each pool connection also sets it on
+  # connect. On a new file, SQLite refuses concurrent switches instead of waiting.
+  # The refused connections log "database is locked" and retry.
+  # A file already in WAL needs no lock to keep it. The pool reports a file that cannot be opened.
   defp write_ahead(config) do
     with :wal <- config[:journal_mode],
          path when is_binary(path) and path != ":memory:" <- config[:database],

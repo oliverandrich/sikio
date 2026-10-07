@@ -2,9 +2,9 @@
 
 defmodule Sikio.Playback.Preference do
   @moduledoc """
-  How one account wants the player to behave. An account without a row takes the defaults.
+  One account's player settings. An account without a row uses the defaults.
 
-  The users table follows Ithibati Starter, so what belongs to Sikio alone sits beside it.
+  The users table follows Ithibati Starter, so Sikio-specific settings live in a separate table.
   """
   use Ecto.Schema
 
@@ -12,7 +12,7 @@ defmodule Sikio.Playback.Preference do
 
   schema "playback_preferences" do
     belongs_to :user, User
-    # Whether the player goes on with the queue when an item ends.
+    # Whether the player continues with the queue when an item ends.
     field :play_on, :boolean, default: true
     timestamps(type: :utc_datetime_usec)
   end

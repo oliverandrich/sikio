@@ -2,14 +2,14 @@
 
 defmodule Sikio.Feeds.Refresh do
   @moduledoc """
-  Refreshes a source while at least one subscriber wants updates.
+  Refreshes a feed if it has at least one unpaused subscription.
 
-  The check is repeated here rather than trusted from the scheduler, because a feed can be paused
-  or unsubscribed in the minutes a job spends in the queue. Failures are returned so Oban retries
-  them; a source that is down for an hour is not a source that is gone.
+  The check repeats here instead of relying on the scheduler. A feed can be paused or unsubscribed
+  while the job waits in the queue. Failures are returned so Oban retries them. A temporary
+  outage does not mean the feed is gone.
   """
-  # Unique while it waits or runs, however long a full queue keeps it, rather than for a period
-  # the scheduler's own five minutes could outlast.
+  # Unique while the job waits or runs, with no time limit. A full queue can hold a job longer
+  # than the scheduler's five-minute interval, so a fixed period could admit duplicates.
   use Oban.Worker,
     queue: :feeds,
     max_attempts: 3,
@@ -25,10 +25,10 @@ defmodule Sikio.Feeds.Refresh do
   @impl true
   def perform(%Oban.Job{args: %{"feed_id" => id}}) do
     if Library.active_feed?(id) do
-      # New entries go where each subscription sends them, in the same transaction.
+      # `Library.deliver/2` routes new entries to subscriptions in the same transaction.
       case Feeds.refresh(id, &Library.deliver/2) do
         {:ok, _feed} -> :ok
-        # The server named when to come back, and the feed's next check says so already.
+        # The server's `Retry-After` is already in `next_check_at`, so Oban does not retry.
         {:error, :busy} -> :ok
         {:error, reason} -> {:error, reason}
       end

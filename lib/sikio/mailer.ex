@@ -1,16 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 defmodule Sikio.Mailer do
-  @moduledoc "Invitation delivery, for an instance that addresses its accounts."
+  @moduledoc "Swoosh mailer for invitations in email mode."
   use Swoosh.Mailer, otp_app: :sikio
 
   @doc """
-  Whether anything here is configured to send.
+  Returns whether mail delivery is enabled by `:mail_enabled`.
 
-  Asked where the application starts and handed to `Sikio.Identity`, which refuses to start an
-  instance that addresses its accounts without it. Answered here because this is the module that
-  would do the sending, so if readiness ever comes to mean something else, it means it in one
-  place.
+  `Sikio.Application` passes the result to `Sikio.Identity.verify!/1`, which raises in email mode
+  without delivery. The check lives in the sending module, so its definition stays in one place.
   """
   def configured?, do: Application.get_env(:sikio, :mail_enabled, false)
 end

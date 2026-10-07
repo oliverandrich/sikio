@@ -2,10 +2,8 @@
 
 defmodule Sikio do
   @moduledoc """
-  Sikio keeps the contexts that define your domain
-  and business logic.
+  Root namespace of the contexts that hold the domain and business logic.
 
-  Contexts are also responsible for managing your data, regardless
-  if it comes from the database, an external API or others.
+  Contexts also manage data, whether it comes from the database, an external API or elsewhere.
   """
 end

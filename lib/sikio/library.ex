@@ -2,12 +2,11 @@
 
 defmodule Sikio.Library do
   @moduledoc """
-  Account-scoped subscriptions and imported media.
+  Account-scoped subscriptions, feed entries and their listing.
 
-  Every function on an account's data takes the account as its first argument, and every query is
-  written against it rather than filtered afterwards. `deliver/2` and `active_feed?/1` concern a
-  feed across all accounts. Feed content is shared; what an account subscribed to, and how far it
-  got, is not.
+  Every function on an account's data takes the account first and scopes its query to it.
+  `deliver/2`, `due_feed_ids/0` and `active_feed?/1` operate on feeds across all accounts.
+  Feed content is shared. Subscriptions and playback progress belong to one account.
   """
   import Ecto.Query
 
@@ -20,15 +19,15 @@ defmodule Sikio.Library do
   alias Sikio.Repo
   alias Sikio.Tags
 
-  @doc "The one entry with this id that the account is allowed to see, or `nil`."
+  @doc "Returns the entry with this id if the account can see it, otherwise `nil`."
   def entry(%User{id: user_id}, id),
     do: with_id(id, &Repo.one(from e in entry_query(user_id), where: e.id == ^&1))
 
   @doc """
-  The id of an entry the account is allowed to see, or `nil`.
+  Returns the id of an entry the account can see, or `nil`.
 
-  This is the authorization for every write, so it is asked again each time rather than trusted
-  from the request that started a player. It reads the subscription only, not the item.
+  Writes call this for authorization on every request. They do not trust the request that started
+  the player. The query joins subscriptions and selects only the entry id.
   """
   def visible_entry_id(%User{id: user_id}, id),
     do:
@@ -37,19 +36,20 @@ defmodule Sikio.Library do
         &Repo.one(from e in subscribed_entries(user_id), where: e.id == ^&1, select: e.id)
       )
 
-  @doc "A query for the ids of the entries the account is allowed to see, to filter other queries by."
+  @doc "Returns a query for the ids of entries the account can see, for use as a subquery."
   def visible_entry_ids(%User{id: user_id}),
     do: from(e in subscribed_entries(user_id), select: e.id)
 
-  @doc "A query for the ids of the entries the account's lists show, which leaves out hidden Shorts."
+  @doc "Returns a query for the ids of entries the account's lists show, without hidden Shorts."
   def listed_entry_ids(%User{id: user_id}),
     do: from(e in listed_entries(user_id), select: e.id)
 
   def subscribe(%User{id: user_id}, preview) do
     result =
       Repo.transaction(fn ->
-        # The subscription is made after the store, so what the source holds now stays in the
-        # inbox for this account, while others' subscriptions take what is new to them.
+        # The subscription is inserted after the store, so `deliver/2` does not see it.
+        # The feed's current entries stay in this account's inbox.
+        # Existing subscriptions receive only the new entries.
         with {:ok, feed} <- Feeds.store(preview, &deliver/2),
              {:ok, subscription} <-
                Repo.insert(
@@ -72,9 +72,10 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  Changes a subscription's own settings: a name of the account's own, blank for the feed's
-  title, where what its source publishes next goes, and whether a channel's Shorts show. The
-  account's views hear of it as `{:subscription_changed, subscription_id}`.
+  Updates a subscription's settings: a custom name, the delivery of new entries, and Shorts.
+  A blank name falls back to the feed title. Returns `{:error, :not_found}` for another
+  account's subscription. A successful update with changes broadcasts
+  `{:subscription_changed, subscription_id}` to the account.
   """
   def update_subscription(account, id, attrs) do
     case owned(account, id) do
@@ -87,28 +88,29 @@ defmodule Sikio.Library do
     end
   end
 
-  # Every open view reloads when it hears of it, so a save that changes nothing stays quiet.
+  # Every open view reloads on this broadcast, so an update without changes sends none.
   defp announce(account, %{changes: changes}, {:ok, updated}) when changes != %{},
     do: Events.broadcast(account, {:subscription_changed, updated.id})
 
   defp announce(_account, _changeset, _result), do: :ok
 
   @doc """
-  Sends a source's new entries where each subscription to it says: to the end of its account's
-  queue, oldest first, or to the archive. The inbox needs nothing, since an entry nobody has
-  opened is new. Runs inside the transaction that stores the entries.
+  Applies each subscription's `delivery` to a feed's new entries.
+  `:queue` appends them to the account's queue, oldest first. `:skip` archives them.
+  `:inbox` needs no row, since an entry without a playback row counts as new.
+  Runs inside the transaction that stores the entries.
   """
   def deliver(feed_id, entry_ids) do
     now = DateTime.utc_now()
-    # A subscription that hides Shorts is sent none of them.
+    # Subscriptions with `shorts: false` receive no Shorts.
     shorts = Repo.all(from e in Entry, where: e.id in ^entry_ids and e.short, select: e.id)
     without_shorts = entry_ids -- shorts
 
     Repo.all(
       from s in Subscription,
         where: s.feed_id == ^feed_id and s.delivery != :inbox,
-        # The refresh's transaction holds every queue until it commits, so two refreshes take
-        # them in one order.
+        # Queue locks are held until the refresh commits.
+        # A fixed lock order prevents deadlocks between concurrent refreshes.
         order_by: s.user_id,
         select: {s.user_id, s.delivery, s.shorts}
     )
@@ -120,8 +122,9 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  Holds the account's queue until the transaction ends. Every change that computes a rank takes
-  it first, so two changes cannot give two items one place.
+  Locks the account's user row until the transaction ends, see `Sikio.Repo.for_no_key_update/1`.
+  Every change that computes a queue rank takes this lock first.
+  Two concurrent changes therefore cannot assign the same rank.
   """
   def lock_queue(user_id) do
     from(u in User, where: u.id == ^user_id, select: u.id)
@@ -129,7 +132,7 @@ defmodule Sikio.Library do
     |> Repo.one()
   end
 
-  # One account's progress rows for new entries: queued after what its queue holds, or archived.
+  # One account's playback rows for new entries: ranked after its queue, or archived.
   defp delivered(user_id, delivery, entry_ids, now) do
     last =
       Repo.one(
@@ -161,11 +164,10 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  The origins whose own players this account may be shown.
+  Returns the origins of the PeerTube instances the account subscribes to, sorted.
 
-  A PeerTube video is played by the instance that holds it, and there is no list of instances
-  to know in advance. What this account subscribed to is the list, so the policy that frames
-  them is derived from it rather than guessed at.
+  A PeerTube video embeds from the instance that hosts it. No fixed instance list exists.
+  The content security policy derives its allowed frame origins from this list.
   """
   def player_origins(%User{id: user_id}) do
     Repo.all(
@@ -189,11 +191,12 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  The account's entries under `filters`, newest first and undated last.
+  Returns the account's entries matching `filters`, in the order `sorted_by/1` names.
+  The queue sorts by rank. Other lists sort newest first, undated last.
 
-  `:limit` caps how many come back, 100 by default. `:after` names the last entry a list already
-  shows, and the batch continues behind it by date and then id, so nothing repeats or is skipped
-  when an episode arrives in between.
+  `:limit` caps the result, 100 by default. `:after` takes the last entry a list already shows.
+  The next page uses keyset pagination on the sort key and the id.
+  An entry inserted between pages causes no duplicates or gaps.
   """
   def entries(%User{id: user_id}, filters \\ %{}, opts \\ []) do
     by = sorted_by(filters)
@@ -208,8 +211,8 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  What a list with `filters` runs by: the queue by its own order, what was heard by when it was
-  heard, everything else by when it was published.
+  Returns the sort key for `filters`: `:queue` for the queue, `:finished` for heard entries,
+  `:published` for everything else.
   """
   def sorted_by(filters) do
     case normalize_filters(filters)["status"] do
@@ -219,14 +222,14 @@ defmodule Sikio.Library do
     end
   end
 
-  @doc "The date `entry` has in a list that runs `by` it, or nil when it has none."
+  @doc "Returns `entry`'s date for the sort key `by`, or nil when it has none."
   def sort_date(entry, :published), do: entry.published_at
   def sort_date(%{playback: %{completed_at: at}}, :finished), do: at
   def sort_date(_entry, _by), do: nil
 
   @doc """
-  Whether `a` comes before `b` in a list that runs `by` something: the queue first to last, a
-  date later first, undated last.
+  Whether `a` sorts before `b` under the sort key `by`.
+  The queue sorts by ascending rank. Dates sort descending, undated last. The id breaks ties.
   """
   def before?(a, b, :queue), do: {rank(a), a.id} < {rank(b), b.id}
 
@@ -250,7 +253,7 @@ defmodule Sikio.Library do
   defp key(:finished), do: dynamic([e, s, p], p.completed_at)
   defp key(:queue), do: dynamic([e, s, p], p.queue_rank)
 
-  # The entries after `entry` in the list's order, for loading the next batch.
+  # Keyset pagination: the entries after `entry` in the list's order.
   defp behind(query, _by, nil), do: query
 
   defp behind(query, :queue, %{id: id} = entry) do
@@ -265,7 +268,7 @@ defmodule Sikio.Library do
       nil ->
         where(query, ^dynamic([e], is_nil(^key) and e.id < ^id))
 
-      # Typed, because a key that is itself interpolated tells Ecto nothing about the value.
+      # The key is an interpolated dynamic, so Ecto cannot infer the value's type.
       at ->
         at = dynamic(type(^at, :utc_datetime_usec))
         where(query, ^dynamic([e], ^key < ^at or (^key == ^at and e.id < ^id) or is_nil(^key)))
@@ -273,10 +276,10 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  This account's entries grouped by source and status, from one query.
+  Returns the account's entry counts grouped by feed and status, from one query.
 
-  The rows are what `tally/3` adds up for whichever filters are in force. An entry nobody has
-  opened has no progress row and is counted as new.
+  `tally/3` sums these rows for the active filters.
+  An entry without a playback row counts as new.
   """
   def counts(%User{id: user_id}) do
     Repo.all(
@@ -289,9 +292,10 @@ defmodule Sikio.Library do
     end)
   end
 
-  # The lists an entry shows in besides all items, as their queries choose them: the queue holds
-  # whatever stands in it, the inbox what is new beside it, the history what was heard, queued
-  # again or not. What is archived, or under way outside the queue, shows only among all items.
+  # The lists besides "all" that show an entry, matching the filters in `filtered_entries/2`.
+  # The queue shows every queued entry. The inbox shows new entries outside the queue.
+  # Heard entries show in the history, queued or not.
+  # Archived entries and in-progress entries outside the queue show only under "all".
   defp views(:heard, true), do: [:heard]
   defp views(:heard, false), do: [:queue, :heard]
   defp views(_status, false), do: [:queue]
@@ -299,10 +303,11 @@ defmodule Sikio.Library do
   defp views(_status, true), do: []
 
   @doc """
-  How many items each link in the sidebar shows, under the filters in force.
+  Returns the item count for each sidebar link under the active filters.
 
-  Each count honours the filters its link keeps and replaces only its own. A source counts what
-  is new unless a status is chosen, and so does a tag, over the feeds `tag_feeds` gives it.
+  Each count applies the other active filters and replaces only its own.
+  Source and tag counts include only new entries unless a status filter is set.
+  A tag counts the feeds that `tag_feeds` maps it to.
   """
   def tally(rows, filters, tag_feeds \\ %{}) do
     filters = normalize_filters(filters)
@@ -315,14 +320,14 @@ defmodule Sikio.Library do
     beside = fn own -> Enum.filter(rows, &matches_except?(&1, filters, own, tagged)) end
     sources = Map.new(rows, &{&1.feed_id, 0})
 
-    # A source and a tag are places of their own, so each counts beside whichever is chosen.
+    # Source and tag counts ignore both the source and the tag filter.
     new_or_chosen =
       beside.([:source, :tag]) |> Enum.filter(&(filters["status"] != "" or :inbox in &1.views))
 
     by_feed = sum_by(new_or_chosen, :feed_id)
     listed = beside.([:status])
 
-    # An entry may stand in two lists, so each counts its own and all items counts it once.
+    # An entry can appear in two lists. Each list counts it, and `:all` counts it once.
     Map.new([:inbox, :queue, :heard], fn view ->
       {view, listed |> Enum.filter(&(view in &1.views)) |> Enum.sum_by(& &1.count)}
     end)
@@ -336,7 +341,7 @@ defmodule Sikio.Library do
     )
   end
 
-  @doc "Whether the list under `filters` holds the entry, for this account alone."
+  @doc "Whether the account's list for `filters` contains the entry."
   def listed?(%User{id: user_id}, filters, id) do
     with_id(id, fn id ->
       user_id
@@ -349,8 +354,8 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  The ids of every entry a list with `filters` shows, however many it has loaded, as a query to
-  use inside another, so that marking a whole list never carries its ids.
+  Returns a query for the ids of every entry the list for `filters` shows, ignoring pagination.
+  Callers use it as a subquery, so marking a whole list never loads its ids.
   """
   def listed_ids(%User{id: user_id}, filters) do
     user_id
@@ -360,7 +365,7 @@ defmodule Sikio.Library do
     |> select([e], e.id)
   end
 
-  @doc "How many entries match `filters`, however many a list has loaded. Searches count this way."
+  @doc "Returns how many entries match `filters`, ignoring pagination."
   def count(%User{id: user_id}, filters) do
     user_id
     |> filtered_entries(filters)
@@ -370,7 +375,7 @@ defmodule Sikio.Library do
     |> Repo.one()
   end
 
-  @doc "How many items match `filters` altogether, read from their `tally/3`."
+  @doc "Returns the total count for `filters`, read from their `tally/3`."
   def total(tally, filters) do
     status = normalize_filters(filters)["status"]
     Map.fetch!(tally, if(status == "", do: :all, else: String.to_existing_atom(status)))
@@ -391,10 +396,10 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  Reduces request parameters to the three filters, discarding anything else.
+  Reduces request parameters to `status`, `source`, `tag` and `q`, dropping everything else.
 
-  Written here rather than in the view because the same values reach the database. An unrecognised
-  value becomes an empty string, which means no filter, so a hand-edited URL narrows nothing.
+  This lives here, not in the view, because the same values reach database queries.
+  An unrecognised value becomes an empty string, which means no filter.
   """
   def normalize_filters(params) do
     %{
@@ -405,11 +410,11 @@ defmodule Sikio.Library do
     }
   end
 
-  # What was typed, trimmed and of a length worth asking for.
+  # Search input, trimmed and capped at 100 characters.
   defp search_text(text) when is_binary(text), do: text |> String.trim() |> String.slice(0, 100)
   defp search_text(_text), do: ""
 
-  # The lists' names before the inbox, which old addresses and links still carry.
+  # Former status names, still present in old URLs and links.
   defp renamed("new"), do: "inbox"
   defp renamed("in_progress"), do: "queue"
   defp renamed("completed"), do: "heard"
@@ -427,7 +432,8 @@ defmodule Sikio.Library do
 
   defp source_id(_), do: ""
 
-  # A source is one feed. A tag gathers the feeds of the account's subscriptions that carry it.
+  # A source filter matches one feed.
+  # A tag filter matches the feeds of the account's subscriptions with that tag.
   defp in_place(query, _user_id, %{"source" => source}) when source != "",
     do: where(query, [e], e.feed_id == ^String.to_integer(source))
 
@@ -445,7 +451,7 @@ defmodule Sikio.Library do
         "" ->
           query
 
-        # An entry nobody has opened has no row at all, which is the same thing as new.
+        # An entry without a playback row counts as new.
         "inbox" ->
           where(query, [e, s, p], (is_nil(p.id) or p.status == :new) and is_nil(p.queue_rank))
 
@@ -459,17 +465,19 @@ defmodule Sikio.Library do
     matching(query, filters["q"])
   end
 
-  # Words a reader remembers, in the title, the notes or the excerpt, as Sikio.Feeds.SearchText
-  # stored them: lowercase and without markup. What was typed is text, so the pattern characters
-  # in it are escaped, and lowercase too, so case never decides.
+  # Matches title, notes and excerpt as Sikio.Feeds.SearchText stores them: lowercase, no markup.
+  # The input is lowercased too, so matching ignores case.
+  # Pattern characters in the input are escaped.
   defp matching(query, ""), do: query
 
   defp matching(query, text), do: where(query, [e], ^containing(String.downcase(text)))
 
-  # A trigram index serves the search on either database. Postgres keeps it on the column, which
-  # `LIKE` uses. SQLite keeps it in a full-text table of its own, which uses it for `GLOB` and
-  # for `LIKE` without `ESCAPE`, so the search asks that table with `GLOB`. Each pattern language
-  # has its own wildcards, and those in what was typed are taken literally.
+  # Both databases serve the search from a trigram index.
+  # PostgreSQL indexes the column, and `LIKE` uses that index.
+  # SQLite keeps the index in a separate full-text table.
+  # That table uses it for `GLOB` and for `LIKE` without `ESCAPE`.
+  # SQLite therefore queries that table with `GLOB`.
+  # Each pattern language has its own wildcards; those in the input are escaped.
   defp containing(text) do
     if Sikio.Repo.postgres?(), do: postgres_containing(text), else: sqlite_containing(text)
   end
@@ -492,21 +500,21 @@ defmodule Sikio.Library do
     dynamic([e], fragment("? LIKE ? ESCAPE '\\'", e.search_text, ^pattern))
   end
 
-  # The join to subscriptions is what makes this account-scoped. Every query over entries starts
-  # here, including the ownership check on each write.
+  # The subscription join scopes entries to the account.
+  # Every entry query starts here, including the authorization check on each write.
   defp subscribed_entries(user_id) do
     from e in Entry,
       join: s in Subscription,
       on: s.feed_id == e.feed_id and s.user_id == ^user_id
   end
 
-  # What the account's lists show. A Short shows only where its subscription asks for it. Hiding is
-  # a view, so a player holding a Short still saves its place.
+  # Entries the account's lists show. Shorts show only where the subscription enables them.
+  # Hiding applies to lists only, so a player can still save progress on a Short.
   defp listed_entries(user_id) do
     from [e, s] in subscribed_entries(user_id), where: s.shorts or not e.short
   end
 
-  # The left join carries this account's progress onto the shared row.
+  # The left join adds this account's playback row to the shared entry.
   defp scoped_entries(user_id) do
     from [e, s] in listed_entries(user_id),
       left_join: p in State,
@@ -517,8 +525,8 @@ defmodule Sikio.Library do
   defp entry_query(user_id) do
     from [e, s, p, f] in scoped_entries(user_id),
       select_merge: %{playback: p, source_name: coalesce(s.name, f.title)},
-      # Bound to the join above. An unbound `preload: [:feed]` joins and then fetches the feeds a
-      # second time, which every library page and every saved position would pay for.
+      # Preloads from the join above. An unbound `preload: [:feed]` runs a second query for feeds.
+      # Every library page and every progress save would pay for that query.
       preload: [feed: f]
   end
 
@@ -536,10 +544,11 @@ defmodule Sikio.Library do
   defp load_subscription(subscription, _user_id, _feed_id), do: Repo.preload(subscription, :feed)
 
   @doc """
-  Removes one account's subscription, leaving the shared feed and its entries in place.
+  Deletes the account's subscription. The shared feed and its entries remain.
 
-  Somebody else may still be subscribed, and this account may subscribe again later and find its
-  progress where it left it.
+  Other accounts may still subscribe to the feed. Playback rows remain too.
+  A later resubscription therefore restores the account's progress.
+  Broadcasts `{:subscription_removed, feed_id}` to the account on success.
   """
   def unsubscribe(account, id) do
     case owned(account, id) do
@@ -557,11 +566,12 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  The feeds somebody wants refreshed whose next check has come.
+  Returns the ids of feeds with an unpaused subscription whose next check is due.
 
-  Every request sets that moment, see `Sikio.Feeds.Schedule`; a feed without one is due at once.
-  It is written a moment after the feed was queued, so a minute of leeway keeps the feed from
-  waiting one run of the scheduler more.
+  Each refresh sets `next_check_at`, see `Sikio.Feeds.Schedule`.
+  A feed without `next_check_at` is due immediately.
+  The refresh writes it shortly after the scheduler run that queued the feed.
+  A one-minute margin keeps the feed from slipping to the following run.
   """
   def due_feed_ids do
     soon = DateTime.add(DateTime.utc_now(), 1, :minute)
@@ -582,7 +592,7 @@ defmodule Sikio.Library do
   defp owned(%User{id: user_id}, id),
     do: with_id(id, &Repo.get_by(Subscription, id: &1, user_id: user_id))
 
-  # An id from a request that is not one finds nothing, rather than raising.
+  # An invalid id returns nil instead of raising.
   defp with_id(id, fun) do
     case Ecto.Type.cast(:id, id) do
       {:ok, id} -> fun.(id)

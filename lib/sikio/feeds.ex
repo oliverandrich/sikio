@@ -4,9 +4,8 @@ defmodule Sikio.Feeds do
   @moduledoc """
   Persistence and refresh of shared feed content.
 
-  A feed is stored once for everybody who subscribes to it, so nothing here is account-scoped and
-  nothing here may carry progress. Imports are upserts, because the same episode arrives again on
-  every poll and has to stay the same row.
+  Feeds and entries are shared between accounts. Nothing here is account-scoped or stores
+  playback progress. Imports are upserts, because every poll returns known episodes again.
   """
   import Ecto.Query
 
@@ -24,21 +23,21 @@ defmodule Sikio.Feeds do
 
   @feed_fields [:title, :etag, :last_modified, :last_checked_at, :last_error, :updated_at]
 
-  # Everything the source just said replaces what was stored, except the picture and the website.
-  # An absent value is no statement that the source has none. YouTube's Atom feed names no
-  # artwork, and a podcast may leave out its link once. A dropped website stays until another
-  # replaces it. One row is written here, so leaving a column out of the list says exactly that.
+  # The upsert replaces every listed column. `icon_url` and `page_url` are listed only if present.
+  # A missing value keeps the stored one. YouTube's Atom feed has no artwork.
+  # A podcast may omit its link from a single response.
   defp replaced_feed_fields(attrs),
     do: Enum.filter([:icon_url, :page_url], &is_binary(attrs[&1])) ++ @feed_fields
 
-  @doc "How often a feed is asked, in minutes: an hour unless the operator sets `FEED_POLL_MINUTES`."
+  @doc "Base poll interval in minutes. Defaults to 60; `FEED_POLL_MINUTES` overrides it."
   def poll_minutes, do: Application.get_env(:sikio, :feed_poll_minutes, 60)
 
   @doc """
-  Stores a source and its entries, inserting what is new and updating what changed.
+  Upserts a feed and its entries in one transaction.
 
-  `on_new` is called with the feed's id and the ids of the entries that are new, inside the same
-  transaction, when there are any. The library sends them where its subscriptions say.
+  `on_new` receives the feed id and the ids of new entries, inside the same transaction.
+  It is not called when no entry is new. The library passes a callback that delivers to
+  subscriptions.
   """
   def store(preview, on_new \\ &ignore/2) do
     with {:ok, {feed, _written}} <- store_entries(preview, on_new), do: {:ok, feed}
@@ -49,7 +48,7 @@ defmodule Sikio.Feeds do
   defp announce(_on_new, _feed_id, []), do: :ok
   defp announce(on_new, feed_id, entry_ids), do: on_new.(feed_id, entry_ids)
 
-  # When the feed is asked next, by the age of its newest entry as stored now.
+  # Sets `next_check_at` from the age of the newest stored entry.
   defp schedule_next(feed_id, now, wait) do
     next = next_check(now, newest(feed_id), wait)
     Repo.update_all(from(f in Feed, where: f.id == ^feed_id), set: [next_check_at: next])
@@ -63,7 +62,7 @@ defmodule Sikio.Feeds do
   defp newest(feed_id),
     do: Repo.one(from e in Entry, where: e.feed_id == ^feed_id, select: max(e.published_at))
 
-  # The feed and how many of its entries were inserted or actually changed.
+  # Returns the feed and the number of entries inserted or changed.
   defp store_entries(preview, on_new, wait \\ nil) do
     Repo.transaction(fn ->
       attrs = Map.merge(preview, %{last_checked_at: DateTime.utc_now(), last_error: nil})
@@ -85,12 +84,13 @@ defmodule Sikio.Feeds do
   end
 
   @doc """
-  An item's chapters as its feed names them: listed in the item, or in the file it links.
+  Returns an entry's chapters, embedded in the item or loaded from its chapters file.
 
-  The file is fetched once, the first time somebody opens the item, through the guarded client
-  and with a small limit; what it holds is stored on the shared entry, so nobody fetches it again.
-  A file that cannot be reached is tried again next time. One that holds no chapters is stored
-  as such. Answers nil when the feed names no chapters at all.
+  The file is fetched on the first call through `Sikio.Feeds.HTTP`, limited to 256 kB.
+  The result is cached on the shared entry, so later calls skip the fetch.
+  A failed fetch is not cached and is retried on the next call.
+  A file without chapters is cached as an empty list.
+  Returns `{:ok, nil}` when the entry has neither chapters nor a chapters file.
   """
   def chapters(%Entry{chapters: chapters}) when is_list(chapters), do: {:ok, chapters}
   def chapters(%Entry{chapters_url: nil}), do: {:ok, nil}
@@ -99,7 +99,8 @@ defmodule Sikio.Feeds do
     case HTTP.get(url, max_bytes: 256_000) do
       {:ok, %{status: 200, body: body}} ->
         chapters = Chapters.from_json(body)
-        # A poll may have linked another file meanwhile; these chapters are not its.
+
+        # A concurrent refresh may have changed `chapters_url`. The update checks the fetched URL.
         Repo.update_all(from(e in Entry, where: e.id == ^id and e.chapters_url == ^url),
           set: [chapters: chapters]
         )
@@ -115,10 +116,11 @@ defmodule Sikio.Feeds do
   end
 
   @doc """
-  Fetches a source again. `on_new` hears of new entries as with `store/2`.
+  Fetches a feed again. `on_new` receives new entries as in `store/2`.
 
-  A server that failed and named when to come back answers `{:error, :busy}`, so the caller does
-  not retry before the feed's next check.
+  Returns `{:error, :busy}` when a 429 or 503 response carried a valid `Retry-After`.
+  The caller then does not retry before the feed's next check.
+  Returns `{:error, :not_found}` for an unknown id.
   """
   def refresh(id, on_new \\ &ignore/2) do
     case Repo.get(Feed, id) do
@@ -136,8 +138,8 @@ defmodule Sikio.Feeds do
     end
   end
 
-  # Subscribers hear of new content, and of a source that starts failing or recovers: the sidebar
-  # marks a failing one. Failing again, or answering the same, is nothing new.
+  # Broadcasts on new content and when a feed starts or stops failing. The sidebar marks failing
+  # feeds. A repeated failure or an unchanged response broadcasts nothing.
   defp news?({:ok, _refreshed}, _feed), do: true
   defp news?({:unchanged, _refreshed}, feed), do: feed.last_error != nil
   defp news?({:error, _reason}, feed), do: feed.last_error == nil
@@ -147,13 +149,13 @@ defmodule Sikio.Feeds do
       [{"if-none-match", feed.etag}, {"if-modified-since", feed.last_modified}]
       |> Enum.reject(fn {_, value} -> is_nil(value) end)
 
-    # The server's wait, in seconds or nil, only ever postpones the next request.
+    # `wait` is seconds or nil. It can delay the next check, never advance it.
     case Discovery.poll(feed.url, headers) do
-      # Keep the original stable subscription URL even when its endpoint redirects.
+      # Keeps the subscribed URL when the endpoint redirects.
       {{:ok, preview}, wait} ->
         %{preview | url: feed.url} |> store_entries(on_new, wait) |> compared_with(feed)
 
-      # Nothing changed, so nobody is told. Each notification costs every open library a reload.
+      # A 304 broadcasts nothing. Each broadcast reloads every open library view.
       {:not_modified, wait} ->
         now = DateTime.utc_now()
 
@@ -169,12 +171,12 @@ defmodule Sikio.Feeds do
           other -> other
         end
 
-      # A failure says nothing about the feed's pace, so it is asked again at the base interval,
-      # or later when the server said so.
+      # A failure carries no publishing date. The next check uses the base interval, or the
+      # server's wait when longer.
       {{:error, reason}, wait} ->
         now = DateTime.utc_now()
-        # The operator has to know which source fails: its title and host say so. A private feed
-        # may carry a token in its address, so the address itself stays out.
+        # Logs the feed's title and host to identify it. The full URL is omitted, because a
+        # private feed URL may contain a token.
         Logger.warning("feed refresh failed",
           feed_id: feed.id,
           feed_title: feed.title,
@@ -190,13 +192,13 @@ defmodule Sikio.Feeds do
           ]
         )
 
-        # A server that named its wait is asked again then, so the job is not retried before.
+        # With a server wait, `:busy` prevents a job retry before `next_check_at`.
         if wait, do: {:error, :busy}, else: {:error, reason}
     end
   end
 
-  # A document that repeats what is stored notifies nobody, like a 304. What a reader sees of the
-  # source itself, its name, picture and website, counts as much as its entries.
+  # A 200 response that changes nothing broadcasts nothing, like a 304. Changes to `title`,
+  # `icon_url` or `page_url` count as changes, as entry changes do.
   defp compared_with({:ok, {stored, 0}}, feed)
        when stored.title == feed.title and stored.icon_url == feed.icon_url and
               stored.page_url == feed.page_url,
@@ -206,7 +208,7 @@ defmodule Sikio.Feeds do
   defp compared_with(other, _feed), do: other
 
   @replaced_entry_fields [:title, :media_url, :video_id, :embed_url, :published_at]
-  # The kept fields that the searched text is made of.
+  # The kept fields that make up `search_text`.
   @text_fields [:description, :description_format, :excerpt]
   @kept_entry_fields [
     :image_url,
@@ -240,7 +242,7 @@ defmodule Sikio.Feeds do
         conflict_target: [:feed_id, :external_id]
       )
 
-    # A row inserted now carries this moment; one that was there keeps its own.
+    # Inserted rows carry this exact `inserted_at`. Updated rows keep their original value.
     new =
       Repo.all(
         from e in Entry,
@@ -252,9 +254,10 @@ defmodule Sikio.Feeds do
     {written, new}
   end
 
-  # The text searched has to be the one the row ends up with. Notes and an excerpt a poll left
-  # out stay stored, so they are read back for exactly those entries. The feed's upsert before
-  # this holds its row, so a second refresh of the feed cannot write between read and upsert.
+  # `search_text` must match the row after the upsert. The upsert keeps stored text fields a poll
+  # omits, so those entries' stored values are read here. The feed upsert earlier in this
+  # transaction locks the feed row. A concurrent refresh cannot write between this read and the
+  # entry upsert.
   defp kept_text(feed_id, entries) do
     case for(e <- entries, Enum.any?(@text_fields, &is_nil(e[&1])), do: e.external_id) do
       [] ->
@@ -270,27 +273,27 @@ defmodule Sikio.Feeds do
     end
   end
 
-  # The same COALESCE the upsert applies, so the text follows the row.
+  # Applies the upsert's COALESCE in Elixir, so `search_text` matches the stored row.
   defp with_kept_text(entry, kept) do
     Map.merge(entry, Map.get(kept, entry.external_id, %{}), fn _field, new, old -> new || old end)
   end
 
-  # What identifies and locates an episode is replaced outright, because a feed that moves its
-  # audio has moved it. Artwork, runtime, notes, the page and chapters are not: a poll that leaves them out is a poll
-  # that said nothing about them, and a show that trims one document should not strip every
-  # episode it ever published. The same rule the feed's own picture follows.
+  # Title, media location and publishing date are always replaced. A changed media URL means
+  # the file moved. Artwork, duration, description, excerpt, page URL and chapters keep their
+  # stored value when a poll omits them. A feed that trims its document must not erase older
+  # episodes' data. The feed's `icon_url` follows the same rule.
   #
-  # A row whose values would not change is not written at all. Rewriting it costs a new row
-  # version, write ahead log and a dead tuple on every poll of a source without cache
-  # validators. The whole row is compared at once, null-safe, against exactly what the update
-  # would set. The guard and the update name their columns separately; the tests change each
-  # column on its own and expect a write, so a column left out of the guard fails one of them.
+  # The update is skipped when no value would change. A rewrite costs a new row version, WAL and
+  # a dead tuple on every poll of a feed without ETag or Last-Modified. The guard compares the
+  # whole row null-safely against the values the update would set. Guard and update list their
+  # columns separately. Each column has a test that changes only it and expects a write. A column
+  # missing from the guard fails its test.
   #
-  # A Short stays one. The channel's Shorts feed names only its latest Shorts. A poll without the
-  # mark says nothing about an entry.
+  # `short` is never reset to false. The channel's Shorts feed lists only its latest Shorts.
+  # A missing flag does not mean the entry is not a Short.
   #
-  # SQLite stores a list of no chapters as the JSON text `null` rather than as NULL. `NULLIF`
-  # against a nil dumped the same way turns it back into NULL there, and is a no-op on Postgres.
+  # SQLite stores a nil chapter list as the JSON text `null`, not as SQL NULL. `NULLIF` against
+  # an equally dumped nil turns it into NULL there. On Postgres it is a no-op.
   defp keep_content do
     from(e in Entry,
       where:
@@ -343,8 +346,8 @@ defmodule Sikio.Feeds do
             fragment("COALESCE(EXCLUDED.description_format, ?)", e.description_format),
           excerpt: fragment("COALESCE(EXCLUDED.excerpt, ?)", e.excerpt),
           page_url: fragment("COALESCE(EXCLUDED.page_url, ?)", e.page_url),
-          # Chapters fetched from a file belong to it: a feed linking another file has them
-          # fetched again. A poll that names no file names no other one.
+          # A new `chapters_url` clears the cached chapters, so they are fetched again.
+          # A poll without a chapters URL keeps the cached chapters.
           chapters:
             fragment(
               "CASE WHEN NULLIF(EXCLUDED.chapters, ?) IS NULL AND EXCLUDED.chapters_url IS NOT NULL AND EXCLUDED.chapters_url IS DISTINCT FROM ? THEN NULL ELSE COALESCE(NULLIF(EXCLUDED.chapters, ?), ?) END",
@@ -355,7 +358,7 @@ defmodule Sikio.Feeds do
             ),
           chapters_url: fragment("COALESCE(EXCLUDED.chapters_url, ?)", e.chapters_url),
           short: fragment("EXCLUDED.short OR ?", e.short),
-          # Derived from the columns above, notes kept included, so the guard need not compare it.
+          # Derived from the guarded columns, kept text included, so the guard omits it.
           search_text: fragment("EXCLUDED.search_text"),
           updated_at: fragment("EXCLUDED.updated_at")
         ]
@@ -363,8 +366,7 @@ defmodule Sikio.Feeds do
     )
   end
 
-  # `insert_all` writes what it is given, without the schema's type casting, so a timestamp parsed
-  # out of a feed has to match the column's precision before it gets there.
+  # `insert_all` skips schema casting. Parsed timestamps must already have microsecond precision.
   defp microseconds(nil), do: nil
   defp microseconds(date), do: %{date | microsecond: {elem(date.microsecond, 0), 6}}
 end

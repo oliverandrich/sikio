@@ -2,11 +2,10 @@
 
 defmodule Sikio.Playback.State do
   @moduledoc """
-  A single account's progress and current playback session for an entry.
+  One account's progress and current playback session for an entry.
 
-  There is no changeset here. Every write goes through `Sikio.Playback`, inside a transaction that
-  holds the row, because the values that matter are decided by comparing them with what is already
-  stored rather than by validating what arrived.
+  This schema has no changeset. Every write goes through `Sikio.Playback` in a transaction that
+  locks the row. Each write derives its values from the stored row, not from input validation.
   """
   use Ecto.Schema
 
@@ -16,16 +15,17 @@ defmodule Sikio.Playback.State do
   schema "playback_states" do
     belongs_to :user, User
     belongs_to :entry, Entry
-    # New until played or put aside; heard at 90 % or by hand; archived when put aside unheard.
+    # `:new` until played or archived. `:heard` at 90 % or when marked.
+    # `:archived` when set aside.
     field :status, Ecto.Enum, values: [:new, :in_progress, :heard, :archived], default: :new
     field :position, :float, default: 0.0
     field :duration, :float
-    # When it was heard or archived, which is what the history runs by.
+    # When the entry was heard or archived. The history sorts by it.
     field :completed_at, :utc_datetime_usec
-    # Its place in the queue, smallest first, or nil when it is not queued.
+    # The queue position, ascending, or nil when not queued.
     field :queue_rank, :float
-    # The player that owns this entry right now. A second player anywhere takes it over, and the
-    # sequence rises with every sample so a late message from the old one cannot win.
+    # The session of the player that owns this entry. Starting another player replaces it.
+    # The sequence increases with every sample, so a late sample from the old session fails.
     field :session_id, Ecto.UUID
     field :sequence, :integer, default: 0
     timestamps(type: :utc_datetime_usec)

@@ -2,26 +2,25 @@
 
 defmodule Sikio.Identity do
   @moduledoc """
-  What an account is called on this instance: a name, or an address.
+  The account identifier mode of this instance: username or email address.
 
-  Ithibati binds the identifier field when it compiles. `ithibati_account/0` expands to a literal
-  field name, and the option may not even be a module attribute, so two modes cannot be two
-  fields. They are one column holding two kinds of thing, and the format is what tells them apart.
+  Ithibati binds the identifier field at compile time. `ithibati_account/0` expands to a literal
+  field name, and `identifier:` must be a literal atom, not a module attribute. So both modes
+  share one column, and the format distinguishes them.
 
-  `:format` is therefore not a literal at either schema, where it would be fixed for good. Both
-  name this module instead, as `{Sikio.Identity, :format}`, and Ithibati asks it on every
-  changeset. It requires the value, trims it, lowercases it, caps it at 254 graphemes and applies
-  whatever shape this answers with — including the guards that skip minting a token and asking
-  the accounts table for a value already refused.
+  A literal `:format` in either schema would be fixed at compile time. Both schemas pass
+  `{Sikio.Identity, :format}` instead, and Ithibati calls it on every changeset. The changeset
+  trims, lowercases and requires the value, applies the returned regex and caps it at 254
+  graphemes. An invalid invitation changeset skips token generation and the accounts lookup.
 
-  The mode is chosen once, before the first account. Turning an instance that already has accounts
-  from names to addresses would leave every identifier it holds failing the new format.
+  Choose the mode before the first account exists. Switching from usernames to addresses would
+  make every existing identifier fail the new format.
   """
   alias Ithibati.Schema.Identifier
 
   @modes [:username, :email]
 
-  @doc "Whether an account here is named or addressed."
+  @doc "Returns `:username` or `:email` from `:account_identity`. Raises for any other value."
   def mode do
     case Application.get_env(:sikio, :account_identity, :username) do
       mode when mode in @modes ->
@@ -36,26 +35,26 @@ defmodule Sikio.Identity do
     end
   end
 
-  @doc "Whether an account here is addressed, which is also what makes an invitation deliverable."
+  @doc "Returns whether accounts use email addresses. Only then can an invitation be mailed."
   def email?, do: mode() == :email
 
   @doc """
-  The shape an identifier has to have, which is the whole of what the two modes differ by.
+  Returns the identifier regex for the current mode. It is the only difference between modes.
 
-  Named by both schemas as `format: {Sikio.Identity, :format}` rather than carried there as a
-  literal, so Ithibati asks per changeset and an instance can answer.
+  Both schemas pass `format: {Sikio.Identity, :format}` instead of a literal, so Ithibati calls
+  this per changeset.
   """
   def format, do: if(email?(), do: Identifier.email_format(), else: Identifier.username_format())
 
   @doc """
-  The sentence a refused identifier carries, in the mode that refused it.
+  Returns the format error message for the current mode.
 
-  Ecto's default is "has invalid format", which names the fault and not the rule. Somebody who
-  has just been refused is being asked to type something else, so the message says what.
+  Ecto's default, "has invalid format", names the fault, not the rule. This message states the
+  rule, so the user knows what to enter.
 
-  Written as the second half of a sentence, because that is where it ends up. Beside the field
-  Ecto puts the label in front of it, and the invitation form spells the field out itself, so a
-  message naming the field again reads "Email address must be an email address."
+  The message is a sentence fragment. The form shows the field label before it, and the
+  invitation form names the field itself. A message that repeated the field would read
+  "Email address must be an email address."
   """
   def format_message do
     if email?(),
@@ -64,20 +63,16 @@ defmodule Sikio.Identity do
   end
 
   @doc """
-  Answers `:ok`, or raises when the instance asks for something it cannot do.
+  Returns `:ok`, or raises when email mode has no mail delivery configured.
 
-  An instance that addresses its accounts has to be able to reach them: in that mode the
-  invitation is an address, and an address nobody can send to is an instance nobody can join.
-  Asked where an instance starts, so a configuration like that is a refusal to boot rather than
-  an operator finding out with a guest waiting.
+  In email mode an invitation is mailed to an address. Without delivery, nobody could join.
+  `Sikio.Application` calls this at start, so the misconfiguration stops the boot.
 
-  Whether anything can deliver is passed in rather than asked for here. `Sikio.Mailer` owns that
-  answer, and this module is named by both schemas as `{Sikio.Identity, :format}` — a module
-  named at `use` is resolved when the schema compiles, so anything this one reaches becomes a
-  compile-time dependency of both of them. It reaches nothing, and the two are wired together in
-  `Sikio.Application`.
+  `deliverable?` comes from `Sikio.Mailer` as an argument. Both schemas name this module in their
+  `use` options, which resolve at compile time. Any module this one calls would become a
+  compile-time dependency of both schemas. `Sikio.Application` passes the value in.
 
-  Names need no mailer. An invitation link is handed over however its sender likes.
+  Username mode needs no mailer. The inviter shares the invitation link by any means.
   """
   def verify!(deliverable?) do
     if email?() and not deliverable? do

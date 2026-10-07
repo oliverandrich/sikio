@@ -2,19 +2,18 @@
 
 defmodule Sikio.Accounts.Invitation do
   @moduledoc """
-  The invitations table is ours, the same arrangement as the accounts table.
+  The invitations schema, owned by this application like the accounts schema.
 
-  Ithibati adds the invitee's identifier, the token digest, an expiry and an acceptance timestamp;
-  what an invitation *grants* is this application's to add. There is nothing here beyond the
-  minimum, because this example is about the flow rather than about roles.
+  Ithibati adds the invitee's identifier, the token digest, an expiry and an acceptance timestamp.
+  What an invitation grants is up to this application. Sikio has no roles, so it adds only the
+  inviter association.
   """
   use Ecto.Schema
 
   alias Ithibati.Schema.Invitation
 
-  # The same identifier the account schema is keyed by — the configuration refuses the pair when it
-  # is not, which is the mistake worth catching at boot rather than at the first invitation. The
-  # shape is named the same way it is named there, so the two cannot disagree about it.
+  # The same identifier as the account schema. `Ithibati.Config` raises when the two differ.
+  # The format uses the same reference as the account schema, so the two cannot disagree.
   use Invitation,
     identifier: :username,
     format: {Sikio.Identity, :format},
@@ -23,21 +22,20 @@ defmodule Sikio.Accounts.Invitation do
   schema "invitations" do
     ithibati_invitation()
 
-    # `define_field: false`: `ithibati_invitation/0` declares `invited_by_id` and two declarations
-    # of one column is a compile error. The library writes the column and names the foreign key
-    # for it; whether there is an association to preload is this application's to say, and the
-    # invitations page reads it.
+    # `define_field: false`: `ithibati_invitation/0` already declares `invited_by_id`.
+    # A second declaration of one column is a compile error.
+    # Ithibati defines the column and its foreign key; the association is this application's.
+    # The invitations page preloads it.
     belongs_to :invited_by, Sikio.Accounts.User, define_field: false
 
     timestamps(type: :utc_datetime_usec)
   end
 
   @doc """
-  The invitation, or a refusal that cost nothing to arrive at.
+  Returns the changeset from `invitation_changeset/3`.
 
-  Nothing of its own: `invitation_changeset/3` applies the shape this instance asks for, and
-  skips minting a token and asking the accounts table for a value it has already refused. This
-  used to unpick that order by hand, because the format could only be a literal.
+  It applies this instance's format. An invalid changeset skips token generation and the
+  accounts lookup.
   """
   def changeset(invitation, attrs, opts \\ []),
     do: invitation_changeset(invitation, attrs, opts)

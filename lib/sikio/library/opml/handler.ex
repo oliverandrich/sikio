@@ -2,12 +2,12 @@
 
 defmodule Sikio.Library.OPML.Handler do
   @moduledoc """
-  Reads outlines out of an OPML document, with every limit enforced while parsing.
+  Saxy handler that reads outlines from an OPML document and enforces limits while parsing.
 
-  The file comes from somebody else's application, so the bounds are checked as the document is
-  consumed rather than afterwards: node count, nesting depth, address length and the number of
-  distinct sources. A folder names a tag for the sources inside it, the innermost one counting,
-  and a source listed in two folders is one source with both tags.
+  The file comes from another application, so limits are checked during parsing, not afterwards.
+  The limits cover node count, nesting depth, URL length and the number of distinct sources.
+  A folder outline tags the sources inside it, and the innermost folder applies.
+  A source listed in two folders becomes one source with both tags.
   """
   @behaviour Saxy.Handler
 
@@ -28,7 +28,7 @@ defmodule Sikio.Library.OPML.Handler do
   def handle_event(_event, _data, state), do: {:ok, state}
 
   defp start_element(name, attrs, state) do
-    # Every open element carries the folder name it opens, or nil, so ending it lets go of it.
+    # Each open element pushes its folder name, or nil, so its end element pops it.
     folder =
       if name == "outline" and !is_binary(attrs["xmlUrl"]), do: attrs["text"] || attrs["title"]
 
@@ -49,8 +49,8 @@ defmodule Sikio.Library.OPML.Handler do
 
   defp source_title(attrs, url), do: String.slice(attrs["text"] || attrs["title"] || url, 0, 512)
 
-  # Normalising before comparing is what makes the deduplication work: the same feed is often
-  # listed twice with a different host case or scheme.
+  # URLs are normalised before deduplication.
+  # Lists often repeat a feed with a different host case or scheme.
   defp add_source(attrs, state) do
     raw = String.trim(attrs["xmlUrl"])
 
@@ -78,7 +78,7 @@ defmodule Sikio.Library.OPML.Handler do
     end
   end
 
-  # The innermost folder around the outline being read, which the outline itself is not.
+  # The innermost enclosing folder name, skipping the current outline's own entry.
   defp folder(%{folders: [_own | around]}), do: Enum.find(around, &is_binary/1)
 
   defp tagged(%{url: url, tags: tags} = source, url, folder) when is_binary(folder),

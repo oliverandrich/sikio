@@ -2,10 +2,10 @@
 
 defmodule Sikio.Library.OPML do
   @moduledoc """
-  Transfers subscription lists without account credentials or playback history.
+  Imports and exports subscription lists as OPML, without credentials or playback history.
 
-  An export names sources and nothing else. Progress, paused polling and who subscribed stay in
-  this instance, because an OPML file is something people hand to another application.
+  An export contains sources and their tags only. Progress, paused polling and subscribers stay
+  on this instance, because OPML files go to other applications.
   """
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Parser
@@ -38,9 +38,9 @@ defmodule Sikio.Library.OPML do
 
   def parse(_), do: {:error, :invalid_opml}
 
-  # Built as a document rather than as a string, so a title holding an ampersand or a quote comes
-  # back out of the file as the same title. A tag is a folder, and a subscription stands in each
-  # of its folders; one without tags stands at the top.
+  # Saxy encodes the document, so titles with ampersands or quotes are escaped and round-trip.
+  # Each tag becomes a folder outline. A subscription appears in every folder of its tags.
+  # Untagged subscriptions sit at the top level.
   def export(account) do
     feeds = account |> Library.subscriptions() |> Map.new(&{&1.feed_id, &1.feed})
     tag_feeds = Tags.feeds(account)
@@ -76,11 +76,11 @@ defmodule Sikio.Library.OPML do
        [{"type", "rss"}, {"text", feed.title}, {"title", feed.title}, {"xmlUrl", feed.url}], []}
 
   @doc """
-  Subscribes to each source in turn, reporting one status per source. A source's tags are added
-  to its subscription, new or not, beside the tags it has.
+  Subscribes to each source in order and returns one status per source.
+  A source's tags are added to its new or existing subscription, keeping its current tags.
 
-  A source already subscribed is left exactly as it is, including its paused polling and the
-  progress on its episodes. One unreachable feed does not stop the rest.
+  An existing subscription is otherwise unchanged, including paused polling and progress.
+  A failed fetch does not stop the remaining sources.
   """
   def import_sources(account, sources) when length(sources) <= 50 do
     known = account |> Library.subscriptions() |> Map.new(&{&1.feed.url, &1.id})
@@ -101,9 +101,9 @@ defmodule Sikio.Library.OPML do
     results
   end
 
-  # The network part, a few sources at a time: a slow server delays its own source, not every one
-  # behind it, and no host is asked for more than a handful at once. The stream is consumed in
-  # the file's order, so subscribing stays in order and only a few fetched feeds wait in memory.
+  # Fetches up to five sources concurrently. A slow server delays only its own source.
+  # No host receives more than five concurrent requests from one import.
+  # The ordered stream keeps the file's order and holds only a few fetched feeds in memory.
   defp fetched(sources, known) do
     Task.async_stream(
       sources,
@@ -117,8 +117,8 @@ defmodule Sikio.Library.OPML do
     )
   end
 
-  # Two addresses are remembered for one subscription: the one the file named and the one the feed
-  # finally answered from. A list that holds both an alias and the real address imports once.
+  # Both the URL from the file and the feed's stored URL map to the subscription.
+  # A list with an alias and the canonical URL imports the feed once.
   defp import_source(account, source, fetched, known) do
     with {:ok, preview} <- fetched,
          {:ok, subscription} <- Library.subscribe(account, preview) do

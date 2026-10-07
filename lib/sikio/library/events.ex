@@ -2,11 +2,11 @@
 
 defmodule Sikio.Library.Events do
   @moduledoc """
-  Account-scoped notifications for active media views.
+  Account-scoped PubSub broadcasts for open media views.
 
-  Two topics, because two things happen. A personal one carries what this account did, such as
-  progress and removals, to its own open tabs. A per-account inbox carries the arrival of new
-  episodes, which begins as one shared feed update and fans out to everybody subscribed to it.
+  Each account has two topics. `library:<id>` carries the account's own changes, such as
+  progress and removals, to its open tabs. `inbox:<id>` carries `:library_changed` after a feed
+  update. `feed_updated/1` broadcasts it to every account subscribed to the feed.
   """
   import Ecto.Query
 
