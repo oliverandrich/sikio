@@ -13,17 +13,36 @@ what lands in your list and what you have already watched or heard.
 
 ## What it does
 
-- Follow YouTube channels and podcasts, discover feeds and import/export OPML.
-- Keep a personal queue with filters and live updates as new episodes arrive.
-- Play podcasts and YouTube videos while navigating, with saved playback progress.
-- Share an instance through invitation-only accounts secured by passkeys.
+- Follows podcasts, YouTube channels and PeerTube channels. One field takes a feed, a website,
+  a channel or video link, or a search of Apple Podcasts. OPML imports and exports
+  subscriptions.
+- Keeps an inbox of what is new, a queue in an order of your own, and a history of what you
+  heard. The queue plays on from one item to the next.
+- Plays podcasts in its own player and videos in their embeds, keeps playing while you move
+  through the library, saves where you stopped and marks a podcast's chapters.
+- Leaves a YouTube channel's Shorts out unless you ask for them.
+- Serves a small group on one instance: accounts sign in with passkeys and arrive on
+  invitations.
 
-See [Using Sikio](docs/usage.md) for subscription, playback and feed limits.
+[Using Sikio](docs/usage.md) explains the library, playback and supported feeds.
 
-## Running it locally
+## Install it
 
-You need [mise](https://mise.jdx.dev) and Chrome with a matching chromedriver for the browser
-tests. The full check also needs a running PostgreSQL 18, because it tests both databases.
+Sikio runs on Linux, x86_64 or arm64, with SQLite or PostgreSQL. Two guides go from nothing to
+a claimed instance behind Caddy:
+
+- [Run Sikio with Docker](docs/install/docker.md): the image `ghcr.io/oliverandrich/sikio` with
+  Docker Compose.
+- [Run Sikio from a release under systemd](docs/install/systemd.md): a release tarball from
+  GitHub as a systemd service.
+
+[Operations](docs/operations.md) is the reference for every setting, the logs, updates and
+backups.
+
+## Develop it
+
+You need [mise](https://mise.jdx.dev). The full check also needs PostgreSQL 18 and Chrome with a
+matching chromedriver.
 
 ```sh
 mise trust
@@ -33,26 +52,19 @@ mise run setup-code
 mise dev
 ```
 
-Open **http://localhost:4000**, enter the code the previous command printed, and register your
-first passkey. Save the recovery codes; they are shown once. Under Invitations in the account
-menu you can then create links. Invitations last seven days, are bound to the username you choose, and can be
-used once, and each member may make twenty a day. After `mise run reset` the database is
-unclaimed again, so issue another code.
-
-Development runs on SQLite by default, in `tmp/sikio_dev.db`. Set `SIKIO_DATABASE=postgres` to
-develop against PostgreSQL instead; [Contributing](CONTRIBUTING.md) has the details. Use passkeys
-over **localhost** locally and over HTTPS once published.
-
-A release serves SQLite or PostgreSQL, chosen with `SIKIO_DATABASE` when it starts.
-[Operations](docs/operations.md) describes both.
+Open **http://localhost:4000**, enter the code `mise run setup-code` printed, and create your
+first passkey. [Contributing](CONTRIBUTING.md) explains the setup, the checks and how changes
+are made.
 
 ## Documentation
 
 - [Using Sikio](docs/usage.md): subscriptions, playback and supported feeds.
-- [Contributing](CONTRIBUTING.md): development setup, mise commands and tests.
-- [Operations](docs/operations.md): configuration, releases and migrations.
+- [Run Sikio with Docker](docs/install/docker.md) and
+  [from a release under systemd](docs/install/systemd.md).
+- [Operations](docs/operations.md): settings, logs, accounts, updates and background work.
 - [Authentication](docs/authentication.md): accounts, invitations and security.
 - [Localization](docs/localization.md): language selection and translations.
+- [Contributing](CONTRIBUTING.md): development setup, mise commands and tests.
 - [Changelog](CHANGELOG.md): what changed in each version, and what an update asks for.
 
 ## License

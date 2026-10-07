@@ -1,10 +1,15 @@
-# Running a release
+# Operations
 
-Sikio ships as a Mix release containing the application and its Erlang runtime, and as a
-container image built from it; see [Run the image](#run-the-image).
-Build for a compatible OS version, architecture and system libraries; a build on
-one platform is not a portability guarantee for another. No Elixir, Mix or build
-toolchain is needed on the target. Platform support must be verified separately.
+The reference for running Sikio: its settings, logs, accounts, updates and background work. To
+install it, follow one of the guides:
+
+- [Run Sikio with Docker](install/docker.md): the image with Docker Compose, behind Caddy.
+- [Run Sikio from a release under systemd](install/systemd.md): a release tarball as a service,
+  behind Caddy.
+
+Sikio ships as a Mix release containing the application and its Erlang runtime, for Linux x86_64
+and arm64, and as a container image built from it. The examples the guides use are
+[compose.yaml](compose.yaml) and [sikio.service](sikio.service).
 
 ## Choose a database
 
@@ -13,9 +18,10 @@ the default and needs no database server: the data lives in one file on the host
 suits an instance whose database runs elsewhere or is managed with other databases. Switching
 later means moving the data, which Sikio does not do for you.
 
-## Build and unpack
+## Build from source
 
-On the build machine, with the pinned tools installed:
+For a platform without a release, build one on a machine like the target: a build on one
+platform is not a portability guarantee for another. With the pinned tools installed:
 
 ```sh
 mise run release
@@ -138,81 +144,6 @@ parameters.
 
 A crash is logged as an `error` with its stack trace. When a LiveView process crashes, the report
 includes the message it was handling, which may hold what a member typed.
-
-## Run under systemd
-
-[sikio.service](sikio.service) is an example unit for a release on a Linux host. Sikio installs
-none of this; it is one layout among others.
-
-Each version is unpacked into a directory of its own, and a symlink names the current one:
-
-```text
-/opt/sikio/releases/0.1.0/    an unpacked release
-/opt/sikio/current            -> releases/0.1.0
-/etc/sikio/sikio.env          the environment, readable by root only
-/var/lib/sikio/               the SQLite file and the picture cache, owned by the service
-```
-
-Create a system user without a login, then the environment file:
-
-```sh
-useradd --system --home-dir /var/lib/sikio --shell /usr/sbin/nologin sikio
-install -d -m 0755 /etc/sikio
-install -m 0600 /dev/null /etc/sikio/sikio.env
-```
-
-```sh
-# /etc/sikio/sikio.env
-SECRET_KEY_BASE=...
-PHX_HOST=sikio.example.org
-PHX_BIND_IP=127.0.0.1
-DATABASE_PATH=/var/lib/sikio/sikio.db
-PICTURE_CACHE_DIR=/var/lib/sikio/pictures
-```
-
-systemd reads the file as root before it starts the service, so it stays unreadable for the
-service user. The unit creates `/var/lib/sikio` through `StateDirectory`. It keeps the rest of the
-system read-only, which the release allows: it writes nothing into its own directory as it
-starts. Install and start it:
-
-```sh
-cp sikio.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now sikio
-journalctl -u sikio -f
-```
-
-An update follows the order in [Updates and data protection](#updates-and-data-protection):
-
-```sh
-sqlite3 /var/lib/sikio/sikio.db ".backup /var/backups/sikio-$(date +%F).db"
-mkdir /opt/sikio/releases/0.2.0
-tar -xzf sikio-0.2.0-linux-arm64.tar.gz -C /opt/sikio/releases/0.2.0 --strip-components=1
-ln -sfn releases/0.2.0 /opt/sikio/current
-systemctl restart sikio
-curl -fsS http://127.0.0.1:4000/health
-```
-
-The restart migrates the database. Keep the previous directory until the update is verified;
-returning to it is described under [Migration rollback](#migration-rollback).
-
-## Run the image
-
-The image is `ghcr.io/oliverandrich/sikio`, for `linux/amd64` and `linux/arm64`. Each version
-is tagged `X.Y.Z`, its minor line `X.Y` and `latest`. It runs the release above and takes the
-same variables. It starts with `bin/server`, which migrates the database before it serves.
-
-It keeps its data in the volume `/data`: the SQLite file at `/data/sikio.db` and the pictures in
-`/data/pictures`. With SQLite only `SECRET_KEY_BASE` and `PHX_HOST` remain to set. For
-PostgreSQL, set `SIKIO_DATABASE=postgres` and `DATABASE_URL`; `/data` then holds the pictures.
-The image runs as `nobody`, so the volume must be writable for that user.
-
-A proxy on the host reaches the container through the container network's gateway, not the
-loopback. Name that gateway in `TRUSTED_PROXIES`, or every visitor counts as one address.
-[compose.yaml](compose.yaml) is an example with SQLite, a fixed network and a port on the
-loopback for the proxy.
-
-Back up the volume, or the PostgreSQL database and the volume, before every update.
 
 ## Naming or addressing accounts
 

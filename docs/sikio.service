@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# An example unit for running a Sikio release under systemd; see docs/operations.md. It expects
+# An example unit for running a Sikio release under systemd; see docs/install/systemd.md. It expects
 # the release in /opt/sikio/current, a user `sikio`, and the environment in /etc/sikio/sikio.env.
 # Copy it to /etc/systemd/system/sikio.service and adjust what differs.
 [Unit]

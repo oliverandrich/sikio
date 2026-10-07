@@ -71,7 +71,8 @@ deletes no shared episodes.
 ## Inviting somebody
 
 `/invitations` makes a link and lists the ones nobody has accepted yet: for whom, by whom, when
-it was made and when it runs out. A link is shown once, because only its digest is stored; pass
+it was made and when it runs out. A link lasts seven days, is bound to the name it was made for,
+and is used once. Each member may make twenty a day. A link is shown once, because only its digest is stored; pass
 it on straight away or make a new one. When accounts are addressed rather than named, the link is
 also sent to the address, and a delivery that fails is reported while the link stays shareable by
 hand.
