@@ -193,6 +193,10 @@ license statement without the license file.
 The task file carries the marker too. Third-party code under `assets/vendor` is excluded,
 because it is under its own license.
 
+`assets/vendor/peertube_embed_client.mjs` is `src/index.mjs` of
+[peertube-embed-client](https://github.com/oliverandrich/peertube-embed-client) at `v0.1.0`, under
+MIT. Its tests live there. To update it, copy the file from a newer tag unchanged.
+
 ## Secret scan
 
 `mise run check` runs gitleaks over every commit. A secret removed in a later commit still fails

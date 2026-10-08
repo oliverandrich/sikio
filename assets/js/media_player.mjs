@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {bindFace, feedLength, renderMarks} from "./audio_face.mjs"
-import {connect} from "./peertube_embed.mjs"
+import {connect} from "../vendor/peertube_embed_client.mjs"
 
 // Sends at most one save at a time.
 // While one is in flight, a newer sample replaces the pending one.
