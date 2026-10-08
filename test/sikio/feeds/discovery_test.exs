@@ -280,6 +280,96 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
   end
 
+  describe "item/1 for PeerTube" do
+    @old %{
+      name: "An older talk",
+      uuid: "0b1d2c3e-1111-4222-8333-444455556666",
+      shortUUID: "oLdV1d30000",
+      publishedAt: "2024-05-01T10:00:00.000Z",
+      duration: 1800,
+      description: "What the talk covers.",
+      thumbnailPath: "/lazy-static/thumbnails/old.jpg",
+      embedPath: "/videos/embed/0b1d2c3e-1111-4222-8333-444455556666",
+      channel: %{id: 7}
+    }
+
+    defp stub_instance do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/.well-known/nodeinfo" ->
+            Req.Test.json(conn, %{
+              links: [
+                %{
+                  rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
+                  href: "https://video.example.org/nodeinfo/2.0.json"
+                }
+              ]
+            })
+
+          "/nodeinfo/2.0.json" ->
+            Req.Test.json(conn, %{software: %{name: "peertube"}})
+
+          "/api/v1/videos/mSh0rtUu1d" ->
+            Req.Test.json(conn, %{
+              name: "A talk worth an hour",
+              shortUUID: "mSh0rtUu1d",
+              channel: %{id: 7}
+            })
+
+          "/api/v1/videos/" <> id
+          when id in ["oLdV1d30000", "0b1d2c3e-1111-4222-8333-444455556666"] ->
+            Req.Test.json(conn, @old)
+
+          "/feeds/videos.xml" ->
+            assert conn.query_string == "videoChannelId=7"
+            Plug.Conn.send_resp(conn, 200, peertube())
+        end
+      end)
+    end
+
+    test "a recent video is the feed's own entry" do
+      stub_instance()
+
+      assert {:ok,
+              %{
+                preview: %{kind: :peertube},
+                external_id: "https://video.example.org/w/mSh0rtUu1d"
+              }} =
+               Discovery.item("https://video.example.org/w/mSh0rtUu1d")
+    end
+
+    # The id is the watch address the instance's feed uses, so the entry matches the feed later.
+    test "an older video is built from the instance's API" do
+      stub_instance()
+
+      for url <- [
+            "https://video.example.org/w/oLdV1d30000",
+            "https://video.example.org/videos/watch/0b1d2c3e-1111-4222-8333-444455556666"
+          ] do
+        assert {:ok, %{preview: preview, external_id: id}} = Discovery.item(url)
+        assert id == "https://video.example.org/w/oLdV1d30000"
+        entry = Enum.find(preview.entries, &(&1.external_id == id))
+
+        assert %{
+                 title: "An older talk",
+                 duration: 1800,
+                 description: "What the talk covers.",
+                 embed_url:
+                   "https://video.example.org/videos/embed/0b1d2c3e-1111-4222-8333-444455556666",
+                 image_url: "https://video.example.org/lazy-static/thumbnails/old.jpg",
+                 page_url: "https://video.example.org/w/oLdV1d30000"
+               } = entry
+
+        assert entry.published_at == ~U[2024-05-01 10:00:00.000Z]
+      end
+    end
+
+    test "a channel link is not a single item" do
+      stub_instance()
+      assert {:error, :not_an_item} = Discovery.item("https://video.example.org/c/good/videos")
+    end
+  end
+
   test "a webpage discovers multiple podcast feeds and resolves relative links" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do

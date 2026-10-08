@@ -52,7 +52,11 @@ defmodule Sikio.Feeds.Discovery do
   """
   def item(url) do
     with {:ok, uri} <- HTTP.normalize(url) do
-      if uri.host in @youtube_hosts, do: youtube_item(uri), else: {:error, :not_an_item}
+      cond do
+        uri.host in @youtube_hosts -> youtube_item(uri)
+        peertube?(uri) -> peertube_item(uri)
+        true -> {:error, :not_an_item}
+      end
     end
   end
 
@@ -290,6 +294,64 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  # A watch page in short or long spelling names one video by its short or long id.
+  defp peertube_item(uri) do
+    case String.split(uri.path || "", "/", trim: true) do
+      ["w", id | _] -> instance_video(origin(uri), id)
+      ["videos", "watch", id | _] -> instance_video(origin(uri), id)
+      _ -> {:error, :not_an_item}
+    end
+  end
+
+  # The instance's feed names a video by its short watch address, so a video built from the API
+  # gets the same id and matches the feed later.
+  defp instance_video(origin, id) do
+    with {:ok, %{"channel" => %{"id" => channel}, "shortUUID" => short} = video}
+         when is_integer(channel) and is_binary(short) <-
+           json(origin <> "/api/v1/videos/" <> URI.encode(id)),
+         {:ok, feed} <- fetch("#{origin}/feeds/videos.xml?videoChannelId=#{channel}") do
+      watch = origin <> "/w/" <> short
+
+      entries =
+        if Enum.any?(feed.entries, &(&1.external_id == watch)),
+          do: feed.entries,
+          else: [api_entry(origin, watch, video) | feed.entries]
+
+      {:ok, %{preview: %{feed | entries: entries}, external_id: watch}}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp api_entry(origin, watch, video) do
+    %{
+      external_id: watch,
+      title: String.slice(to_string(video["name"] || watch), 0, 512),
+      media_url: nil,
+      video_id: nil,
+      embed_url: HTTP.resolve(to_string(video["embedPath"] || ""), origin),
+      page_url: watch,
+      chapters: nil,
+      chapters_url: nil,
+      published_at: iso_date(video["publishedAt"]),
+      image_url: HTTP.resolve(to_string(video["thumbnailPath"] || ""), origin),
+      duration: if(is_integer(video["duration"]), do: video["duration"]),
+      description: video["description"],
+      description_format: :text,
+      excerpt: nil,
+      short: false
+    }
+  end
+
+  defp iso_date(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, date, _offset} -> DateTime.shift_zone!(date, "Etc/UTC")
+      _ -> nil
+    end
+  end
+
+  defp iso_date(_value), do: nil
+
   defp origin(%URI{scheme: scheme, host: host}), do: "#{scheme}://#{host}"
 
   defp feed_only(url) do
@@ -404,9 +466,8 @@ defmodule Sikio.Feeds.Discovery do
   # entry undated, which is better than an invented date on a shared entry.
   defp published(page_url) do
     with {:ok, doc} <- page(page_url),
-         [value | _] <- Floki.attribute(doc, "meta[itemprop=datePublished]", "content"),
-         {:ok, date, _offset} <- DateTime.from_iso8601(value) do
-      DateTime.shift_zone!(date, "Etc/UTC")
+         [value | _] <- Floki.attribute(doc, "meta[itemprop=datePublished]", "content") do
+      iso_date(value)
     else
       _ -> nil
     end
