@@ -11,6 +11,11 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Upgrading
+
+- A migration moves `playback_preferences` into a new `preferences` table, which adds the start
+  page and the language. The release runs it on start.
+
 ### Added
 
 - [Operations](docs/operations.md#storage) describes what Sikio stores and how to measure it.

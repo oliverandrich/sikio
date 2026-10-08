@@ -16,8 +16,8 @@ defmodule Sikio.Playback do
   alias Sikio.Accounts.User
   alias Sikio.Library
   alias Sikio.Library.Events
-  alias Sikio.Playback.Preference
   alias Sikio.Playback.State
+  alias Sikio.Preferences
   alias Sikio.Repo
 
   # Bounds for browser-supplied position and duration, matching the database check constraints.
@@ -172,20 +172,10 @@ defmodule Sikio.Playback do
   defp between(before, next), do: (before + next) / 2
 
   @doc "Whether the player continues with the queue when an item ends. Defaults to true."
-  def play_on?(%User{id: user_id}),
-    do: Repo.one(from p in Preference, where: p.user_id == ^user_id, select: p.play_on) != false
+  defdelegate play_on?(account), to: Preferences
 
-  @doc "Upserts the account's setting for continuing with the queue."
-  def play_on(%User{id: user_id}, on) when is_boolean(on) do
-    now = DateTime.utc_now()
-
-    Repo.insert(
-      %Preference{user_id: user_id, play_on: on, inserted_at: now, updated_at: now},
-      on_conflict: [set: [play_on: on, updated_at: now]],
-      conflict_target: :user_id,
-      returning: true
-    )
-  end
+  @doc "Saves the account's setting for continuing with the queue."
+  def play_on(account, on) when is_boolean(on), do: Preferences.update(account, %{play_on: on})
 
   @doc "Removes the entry from the queue."
   def dequeue(account, id), do: change(account, id, fn _state -> [queue_rank: nil] end)

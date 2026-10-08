@@ -17,7 +17,7 @@ defmodule SikioWeb.Locale do
   alias SikioWeb.Gettext, as: Backend
 
   @doc "Returns the configured, non-empty list of supported locale codes."
-  def locales, do: Application.get_env(:sikio, :locales, ~w(en de))
+  defdelegate locales, to: Sikio.Preferences
 
   @doc "Returns the Gettext backend's configured default locale."
   def default_locale, do: Backend.__gettext__(:default_locale)
