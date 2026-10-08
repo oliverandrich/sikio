@@ -326,11 +326,11 @@ defmodule Sikio.LibraryTest do
     {:ok, alices} = Library.subscribe(ctx.alice, ctx.preview)
     {:ok, bobs} = Library.subscribe(ctx.bob, ctx.preview)
     {:ok, _carols} = Library.subscribe(carol, ctx.preview)
-    {:ok, _} = Library.update_subscription(ctx.alice, alices.id, %{delivery: :queue})
-    {:ok, _} = Library.update_subscription(ctx.bob, bobs.id, %{delivery: :skip})
+    {:ok, _} = Library.configure(ctx.alice, alices.id, %{delivery: :queue}, [])
+    {:ok, _} = Library.configure(ctx.bob, bobs.id, %{delivery: :skip}, [])
 
     assert {:error, :not_found} =
-             Library.update_subscription(ctx.bob, alices.id, %{delivery: :skip})
+             Library.configure(ctx.bob, alices.id, %{delivery: :skip}, [])
 
     [first] = Library.entries(ctx.alice)
 
@@ -358,7 +358,7 @@ defmodule Sikio.LibraryTest do
     {:ok, _} = Library.subscribe(ctx.bob, ctx.preview)
 
     assert {:ok, %{name: "Late Night"}} =
-             Library.update_subscription(ctx.alice, alices.id, %{name: " Late Night "})
+             Library.configure(ctx.alice, alices.id, %{name: " Late Night "}, [])
 
     assert [%{source_name: "Late Night"}] = Library.entries(ctx.alice)
     assert [%{source_name: "Small Hours"}] = Library.entries(ctx.bob)
@@ -366,7 +366,7 @@ defmodule Sikio.LibraryTest do
     assert %{source_name: "Late Night"} =
              Library.entry(ctx.alice, hd(Library.entries(ctx.alice)).id)
 
-    assert {:ok, %{name: nil}} = Library.update_subscription(ctx.alice, alices.id, %{name: "  "})
+    assert {:ok, %{name: nil}} = Library.configure(ctx.alice, alices.id, %{name: "  "}, [])
     assert [%{source_name: "Small Hours"}] = Library.entries(ctx.alice)
   end
 
@@ -403,7 +403,7 @@ defmodule Sikio.LibraryTest do
              })
 
     assert {:ok, %{shorts: true}} =
-             Library.update_subscription(ctx.bob, subscription.id, %{"shorts" => "true"})
+             Library.configure(ctx.bob, subscription.id, %{"shorts" => "true"}, [])
 
     assert [%{id: id}] = Library.entries(ctx.bob)
     assert id == entry.id
@@ -414,7 +414,7 @@ defmodule Sikio.LibraryTest do
   test "a hidden Short is not delivered to the queue", ctx do
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, subscription} = Library.subscribe(ctx.alice, preview)
-    {:ok, _} = Library.update_subscription(ctx.alice, subscription.id, %{"delivery" => "queue"})
+    {:ok, _} = Library.configure(ctx.alice, subscription.id, %{"delivery" => "queue"}, [])
     [entry] = preview.entries
     short = %{entry | external_id: "yt:video:zzzzzzzzzzz", video_id: "zzzzzzzzzzz"}
 
@@ -424,7 +424,7 @@ defmodule Sikio.LibraryTest do
         &Library.deliver/2
       )
 
-    {:ok, _} = Library.update_subscription(ctx.alice, subscription.id, %{"shorts" => "true"})
+    {:ok, _} = Library.configure(ctx.alice, subscription.id, %{"shorts" => "true"}, [])
     assert Playback.queue(ctx.alice) == []
   end
 
@@ -433,12 +433,44 @@ defmodule Sikio.LibraryTest do
     {:ok, subscription} = Library.subscribe(ctx.alice, ctx.preview)
     Events.subscribe(ctx.alice)
 
-    {:ok, _} = Library.update_subscription(ctx.alice, subscription.id, %{"delivery" => "inbox"})
+    {:ok, _} = Library.configure(ctx.alice, subscription.id, %{"delivery" => "inbox"}, [])
     refute_received {:subscription_changed, _}
 
-    {:ok, _} = Library.update_subscription(ctx.alice, subscription.id, %{"delivery" => "queue"})
+    {:ok, _} = Library.configure(ctx.alice, subscription.id, %{"delivery" => "queue"}, [])
     assert_received {:subscription_changed, id}
     assert id == subscription.id
+  end
+
+  # The settings dialog saves settings and tags together. Invalid settings change neither.
+  test "configure saves settings and tags at once, or neither", ctx do
+    {:ok, subscription} = Library.subscribe(ctx.alice, ctx.preview)
+    {:ok, _} = Sikio.Tags.set(ctx.alice, subscription.id, ["Old"])
+    Events.subscribe(ctx.alice)
+
+    long = String.duplicate("x", 201)
+
+    assert {:error, %Ecto.Changeset{errors: [name: _]}} =
+             Library.configure(ctx.alice, subscription.id, %{name: long}, ["New"])
+
+    assert Enum.map(Sikio.Tags.of(ctx.alice, subscription.id), & &1.name) == ["Old"]
+    assert [%{name: nil}] = Library.subscriptions(ctx.alice)
+    refute_received {:subscription_changed, _}
+    refute_received {:tags_changed, _}
+
+    assert {:ok, %{name: "Late Night"}} =
+             Library.configure(ctx.alice, subscription.id, %{name: "Late Night"}, ["New"])
+
+    assert Enum.map(Sikio.Tags.of(ctx.alice, subscription.id), & &1.name) == ["New"]
+    assert_received {:subscription_changed, _}
+    assert_received {:tags_changed, _}
+
+    # Unchanged tags send no broadcast, since every open view reloads on it.
+    {:ok, _} = Library.configure(ctx.alice, subscription.id, %{name: "Later"}, ["New"])
+    assert_received {:subscription_changed, _}
+    refute_received {:tags_changed, _}
+
+    assert {:error, :not_found} =
+             Library.configure(ctx.bob, subscription.id, %{name: "Mine"}, ["Theirs"])
   end
 
   describe "counts/1" do

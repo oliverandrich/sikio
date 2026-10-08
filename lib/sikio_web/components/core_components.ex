@@ -398,9 +398,13 @@ defmodule SikioWeb.CoreComponents do
     """
   end
 
-  defp error(assigns) do
+  @doc "Renders a field's error message, for fields not rendered by `input/1`."
+  attr :id, :string, default: nil
+  slot :inner_block, required: true
+
+  def error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-label text-danger">
+    <p id={@id} class="mt-1.5 flex gap-2 items-center text-label text-danger">
       <Lucideicons.circle_alert aria-hidden="true" class="size-5" />
       {render_slot(@inner_block)}
     </p>

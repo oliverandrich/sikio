@@ -24,6 +24,12 @@ Its own section becomes the version's release notes.
   list grows upwards as one scrolls. Before, every row above it loaded first. An item 2,000 rows
   down took half a second and sent 2.7 MiB of HTML. The queue still loads every row above.
 
+### Fixed
+
+- A source's dialog saves its settings and tags together, or neither.
+- Invalid settings stay in the dialog with the error beside the field. Before, the dialog
+  closed and reported the subscription as not found.
+
 ## [0.1.1] - 2026-10-08
 
 ### Added

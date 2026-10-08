@@ -64,7 +64,7 @@ defmodule Sikio.Tags do
   @doc """
   Replaces the tags on subscription `id` with `names`, creating missing tags.
   Returns `{:ok, tags}`, or `{:error, :not_found}` for another account's subscription.
-  Broadcasts `{:tags_changed, subscription_id}` to the account.
+  Changed tags broadcast `{:tags_changed, subscription_id}` to the account.
   """
   def set(%User{id: user_id} = account, id, names) do
     case Repo.get_by(Subscription, id: cast_id(id), user_id: user_id) do
@@ -72,30 +72,37 @@ defmodule Sikio.Tags do
         {:error, :not_found}
 
       subscription ->
-        account
-        |> tag(subscription, names)
-        |> tap(fn _ -> Events.broadcast(account, {:tags_changed, subscription.id}) end)
+        {:ok, {tags, changed?}} =
+          Repo.transaction(fn -> replace(account, subscription, names) end)
+
+        if changed?, do: Events.broadcast(account, {:tags_changed, subscription.id})
+        {:ok, tags}
     end
   end
 
-  defp tag(account, subscription, names) do
-    Repo.transaction(fn ->
-      tags = names |> cleaned() |> Enum.map(&named(account, &1))
-      ids = Enum.map(tags, & &1.id)
+  @doc """
+  Replaces the tags on the account's `subscription` with `names`, creating missing tags.
+  Runs in the caller's transaction and broadcasts nothing.
+  Returns the tags and whether the subscription's tags changed.
+  """
+  def replace(%User{id: user_id} = account, %Subscription{user_id: user_id} = subscription, names) do
+    tags = names |> cleaned() |> Enum.map(&named(account, &1))
+    ids = Enum.map(tags, & &1.id)
 
+    {removed, _} =
       Repo.delete_all(
         from st in SubscriptionTag,
           where: st.subscription_id == ^subscription.id and st.tag_id not in ^ids
       )
 
+    {added, _} =
       Repo.insert_all(
         SubscriptionTag,
         Enum.map(ids, &%{subscription_id: subscription.id, tag_id: &1}),
         on_conflict: :nothing
       )
 
-      Enum.sort_by(tags, & &1.key)
-    end)
+    {Enum.sort_by(tags, & &1.key), removed + added > 0}
   end
 
   @doc "Adds the tags `names` to subscription `id`, keeping its current tags."

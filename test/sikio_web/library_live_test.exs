@@ -110,7 +110,7 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, view, _} = live(c.conn, ~p"/all")
     refute has_element?(view, "#entries-#{video.id}")
 
-    {:ok, _} = Library.update_subscription(c.user, subscription.id, %{"shorts" => "true"})
+    {:ok, _} = Library.configure(c.user, subscription.id, %{"shorts" => "true"}, [])
     assert has_element?(view, "#entries-#{video.id}")
   end
 
@@ -257,6 +257,27 @@ defmodule SikioWeb.LibraryLiveTest do
 
     assert has_element?(view, "#library-heading", "Late Night")
     assert has_element?(view, "#source-#{c.sub.feed_id}", "Late Night")
+  end
+
+  # Invalid settings keep the dialog open with the error beside the field, and save no tags.
+  test "a source's dialog shows why its settings were not saved", c do
+    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    view |> element("#edit-subscription") |> render_click()
+
+    view
+    |> form("#subscription-form", %{"name" => String.duplicate("x", 201), "new" => "Fresh"})
+    |> render_submit()
+
+    assert has_element?(view, "#subscription-name-error", "at most 200")
+    assert has_element?(view, ~s|#subscription-form input[name="new"][value="Fresh"]|)
+    assert Sikio.Tags.of(c.user, c.sub.id) == []
+    refute render(view) =~ "Subscription not found."
+
+    # A change to another field keeps the name's error. A change to the name clears it.
+    view |> form("#subscription-form", %{"new" => "Fresher"}) |> render_change()
+    assert has_element?(view, "#subscription-name-error")
+    view |> form("#subscription-form", %{"name" => "Late Night"}) |> render_change()
+    refute has_element?(view, "#subscription-name-error")
   end
 
   # Marks the setup's YouTube video as a Short. Returns it with its subscription.

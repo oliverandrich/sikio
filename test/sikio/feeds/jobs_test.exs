@@ -91,7 +91,7 @@ defmodule Sikio.Feeds.JobsTest do
 
   # `Refresh` delivers new entries according to the subscription's `delivery` setting.
   test "a refresh job sends new episodes where the subscription says", ctx do
-    {:ok, _} = Library.update_subscription(ctx.user, ctx.subscription.id, %{delivery: :queue})
+    {:ok, _} = Library.configure(ctx.user, ctx.subscription.id, %{delivery: :queue}, [])
 
     Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast_later()) end)
     assert :ok = perform_job(Refresh, %{feed_id: ctx.subscription.feed_id})

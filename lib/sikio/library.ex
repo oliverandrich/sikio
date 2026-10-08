@@ -72,27 +72,39 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  Updates a subscription's settings: a custom name, the delivery of new entries, and Shorts.
-  A blank name falls back to the feed title. Returns `{:error, :not_found}` for another
-  account's subscription. A successful update with changes broadcasts
-  `{:subscription_changed, subscription_id}` to the account.
+  Saves a subscription's settings and replaces its tags with `tag_names` in one transaction.
+  The settings are a custom name, the delivery of new entries, and Shorts.
+  A blank name falls back to the feed title.
+  Returns `{:ok, subscription}` on success.
+  Returns `{:error, changeset}` for invalid settings. The tags then stay unchanged.
+  Returns `{:error, :not_found}` for another account's subscription.
+  Changed settings broadcast `{:subscription_changed, id}` to the account.
+  Changed tags broadcast `{:tags_changed, id}`.
   """
-  def update_subscription(account, id, attrs) do
-    case owned(account, id) do
-      nil ->
-        {:error, :not_found}
+  def configure(account, id, settings, tag_names) do
+    case Repo.transaction(fn -> configured(account, id, settings, tag_names) end) do
+      # Every open view reloads on these broadcasts, so an unchanged part sends none.
+      {:ok, {updated, settings_changed?, tags_changed?}} ->
+        if settings_changed?, do: Events.broadcast(account, {:subscription_changed, updated.id})
+        if tags_changed?, do: Events.broadcast(account, {:tags_changed, updated.id})
+        {:ok, updated}
 
-      subscription ->
-        changeset = Subscription.settings_changeset(subscription, attrs)
-        changeset |> Repo.update() |> tap(&announce(account, changeset, &1))
+      error ->
+        error
     end
   end
 
-  # Every open view reloads on this broadcast, so an update without changes sends none.
-  defp announce(account, %{changes: changes}, {:ok, updated}) when changes != %{},
-    do: Events.broadcast(account, {:subscription_changed, updated.id})
-
-  defp announce(_account, _changeset, _result), do: :ok
+  # The lock makes a concurrent unsubscribe wait, or this finds the subscription gone.
+  defp configured(account, id, settings, tag_names) do
+    with %Subscription{} = subscription <- owned(account, id, true) || {:error, :not_found},
+         changeset = Subscription.settings_changeset(subscription, settings),
+         {:ok, updated} <- Repo.update(changeset) do
+      {_tags, tags_changed?} = Tags.replace(account, subscription, tag_names)
+      {updated, changeset.changes != %{}, tags_changed?}
+    else
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
 
   @doc """
   Applies each subscription's `delivery` to a feed's new entries.
@@ -627,8 +639,13 @@ defmodule Sikio.Library do
   def active_feed?(id),
     do: Repo.exists?(from s in Subscription, where: s.feed_id == ^id and not s.paused)
 
-  defp owned(%User{id: user_id}, id),
-    do: with_id(id, &Repo.get_by(Subscription, id: &1, user_id: user_id))
+  # `lock?` locks the row for the rest of the transaction.
+  defp owned(%User{id: user_id}, id, lock? \\ false) do
+    with_id(id, fn id ->
+      query = from s in Subscription, where: s.id == ^id and s.user_id == ^user_id
+      Repo.one(if lock?, do: Repo.for_update(query), else: query)
+    end)
+  end
 
   # An invalid id returns nil instead of raising.
   defp with_id(id, fun) do

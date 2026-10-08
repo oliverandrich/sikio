@@ -94,7 +94,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
   test "a subscription changed elsewhere leaves the player playing", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
-    {:ok, _} = Library.update_subscription(c.user, c.sub.id, %{"name" => "Renamed"})
+    {:ok, _} = Library.configure(c.user, c.sub.id, %{"name" => "Renamed"}, [])
     assert has_element?(dock, "audio")
   end
 

@@ -83,7 +83,7 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     subscribe.()
     [subscription] = Library.subscriptions(user)
-    {:ok, _} = Library.update_subscription(user, subscription.id, %{"name" => "Late Night"})
+    {:ok, _} = Library.configure(user, subscription.id, %{"name" => "Late Night"}, [])
 
     result = subscribe.()
     assert {:error, {:live_redirect, %{to: to}}} = result

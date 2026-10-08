@@ -33,7 +33,8 @@ defmodule SikioWeb.SubscriptionSettings do
          delivery: Atom.to_string(subscription.delivery),
          shorts: subscription.shorts,
          chosen: Enum.map(tags, & &1.name),
-         new: ""
+         new: "",
+         errors: []
        }
      )}
   end
@@ -47,49 +48,17 @@ defmodule SikioWeb.SubscriptionSettings do
     do: {:ok, assign(socket, Map.take(assigns, [:id, :current_account, :tags]))}
 
   @impl true
-  def handle_event("subscription_options", params, socket) do
-    editing = %{
-      socket.assigns.editing
-      | name: params["name"] || "",
-        delivery: params["delivery"] || socket.assigns.editing.delivery,
-        shorts: shorts(params, socket.assigns.editing.shorts),
-        chosen: params["tags"] || [],
-        new: params["new"] || ""
-    }
-
-    {:noreply, assign(socket, :editing, editing)}
-  end
+  def handle_event("subscription_options", params, socket),
+    do: {:noreply, take_options(socket, params)}
 
   # Enter in a field submits the form. It saves the current values like the Save button.
-  def handle_event("submit_edit_subscription", params, socket) do
-    {:noreply, socket} = handle_event("subscription_options", params, socket)
-    handle_event("confirm_edit_subscription", %{}, socket)
-  end
+  def handle_event("submit_edit_subscription", params, socket),
+    do: {:noreply, socket |> take_options(params) |> save()}
 
   def handle_event("cancel_edit_subscription", _params, socket),
     do: {:noreply, socket |> assign(:editing, nil) |> give_back_focus()}
 
-  # Ignores a repeated click that arrives after the first closed the dialog.
-  def handle_event("confirm_edit_subscription", _params, %{assigns: %{editing: nil}} = socket),
-    do: {:noreply, socket}
-
-  # The `new` field may hold several comma-separated tags.
-  def handle_event("confirm_edit_subscription", _params, socket) do
-    %{subscription: subscription, chosen: chosen, new: new} = editing = socket.assigns.editing
-    account = socket.assigns.current_account
-    settings = Map.take(editing, [:name, :delivery, :shorts])
-
-    case Library.update_subscription(account, subscription.id, settings) do
-      {:ok, _} ->
-        Tags.set(account, subscription.id, chosen ++ String.split(new, ","))
-        send(self(), {__MODULE__, :saved})
-
-      _ ->
-        send(self(), {__MODULE__, :not_found})
-    end
-
-    {:noreply, assign(socket, :editing, nil)}
-  end
+  def handle_event("confirm_edit_subscription", _params, socket), do: {:noreply, save(socket)}
 
   # Ignores a repeated click that arrives after the first opened the confirmation.
   def handle_event("unsubscribe", _params, %{assigns: %{editing: nil}} = socket),
@@ -114,10 +83,65 @@ defmodule SikioWeb.SubscriptionSettings do
     {:noreply, assign(socket, :unsubscribing, nil)}
   end
 
+  # A changed field drops the errors of the last save. The next save checks again.
+  defp take_options(socket, params) do
+    editing = socket.assigns.editing
+
+    taken = %{
+      editing
+      | name: params["name"] || "",
+        delivery: params["delivery"] || editing.delivery,
+        shorts: shorts(params, editing.shorts),
+        chosen: params["tags"] || [],
+        new: params["new"] || ""
+    }
+
+    errors = Enum.filter(editing.errors, fn {field, _} -> taken[field] == editing[field] end)
+    assign(socket, :editing, %{taken | errors: errors})
+  end
+
+  # Ignores a repeated click that arrives after the first closed the dialog.
+  # Invalid settings keep the dialog open with their errors. The `new` field may hold several
+  # comma-separated tags.
+  defp save(%{assigns: %{editing: nil}} = socket), do: socket
+
+  defp save(socket) do
+    %{subscription: subscription, chosen: chosen, new: new} = editing = socket.assigns.editing
+    settings = Map.take(editing, [:name, :delivery, :shorts])
+    tags = chosen ++ String.split(new, ",")
+
+    case Library.configure(socket.assigns.current_account, subscription.id, settings, tags) do
+      {:ok, _} ->
+        send(self(), {__MODULE__, :saved})
+        assign(socket, :editing, nil)
+
+      {:error, %Ecto.Changeset{errors: errors}} ->
+        assign(socket, :editing, %{editing | errors: errors})
+
+      {:error, :not_found} ->
+        send(self(), {__MODULE__, :not_found})
+        assign(socket, :editing, nil)
+    end
+  end
+
   # Only YouTube channel forms have the checkbox.
   # When unchecked, the browser sends the preceding hidden field's "false".
   defp shorts(%{"shorts" => value}, _current), do: value == "true"
   defp shorts(_params, current), do: current
+
+  # One element per field, so `aria-describedby` names a unique id.
+  attr :errors, :list, required: true
+  attr :field, :atom, required: true
+
+  defp field_error(assigns) do
+    ~H"""
+    <.error :if={@errors[@field]} id={error_id(@field)}>
+      {Enum.join(translate_errors(@errors, @field), " ")}
+    </.error>
+    """
+  end
+
+  defp error_id(field), do: "subscription-#{field}-error"
 
   defp give_back_focus(%{assigns: %{trigger: nil}} = socket), do: socket
   defp give_back_focus(socket), do: push_event(socket, "focus", %{id: socket.assigns.trigger})
@@ -148,18 +172,26 @@ defmodule SikioWeb.SubscriptionSettings do
           phx-target={@myself}
           class="flex flex-col gap-5"
         >
-          <label class="flex flex-col gap-1.5 text-label font-semibold text-ink">
-            {gettext("Name")}
-            <input
-              type="text"
-              name="name"
-              value={@editing.name}
-              maxlength="200"
-              placeholder={@editing.subscription.feed.title}
-              class={[dialog_field(), "font-normal"]}
-            />
-          </label>
-          <fieldset class="flex flex-col gap-2">
+          <div>
+            <label class="flex flex-col gap-1.5 text-label font-semibold text-ink">
+              {gettext("Name")}
+              <input
+                type="text"
+                name="name"
+                value={@editing.name}
+                maxlength="200"
+                placeholder={@editing.subscription.feed.title}
+                aria-invalid={@editing.errors[:name] && "true"}
+                aria-describedby={@editing.errors[:name] && error_id(:name)}
+                class={[dialog_field(), "font-normal"]}
+              />
+            </label>
+            <.field_error errors={@editing.errors} field={:name} />
+          </div>
+          <fieldset
+            class="flex flex-col gap-2"
+            aria-describedby={@editing.errors[:delivery] && error_id(:delivery)}
+          >
             <legend class="mb-1.5 text-label font-semibold text-ink">
               {gettext("New episodes go to")}
             </legend>
@@ -176,6 +208,7 @@ defmodule SikioWeb.SubscriptionSettings do
               />
               {label}
             </label>
+            <.field_error errors={@editing.errors} field={:delivery} />
           </fieldset>
           <label
             :if={Sikio.Feeds.Feed.channel?(@editing.subscription.feed)}
