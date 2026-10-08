@@ -23,6 +23,7 @@ defmodule SikioWeb.LibraryLive do
   alias Sikio.Preferences
   alias SikioWeb.LibraryLive.Rows
   alias SikioWeb.LibraryPaths
+  alias SikioWeb.MarkAll
   alias SikioWeb.Notes
   alias SikioWeb.SubscriptionSettings
   alias SikioWeb.TagSettings
@@ -40,8 +41,6 @@ defmodule SikioWeb.LibraryLive do
        above: nil,
        more?: false,
        search_open?: false,
-       marking: nil,
-       mark_options: nil,
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket)),
        tab: :inbox
@@ -92,8 +91,7 @@ defmodule SikioWeb.LibraryLive do
           |> assign(
             filters: filters,
             entries: [],
-            above: nil,
-            marking: nil
+            above: nil
           )
           |> close_settings()
           |> reload()
@@ -138,11 +136,12 @@ defmodule SikioWeb.LibraryLive do
     Enum.find(socket.assigns.sidebar.tags, &(to_string(&1.id) == tag))
   end
 
-  # Closes the source and tag dialogs, which apply only to the place they were opened on.
+  # Closes the source, tag and archive dialogs, which apply only to the place they were opened on.
   defp close_settings(socket) do
     if connected?(socket) do
       send_update(SubscriptionSettings, id: "subscription-settings", open: :close)
       send_update(TagSettings, id: "tag-settings", open: :close)
+      send_update(MarkAll, id: "mark-all-dialog", open: :close)
     end
 
     socket
@@ -159,17 +158,6 @@ defmodule SikioWeb.LibraryLive do
 
   defp shown_subscription(sources, source),
     do: Enum.find(sources, &(to_string(&1.feed_id) == source))
-
-  # Converts the dialog's checkboxes into the exclusion options of `Playback.mark_all/3`.
-  defp marking(%{in_progress: in_progress, playing: playing, playing_id: playing_id}),
-    do: [in_progress: in_progress, keep: if(playing, do: nil, else: playing_id)]
-
-  defp entry_id(value) do
-    case Integer.parse(value || "") do
-      {id, ""} -> id
-      _ -> nil
-    end
-  end
 
   # Returns the active phone tab. A search is Search; the unfiltered inbox and queue have tabs.
   # Every other place belongs to Library.
@@ -309,52 +297,18 @@ defmodule SikioWeb.LibraryLive do
       )
 
   # Opens a confirmation with the count from `Playback.markable`, which applies the archive rule.
+  # Counts first, so an empty list gets a message instead of a dialog.
   def handle_event("mark_all", _params, socket) do
-    case Playback.markable(socket.assigns.current_account, socket.assigns.filters) do
+    %{current_account: account, filters: filters} = socket.assigns
+
+    case Playback.markable(account, filters) do
       0 ->
         {:noreply, put_flash(socket, :info, gettext("Nothing here is left to archive."))}
 
       count ->
-        {:noreply,
-         assign(socket,
-           marking: count,
-           mark_options: %{in_progress: true, playing: true, playing_id: nil}
-         )}
+        send_update(MarkAll, id: "mark-all-dialog", open: {count, filters})
+        {:noreply, socket}
     end
-  end
-
-  # A checkbox change recounts the items to archive. This LiveView does not hold the playing
-  # item, so the client sends its id; see assets/js/playing_entry.mjs.
-  def handle_event("mark_options", params, socket) do
-    options = %{
-      in_progress: params["in_progress"] != "false",
-      playing: params["playing"] != "false",
-      playing_id: entry_id(params["playing_id"])
-    }
-
-    count =
-      Playback.markable(
-        socket.assigns.current_account,
-        socket.assigns.filters,
-        marking(options)
-      )
-
-    {:noreply, assign(socket, marking: count, mark_options: options)}
-  end
-
-  def handle_event("cancel_mark_all", _params, socket),
-    do: {:noreply, socket |> assign(:marking, nil) |> push_event("focus", %{id: "mark-all"})}
-
-  # The change triggers a PubSub broadcast. Its handler reloads the list and the sidebar.
-  def handle_event("confirm_mark_all", _params, socket) do
-    {:ok, _count} =
-      Playback.mark_all(
-        socket.assigns.current_account,
-        socket.assigns.filters,
-        marking(socket.assigns.mark_options)
-      )
-
-    {:noreply, assign(socket, :marking, nil)}
   end
 
   # Opens the `SikioWeb.SubscriptionSettings` dialog for the shown source.
@@ -739,53 +693,7 @@ defmodule SikioWeb.LibraryLive do
                 </div>
               </div>
             </div>
-            <.confirm_dialog
-              :if={@marking}
-              name="mark-all"
-              title={gettext("Archive everything here?")}
-              confirm_label={gettext("Archive")}
-            >
-              <p>
-                {ngettext(
-                  "%{count} item in this list will be archived. It stays out of your history.",
-                  "%{count} items in this list will be archived. They stay out of your history.",
-                  @marking
-                )}
-              </p>
-              <form id="mark-all-options" phx-change="mark_options" class="mt-4 flex flex-col gap-2">
-                <label class="flex items-center gap-2.5 text-label text-ink">
-                  <input type="hidden" name="in_progress" value="false" />
-                  <input
-                    type="checkbox"
-                    name="in_progress"
-                    value="true"
-                    checked={@mark_options.in_progress}
-                    class="size-4 accent-accent"
-                  />
-                  {gettext("Include items in progress")}
-                </label>
-                <%!-- The PlayingEntry hook shows this only while the player has an item. --%>
-                <div
-                  id="mark-all-playing"
-                  phx-hook="PlayingEntry"
-                  phx-mounted={JS.ignore_attributes(["hidden"])}
-                  hidden
-                >
-                  <input type="hidden" name="playing_id" value={@mark_options.playing_id} />
-                  <label class="flex items-center gap-2.5 text-label text-ink">
-                    <input type="hidden" name="playing" value="false" />
-                    <input
-                      type="checkbox"
-                      name="playing"
-                      value="true"
-                      checked={@mark_options.playing}
-                      class="size-4 accent-accent"
-                    />
-                    {gettext("Include the item in the player")}
-                  </label>
-                </div>
-              </form>
-            </.confirm_dialog>
+            <.live_component module={MarkAll} id="mark-all-dialog" current_account={@current_account} />
             <.live_component
               module={TagSettings}
               id="tag-settings"
