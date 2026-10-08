@@ -5,12 +5,13 @@ defmodule SikioWeb.LibraryLive do
   The library: the account's items listed by status, source, tag or search.
 
   The list and the selected item are encoded in the URL, so both survive a reload and Back.
-  `SikioWeb.Sidebar.library_path/3` builds the URLs. Selecting an item is a `push_patch`.
+  `SikioWeb.LibraryPaths.library_path/3` builds the URLs. Selecting an item is a `push_patch`.
   From `lg` the item shows in a column beside the list. Below `lg` it replaces the list.
   PubSub events keep the page current without polling.
   They cover new episodes, progress from another tab, status changes and subscription changes.
   """
   use SikioWeb, :live_view
+  @behaviour SikioWeb.LibraryEvents
 
   import SikioWeb.AudioFace
   import SikioWeb.MediaComponents
@@ -65,7 +66,7 @@ defmodule SikioWeb.LibraryLive do
   @impl true
   def handle_params(params, uri, socket) do
     %URI{path: path, query: query} = URI.parse(uri)
-    {filters, item} = SikioWeb.Sidebar.read_path(path, params)
+    {filters, item} = SikioWeb.LibraryPaths.read_path(path, params)
     # A URL with `q` opens the search field, also after a reload or Back.
     # `/search` is the phone's Search tab. It lists all items and focuses the field.
     socket =
@@ -223,7 +224,7 @@ defmodule SikioWeb.LibraryLive do
     <.entry_row
       id={row_id(@row)}
       entry={@entry}
-      to={SikioWeb.Sidebar.library_path(@filters, @entry, @titles)}
+      to={SikioWeb.LibraryPaths.library_path(@filters, @entry, @titles)}
       selected={@selected == @entry.id}
       source_shown={@filters["source"] == ""}
       movable={@filters["status"] == "queue"}
@@ -282,11 +283,11 @@ defmodule SikioWeb.LibraryLive do
   defp back(nil, :library, _heading, _list), do: %{to: ~p"/library", label: gettext("Library")}
   defp back(nil, _tab, _heading, _list), do: nil
 
-  defp list_path(filters, titles), do: SikioWeb.Sidebar.library_path(filters, nil, titles)
+  defp list_path(filters, titles), do: SikioWeb.LibraryPaths.library_path(filters, nil, titles)
 
   # Builds the library URL for `filters` and `item`, with source and tag slugs.
   defp address(socket, filters, item \\ nil),
-    do: SikioWeb.Sidebar.library_path(filters, item, socket.assigns.sidebar.titles)
+    do: SikioWeb.LibraryPaths.library_path(filters, item, socket.assigns.sidebar.titles)
 
   # An item opened by URL may lie beyond the loaded rows. The list then loads a window of a
   # batch above and below it, not every row above it. A list that sorts past the item's
@@ -555,7 +556,7 @@ defmodule SikioWeb.LibraryLive do
     {:noreply,
      socket
      |> assign(:deleting, nil)
-     |> push_patch(to: SikioWeb.Sidebar.start_path())}
+     |> push_patch(to: SikioWeb.LibraryPaths.start_path())}
   end
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
@@ -614,8 +615,9 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
+  @impl SikioWeb.LibraryEvents
   @doc """
-  Handles library events forwarded by `SikioWeb.Sidebar`.
+  Handles library events forwarded by `SikioWeb.LibraryEvents`.
 
   `:playback_progressed` updates the matching entry in place.
   Any other event may change which items the list contains.
@@ -706,7 +708,7 @@ defmodule SikioWeb.LibraryLive do
 
   # `:left` follows an unsubscribe from the shown source, so the page patches to the start path.
   def handle_info({SubscriptionSettings, :left}, socket),
-    do: {:noreply, push_patch(socket, to: SikioWeb.Sidebar.start_path())}
+    do: {:noreply, push_patch(socket, to: SikioWeb.LibraryPaths.start_path())}
 
   def handle_info({SubscriptionSettings, :not_found}, socket),
     do: {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}
@@ -1104,7 +1106,7 @@ defmodule SikioWeb.LibraryLive do
                     :for={{value, key, label} <- segments()}
                     id={"filter-status-#{key}"}
                     to={
-                      SikioWeb.Sidebar.library_path(
+                      SikioWeb.LibraryPaths.library_path(
                         Map.put(@filters, "status", value),
                         nil,
                         @sidebar.titles

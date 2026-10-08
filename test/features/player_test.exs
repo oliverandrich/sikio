@@ -129,7 +129,7 @@ defmodule SikioWeb.PlayerTest do
 
     session
     |> resize_window(width, height)
-    |> open(SikioWeb.Sidebar.library_path(%{"status" => "queue"}, entry))
+    |> open(SikioWeb.LibraryPaths.library_path(%{"status" => "queue"}, entry))
     |> click(css("#start-playback"))
     |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
     |> execute_script(
@@ -149,7 +149,7 @@ defmodule SikioWeb.PlayerTest do
 
     session
     |> resize_window(1280, 900)
-    |> open(SikioWeb.Sidebar.library_path(%{"status" => "queue"}, entry))
+    |> open(SikioWeb.LibraryPaths.library_path(%{"status" => "queue"}, entry))
     |> click(css("#start-playback"))
     |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
     # No audio is served, so the test dispatches `loadedmetadata` and `ended`.

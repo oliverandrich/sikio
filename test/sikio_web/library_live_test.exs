@@ -298,7 +298,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
     test "leaves the detail empty where the list no longer holds it", c do
       {:ok, view, _} =
-        live(c.conn, SikioWeb.Sidebar.library_path(%{"status" => "queue"}, c.audio))
+        live(c.conn, SikioWeb.LibraryPaths.library_path(%{"status" => "queue"}, c.audio))
 
       assert has_element?(view, "#item-detail h2")
       {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
@@ -308,7 +308,9 @@ defmodule SikioWeb.LibraryLiveTest do
     end
 
     test "keeps the detail where the list still holds it", c do
-      {:ok, view, _} = live(c.conn, SikioWeb.Sidebar.library_path(%{"status" => ""}, c.audio))
+      {:ok, view, _} =
+        live(c.conn, SikioWeb.LibraryPaths.library_path(%{"status" => ""}, c.audio))
+
       {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
 
       render_hook(view, "played_out", %{"id" => to_string(c.audio.id)})
@@ -317,7 +319,7 @@ defmodule SikioWeb.LibraryLiveTest do
 
     test "keeps the detail when it shows another item", c do
       {:ok, view, _} =
-        live(c.conn, SikioWeb.Sidebar.library_path(%{"status" => "queue"}, c.audio))
+        live(c.conn, SikioWeb.LibraryPaths.library_path(%{"status" => "queue"}, c.audio))
 
       {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
 

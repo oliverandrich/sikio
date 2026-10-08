@@ -326,9 +326,9 @@ defmodule SikioWeb.Layouts do
             <.sidebar_link
               :for={{status, key, label} <- SikioWeb.MediaComponents.views()}
               id={"view-#{key}"}
-              to={SikioWeb.Sidebar.place_path("status", status)}
+              to={SikioWeb.LibraryPaths.place_path("status", status)}
               patch={@patch}
-              active={@patch and SikioWeb.Sidebar.place?(@filters, "status", status)}
+              active={@patch and SikioWeb.LibraryPaths.place?(@filters, "status", status)}
               count={if(key == :heard, do: 0, else: @counts[key])}
             >
               <:mark>
@@ -352,9 +352,9 @@ defmodule SikioWeb.Layouts do
             <.sidebar_link
               :for={tag <- @sidebar.tags}
               id={"tag-#{tag.id}"}
-              to={SikioWeb.Sidebar.place_path("tag", to_string(tag.id), @sidebar.titles)}
+              to={SikioWeb.LibraryPaths.place_path("tag", to_string(tag.id), @sidebar.titles)}
               patch={@patch}
-              active={@patch and SikioWeb.Sidebar.place?(@filters, "tag", to_string(tag.id))}
+              active={@patch and SikioWeb.LibraryPaths.place?(@filters, "tag", to_string(tag.id))}
               count={Map.get(@counts.tags, tag.id, 0)}
             >
               <:mark>
@@ -385,10 +385,12 @@ defmodule SikioWeb.Layouts do
             <.sidebar_link
               :for={source <- @sidebar.sources}
               id={"source-#{source.feed_id}"}
-              to={SikioWeb.Sidebar.place_path("source", to_string(source.feed_id), @sidebar.titles)}
+              to={
+                SikioWeb.LibraryPaths.place_path("source", to_string(source.feed_id), @sidebar.titles)
+              }
               patch={@patch}
               active={
-                @patch and SikioWeb.Sidebar.place?(@filters, "source", to_string(source.feed_id))
+                @patch and SikioWeb.LibraryPaths.place?(@filters, "source", to_string(source.feed_id))
               }
               count={Map.get(@counts.sources, source.feed_id, 0)}
               problem={

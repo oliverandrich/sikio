@@ -19,7 +19,7 @@ defmodule SikioWeb.AddSourceLive do
 
   alias Sikio.Feeds.Discovery
   alias Sikio.Library
-  alias SikioWeb.Sidebar
+  alias SikioWeb.LibraryPaths
 
   @impl true
   def mount(_params, _session, socket) do
@@ -190,7 +190,7 @@ defmodule SikioWeb.AddSourceLive do
       {:ok, subscription} ->
         # An existing subscription keeps its custom name.
         name = source_name(subscription)
-        to = Sidebar.source_path(subscription)
+        to = LibraryPaths.source_path(subscription)
 
         socket = put_flash(socket, :info, gettext("Subscribed to %{title}.", title: name))
 

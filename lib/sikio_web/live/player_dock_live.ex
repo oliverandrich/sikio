@@ -296,7 +296,7 @@ defmodule SikioWeb.PlayerDockLive do
             </p>
             <.link
               navigate={
-                SikioWeb.Sidebar.library_path(
+                SikioWeb.LibraryPaths.library_path(
                   %{"source" => to_string(@entry.feed_id)},
                   @entry,
                   %{@entry.feed_id => source_name(@entry)}

@@ -85,9 +85,10 @@ defmodule SikioWeb.Router do
       on_mount: [
         {Ithibati.Web.Gate, {:require_account, to: "/login"}},
         {SikioWeb.Locale, :set},
-        SikioWeb.Sidebar
+        SikioWeb.Sidebar,
+        SikioWeb.LibraryEvents
       ] do
-      # Library places, each with an optional item; see `SikioWeb.Sidebar.library_path/3`.
+      # Library places, each with an optional item; see `SikioWeb.LibraryPaths.library_path/3`.
       live "/", LibraryLive, :index
       live "/inbox", LibraryLive, :index
       live "/inbox/:item", LibraryLive, :index

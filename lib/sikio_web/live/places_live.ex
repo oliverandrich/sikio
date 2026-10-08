@@ -11,7 +11,7 @@ defmodule SikioWeb.PlacesLive do
   import SikioWeb.MediaComponents, only: [views: 0, view_icon: 1, source_name: 1]
 
   alias Sikio.Library
-  alias SikioWeb.Sidebar
+  alias SikioWeb.LibraryPaths
 
   @impl true
   def mount(_params, _session, socket), do: {:ok, assign(socket, page_title: gettext("Library"))}
@@ -39,7 +39,7 @@ defmodule SikioWeb.PlacesLive do
         <.place
           :for={{status, key, label} <- views()}
           :if={key not in [:inbox, :queue]}
-          to={Sidebar.place_path("status", status)}
+          to={LibraryPaths.place_path("status", status)}
           count={if(key == :all, do: @counts[key], else: 0)}
         >
           <:icon><.view_icon view={key} class="size-5 text-muted" /></:icon>
@@ -49,7 +49,7 @@ defmodule SikioWeb.PlacesLive do
       <.places :if={@sidebar.tags != []} id="places-tags" heading={gettext("Tags")}>
         <.place
           :for={tag <- @sidebar.tags}
-          to={Sidebar.place_path("tag", to_string(tag.id), @sidebar.titles)}
+          to={LibraryPaths.place_path("tag", to_string(tag.id), @sidebar.titles)}
           count={Map.get(@counts.tags, tag.id, 0)}
         >
           {tag.name}
@@ -63,7 +63,7 @@ defmodule SikioWeb.PlacesLive do
         </:action>
         <.place
           :for={source <- @sidebar.sources}
-          to={Sidebar.place_path("source", to_string(source.feed_id), @sidebar.titles)}
+          to={LibraryPaths.place_path("source", to_string(source.feed_id), @sidebar.titles)}
           count={Map.get(@counts.sources, source.feed_id, 0)}
         >
           {source_name(source)}

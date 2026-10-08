@@ -11,6 +11,7 @@ defmodule SikioWeb.SubscriptionsLive do
     only: [kind_mark: 1, initial: 1, refresh_problem: 1, source_label: 1, source_name: 1]
 
   alias Sikio.Library
+  alias SikioWeb.LibraryPaths
   alias SikioWeb.Pictures
   alias SikioWeb.Sidebar
   alias SikioWeb.SubscriptionSettings
@@ -142,7 +143,7 @@ defmodule SikioWeb.SubscriptionsLive do
               <%!-- The feed URL follows the name. Both truncate; `title` holds the full URL. --%>
               <p class="flex flex-wrap items-baseline gap-x-2 sm:flex-nowrap">
                 <.link
-                  navigate={Sidebar.source_path(subscription)}
+                  navigate={LibraryPaths.source_path(subscription)}
                   class="truncate text-body font-semibold underline-offset-4 hover:underline"
                 >
                   {source_name(subscription)}

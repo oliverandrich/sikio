@@ -115,7 +115,7 @@ defmodule SikioWeb.FeatureCase do
     )
   end
 
-  @doc "Returns an entry's path in the unfiltered library list, as `SikioWeb.Sidebar` builds it."
+  @doc "Returns an entry's path in the unfiltered library list, as `SikioWeb.LibraryPaths` builds it."
   def item_path(entry), do: SikioWeb.ConnCase.item_path(entry)
 
   @doc """

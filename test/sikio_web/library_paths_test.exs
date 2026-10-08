@@ -4,12 +4,12 @@ defmodule SikioWeb.LibraryPathsTest do
   @moduledoc """
   Conversion between library filters and URL paths, in both directions.
 
-  The library filters by status, source, tag and search. `Sidebar` encodes them as paths and
+  The library filters by status, source, tag and search. `LibraryPaths` encodes them as paths and
   reads paths back into filters and an item id.
   """
   use ExUnit.Case, async: true
 
-  alias SikioWeb.Sidebar
+  alias SikioWeb.LibraryPaths
 
   @none %{"status" => "", "source" => "", "tag" => "", "q" => ""}
   @feeds %{106 => "MeTacheles Tonspur"}
@@ -18,134 +18,145 @@ defmodule SikioWeb.LibraryPathsTest do
   defp filters(changes), do: Map.merge(@none, changes)
 
   test "a list by status is its own path, and no filter is /all" do
-    assert Sidebar.library_path(filters(%{"status" => "inbox"})) == "/inbox"
-    assert Sidebar.library_path(filters(%{"status" => "queue"})) == "/queue"
-    assert Sidebar.library_path(filters(%{"status" => "heard"})) == "/history"
-    assert Sidebar.library_path(@none) == "/all"
+    assert LibraryPaths.library_path(filters(%{"status" => "inbox"})) == "/inbox"
+    assert LibraryPaths.library_path(filters(%{"status" => "queue"})) == "/queue"
+    assert LibraryPaths.library_path(filters(%{"status" => "heard"})) == "/history"
+    assert LibraryPaths.library_path(@none) == "/all"
   end
 
   # A source path without a status segment opens the source's inbox.
   test "a source is named by its number and its title, and opens on its inbox" do
-    assert Sidebar.library_path(filters(%{"source" => "106", "status" => "inbox"}), nil, @feeds) ==
+    assert LibraryPaths.library_path(
+             filters(%{"source" => "106", "status" => "inbox"}),
+             nil,
+             @feeds
+           ) ==
              "/feeds/106-metacheles-tonspur"
 
-    assert Sidebar.library_path(filters(%{"source" => "106"}), nil, @feeds) ==
+    assert LibraryPaths.library_path(filters(%{"source" => "106"}), nil, @feeds) ==
              "/feeds/106-metacheles-tonspur/all"
 
-    assert Sidebar.library_path(
+    assert LibraryPaths.library_path(
              filters(%{"source" => "106", "status" => "heard"}),
              nil,
              @feeds
            ) ==
              "/feeds/106-metacheles-tonspur/history"
 
-    assert Sidebar.library_path(filters(%{"source" => "7", "status" => "inbox"})) == "/feeds/7",
+    assert LibraryPaths.library_path(filters(%{"source" => "7", "status" => "inbox"})) ==
+             "/feeds/7",
            "a source without a known title keeps its number alone"
 
-    assert Sidebar.place_path("source", "106", @feeds) == "/feeds/106-metacheles-tonspur"
+    assert LibraryPaths.place_path("source", "106", @feeds) == "/feeds/106-metacheles-tonspur"
   end
 
   # Tag paths follow the source scheme: id and slug, with the inbox as default status.
   test "a tag is named by its number and its name, and opens on its inbox" do
     tags = %{{:tag, 3} => "Must view"}
 
-    assert Sidebar.library_path(filters(%{"tag" => "3", "status" => "inbox"}), nil, tags) ==
+    assert LibraryPaths.library_path(filters(%{"tag" => "3", "status" => "inbox"}), nil, tags) ==
              "/tags/3-must-view"
 
-    assert Sidebar.library_path(filters(%{"tag" => "3"}), nil, tags) == "/tags/3-must-view/all"
+    assert LibraryPaths.library_path(filters(%{"tag" => "3"}), nil, tags) ==
+             "/tags/3-must-view/all"
 
-    assert Sidebar.library_path(filters(%{"tag" => "3", "status" => "inbox"}), @item, tags) ==
+    assert LibraryPaths.library_path(filters(%{"tag" => "3", "status" => "inbox"}), @item, tags) ==
              "/tags/3-must-view/4056-ki-verfassung-die-irre-selbstkontrolle-der-tech-bros"
 
-    assert Sidebar.place_path("tag", "3", tags) == "/tags/3-must-view"
+    assert LibraryPaths.place_path("tag", "3", tags) == "/tags/3-must-view"
 
-    assert Sidebar.read_path("/tags/3-must-view", %{}) ==
+    assert LibraryPaths.read_path("/tags/3-must-view", %{}) ==
              {filters(%{"tag" => "3", "status" => "inbox"}), nil}
 
-    assert Sidebar.read_path("/tags/3-x/history/4056-y", %{}) ==
+    assert LibraryPaths.read_path("/tags/3-x/history/4056-y", %{}) ==
              {filters(%{"tag" => "3", "status" => "heard"}), "4056"}
 
-    assert Sidebar.read_path("/tags/3-x/4056-y", %{}) ==
+    assert LibraryPaths.read_path("/tags/3-x/4056-y", %{}) ==
              {filters(%{"tag" => "3", "status" => "inbox"}), "4056"}
 
-    assert Sidebar.place?(filters(%{"tag" => "3", "status" => "inbox"}), "tag", "3")
-    refute Sidebar.place?(filters(%{"tag" => "3", "status" => "inbox"}), "status", "inbox")
+    assert LibraryPaths.place?(filters(%{"tag" => "3", "status" => "inbox"}), "tag", "3")
+    refute LibraryPaths.place?(filters(%{"tag" => "3", "status" => "inbox"}), "status", "inbox")
   end
 
   test "an item follows the list it is shown in" do
-    assert Sidebar.library_path(filters(%{"status" => "inbox"}), @item) ==
+    assert LibraryPaths.library_path(filters(%{"status" => "inbox"}), @item) ==
              "/inbox/4056-ki-verfassung-die-irre-selbstkontrolle-der-tech-bros"
 
-    assert Sidebar.library_path(filters(%{"source" => "106", "status" => "inbox"}), @item, @feeds) ==
+    assert LibraryPaths.library_path(
+             filters(%{"source" => "106", "status" => "inbox"}),
+             @item,
+             @feeds
+           ) ==
              "/feeds/106-metacheles-tonspur/4056-ki-verfassung-die-irre-selbstkontrolle-der-tech-bros"
 
-    assert Sidebar.library_path(filters(%{"source" => "106"}), 4056, @feeds) ==
+    assert LibraryPaths.library_path(filters(%{"source" => "106"}), 4056, @feeds) ==
              "/feeds/106-metacheles-tonspur/all/4056"
 
-    assert Sidebar.library_path(filters(%{"status" => "heard"}), 12) == "/history/12"
+    assert LibraryPaths.library_path(filters(%{"status" => "heard"}), 12) == "/history/12"
   end
 
   test "a search stays in the query" do
-    assert Sidebar.library_path(filters(%{"status" => "inbox", "q" => "akku"})) == "/inbox?q=akku"
+    assert LibraryPaths.library_path(filters(%{"status" => "inbox", "q" => "akku"})) ==
+             "/inbox?q=akku"
   end
 
   test "a title becomes letters, digits and dashes" do
-    assert Sidebar.slug("Großbatteriespeicher: Nützlich, netzdienlich (& mehr)!") ==
+    assert LibraryPaths.slug("Großbatteriespeicher: Nützlich, netzdienlich (& mehr)!") ==
              "grossbatteriespeicher-nuetzlich-netzdienlich-mehr"
 
-    assert Sidebar.slug("Ça va? Élan") == "ca-va-elan"
-    assert Sidebar.slug("🚨 !!!") == ""
-    assert String.length(Sidebar.slug(String.duplicate("long words ", 40))) <= 60
+    assert LibraryPaths.slug("Ça va? Élan") == "ca-va-elan"
+    assert LibraryPaths.slug("🚨 !!!") == ""
+    assert String.length(LibraryPaths.slug(String.duplicate("long words ", 40))) <= 60
   end
 
   test "an address reads back into the filters and the item" do
-    assert Sidebar.read_path("/", %{}) == {filters(%{"status" => "queue"}), nil}
-    assert Sidebar.read_path("/inbox", %{}) == {filters(%{"status" => "inbox"}), nil}
-    assert Sidebar.read_path("/all", %{}) == {@none, nil}
+    assert LibraryPaths.read_path("/", %{}) == {filters(%{"status" => "queue"}), nil}
+    assert LibraryPaths.read_path("/inbox", %{}) == {filters(%{"status" => "inbox"}), nil}
+    assert LibraryPaths.read_path("/all", %{}) == {@none, nil}
 
-    assert Sidebar.read_path("/queue/4056-ki", %{"q" => "akku", "kind" => "audio"}) ==
+    assert LibraryPaths.read_path("/queue/4056-ki", %{"q" => "akku", "kind" => "audio"}) ==
              {filters(%{"status" => "queue", "q" => "akku"}), "4056"}
 
-    assert Sidebar.read_path("/feeds/106-metacheles-tonspur", %{}) ==
+    assert LibraryPaths.read_path("/feeds/106-metacheles-tonspur", %{}) ==
              {filters(%{"source" => "106", "status" => "inbox"}), nil}
 
-    assert Sidebar.read_path("/feeds/106-metacheles-tonspur/all", %{}) ==
+    assert LibraryPaths.read_path("/feeds/106-metacheles-tonspur/all", %{}) ==
              {filters(%{"source" => "106"}), nil}
 
-    assert Sidebar.read_path("/feeds/106-x/all/4056-y", %{}) ==
+    assert LibraryPaths.read_path("/feeds/106-x/all/4056-y", %{}) ==
              {filters(%{"source" => "106"}), "4056"}
 
-    assert Sidebar.read_path("/feeds/106-x/inbox", %{"q" => "akku"}) ==
+    assert LibraryPaths.read_path("/feeds/106-x/inbox", %{"q" => "akku"}) ==
              {filters(%{"source" => "106", "status" => "inbox", "q" => "akku"}), nil}
 
-    assert Sidebar.read_path("/feeds/106-x/4056-y", %{}) ==
+    assert LibraryPaths.read_path("/feeds/106-x/4056-y", %{}) ==
              {filters(%{"source" => "106", "status" => "inbox"}), "4056"}
 
-    assert Sidebar.read_path("/feeds/106/history/4056", %{}) ==
+    assert LibraryPaths.read_path("/feeds/106/history/4056", %{}) ==
              {filters(%{"source" => "106", "status" => "heard"}), "4056"}
   end
 
   # Paths from before the inbox existed map to the current lists.
   test "the old addresses read as the lists they meant" do
-    assert Sidebar.read_path("/new", %{}) == {filters(%{"status" => "inbox"}), nil}
+    assert LibraryPaths.read_path("/new", %{}) == {filters(%{"status" => "inbox"}), nil}
 
-    assert Sidebar.read_path("/in-progress/4056-ki", %{}) ==
+    assert LibraryPaths.read_path("/in-progress/4056-ki", %{}) ==
              {filters(%{"status" => "queue"}), "4056"}
 
-    assert Sidebar.read_path("/completed", %{}) == {filters(%{"status" => "heard"}), nil}
+    assert LibraryPaths.read_path("/completed", %{}) == {filters(%{"status" => "heard"}), nil}
 
-    assert Sidebar.read_path("/feeds/106-x/completed", %{}) ==
+    assert LibraryPaths.read_path("/feeds/106-x/completed", %{}) ==
              {filters(%{"source" => "106", "status" => "heard"}), nil}
 
-    assert Sidebar.read_path("/feeds/106-x/new", %{}) ==
+    assert LibraryPaths.read_path("/feeds/106-x/new", %{}) ==
              {filters(%{"source" => "106", "status" => "inbox"}), nil}
   end
 
   test "an address that names no item or source by number names none" do
-    assert Sidebar.read_path("/inbox/ki-verfassung", %{}) ==
+    assert LibraryPaths.read_path("/inbox/ki-verfassung", %{}) ==
              {filters(%{"status" => "inbox"}), :invalid}
 
-    assert Sidebar.read_path("/feeds/metacheles", %{}) ==
+    assert LibraryPaths.read_path("/feeds/metacheles", %{}) ==
              {filters(%{"source" => "", "status" => "inbox"}), nil}
   end
 end

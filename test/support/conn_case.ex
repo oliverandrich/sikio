@@ -45,8 +45,8 @@ defmodule SikioWeb.ConnCase do
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
-  @doc "Returns an entry's path in the unfiltered library list, as `SikioWeb.Sidebar` builds it."
-  def item_path(entry), do: SikioWeb.Sidebar.library_path(%{"status" => ""}, entry)
+  @doc "Returns an entry's path in the unfiltered library list, as `SikioWeb.LibraryPaths` builds it."
+  def item_path(entry), do: SikioWeb.LibraryPaths.library_path(%{"status" => ""}, entry)
 
   @doc """
   Setup callback: a signed-in account subscribed to one podcast with one episode.
