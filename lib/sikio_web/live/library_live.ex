@@ -20,8 +20,10 @@ defmodule SikioWeb.LibraryLive do
   alias Sikio.Feeds
   alias Sikio.Library
   alias Sikio.Playback
+  alias Sikio.Preferences
   alias Sikio.Tags
   alias SikioWeb.LibraryLive.Rows
+  alias SikioWeb.LibraryPaths
   alias SikioWeb.Notes
   alias SikioWeb.SubscriptionSettings
 
@@ -61,7 +63,7 @@ defmodule SikioWeb.LibraryLive do
   @impl true
   def handle_params(params, uri, socket) do
     %URI{path: path, query: query} = URI.parse(uri)
-    {filters, item} = SikioWeb.LibraryPaths.read_path(path, params)
+    {filters, item} = read(path, params, socket.assigns.current_account)
     # A URL with `q` opens the search field, also after a reload or Back.
     # `/search` is the phone's Search tab. It lists all items and focuses the field.
     socket =
@@ -104,6 +106,20 @@ defmodule SikioWeb.LibraryLive do
       {:ok, socket} -> {:noreply, socket |> Rows.reach() |> named(path, query)}
       :error -> {:noreply, push_navigate(socket, to: address(socket, filters))}
     end
+  end
+
+  # `/` opens the start page. It is read on each visit, so a deleted start tag falls back at once.
+  defp read("/", params, account),
+    do: LibraryPaths.read_path("/", params, LibraryPaths.start_filters(Preferences.get(account)))
+
+  defp read(path, params, _account), do: LibraryPaths.read_path(path, params)
+
+  # The start page's own address. A deleted start tag has already fallen back.
+  defp start_path(socket) do
+    socket.assigns.current_account
+    |> Preferences.get()
+    |> LibraryPaths.start_filters()
+    |> LibraryPaths.library_path(nil, socket.assigns.sidebar.titles)
   end
 
   # Only the ids in the path are parsed; the slugs are for display.
@@ -176,11 +192,11 @@ defmodule SikioWeb.LibraryLive do
   defp back(nil, :library, _heading, _list), do: %{to: ~p"/library", label: gettext("Library")}
   defp back(nil, _tab, _heading, _list), do: nil
 
-  defp list_path(filters, titles), do: SikioWeb.LibraryPaths.library_path(filters, nil, titles)
+  defp list_path(filters, titles), do: LibraryPaths.library_path(filters, nil, titles)
 
   # Builds the library URL for `filters` and `item`, with source and tag slugs.
   defp address(socket, filters, item \\ nil),
-    do: SikioWeb.LibraryPaths.library_path(filters, item, socket.assigns.sidebar.titles)
+    do: LibraryPaths.library_path(filters, item, socket.assigns.sidebar.titles)
 
   @impl true
   def handle_event("move", %{"key" => key}, socket) when key in ["j", "k"] do
@@ -412,7 +428,7 @@ defmodule SikioWeb.LibraryLive do
     {:noreply,
      socket
      |> assign(:deleting, nil)
-     |> push_patch(to: SikioWeb.LibraryPaths.start_path())}
+     |> push_patch(to: start_path(socket))}
   end
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
@@ -555,9 +571,9 @@ defmodule SikioWeb.LibraryLive do
   def handle_info({SubscriptionSettings, :saved}, socket),
     do: {:noreply, SikioWeb.Sidebar.refresh(socket)}
 
-  # `:left` follows an unsubscribe from the shown source, so the page patches to the start path.
+  # `:left` follows an unsubscribe from the shown source, so the page patches to the start page.
   def handle_info({SubscriptionSettings, :left}, socket),
-    do: {:noreply, push_patch(socket, to: SikioWeb.LibraryPaths.start_path())}
+    do: {:noreply, push_patch(socket, to: start_path(socket))}
 
   def handle_info({SubscriptionSettings, :not_found}, socket),
     do: {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}
@@ -898,7 +914,7 @@ defmodule SikioWeb.LibraryLive do
                     :for={{value, key, label} <- segments()}
                     id={"filter-status-#{key}"}
                     to={
-                      SikioWeb.LibraryPaths.library_path(
+                      LibraryPaths.library_path(
                         Map.put(@filters, "status", value),
                         nil,
                         @sidebar.titles

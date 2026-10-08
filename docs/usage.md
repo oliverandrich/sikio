@@ -48,6 +48,9 @@ The library has four places:
 - **History**: heard items.
 - **All items**: every item.
 
+The library opens on the queue. The settings page in the gear menu can make the inbox or a tag
+the start page instead.
+
 The source and tag pages filter by new, heard or all. Lists load up to 100 items at a time. The
 place and its search are part of the URL, so reloads and the browser's back button keep them.
 New episodes, status changes and subscription changes from other tabs or devices appear without

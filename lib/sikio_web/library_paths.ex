@@ -8,6 +8,7 @@ defmodule SikioWeb.LibraryPaths do
   Sources, tags and items carry a title slug after their id, and parsing reads only the id.
   """
   alias Sikio.Library
+  alias Sikio.Preferences.Preference
   alias SikioWeb.MediaComponents
 
   # Maps status filters to URL segments. Within a source or tag the inbox has no segment.
@@ -20,11 +21,14 @@ defmodule SikioWeb.LibraryPaths do
                      "completed" => "heard"
                    })
 
-  # The library starts on the queue, the list of items to play.
-  @start "queue"
+  @doc """
+  Returns the filters of an account's start page, which `/` opens.
+  A start tag opens on its inbox, like a tag in the sidebar.
+  """
+  def start_filters(%{start_tag_id: tag}) when not is_nil(tag),
+    do: %{"tag" => to_string(tag), "status" => "inbox"}
 
-  @doc "Returns the start path. It is also the redirect target when the shown place is gone."
-  def start_path, do: library_path(%{"status" => @start})
+  def start_filters(%{start_view: view}), do: %{"status" => view}
 
   @doc """
   Returns the library URL: the list's path with the selected item appended.
@@ -104,12 +108,13 @@ defmodule SikioWeb.LibraryPaths do
   Only the leading number of a source, tag or item segment is read.
   An item segment without a number returns `:invalid` as the item.
   A source or tag segment without one leaves that filter empty, which lists every source.
+  `/` reads into `start`, the filters of the account's start page.
   """
-  def read_path(path, query) do
+  def read_path(path, query, start \\ start_filters(%Preference{})) do
     {place, item} =
       case String.split(path, "/", trim: true) do
         [] ->
-          {%{"status" => @start}, nil}
+          {start, nil}
 
         [place, named] when place in ["feeds", "tags"] ->
           {within(place, named, "inbox"), nil}

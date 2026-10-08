@@ -7,11 +7,16 @@ defmodule SikioWeb.SettingsLiveTest do
   use SikioWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import Sikio.FeedFixtures
 
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
+  alias Sikio.Feeds.Parser
+  alias Sikio.Library
   alias Sikio.Preferences
+  alias Sikio.Preferences.Preference
   alias Sikio.Repo
+  alias Sikio.Tags
 
   setup %{conn: conn} do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
@@ -73,7 +78,7 @@ defmodule SikioWeb.SettingsLiveTest do
   # A stored language that the instance no longer offers falls back to the browser's.
   test "an unsupported stored language follows the browser", c do
     {:ok, _} = Preferences.update(c.user, %{locale: "de"})
-    Repo.update_all(Sikio.Preferences.Preference, set: [locale: "fr"])
+    Repo.update_all(Preference, set: [locale: "fr"])
 
     conn = c.conn |> put_req_header("accept-language", "en") |> get(~p"/library")
     assert get_session(conn, "locale") == "en"
@@ -96,5 +101,31 @@ defmodule SikioWeb.SettingsLiveTest do
     refute has_element?(view, "#settings-saved", "Saved.")
     assert render(view) =~ "The settings could not be saved."
     refute has_element?(view, ~s|#settings-form input[name="play_on"][type="checkbox"][checked]|)
+  end
+
+  # The start page is the queue, the inbox or one of the account's tags. / opens it.
+  test "the chosen start page opens at /", c do
+    {:ok, preview} =
+      Parser.parse(podcast(), feed_url())
+
+    {:ok, sub} = Library.subscribe(c.user, preview)
+    {:ok, [tag]} = Tags.set(c.user, sub.id, ["Tech"])
+
+    {:ok, view, _} = live(c.conn, ~p"/account/settings")
+    assert has_element?(view, ~s|#settings-form input[name="start"][value="queue"][checked]|)
+
+    view |> form("#settings-form", %{"start" => "inbox"}) |> render_change()
+    {:ok, view, _} = live(c.conn, ~p"/")
+    assert has_element?(view, "#view-inbox[aria-current=page]")
+
+    {:ok, view, _} = live(c.conn, ~p"/account/settings")
+    view |> form("#settings-form", %{"start" => "tag-#{tag.id}"}) |> render_change()
+    {:ok, view, _} = live(c.conn, ~p"/")
+    assert has_element?(view, "#library-heading", "Tech")
+
+    # A deleted start tag falls back to the list chosen before it.
+    Tags.delete(c.user, tag.id)
+    {:ok, view, _} = live(c.conn, ~p"/")
+    assert has_element?(view, "#view-inbox[aria-current=page]")
   end
 end

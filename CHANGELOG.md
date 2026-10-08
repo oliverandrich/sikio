@@ -18,8 +18,10 @@ Its own section becomes the version's release notes.
 
 ### Added
 
-- A settings page in the gear menu. It holds Play on and the interface language. A chosen
-  language overrides the browser's.
+- A settings page in the gear menu. It holds the start page, Play on and the interface
+  language. A chosen language overrides the browser's.
+- The library opens on the chosen start page: the queue, the inbox or a tag. A deleted start
+  tag falls back to the list chosen before it.
 - [Operations](docs/operations.md#storage) describes what Sikio stores and how to measure it.
   The README states that Sikio follows public feeds and downloads no media.
 

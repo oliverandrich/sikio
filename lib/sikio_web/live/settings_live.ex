@@ -2,7 +2,8 @@
 
 defmodule SikioWeb.SettingsLive do
   @moduledoc """
-  A member's preferences: Play on and the interface language. Each change saves at once.
+  A member's preferences: the start page, Play on and the interface language.
+  Each change saves at once.
 
   A changed language redirects to this page, so the whole document renders in it.
   """
@@ -26,7 +27,7 @@ defmodule SikioWeb.SettingsLive do
     account = socket.assigns.current_account
     before = Preferences.get(account).locale
 
-    case Preferences.update(account, Map.take(params, ["play_on", "locale"])) do
+    case Preferences.update(account, attrs(params)) do
       {:ok, %{locale: ^before} = preference} ->
         {:noreply, socket |> clear_flash() |> assign(preference: preference, saved?: true)}
 
@@ -40,6 +41,22 @@ defmodule SikioWeb.SettingsLive do
          |> put_flash(:error, gettext("The settings could not be saved."))}
     end
   end
+
+  defp attrs(params),
+    do: params |> Map.take(["play_on", "locale"]) |> Map.merge(start(params["start"]))
+
+  # A tag replaces the list as the start page. Choosing a list clears the tag.
+  defp start("tag-" <> id), do: %{"start_tag_id" => id}
+  defp start(view) when is_binary(view), do: %{"start_view" => view, "start_tag_id" => nil}
+  defp start(nil), do: %{}
+
+  defp chosen_start(%{start_tag_id: nil, start_view: view}), do: view
+  defp chosen_start(%{start_tag_id: id}), do: "tag-#{id}"
+
+  defp start_options(tags),
+    do:
+      [{"queue", gettext("Queue")}, {"inbox", gettext("Inbox")}] ++
+        Enum.map(tags, &{"tag-#{&1.id}", &1.name})
 
   defp languages,
     do: Enum.filter(@languages, fn {_name, code} -> code in Preferences.locales() end)
@@ -57,6 +74,22 @@ defmodule SikioWeb.SettingsLive do
     >
       <.header>{gettext("Settings")}</.header>
       <form id="settings-form" phx-change="save" class="mt-6 max-w-xl">
+        <fieldset class="mb-4 flex flex-col gap-2">
+          <legend class="mb-1.5 text-label font-semibold text-ink">{gettext("Start page")}</legend>
+          <label
+            :for={{value, label} <- start_options(@sidebar.tags)}
+            class="flex items-center gap-2.5 text-label text-ink"
+          >
+            <input
+              type="radio"
+              name="start"
+              value={value}
+              checked={chosen_start(@preference) == value}
+              class="size-4 accent-accent"
+            />
+            {label}
+          </label>
+        </fieldset>
         <.input
           id="settings-play-on"
           type="checkbox"

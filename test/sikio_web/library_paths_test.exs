@@ -109,6 +109,20 @@ defmodule SikioWeb.LibraryPathsTest do
     assert String.length(LibraryPaths.slug(String.duplicate("long words ", 40))) <= 60
   end
 
+  # / opens the account's start page. Without one it opens the queue.
+  test "the root reads into the start page's filters" do
+    alias Sikio.Preferences.Preference
+
+    assert LibraryPaths.start_filters(%Preference{}) == %{"status" => "queue"}
+    assert LibraryPaths.start_filters(%Preference{start_view: "inbox"}) == %{"status" => "inbox"}
+
+    assert LibraryPaths.start_filters(%Preference{start_view: "inbox", start_tag_id: 3}) ==
+             %{"tag" => "3", "status" => "inbox"}
+
+    assert LibraryPaths.read_path("/", %{}, %{"tag" => "3", "status" => "inbox"}) ==
+             {filters(%{"tag" => "3", "status" => "inbox"}), nil}
+  end
+
   test "an address reads back into the filters and the item" do
     assert LibraryPaths.read_path("/", %{}) == {filters(%{"status" => "queue"}), nil}
     assert LibraryPaths.read_path("/inbox", %{}) == {filters(%{"status" => "inbox"}), nil}
