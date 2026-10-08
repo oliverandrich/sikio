@@ -121,6 +121,34 @@ address.
 
 `GET /health` checks HTTP liveness. It does not check the database.
 
+## Small installations
+
+The release keeps the Erlang VM defaults. On a small instance, two environment variables lower
+memory use. Both apply to the Docker image and the release tarball.
+
+| Variable | Effect |
+| --- | --- |
+| `ERL_AFLAGS="+S 2:2"` | Starts two schedulers instead of one per CPU core |
+| `RELEASE_MODE=interactive` | Loads each module on its first call instead of at boot |
+
+A scheduler is an OS thread that runs Erlang processes. The memory allocators keep one instance
+per scheduler. Each instance holds free memory it has not returned to the OS. Fewer schedulers
+mean fewer instances and less of that reserve. Erlang code then runs on two cores at most.
+
+By default a release loads every module of every dependency at boot. Many of them never run on a
+given instance, such as the adapter of the unused database. The interactive mode loads only the
+modules a request or job calls. The first call of a module waits for it to load. A module
+missing from the release fails on its first call, not at boot.
+
+One PostgreSQL instance on six cores dropped from 248 MiB to about 90 MiB with both settings.
+Loaded code fell from 53 MiB to 24 MiB. Results depend on the host and on which features run.
+Compare `docker stats` or the service's memory before and after. This command prints the
+loaded code in bytes:
+
+```sh
+bin/sikio rpc 'IO.inspect(:erlang.memory(:code))'
+```
+
 ## Logs
 
 A release writes one JSON object per line to stdout. The systemd journal or Docker collects it.

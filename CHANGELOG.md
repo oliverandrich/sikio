@@ -11,6 +11,11 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Added
+
+- [Operations](docs/operations.md#small-installations) describes two settings that lower memory
+  use on small installations: `ERL_AFLAGS="+S 2:2"` and `RELEASE_MODE=interactive`.
+
 ### Fixed
 
 - The image installs `libsctp1`. Without it every command, `bin/setup-code` included, printed an
