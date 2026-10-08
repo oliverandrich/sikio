@@ -31,6 +31,7 @@ defmodule SikioWeb.PlacesLiveTest do
     refute has_element?(view, ~s|#places-views a[href="/queue"]|)
     assert has_element?(view, ~s|#places-views a[href="/history"]|, "History")
     assert has_element?(view, ~s|#places-views a[href="/all"]|, "All items")
+    refute view |> element(~s|#places-views a[href="/all"]|) |> render() =~ ~r/>\s*\d+\s*</
     assert has_element?(view, ~s|#places-tags a[href="/tags/#{tag.id}-must-view"]|, "Must view")
     assert has_element?(view, "#places-tags a", "1")
 

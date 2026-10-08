@@ -321,7 +321,7 @@ defmodule SikioWeb.Layouts do
               to={SikioWeb.LibraryPaths.place_path("status", status)}
               patch={@patch}
               active={@patch and SikioWeb.LibraryPaths.place?(@filters, "status", status)}
-              count={if(key == :heard, do: 0, else: @counts[key])}
+              count={if(key in [:heard, :all], do: 0, else: @counts[key])}
             >
               <:mark>
                 <SikioWeb.MediaComponents.view_icon view={key} class="size-4 shrink-0" />

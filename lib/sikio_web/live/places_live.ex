@@ -40,7 +40,6 @@ defmodule SikioWeb.PlacesLive do
           :for={{status, key, label} <- views()}
           :if={key not in [:inbox, :queue]}
           to={LibraryPaths.place_path("status", status)}
-          detail={if(key == :all, do: nonzero(@counts[key]))}
         >
           <:icon><.view_icon view={key} class="size-5 text-muted" /></:icon>
           {label}

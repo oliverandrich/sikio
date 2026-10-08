@@ -144,7 +144,7 @@ defmodule SikioWeb.LibraryTest do
   # The mark-all dialog takes focus when it opens, and Escape closes it.
   # It offers to keep the player's item only while the player has one.
   # Unticking that option lowers the count by one and leaves the item unarchived.
-  # The others are archived: still counted under all items, not under heard.
+  # The others are archived: still listed under all items, not counted under heard.
   feature "the double check marks a list after asking, and may leave the item in the player", %{
     session: session
   } do
@@ -170,7 +170,7 @@ defmodule SikioWeb.LibraryTest do
     |> click(css("#confirm-mark-all"))
     |> assert_has(css("#view-queue-count", text: "1"))
     |> assert_has(css("#entries article:not([data-status=archived])", count: 1))
-    |> assert_has(css("#view-all-count", text: "40"))
+    |> assert_has(css("#library-count", text: "40 items"))
     |> gone(css("#view-heard-count"))
   end
 

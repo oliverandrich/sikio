@@ -9,6 +9,13 @@ or changed setting, a step to take before or after the update. A release migrate
 as it starts unless `SIKIO_MIGRATE_ON_START=false`; back up the database before every update.
 Its own section becomes the version's release notes.
 
+## [Unreleased]
+
+### Changed
+
+- All items shows no count in the sidebar and on the Library page. The list heading still
+  shows its total.
+
 ## [0.3.0] - 2026-10-08
 
 ### Upgrading

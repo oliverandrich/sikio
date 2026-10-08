@@ -722,10 +722,10 @@ defmodule SikioWeb.LibraryLiveTest do
       sneak_in(c)
 
       {:ok, _} = Playback.save(c.user, c.audio.id, c.session, sample(2, 60))
-      refute has_element?(view, "#view-all-count", "3")
+      refute has_element?(view, "#view-inbox-count", inbox_count(c))
 
       {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
-      assert has_element?(view, "#view-all-count", "3")
+      assert has_element?(view, "#view-inbox-count", inbox_count(c))
     end
 
     test "a status change rereads the list and the counts", c do
@@ -735,12 +735,21 @@ defmodule SikioWeb.LibraryLiveTest do
       {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
 
       assert has_element?(view, "#entries article", unseen)
-      assert has_element?(view, "#view-all-count", "3")
+      assert has_element?(view, "#view-inbox-count", inbox_count(c))
     end
   end
 
   defp sample(sequence, position),
     do: %{"sequence" => sequence, "position" => position, "duration" => 3723, "ended" => false}
+
+  # The inbox count as the sidebar computes it.
+  defp inbox_count(c) do
+    c.user
+    |> Library.counts()
+    |> Library.tally(%{}, Sikio.Tags.feeds(c.user))
+    |> Map.fetch!(:inbox)
+    |> to_string()
+  end
 
   defp sneak_in(c) do
     title = "Added behind the page's back"
@@ -815,6 +824,8 @@ defmodule SikioWeb.LibraryLiveTest do
 
       assert order == ["view-inbox", "view-queue", "view-heard", "view-all"]
       assert has_element?(view, "#view-all[href='/all']")
+      # Every item is in All items, so its count only grows. The sidebar leaves it out.
+      refute has_element?(view, "#view-all-count")
       assert has_element?(view, "#view-inbox[href='/inbox']")
     end
 
@@ -831,7 +842,7 @@ defmodule SikioWeb.LibraryLiveTest do
       refute has_element?(view, "#view-inbox[aria-current=page]")
 
       # Sidebar counts do not depend on the open list.
-      assert view |> element("#view-all-count") |> render() =~ "2"
+      assert has_element?(view, "#view-inbox-count", inbox_count(c))
 
       view |> element("#view-inbox") |> render_click()
       assert_patch(view, "/inbox")
