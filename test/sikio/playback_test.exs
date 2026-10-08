@@ -85,9 +85,21 @@ defmodule Sikio.PlaybackTest do
              Playback.mark(c.alice, c.entry.id, :new)
   end
 
-  # Many episodes end with credits, so 90 % of the duration counts as heard.
+  # A long episode counts as heard in its last minute, which skips end credits.
+  test "a long item is heard in its last minute, not at 90 %", c do
+    {:ok, state} = Playback.start(c.alice, c.entry.id)
+    hour = &%{sample(&1, &2) | "duration" => 3600}
+
+    assert {:ok, %{status: :in_progress}} =
+             Playback.save(c.alice, c.entry.id, state.session_id, hour.(1, 3539))
+
+    assert {:ok, %{status: :heard}} =
+             Playback.save(c.alice, c.entry.id, state.session_id, hour.(2, 3540))
+  end
+
+  # An item under ten minutes counts as heard at 90 %, later than its last minute.
   # Replaying a heard entry keeps it heard.
-  test "an item played to 90 % is heard, and stays heard when played again", c do
+  test "a short item played to 90 % is heard, and stays heard when played again", c do
     {:ok, state} = Playback.start(c.alice, c.entry.id)
 
     assert {:ok, %{status: :in_progress}} =

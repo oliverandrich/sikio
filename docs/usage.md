@@ -64,8 +64,8 @@ subscription deletes no shared episodes.
 - YouTube and PeerTube: the official embed. YouTube uses its privacy-enhanced mode. The embed
   loads only after you press play.
 - Playback status per account: new, in progress, heard or watched, or archived as unheard. An
-  item counts as heard at 90 % of its duration. Every mark can be undone. Marking an item
-  unheard also resets its position.
+  item counts as heard in its last minute. An item under ten minutes counts as heard at 90 % of
+  its duration. Every mark can be undone. Marking an item unheard also resets its position.
 - Positions are saved every five seconds, on pause, after seeking, and when the tab is hidden.
   Playing a heard item again keeps its heard status.
 - The player keeps playing while you navigate between the library, an item, the subscriptions

@@ -1071,11 +1071,11 @@ defmodule SikioWeb.LibraryLiveTest do
       # Marking happens in the detail or with m, so rows have no buttons.
       refute has_element?(view, "#entries-#{c.audio.id} button")
 
-      # Past 90 % of the duration the item counts as heard, and the row drops the progress bar.
+      # In its last minute the item counts as heard, and the row drops the progress bar.
       {:ok, _} =
         Playback.save(c.user, c.audio.id, session, %{
           "sequence" => 2,
-          "position" => 3_400,
+          "position" => 3_700,
           "duration" => nil,
           "ended" => false
         })

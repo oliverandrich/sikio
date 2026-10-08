@@ -371,14 +371,14 @@ defmodule Sikio.Playback do
       {{state.status, state.queue_rank}, state |> Ecto.Changeset.change(attrs) |> Repo.update!()}
 
   # Samples never lower heard. Only `mark/3` clears it, so a replay stays heard.
-  # Reaching 90 % of the duration or the end sets heard.
-  # The 90 % threshold covers end credits that listeners skip.
+  # Reaching the last minute or the end sets heard. That skips end credits.
+  # Under ten minutes, 90 % comes later than the last minute and applies instead.
   # An archived entry that plays again becomes in progress.
   defp status(%{status: :heard}, _sample, _duration), do: :heard
   defp status(_state, %{ended: true}, _duration), do: :heard
 
   defp status(_state, %{position: position}, duration)
-       when is_number(duration) and position >= 0.9 * duration,
+       when is_number(duration) and position >= max(duration - 60, 0.9 * duration),
        do: :heard
 
   defp status(_state, %{position: position}, _duration) when position > 0, do: :in_progress
