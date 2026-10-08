@@ -370,6 +370,72 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
   end
 
+  describe "item/1 for podcast episodes" do
+    # Apple's lookup lists the show and its episodes. The episode's guid finds it in the feed.
+    defp stub_apple(guid) do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/lookup" ->
+            assert URI.decode_query(conn.query_string)["entity"] == "podcastEpisode"
+
+            Req.Test.json(conn, %{
+              results: [
+                %{wrapperType: "track", feedUrl: "https://feeds.example.org/small-hours"},
+                %{wrapperType: "podcastEpisode", trackId: 1_000_456, episodeGuid: guid},
+                %{wrapperType: "podcastEpisode", trackId: 1_000_999, episodeGuid: "other"}
+              ]
+            })
+
+          "/small-hours" ->
+            Plug.Conn.send_resp(conn, 200, podcast())
+        end
+      end)
+    end
+
+    test "an Apple Podcasts episode link finds the episode by its guid" do
+      stub_apple("episode-1")
+
+      assert {:ok, %{preview: %{title: "Small Hours"}, external_id: "episode-1"}} =
+               Discovery.item("https://podcasts.apple.com/de/podcast/small-hours/id123?i=1000456")
+    end
+
+    # An episode the feed no longer lists cannot be saved, since nothing would play it.
+    test "an Apple episode missing from the feed is refused" do
+      stub_apple("gone")
+
+      assert {:error, :not_found} =
+               Discovery.item("https://podcasts.apple.com/de/podcast/small-hours/id123?i=1000456")
+    end
+
+    test "an Apple show link is not a single item" do
+      assert {:error, :not_an_item} =
+               Discovery.item("https://podcasts.apple.com/de/podcast/small-hours/id123")
+    end
+
+    # An episode page links its show's feed. The entry whose link is that page is the episode.
+    test "an episode page finds the episode whose link it is" do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/.well-known/nodeinfo" ->
+            Plug.Conn.send_resp(conn, 404, "")
+
+          path when path in ["/episodes/1", "/show"] ->
+            Plug.Conn.send_resp(
+              conn,
+              200,
+              ~s(<link rel="alternate" type="application/rss+xml" href="/feed.xml">)
+            )
+
+          "/feed.xml" ->
+            Plug.Conn.send_resp(conn, 200, podcast())
+        end
+      end)
+
+      assert {:ok, %{external_id: "episode-1"}} = Discovery.item(podcast_page())
+      assert {:error, :not_an_item} = Discovery.item(podcast_site())
+    end
+  end
+
   test "a webpage discovers multiple podcast feeds and resolves relative links" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do

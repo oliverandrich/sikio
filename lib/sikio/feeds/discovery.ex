@@ -54,8 +54,9 @@ defmodule Sikio.Feeds.Discovery do
     with {:ok, uri} <- HTTP.normalize(url) do
       cond do
         uri.host in @youtube_hosts -> youtube_item(uri)
+        uri.host in ["podcasts.apple.com", "itunes.apple.com"] -> apple_item(uri)
         peertube?(uri) -> peertube_item(uri)
-        true -> {:error, :not_an_item}
+        true -> page_item(uri)
       end
     end
   end
@@ -625,6 +626,68 @@ defmodule Sikio.Feeds.Discovery do
   defp feed_link?({"a", attrs, _}) do
     path = (attrs |> Map.new() |> Map.get("href", "") |> URI.parse()).path || ""
     Regex.match?(~r/(?:\.(?:rss|xml)|\/(?:feed|rss)\/?)(?:\z)/i, path)
+  end
+
+  # An Apple episode link names its show in the path and the episode in `i`. The lookup lists the
+  # show's feed and its episodes. The episode's guid is the feed entry's id.
+  defp apple_item(uri) do
+    with [_, show] <- Regex.run(~r/\/id(\d+)(?:\/|\z)/, uri.path || ""),
+         episode when is_binary(episode) <- URI.decode_query(uri.query || "")["i"] do
+      apple_episode(show, episode)
+    else
+      _ -> {:error, :not_an_item}
+    end
+  end
+
+  defp apple_episode(show, episode) do
+    query = URI.encode_query(%{id: show, entity: "podcastEpisode", limit: 200})
+
+    with {:ok, %{"results" => results}} when is_list(results) <-
+           json("https://itunes.apple.com/lookup?" <> query),
+         url when is_binary(url) <- Enum.find_value(results, & &1["feedUrl"]),
+         guid when is_binary(guid) <-
+           Enum.find_value(results, &(to_string(&1["trackId"]) == episode && &1["episodeGuid"])),
+         {:ok, feed} <- fetch(url) do
+      held(feed, guid)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  # An episode page links its show's feed. The entry whose link is the page is the episode.
+  # A page that is a feed, or whose feeds hold no entry for it, is not a single item.
+  defp page_item(uri) do
+    with {:ok, %{status: 200} = response} <- HTTP.get(URI.to_string(uri)),
+         {:error, _not_a_feed} <- Parser.parse(response.body, response.url),
+         {:ok, feeds} <- discover_links(response.body, response.url),
+         {feed, entry} <- linked_entry(feeds, [URI.to_string(uri), response.url]) do
+      {:ok, %{preview: feed, external_id: entry.external_id}}
+    else
+      _ -> {:error, :not_an_item}
+    end
+  end
+
+  defp linked_entry(feeds, pages) do
+    pages = Enum.map(pages, &same_page/1)
+
+    Enum.find_value(feeds, fn feed ->
+      entry = Enum.find(feed.entries, &(same_page(&1.page_url) in pages))
+      entry && {feed, entry}
+    end)
+  end
+
+  # Two addresses of one page differ at most in a fragment or a trailing slash.
+  defp same_page(nil), do: nil
+
+  defp same_page(url) do
+    uri = URI.parse(url)
+    URI.to_string(%{uri | fragment: nil, path: String.trim_trailing(uri.path || "", "/")})
+  end
+
+  defp held(feed, external_id) do
+    if Enum.any?(feed.entries, &(&1.external_id == external_id)),
+      do: {:ok, %{preview: feed, external_id: external_id}},
+      else: {:error, :not_found}
   end
 
   # Uses Apple's lookup API. The show page renders client-side, and its HTML has no feed URL.
