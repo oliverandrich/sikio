@@ -21,11 +21,11 @@ defmodule SikioWeb.LibraryLive do
   alias Sikio.Library
   alias Sikio.Playback
   alias Sikio.Preferences
-  alias Sikio.Tags
   alias SikioWeb.LibraryLive.Rows
   alias SikioWeb.LibraryPaths
   alias SikioWeb.Notes
   alias SikioWeb.SubscriptionSettings
+  alias SikioWeb.TagSettings
 
   @impl true
   def mount(_params, _session, socket) do
@@ -42,8 +42,6 @@ defmodule SikioWeb.LibraryLive do
        search_open?: false,
        marking: nil,
        mark_options: nil,
-       renaming: nil,
-       deleting: nil,
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket)),
        tab: :inbox
@@ -95,9 +93,7 @@ defmodule SikioWeb.LibraryLive do
             filters: filters,
             entries: [],
             above: nil,
-            marking: nil,
-            renaming: nil,
-            deleting: nil
+            marking: nil
           )
           |> close_settings()
           |> reload()
@@ -142,14 +138,12 @@ defmodule SikioWeb.LibraryLive do
     Enum.find(socket.assigns.sidebar.tags, &(to_string(&1.id) == tag))
   end
 
-  defp rename_error(:taken), do: gettext("Another tag is called that already.")
-  defp rename_error(:blank), do: gettext("A tag needs a name.")
-  defp rename_error(:not_found), do: gettext("This tag is no longer there.")
-
-  # Closes the source settings dialog, which applies only to the place it was opened on.
+  # Closes the source and tag dialogs, which apply only to the place they were opened on.
   defp close_settings(socket) do
-    if connected?(socket),
-      do: send_update(SubscriptionSettings, id: "subscription-settings", open: :close)
+    if connected?(socket) do
+      send_update(SubscriptionSettings, id: "subscription-settings", open: :close)
+      send_update(TagSettings, id: "tag-settings", open: :close)
+    end
 
     socket
   end
@@ -375,60 +369,14 @@ defmodule SikioWeb.LibraryLive do
     {:noreply, socket}
   end
 
-  # Renames the shown tag from the list header. A taken name shows an error in the open dialog.
-  # A successful rename patches the URL to the new slug.
-  def handle_event("rename_tag", _params, socket) do
-    case chosen_tag(socket) do
-      nil -> {:noreply, socket}
-      tag -> {:noreply, assign(socket, :renaming, %{tag: tag, name: tag.name, error: nil})}
+  # Opens the `SikioWeb.TagSettings` dialog to rename or delete the shown tag.
+  def handle_event(action, _params, socket) when action in ["rename_tag", "delete_tag"] do
+    if tag = chosen_tag(socket) do
+      open = if action == "rename_tag", do: :rename, else: :delete
+      send_update(TagSettings, id: "tag-settings", open: {open, tag})
     end
-  end
 
-  def handle_event("rename_options", %{"name" => name}, socket),
-    do: {:noreply, update(socket, :renaming, &%{&1 | name: name, error: nil})}
-
-  def handle_event("submit_rename_tag", %{"name" => name} = params, socket) do
-    {:noreply, socket} = handle_event("rename_options", params, socket)
-    handle_event("confirm_rename_tag", %{"name" => name}, socket)
-  end
-
-  def handle_event("cancel_rename_tag", _params, socket),
-    do: {:noreply, socket |> assign(:renaming, nil) |> push_event("focus", %{id: "rename-tag"})}
-
-  def handle_event("confirm_rename_tag", _params, %{assigns: %{renaming: nil}} = socket),
-    do: {:noreply, socket}
-
-  def handle_event("confirm_rename_tag", _params, socket) do
-    %{tag: tag, name: name} = socket.assigns.renaming
-
-    case Tags.rename(socket.assigns.current_account, tag.id, name) do
-      # Refreshes the sidebar first, so `address` and `handle_params` use the new name.
-      {:ok, _renamed} ->
-        socket = socket |> assign(:renaming, nil) |> SikioWeb.Sidebar.refresh()
-        {:noreply, push_patch(socket, to: address(socket, socket.assigns.filters), replace: true)}
-
-      {:error, reason} ->
-        {:noreply, update(socket, :renaming, &%{&1 | error: rename_error(reason)})}
-    end
-  end
-
-  # Deleting a tag needs a confirmation that names it. Its subscriptions remain.
-  def handle_event("delete_tag", _params, socket),
-    do: {:noreply, assign(socket, :deleting, chosen_tag(socket))}
-
-  def handle_event("cancel_delete_tag", _params, socket),
-    do: {:noreply, socket |> assign(:deleting, nil) |> push_event("focus", %{id: "delete-tag"})}
-
-  def handle_event("confirm_delete_tag", _params, %{assigns: %{deleting: nil}} = socket),
-    do: {:noreply, socket}
-
-  def handle_event("confirm_delete_tag", _params, socket) do
-    Tags.delete(socket.assigns.current_account, socket.assigns.deleting.id)
-
-    {:noreply,
-     socket
-     |> assign(:deleting, nil)
-     |> push_patch(to: start_path(socket))}
+    {:noreply, socket}
   end
 
   def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
@@ -573,6 +521,15 @@ defmodule SikioWeb.LibraryLive do
 
   # `:left` follows an unsubscribe from the shown source, so the page patches to the start page.
   def handle_info({SubscriptionSettings, :left}, socket),
+    do: {:noreply, push_patch(socket, to: start_path(socket))}
+
+  # A rename refreshes the sidebar first, so `address` and `handle_params` use the new name.
+  def handle_info({TagSettings, :renamed}, socket) do
+    socket = SikioWeb.Sidebar.refresh(socket)
+    {:noreply, push_patch(socket, to: address(socket, socket.assigns.filters), replace: true)}
+  end
+
+  def handle_info({TagSettings, :deleted}, socket),
     do: {:noreply, push_patch(socket, to: start_path(socket))}
 
   def handle_info({SubscriptionSettings, :not_found}, socket),
@@ -829,38 +786,11 @@ defmodule SikioWeb.LibraryLive do
                 </div>
               </form>
             </.confirm_dialog>
-            <.confirm_dialog
-              :if={@renaming}
-              name="rename-tag"
-              title={gettext("Rename %{name}", name: @renaming.tag.name)}
-              confirm_label={gettext("Rename")}
-            >
-              <form
-                id="rename-tag-form"
-                phx-change="rename_options"
-                phx-submit="submit_rename_tag"
-                class="flex flex-col gap-2"
-              >
-                <input
-                  type="text"
-                  name="name"
-                  value={@renaming.name}
-                  maxlength="40"
-                  aria-label={gettext("Name")}
-                  class={dialog_field()}
-                />
-                <p :if={@renaming.error} class="text-label text-danger">{@renaming.error}</p>
-              </form>
-            </.confirm_dialog>
-            <.confirm_dialog
-              :if={@deleting}
-              name="delete-tag"
-              title={gettext("Delete %{name}?", name: @deleting.name)}
-              confirm_label={gettext("Delete tag")}
-              variant="danger"
-            >
-              <p>{gettext("The subscriptions stay; only the tag goes.")}</p>
-            </.confirm_dialog>
+            <.live_component
+              module={TagSettings}
+              id="tag-settings"
+              current_account={@current_account}
+            />
             <.live_component
               module={SubscriptionSettings}
               id="subscription-settings"
