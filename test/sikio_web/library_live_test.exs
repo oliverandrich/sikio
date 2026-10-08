@@ -185,25 +185,18 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#list-empty", "You’re all caught up.")
   end
 
-  # The queue header has a "Play on" switch. Clicking it turns play-on off.
-  # Only the queue has the switch and row move handles. `reorder` changes the queue order.
-  test "the queue plays on unless told not to, and its rows move", c do
+  # Only the queue has row move handles. `reorder` changes the queue order.
+  test "the queue's rows move", c do
     {:ok, _} = Playback.enqueue(c.user, c.audio.id, :last)
     [video] = Library.entries(c.user, %{"status" => "inbox"})
     {:ok, _} = Playback.enqueue(c.user, video.id, :last)
 
     {:ok, view, _} = live(c.conn, ~p"/queue")
-    assert has_element?(view, ~s|#play-on[role="switch"][aria-checked="true"]|, "Play on")
-    view |> element("#play-on") |> render_click()
-    assert has_element?(view, ~s|#play-on[role="switch"][aria-checked="false"]|)
-    refute Playback.play_on?(c.user)
-
     assert has_element?(view, "#move-#{c.audio.id}")
     view |> element("#entries") |> render_hook("reorder", %{"id" => video.id, "index" => 0})
     assert Playback.queue(c.user) == [video.id, c.audio.id]
 
     {:ok, view, _} = live(c.conn, ~p"/all")
-    refute has_element?(view, "#play-on")
     refute has_element?(view, "#move-#{c.audio.id}")
   end
 

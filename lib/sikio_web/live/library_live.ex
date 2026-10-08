@@ -44,8 +44,7 @@ defmodule SikioWeb.LibraryLive do
        deleting: nil,
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket)),
-       tab: :inbox,
-       play_on: Playback.play_on?(socket.assigns.current_account)
+       tab: :inbox
      )}
   end
 
@@ -439,13 +438,6 @@ defmodule SikioWeb.LibraryLive do
         Playback.enqueue(socket.assigns.current_account, id, String.to_existing_atom(at))
       )
 
-  def handle_event("play_on", _params, socket) do
-    {:ok, preference} =
-      Playback.play_on(socket.assigns.current_account, !socket.assigns.play_on)
-
-    {:noreply, assign(socket, :play_on, preference.play_on)}
-  end
-
   # Sent after a drag or an arrow-key move. The broadcast reloads the queue in its new order.
   def handle_event("reorder", %{"id" => id, "index" => index}, socket) when is_integer(index),
     do: changed(socket, Playback.move(socket.assigns.current_account, id, index))
@@ -759,23 +751,6 @@ defmodule SikioWeb.LibraryLive do
                   >
                     <Lucideicons.external_link aria-hidden="true" class="size-4.5" />
                   </.link>
-                  <%!-- Switch for playing the next queue item when one ends. It has a visible
-                       text label. --%>
-                  <button
-                    :if={@filters["status"] == "queue"}
-                    id="play-on"
-                    type="button"
-                    role="switch"
-                    aria-checked={to_string(@play_on)}
-                    title={gettext("Play on with the queue")}
-                    phx-click="play_on"
-                    class="group mr-1 flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full pl-1 text-label text-muted hover:text-ink aria-checked:text-ink"
-                  >
-                    {gettext("Play on")}
-                    <span class="relative h-5 w-9 rounded-full bg-track transition-colors group-aria-checked:bg-accent">
-                      <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-surface shadow-xs transition-transform group-aria-checked:translate-x-4"></span>
-                    </span>
-                  </button>
                   <button
                     :if={!@empty?}
                     id="toggle-search"

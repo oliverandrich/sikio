@@ -18,11 +18,14 @@ Its own section becomes the version's release notes.
 
 ### Added
 
+- A settings page in the gear menu. It holds Play on and the interface language. A chosen
+  language overrides the browser's.
 - [Operations](docs/operations.md#storage) describes what Sikio stores and how to measure it.
   The README states that Sikio follows public feeds and downloads no media.
 
 ### Changed
 
+- Play on moved from the queue's header to the settings page.
 - An item counts as heard in its last minute instead of at 90 %. A two-hour episode was marked
   heard twelve minutes before its end. Items under ten minutes still count at 90 %.
 - An item opened by its address deep in a list loads with a batch above and below it. The

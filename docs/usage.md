@@ -44,7 +44,7 @@ The library has four places:
 
 - **Inbox**: new items that are not queued.
 - **Queue**: items to play, ordered by drag and drop or with the arrow keys. With **Play on**,
-  the next item starts when one ends.
+  the next item starts when one ends. **Play on** is on the settings page in the gear menu.
 - **History**: heard items.
 - **All items**: every item.
 

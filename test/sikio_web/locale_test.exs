@@ -16,11 +16,11 @@ defmodule SikioWeb.LocaleTest do
     assert Locale.resolve(" FR-fr, DE-at;q=0.8") == "de"
   end
 
-  test "stored account and session choices cannot override the browser" do
+  # A member's chosen language is tested with a database in SettingsLiveTest.
+  test "a session choice cannot override the browser" do
     conn =
       conn(:get, "/")
       |> init_test_session(%{"locale" => "de"})
-      |> assign(:current_account, %{locale: "de"})
       |> put_req_header("accept-language", "en")
       |> Locale.call([])
 
@@ -35,18 +35,12 @@ defmodule SikioWeb.LocaleTest do
     assert conn |> init_test_session(%{}) |> Locale.call([]) |> get_session("locale") == "de"
   end
 
-  test "mount restores locale in its own process and validates all candidates" do
-    socket = %Phoenix.LiveView.Socket{
-      assigns: %{__changed__: %{}, current_account: %{locale: "de"}}
-    }
+  test "mount restores the session's locale in its own process and validates it" do
+    socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}}}
 
     {:cont, socket} = Locale.on_mount(:set, %{}, %{"locale" => "en"}, socket)
     assert socket.assigns.locale == "en"
     assert Gettext.get_locale(Backend) == "en"
-
-    socket = %Phoenix.LiveView.Socket{
-      assigns: %{__changed__: %{}, current_account: %{locale: "fr"}}
-    }
 
     {:cont, socket} = Locale.on_mount(:set, %{}, %{"locale" => "de"}, socket)
     assert socket.assigns.locale == "de"

@@ -1,8 +1,12 @@
 # Localization
 
 The locale is set from the `Accept-Language` header on every HTTP request. The
-fallback is `en`. The supported locales are `en` and `de` by default. Accounts
-store no language preference.
+fallback is `en`. The supported locales are `en` and `de` by default.
+
+A member may choose a language on the settings page. It overrides the header on
+every request while the member is signed in. Choosing the browser's language
+again returns to the header. A stored language the instance no longer offers is
+ignored.
 
 A changed browser language applies from the next HTTP request or full page load.
 A connected LiveView keeps its locale until then. The session carries the locale

@@ -174,9 +174,6 @@ defmodule Sikio.Playback do
   @doc "Whether the player continues with the queue when an item ends. Defaults to true."
   defdelegate play_on?(account), to: Preferences
 
-  @doc "Saves the account's setting for continuing with the queue."
-  def play_on(account, on) when is_boolean(on), do: Preferences.update(account, %{play_on: on})
-
   @doc "Removes the entry from the queue."
   def dequeue(account, id), do: change(account, id, fn _state -> [queue_rank: nil] end)
 

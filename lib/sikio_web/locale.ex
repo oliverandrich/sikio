@@ -3,7 +3,8 @@
 # Adapted from ChapishoWeb.Locale with the author's permission (MIT).
 defmodule SikioWeb.Locale do
   @moduledoc """
-  Sets the locale per HTTP request from `Accept-Language`, else the configured default.
+  Sets the locale per HTTP request: a signed-in member's chosen language, else
+  `Accept-Language`, else the configured default.
 
   Run the plug after `fetch_session`, which it writes to.
   Add `{SikioWeb.Locale, :set}` to the `on_mount` hooks of each `live_session`.
@@ -14,10 +15,12 @@ defmodule SikioWeb.Locale do
 
   import Plug.Conn
 
+  alias Sikio.Accounts.User
+  alias Sikio.Preferences
   alias SikioWeb.Gettext, as: Backend
 
   @doc "Returns the configured, non-empty list of supported locale codes."
-  defdelegate locales, to: Sikio.Preferences
+  defdelegate locales, to: Preferences
 
   @doc "Returns the Gettext backend's configured default locale."
   def default_locale, do: Backend.__gettext__(:default_locale)
@@ -27,7 +30,7 @@ defmodule SikioWeb.Locale do
 
   @impl Plug
   def call(conn, _opts) do
-    locale = resolve(accept_language(conn))
+    locale = chosen(conn.assigns[:current_account]) || resolve(accept_language(conn))
     Gettext.put_locale(Backend, locale)
     conn |> assign(:locale, locale) |> put_session("locale", locale)
   end
@@ -35,9 +38,18 @@ defmodule SikioWeb.Locale do
   @doc "Sets the session's locale in the LiveView process, else the default."
   def on_mount(:set, _params, session, socket) do
     locale = if session["locale"] in locales(), do: session["locale"], else: default_locale()
+
     Gettext.put_locale(Backend, locale)
     {:cont, Phoenix.Component.assign(socket, :locale, locale)}
   end
+
+  # A stored language the instance no longer offers counts as no choice.
+  defp chosen(%User{} = account) do
+    locale = Preferences.locale(account)
+    if locale in locales(), do: locale
+  end
+
+  defp chosen(_signed_out), do: nil
 
   @doc "Resolves the locale from `Accept-Language`, for requests outside the browser pipeline."
   def accept_locale(conn), do: resolve(accept_language(conn))

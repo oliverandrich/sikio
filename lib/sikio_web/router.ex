@@ -118,6 +118,7 @@ defmodule SikioWeb.Router do
       live "/subscriptions", SubscriptionsLive
       live "/subscriptions/import", OPMLLive
       live "/account/verify", VerifyIdentityLive
+      live "/account/settings", SettingsLive
       live "/account/passkeys", AccountSecurityLive, :passkeys
       live "/account/recovery-codes", AccountSecurityLive, :recovery_codes
     end

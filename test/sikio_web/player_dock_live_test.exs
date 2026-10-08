@@ -11,6 +11,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
   alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Playback
+  alias Sikio.Preferences
   alias Sikio.Repo
   alias SikioWeb.PlayerDockLive
 
@@ -195,7 +196,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
     render_hook(dock, "next", %{})
     assert has_element?(dock, "#player-panel", following.title)
 
-    {:ok, _} = Playback.play_on(c.user, false)
+    {:ok, _} = Preferences.update(c.user, %{play_on: false})
     session = Library.entry(c.user, following.id).playback.session_id
     render_hook(dock, "progress", %{sample(session, 1, 100) | "ended" => true})
     render_hook(dock, "next", %{})
@@ -221,11 +222,11 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, ~s|[phx-hook="MediaPlayer"][data-title="#{following.title}"]|)
     refute has_element?(dock, "#dock-notice")
 
-    {:ok, _} = Playback.play_on(c.user, false)
+    {:ok, _} = Preferences.update(c.user, %{play_on: false})
     {:ok, _} = Playback.mark(c.user, following.id, :heard)
     refute has_element?(dock, "#player-panel")
 
-    {:ok, _} = Playback.play_on(c.user, true)
+    {:ok, _} = Preferences.update(c.user, %{play_on: true})
     {:ok, _} = Playback.enqueue(c.user, following.id, :last)
     render_hook(dock, "start", %{id: c.entry.id})
     {:ok, _} = Playback.mark(c.user, c.entry.id, :new)
@@ -234,14 +235,6 @@ defmodule SikioWeb.PlayerDockLiveTest do
     render_hook(dock, "start", %{id: c.entry.id})
     {:ok, _} = Playback.start(c.user, c.entry.id)
     assert has_element?(dock, "#dock-notice", "changed")
-  end
-
-  test "playing on is the account's own setting, on until turned off", c do
-    assert Playback.play_on?(c.user)
-    assert {:ok, %{play_on: false}} = Playback.play_on(c.user, false)
-    refute Playback.play_on?(c.user)
-    assert {:ok, %{play_on: true}} = Playback.play_on(c.user, true)
-    assert Playback.play_on?(c.user)
   end
 
   defp sample(session, sequence, position),

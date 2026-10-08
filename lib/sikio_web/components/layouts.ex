@@ -151,7 +151,7 @@ defmodule SikioWeb.Layouts do
 
   attr :section, :atom,
     default: nil,
-    values: [nil, :library, :places, :add, :subscriptions, :invitations, :account],
+    values: [nil, :library, :places, :add, :subscriptions, :invitations, :account, :settings],
     doc: "where the reader is, to mark it in the navigation"
 
   attr :tab, :atom,
@@ -251,7 +251,7 @@ defmodule SikioWeb.Layouts do
                 title={@current_account.username}
                 class={[
                   "flex size-11 cursor-pointer list-none items-center justify-center rounded-control lg:size-7 text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-accent",
-                  @section in [:account, :invitations] && "bg-selection text-accent"
+                  @section in [:account, :invitations, :settings] && "bg-selection text-accent"
                 ]}
               >
                 <Lucideicons.settings aria-hidden="true" class="size-5 lg:size-4.5" />
@@ -263,6 +263,12 @@ defmodule SikioWeb.Layouts do
                 <p class="truncate border-b border-line px-3 pt-2 pb-2.5 mb-1 text-label font-semibold">
                   {@current_account.username}
                 </p>
+                <.link
+                  id="settings-link"
+                  navigate={~p"/account/settings"}
+                  aria-current={@section == :settings && "page"}
+                  class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
+                >{gettext("Settings")}</.link>
                 <.link
                   id="invitations-link"
                   navigate={~p"/invitations"}
