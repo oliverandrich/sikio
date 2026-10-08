@@ -30,6 +30,9 @@ defmodule SikioWeb.Endpoint do
     from: :sikio,
     gzip: Application.compile_env(:sikio, :gzip_static, not code_reloading?),
     only: SikioWeb.static_paths(),
+    # A release links these root files by digested names, such as `manifest-<hash>.webmanifest`.
+    # `only` matches exact names, so the digested ones need their prefix.
+    only_matching: ~w(favicon apple-touch-icon manifest),
     raise_on_missing_only: code_reloading?
 
   # Enabled by the endpoint's `:code_reloader` configuration.

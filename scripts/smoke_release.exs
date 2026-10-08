@@ -51,7 +51,9 @@ defmodule Sikio.ReleaseSmoke do
     env = Map.put(env, "PORT", Smoke.free_port())
 
     Smoke.with_server(Path.join(release, "server"), env, fn ->
-      assert Smoke.await_landing("127.0.0.1", env["PORT"], "release HTTP startup") =~ "Sikio"
+      landing = Smoke.await_landing("127.0.0.1", env["PORT"], "release HTTP startup")
+      assert landing =~ "Sikio"
+      check_icons(landing, env)
       check_https(env)
     end)
 
@@ -71,6 +73,23 @@ defmodule Sikio.ReleaseSmoke do
     Smoke.with_server(Path.join(release, "server"), env, fn ->
       assert Smoke.await_landing("127.0.0.1", env["PORT"], "release after bin/migrate") =~ "Sikio"
     end)
+  end
+
+  # A release links its icons and manifest by digested names. Browsers install the app from these,
+  # so every one the page links has to be served.
+  defp check_icons(landing, env) do
+    links =
+      Regex.scan(~r/<link rel="(?:icon|apple-touch-icon|manifest)"[^>]*href="([^"]+)"/, landing,
+        capture: :all_but_first
+      )
+      |> List.flatten()
+
+    assert length(links) == 4, "the page links two icons, the touch icon and the manifest"
+
+    for path <- links do
+      assert {200, _headers, _body} = Smoke.request("127.0.0.1", env["PORT"], path, []),
+             "#{path} is linked but not served"
+    end
   end
 
   # `force_ssl` is compiled into the release and excludes localhost, which every other probe here

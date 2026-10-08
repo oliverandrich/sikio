@@ -11,6 +11,11 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- A release serves the web app manifest, the favicon and the touch icon under their digested
+  names. They answered 404, so browsers installed Sikio as an app without an icon.
+
 ### Changed
 
 - All items shows no count in the sidebar and on the Library page. The list heading still
