@@ -11,6 +11,13 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Added
+
+- A link to one YouTube video, PeerTube video or podcast episode can add that item alone,
+  without subscribing to its source. It goes to the queue or the inbox.
+- An item saved this way can be removed from its detail page.
+- `/add?url=` opens the add page with the link filled in and looks it up.
+
 ### Upgrading
 
 - A migration adds the `saved_entries` table. The release runs it on start.

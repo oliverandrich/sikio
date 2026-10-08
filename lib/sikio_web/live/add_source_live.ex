@@ -9,6 +9,9 @@ defmodule SikioWeb.AddSourceLive do
   Discovery runs in `start_async/3`. Candidates stay in assigns under generated ids.
   A forged id therefore selects nothing.
 
+  A link to one video or episode also offers that item alone, saved without a subscription.
+  `/add?url=…` fills in the link and starts the lookup, for bookmarklets and share sheets.
+
   After subscribing, the view navigates to the source's page.
   A new PeerTube instance changes the CSP `frame-src`, which is set per HTTP request.
   In that case the view uses `redirect/2` instead of `push_navigate/2`.
@@ -35,11 +38,23 @@ defmodule SikioWeb.AddSourceLive do
        row_errors: %{},
        busy: false,
        error: nil,
-       searched: false
+       searched: false,
+       item: nil,
+       item_at: "queue"
      )
      |> stream_configure(:sources, dom_id: &"source-#{&1.id}")
      |> stream(:sources, [])}
   end
+
+  @impl true
+  # The link leaves the address once the lookup starts, so a reconnect does not repeat it.
+  def handle_params(%{"url" => url}, _uri, socket) when is_binary(url) and url != "" do
+    if connected?(socket),
+      do: {:noreply, socket |> lookup(url) |> push_patch(to: ~p"/add", replace: true)},
+      else: {:noreply, assign(socket, form: to_form(%{"q" => url}))}
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event(event, _params, %{assigns: %{busy: true}} = socket)
@@ -54,28 +69,25 @@ defmodule SikioWeb.AddSourceLive do
     do: {:noreply, assign(socket, form: to_form(%{"q" => q}))}
 
   # One input: a URL is discovered, any other text is searched.
-  def handle_event("add", %{"q" => q}, socket) do
-    socket = assign(socket, form: to_form(%{"q" => q}))
+  def handle_event("add", %{"q" => q}, socket), do: {:noreply, lookup(socket, q)}
 
-    case Discovery.intent(q) do
-      :empty ->
-        {:noreply, socket}
+  # Keeps the chosen target, so it survives a LiveView reconnect.
+  def handle_event("pick_item", %{"at" => at}, socket) when at in ["queue", "inbox"],
+    do: {:noreply, assign(socket, item_at: at)}
 
-      # Input without a scheme only resembles a URL. It is kept as `fallback` for a search.
-      {:link, url} ->
-        fallback = if String.contains?(url, "://"), do: nil, else: url
-        {:noreply, socket |> discover(url) |> assign(fallback: fallback)}
+  def handle_event("pick_item", _params, socket), do: {:noreply, socket}
 
-      {:search, term} ->
-        {:noreply, search(socket, term)}
-    end
-  end
+  def handle_event("save_item", _params, %{assigns: %{item: nil}} = socket),
+    do: {:noreply, socket}
+
+  def handle_event("save_item", _params, socket), do: save_item(socket, socket.assigns.item)
 
   # Clears the input, the results and any pending subscribe task.
   def handle_event("clear", _params, socket) do
     {:noreply,
      socket
      |> cancel_async(:subscribe)
+     |> cancel_async(:item)
      |> assign(
        form: to_form(%{"q" => ""}),
        busy: false,
@@ -85,7 +97,9 @@ defmodule SikioWeb.AddSourceLive do
        mode: nil,
        fallback: nil,
        subscribing: nil,
-       row_errors: %{}
+       row_errors: %{},
+       item: nil,
+       item_at: "queue"
      )
      |> stream(:sources, [], reset: true)
      |> push_event("focus", %{id: "add-q"})}
@@ -116,6 +130,23 @@ defmodule SikioWeb.AddSourceLive do
     end
   end
 
+  defp lookup(socket, q) do
+    socket = assign(socket, form: to_form(%{"q" => q}))
+
+    case Discovery.intent(q) do
+      :empty ->
+        socket
+
+      # Input without a scheme only resembles a URL. It is kept as `fallback` for a search.
+      {:link, url} ->
+        fallback = if String.contains?(url, "://"), do: nil, else: url
+        socket |> discover(url) |> assign(fallback: fallback)
+
+      {:search, term} ->
+        search(socket, term)
+    end
+  end
+
   @impl true
   def handle_async(:sources, {:ok, {:ok, sources}}, socket) do
     sources =
@@ -128,6 +159,14 @@ defmodule SikioWeb.AddSourceLive do
      |> assign(busy: false, searched: true, candidates: Map.new(sources, &{&1.id, &1}))
      |> stream(:sources, sources, reset: true)}
   end
+
+  # Only a link to one video or episode yields an item. Its preview holds the entry.
+  def handle_async(:item, {:ok, {:ok, %{preview: preview, external_id: id}}}, socket) do
+    entry = Enum.find(preview.entries, &(&1.external_id == id))
+    {:noreply, assign(socket, item: %{preview: preview, external_id: id, entry: entry})}
+  end
+
+  def handle_async(:item, _result, socket), do: {:noreply, socket}
 
   def handle_async(:subscribe, {:ok, {:ok, [preview | _]}}, socket),
     do: socket |> assign(subscribing: nil) |> subscribe(preview)
@@ -161,6 +200,7 @@ defmodule SikioWeb.AddSourceLive do
       socket
       |> searching(:link)
       |> start_async(:sources, fn -> Discovery.discover(url) end)
+      |> start_async(:item, fn -> Discovery.item(url) end)
 
   defp search(socket, term),
     do: socket |> searching(:search) |> start_async(:sources, fn -> Discovery.search(term) end)
@@ -169,6 +209,7 @@ defmodule SikioWeb.AddSourceLive do
   defp searching(socket, mode) do
     socket
     |> cancel_async(:subscribe)
+    |> cancel_async(:item)
     |> assign(
       busy: true,
       error: nil,
@@ -177,9 +218,52 @@ defmodule SikioWeb.AddSourceLive do
       mode: mode,
       fallback: nil,
       subscribing: nil,
-      row_errors: %{}
+      row_errors: %{},
+      item: nil,
+      item_at: "queue"
     )
     |> stream(:sources, [], reset: true)
+  end
+
+  # Saving into the inbox keeps an earlier playback state, and an enqueue can fail. The page
+  # opens the list that holds the entry afterwards.
+  defp save_item(socket, %{preview: preview, external_id: id}) do
+    account = socket.assigns.current_account
+    framed = Library.player_origins(account)
+    at = String.to_existing_atom(socket.assigns.item_at)
+
+    with {:ok, %{id: entry_id}} <- Library.save(account, preview, id, at),
+         %{} = entry <- Library.entry(account, entry_id) do
+      place = place(entry.playback)
+
+      message =
+        case place do
+          "queue" -> gettext("Added %{title} to the queue.", title: entry.title)
+          "inbox" -> gettext("Added %{title} to the inbox.", title: entry.title)
+          _ -> gettext("Saved %{title}.", title: entry.title)
+        end
+
+      socket
+      |> put_flash(:info, message)
+      |> navigate(framed, LibraryPaths.library_path(%{"status" => place}, entry))
+    else
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Could not save this item. Please try again."))}
+    end
+  end
+
+  # The list that shows an entry with this playback state, as `Library` filters them.
+  defp place(%{queue_rank: rank}) when not is_nil(rank), do: "queue"
+  defp place(%{status: :heard}), do: "heard"
+  defp place(%{status: status}) when status not in [nil, :new], do: "all"
+  defp place(_new), do: "inbox"
+
+  # A new PeerTube instance changes the CSP `frame-src`, which only a full page load applies.
+  defp navigate(socket, framed, to) do
+    if Library.player_origins(socket.assigns.current_account) == framed,
+      do: {:noreply, push_navigate(socket, to: to)},
+      else: {:noreply, redirect(socket, to: to)}
   end
 
   defp subscribe(socket, preview) do
@@ -192,11 +276,9 @@ defmodule SikioWeb.AddSourceLive do
         name = source_name(subscription)
         to = LibraryPaths.source_path(subscription)
 
-        socket = put_flash(socket, :info, gettext("Subscribed to %{title}.", title: name))
-
-        if Library.player_origins(account) == framed,
-          do: {:noreply, push_navigate(socket, to: to)},
-          else: {:noreply, redirect(socket, to: to)}
+        socket
+        |> put_flash(:info, gettext("Subscribed to %{title}.", title: name))
+        |> navigate(framed, to)
 
       # Re-inserts the rows, so no row keeps its pending state after a failure.
       {:error, _} ->
@@ -347,6 +429,50 @@ defmodule SikioWeb.AddSourceLive do
             {gettext("Search for it instead")}
           </button>
         </div>
+        <section
+          :if={@item}
+          id="single-item"
+          aria-labelledby="single-item-title"
+          class="mt-6 rounded-xl bg-surface px-4 py-3 ring-1 ring-line"
+        >
+          <p class="text-meta font-semibold text-muted">{gettext("Only this item")}</p>
+          <h3 id="single-item-title" class="mt-0.5 text-body font-semibold">
+            {@item.entry.title}
+          </h3>
+          <p class="text-meta text-muted">{@item.preview.title}</p>
+          <.form
+            for={%{}}
+            id="single-item-form"
+            phx-change="pick_item"
+            phx-submit="save_item"
+            class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2"
+          >
+            <fieldset class="flex flex-1 flex-wrap items-center gap-x-4 gap-y-2">
+              <legend class="sr-only">{gettext("Add to")}</legend>
+              <label class="flex items-center gap-2.5 text-label text-ink">
+                <input
+                  type="radio"
+                  name="at"
+                  value="queue"
+                  checked={@item_at == "queue"}
+                  class="size-4 accent-accent"
+                />
+                {gettext("Queue")}
+              </label>
+              <label class="flex items-center gap-2.5 text-label text-ink">
+                <input
+                  type="radio"
+                  name="at"
+                  value="inbox"
+                  checked={@item_at == "inbox"}
+                  class="size-4 accent-accent"
+                />
+                {gettext("Inbox")}
+              </label>
+            </fieldset>
+            <.button id="add-item">{gettext("Add")}</.button>
+          </.form>
+        </section>
         <h2
           :if={@mode == :search and map_size(@candidates) > 0}
           id="results-heading"

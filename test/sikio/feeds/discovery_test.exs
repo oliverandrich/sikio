@@ -323,6 +323,10 @@ defmodule Sikio.Feeds.DiscoveryTest do
           "/feeds/videos.xml" ->
             assert conn.query_string == "videoChannelId=7"
             Plug.Conn.send_resp(conn, 200, peertube())
+
+          # A channel page links no episode, so it names no single item.
+          "/c/good/videos" ->
+            Plug.Conn.send_resp(conn, 200, "<html></html>")
         end
       end)
     end
@@ -413,10 +417,14 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
 
     # An episode page links its show's feed. The entry whose link is that page is the episode.
+    # Only a PeerTube watch path asks the host for NodeInfo.
     test "an episode page finds the episode whose link it is" do
+      parent = self()
+
       Req.Test.stub(HTTP, fn conn ->
         case conn.request_path do
           "/.well-known/nodeinfo" ->
+            send(parent, :nodeinfo)
             Plug.Conn.send_resp(conn, 404, "")
 
           path when path in ["/episodes/1", "/show"] ->
@@ -433,6 +441,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
 
       assert {:ok, %{external_id: "episode-1"}} = Discovery.item(podcast_page())
       assert {:error, :not_an_item} = Discovery.item(podcast_site())
+      refute_received :nodeinfo
     end
   end
 

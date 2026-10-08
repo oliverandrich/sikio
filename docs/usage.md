@@ -21,6 +21,12 @@ fails, the page offers an Apple Podcasts search for the same input. You can:
 
 Subscribing imports the current episodes and opens the new source.
 
+A link to one YouTube video, PeerTube video or podcast episode also offers **Only this item**.
+That saves the item without a subscription, to the queue by default or to the inbox. A saved
+item stays when you unsubscribe from its source. **Remove from library** in the item's menu
+deletes it. `/add?url=` followed by an encoded link fills in the field and starts the lookup,
+for bookmarklets and share sheets.
+
 **Subscriptions** opens from the pencil beside its heading, or from **Manage** in the library on
 a phone. There you can:
 

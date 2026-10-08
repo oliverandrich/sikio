@@ -55,7 +55,7 @@ defmodule Sikio.Feeds.Discovery do
       cond do
         uri.host in @youtube_hosts -> youtube_item(uri)
         uri.host in ["podcasts.apple.com", "itunes.apple.com"] -> apple_item(uri)
-        peertube?(uri) -> peertube_item(uri)
+        watched_id(uri) != nil and peertube?(uri) -> peertube_item(uri)
         true -> page_item(uri)
       end
     end
@@ -296,11 +296,14 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   # A watch page in short or long spelling names one video by its short or long id.
-  defp peertube_item(uri) do
+  # Other paths skip the NodeInfo request to the host.
+  defp peertube_item(uri), do: instance_video(origin(uri), watched_id(uri))
+
+  defp watched_id(uri) do
     case String.split(uri.path || "", "/", trim: true) do
-      ["w", id | _] -> instance_video(origin(uri), id)
-      ["videos", "watch", id | _] -> instance_video(origin(uri), id)
-      _ -> {:error, :not_an_item}
+      ["w", id | _] -> id
+      ["videos", "watch", id | _] -> id
+      _ -> nil
     end
   end
 

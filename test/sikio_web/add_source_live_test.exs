@@ -13,6 +13,7 @@ defmodule SikioWeb.AddSourceLiveTest do
   alias Sikio.Accounts.User
   alias Sikio.Feeds.HTTP
   alias Sikio.Library
+  alias Sikio.Playback
   alias Sikio.Repo
 
   setup %{conn: conn} do
@@ -314,5 +315,105 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     assert {:error, {:redirect, %{to: "/feeds/" <> _}}} =
              view |> element("#source-0 button", "Subscribe") |> render_click()
+  end
+
+  describe "a single item" do
+    # The channel id comes from a unique feed URL, so no concurrent test saves the same feed.
+    defp stub_video do
+      channel = URI.decode_query(URI.parse(youtube_feed_url()).query)["channel_id"]
+
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/oembed" ->
+            Req.Test.json(conn, %{
+              title: "A good video",
+              author_url: "https://www.youtube.com/channel/" <> channel
+            })
+
+          "/feeds/videos.xml" ->
+            Plug.Conn.send_resp(conn, 200, youtube())
+
+          "/channel/" <> _ ->
+            Plug.Conn.send_resp(conn, 200, channel_page())
+        end
+      end)
+    end
+
+    defp find(view, url) do
+      view |> form("#add-form", %{q: url}) |> render_submit()
+      render_async(view)
+    end
+
+    # A video link offers the video alone beside its channel. The queue is preselected, since a
+    # single link is usually meant to be played.
+    test "a video link adds only the video, to the queue by default", %{conn: conn, user: user} do
+      stub_video()
+      {:ok, view, _} = live(conn, ~p"/add")
+      find(view, "https://youtu.be/abcdefghijk")
+
+      assert has_element?(view, "#single-item", "A good video")
+      assert has_element?(view, ~s|#single-item input[name="at"][value="queue"][checked]|)
+      assert has_element?(view, "#source-0", "Good Channel")
+
+      result = view |> form("#single-item-form", %{at: "queue"}) |> render_submit()
+      assert {:error, {:live_redirect, %{to: to}}} = result
+      [entry] = Library.entries(user)
+      assert to == "/queue/#{entry.id}-a-good-video"
+      assert Playback.queue(user) == [entry.id]
+      assert Library.subscriptions(user) == []
+    end
+
+    test "the inbox can be chosen instead", %{conn: conn, user: user} do
+      stub_video()
+      {:ok, view, _} = live(conn, ~p"/add")
+      find(view, "https://youtu.be/abcdefghijk")
+
+      view |> form("#single-item-form", %{at: "inbox"}) |> render_change()
+      assert has_element?(view, ~s|#single-item input[value="inbox"][checked]|)
+
+      result = view |> form("#single-item-form", %{at: "inbox"}) |> render_submit()
+      assert {:error, {:live_redirect, %{to: "/inbox/" <> _}}} = result
+      assert Playback.queue(user) == []
+      assert [_] = Library.entries(user, %{"status" => "inbox"})
+    end
+
+    # A removed item keeps its playback state. Saved again, it opens where that state lists it.
+    test "an item saved again opens in the list that holds it", %{conn: conn, user: user} do
+      stub_video()
+      {:ok, view, _} = live(conn, ~p"/add")
+      find(view, "https://youtu.be/abcdefghijk")
+      view |> form("#single-item-form", %{at: "queue"}) |> render_submit()
+      [entry] = Library.entries(user)
+      {:ok, _} = Playback.mark(user, entry.id, :heard)
+      {:ok, _} = Library.remove_entry(user, entry.id)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      find(view, "https://youtu.be/abcdefghijk")
+      view |> form("#single-item-form", %{at: "inbox"}) |> render_change()
+      result = view |> form("#single-item-form", %{at: "inbox"}) |> render_submit()
+      assert {:error, {:live_redirect, %{to: "/history/" <> _}}} = result
+      {:ok, _view, html} = follow_redirect(result, conn)
+      assert html =~ "Saved A good video."
+    end
+
+    # A bookmarklet or a share sheet opens the page with the link already in it.
+    test "a link in the address starts the lookup", %{conn: conn} do
+      stub_video()
+      url = "https://youtu.be/abcdefghijk"
+      {:ok, view, _} = live(conn, "/add?" <> URI.encode_query(%{url: url}))
+      render_async(view)
+
+      assert has_element?(view, ~s|#add-q[value="#{url}"]|)
+      assert has_element?(view, "#single-item", "A good video")
+    end
+
+    test "a feed link offers no single item", %{conn: conn} do
+      Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
+      {:ok, view, _} = live(conn, ~p"/add")
+      find(view, feed_url())
+
+      assert has_element?(view, "#source-0", "Small Hours")
+      refute has_element?(view, "#single-item")
+    end
   end
 end
