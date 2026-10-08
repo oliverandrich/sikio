@@ -90,6 +90,28 @@ defmodule SikioWeb.PlayerDockLiveTest do
     refute has_element?(dock, "audio")
   end
 
+  # A singly saved item plays on after its source is unfollowed, since it stays in the library.
+  # Removing it from the library stops it.
+  test "a saved item outlasts an unsubscribe and stops when removed", c do
+    {:ok, other} = Parser.parse(FeedFixtures.podcast("Elsewhere"), FeedFixtures.feed_url())
+    {:ok, sub} = Library.subscribe(c.user, other)
+    {:ok, entry} = Library.save(c.user, other, hd(other.entries).external_id, :inbox)
+
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: entry.id})
+    assert has_element?(dock, "audio")
+
+    {:ok, _} = Library.unsubscribe(c.user, sub.id)
+    assert has_element?(dock, "audio")
+
+    {:ok, _} = Library.save(c.user, other, hd(other.entries).external_id, :inbox)
+    assert has_element?(dock, "audio")
+
+    {:ok, _} = Library.remove_entry(c.user, entry.id)
+    refute has_element?(dock, "audio")
+    assert has_element?(dock, "#dock-notice")
+  end
+
   # The dock receives the account's library broadcasts.
   # A subscription update must not stop playback.
   test "a subscription changed elsewhere leaves the player playing", c do

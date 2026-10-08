@@ -647,7 +647,11 @@ defmodule Sikio.Library do
 
   defp entry_query(user_id) do
     from [e, s, p, f] in scoped_entries(user_id),
-      select_merge: %{playback: p, source_name: coalesce(s.name, f.title)},
+      select_merge: %{
+        playback: p,
+        source_name: coalesce(s.name, f.title),
+        followed: not is_nil(s.id)
+      },
       # Preloads from the join above. An unbound `preload: [:feed]` runs a second query for feeds.
       # Every library page and every progress save would pay for that query.
       preload: [feed: f]

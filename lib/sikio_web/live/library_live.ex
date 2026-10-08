@@ -372,6 +372,12 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("reorder", %{"id" => id, "index" => index}, socket) when is_integer(index),
     do: changed(socket, Playback.move(socket.assigns.current_account, id, index))
 
+  # A singly saved item leaves the library, and the detail closes. Its playback state stays.
+  def handle_event("remove_entry", %{"id" => id}, socket) do
+    Library.remove_entry(socket.assigns.current_account, id)
+    {:noreply, push_patch(socket, to: address(socket, socket.assigns.filters))}
+  end
+
   def handle_event("dequeue", %{"id" => id}, socket),
     do: changed(socket, Playback.dequeue(socket.assigns.current_account, id))
 
@@ -534,7 +540,8 @@ defmodule SikioWeb.LibraryLive do
     socket
     |> Rows.reread()
     |> assign(
-      empty?: socket.assigns.sidebar.sources == [],
+      # A new library follows nothing and holds no saved entry, so the sidebar counts no rows.
+      empty?: socket.assigns.sidebar.sources == [] and socket.assigns.sidebar.counts == [],
       counts: counts,
       total: total(socket, filters),
       heading: heading(filters, socket.assigns.sidebar),

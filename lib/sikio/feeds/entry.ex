@@ -38,6 +38,8 @@ defmodule Sikio.Feeds.Entry do
     # The account's custom source name, or else the feed title. Set per account with playback,
     # for the same reason.
     field :source_name, :string, virtual: true
+    # Whether the account follows the entry's source. False for an entry it saved singly.
+    field :followed, :boolean, virtual: true
     timestamps(type: :utc_datetime_usec)
   end
 end

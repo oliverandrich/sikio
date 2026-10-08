@@ -72,6 +72,33 @@ defmodule SikioWeb.LibraryLiveTest do
     assert_patch(view, "/all/#{entry.id}-one-two")
   end
 
+  # A singly saved item offers to leave the library. An item of a followed source does not.
+  test "a saved item can be removed from the library", c do
+    {:ok, other} = Parser.parse(podcast("Elsewhere"), feed_url())
+    {:ok, entry} = Library.save(c.user, other, hd(other.entries).external_id, :inbox)
+
+    {:ok, view, _} = live(c.conn, "/all/#{c.audio.id}-one-two")
+    refute has_element?(view, "#remove-entry")
+
+    {:ok, view, _} = live(c.conn, "/all/#{entry.id}-one-two")
+    view |> element("#remove-entry") |> render_click()
+    assert_patch(view, "/all")
+    refute has_element?(view, "#entries-#{entry.id}")
+    assert Library.entry(c.user, entry.id) == nil
+  end
+
+  # An account that follows nothing but saved an item sees it, not the welcome for a new library.
+  test "an account with only saved items lists them" do
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+    conn = build_conn() |> init_test_session(%{}) |> Gate.log_in(user)
+    {:ok, other} = Parser.parse(podcast("Elsewhere"), feed_url())
+    {:ok, entry} = Library.save(user, other, hd(other.entries).external_id, :inbox)
+
+    {:ok, view, _} = live(conn, ~p"/all")
+    refute has_element?(view, "#library-empty")
+    assert has_element?(view, "#entries-#{entry.id}")
+  end
+
   test "marking and changes from another tab keep filtered membership current", c do
     [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
     Playback.mark(c.user, video.id, :heard)

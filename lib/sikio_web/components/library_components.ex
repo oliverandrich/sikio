@@ -586,6 +586,16 @@ defmodule SikioWeb.LibraryComponents do
               <:icon><Lucideicons.external_link aria-hidden="true" class="size-4" /></:icon>
               {elem(@original, 1)}
             </.menu_item>
+            <%!-- Only a singly saved item leaves the library; a followed one stays with its source. --%>
+            <.menu_item
+              :if={@entry.followed == false}
+              id="remove-entry"
+              push={{"remove_entry", %{id: @entry.id}}}
+              menu="item-more"
+            >
+              <:icon><Lucideicons.trash_2 aria-hidden="true" class="size-4" /></:icon>
+              {gettext("Remove from library")}
+            </.menu_item>
           </.item_menu>
         </div>
       </div>

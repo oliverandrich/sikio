@@ -108,19 +108,32 @@ defmodule SikioWeb.PlayerDockLive do
   def handle_info({:tags_changed, _subscription_id}, socket), do: {:noreply, socket}
   def handle_info({:subscription_changed, _subscription_id}, socket), do: {:noreply, socket}
 
+  # A singly saved entry of the source stays in the library, so it plays on.
   def handle_info({:subscription_removed, feed_id}, socket) do
-    if socket.assigns.entry && socket.assigns.entry.feed_id == feed_id do
-      stop_current(socket)
+    entry = socket.assigns.entry
 
-      {:noreply,
-       assign(socket,
-         entry: nil,
-         player: nil,
-         notice: gettext("This source is no longer in your library.")
-       )}
-    else
-      {:noreply, socket}
-    end
+    if entry && entry.feed_id == feed_id && gone?(socket, entry),
+      do: {:noreply, stop_with(socket, gettext("This source is no longer in your library."))},
+      else: {:noreply, socket}
+  end
+
+  def handle_info({:entry_saved, _entry_id}, socket), do: {:noreply, socket}
+
+  # A removed entry may still show through a subscription to its source.
+  def handle_info({:entry_removed, entry_id}, socket) do
+    entry = socket.assigns.entry
+
+    if entry && to_string(entry.id) == to_string(entry_id) && gone?(socket, entry),
+      do: {:noreply, stop_with(socket, gettext("This item is no longer in your library."))},
+      else: {:noreply, socket}
+  end
+
+  defp gone?(socket, entry),
+    do: is_nil(Library.visible_entry_id(socket.assigns.current_account, entry.id))
+
+  defp stop_with(socket, notice) do
+    stop_current(socket)
+    assign(socket, entry: nil, player: nil, notice: notice)
   end
 
   # The change came from this dock's own session, or no player is active here.
