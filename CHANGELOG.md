@@ -9,7 +9,7 @@ or changed setting, a step to take before or after the update. A release migrate
 as it starts unless `SIKIO_MIGRATE_ON_START=false`; back up the database before every update.
 Its own section becomes the version's release notes.
 
-## [Unreleased]
+## [0.2.0] - 2026-10-08
 
 ### Upgrading
 
