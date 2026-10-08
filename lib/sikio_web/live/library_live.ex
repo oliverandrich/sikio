@@ -21,14 +21,11 @@ defmodule SikioWeb.LibraryLive do
   alias Sikio.Library
   alias Sikio.Playback
   alias Sikio.Tags
-  alias SikioWeb.DateGroups
+  alias SikioWeb.LibraryLive.Rows
   alias SikioWeb.Notes
   alias SikioWeb.SubscriptionSettings
 
   @impl true
-  # One batch fills the tallest screen, so `phx-viewport-bottom` loads the next before the end.
-  @batch 25
-
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
@@ -105,7 +102,7 @@ defmodule SikioWeb.LibraryLive do
           |> reload()
 
     case select(socket, item) do
-      {:ok, socket} -> {:noreply, socket |> reach() |> named(path, query)}
+      {:ok, socket} -> {:noreply, socket |> Rows.reach() |> named(path, query)}
       :error -> {:noreply, push_navigate(socket, to: address(socket, filters))}
     end
   end
@@ -165,32 +162,6 @@ defmodule SikioWeb.LibraryLive do
     end
   end
 
-  # Inserts a heading row wherever the date group of the sort date changes.
-  # The queue is sorted by queue rank, so it has no headings.
-  # A group that continues above a window keeps its heading there.
-  # LiveView scrolls the old first row back into view after the batch above loads.
-  # A heading on top would keep its place, and the list would jump.
-  defp grouped(entries, %{"status" => "queue"}, _offset, _above),
-    do: Enum.map(entries, &{:entry, &1})
-
-  defp grouped(entries, filters, offset, above) do
-    by = Library.sorted_by(filters)
-    now = DateTime.utc_now()
-    group = &(Library.sort_date(&1, by) |> DateGroups.group(now, offset))
-    continued = above && elem(group.(above), 0)
-
-    entries
-    |> Enum.chunk_by(&elem(group.(&1), 0))
-    |> Enum.flat_map(fn [first | _] = chunk ->
-      {key, label} = group.(first)
-      [{:heading, key, label} | Enum.map(chunk, &{:entry, &1})]
-    end)
-    |> case do
-      [{:heading, ^continued, _label} | rows] -> rows
-      rows -> rows
-    end
-  end
-
   # Returns the active phone tab. A search is Search; the unfiltered inbox and queue have tabs.
   # Every other place belongs to Library.
   defp tab("/search", _filters), do: :search
@@ -212,52 +183,10 @@ defmodule SikioWeb.LibraryLive do
   defp address(socket, filters, item \\ nil),
     do: SikioWeb.LibraryPaths.library_path(filters, item, socket.assigns.sidebar.titles)
 
-  # An item opened by URL may lie beyond the loaded rows. The list then loads a window of a
-  # batch above and below it, not every row above it. A list that sorts past the item's
-  # position stays as it is. That covers filtered-out items.
-  # The queue loads every row above instead, a choice for its usually short length.
-  # Its drag and arrow keys send a row's index, which `Playback.move/3` takes as the position.
-  defp reach(%{assigns: %{selected: nil}} = socket), do: socket
-
-  defp reach(%{assigns: %{selected: selected, entries: entries, more?: more?}} = socket) do
-    by = Library.sorted_by(socket.assigns.filters)
-
-    cond do
-      position(socket) || !more? ||
-          (entries != [] and !Library.before?(List.last(entries), selected, by)) ->
-        socket
-
-      by == :queue ->
-        socket |> load_more() |> reach()
-
-      true ->
-        window(socket, selected)
-    end
-  end
-
-  # The rows after the last one above `selected` start with `selected` itself, if it is listed.
-  defp window(socket, selected) do
-    {above, rows} = batch_above(socket, selected)
-    %{current_account: account, filters: filters} = socket.assigns
-    below = Library.entries(account, filters, limit: @batch, after: List.last(rows) || above)
-    assign(socket, entries: rows ++ below, above: above, more?: length(below) == @batch)
-  end
-
-  # Reads a batch and one more above `entry`. The first stays unloaded and marks where the
-  # window starts. `nil` means the window starts at the top of the list.
-  defp batch_above(socket, entry) do
-    %{current_account: account, filters: filters} = socket.assigns
-
-    case Library.entries(account, filters, limit: @batch + 1, before: entry) do
-      [above | rows] = entries when length(entries) > @batch -> {above, rows}
-      entries -> {nil, entries}
-    end
-  end
-
   @impl true
   def handle_event("move", %{"key" => key}, socket) when key in ["j", "k"] do
-    socket = extend(socket, key)
-    current = position(socket)
+    socket = Rows.extend(socket, key)
+    current = Rows.position(socket)
     entries = socket.assigns.entries
 
     next =
@@ -276,8 +205,13 @@ defmodule SikioWeb.LibraryLive do
 
   def handle_event("move", _params, socket), do: {:noreply, socket}
 
-  def handle_event("load_more", _params, socket), do: {:noreply, load_more(socket)}
-  def handle_event("load_less", _params, socket), do: {:noreply, load_less(socket)}
+  def handle_event("load_more", _params, socket), do: {:noreply, Rows.load_more(socket)}
+  # A list emptied by changes elsewhere loads again from its top.
+  def handle_event("load_less", _params, %{assigns: %{entries: [], above: above}} = socket)
+      when above != nil,
+      do: {:noreply, socket |> assign(:above, nil) |> reload()}
+
+  def handle_event("load_less", _params, socket), do: {:noreply, Rows.load_less(socket)}
 
   # Opens a playing item, from the mini player's title or after the queue plays on.
   # It opens in the current list if listed there, else in its source's list.
@@ -660,56 +594,16 @@ defmodule SikioWeb.LibraryLive do
 
   defp total(socket, filters), do: Library.count(socket.assigns.current_account, filters)
 
-  defp position(%{assigns: %{selected: nil}}), do: nil
-
-  defp position(%{assigns: %{selected: selected, entries: entries}}),
-    do: Enum.find_index(entries, &(&1.id == selected.id))
-
-  # Infinite scroll: appends the next batch after the last loaded entry. There is no pagination.
-  defp load_more(%{assigns: %{more?: false}} = socket), do: socket
-
-  defp load_more(socket) do
-    %{current_account: account, filters: filters, entries: entries} = socket.assigns
-    batch = Library.entries(account, filters, limit: @batch, after: List.last(entries))
-    assign(socket, entries: entries ++ batch, more?: length(batch) == @batch)
-  end
-
-  # `j` on the last loaded row loads the next batch first, `k` on the first the one above.
-  defp extend(socket, key) do
-    case {key, position(socket)} do
-      {"k", 0} -> load_less(socket)
-      {"j", last} when last == length(socket.assigns.entries) - 1 -> load_more(socket)
-      _ -> socket
-    end
-  end
-
-  # A window opened deep in the list grows upwards by a batch when its top comes into view.
-  defp load_less(%{assigns: %{above: nil}} = socket), do: socket
-
-  defp load_less(%{assigns: %{entries: []}} = socket),
-    do: socket |> assign(:above, nil) |> reload()
-
-  defp load_less(%{assigns: %{entries: [first | _] = entries}} = socket) do
-    {above, batch} = batch_above(socket, first)
-    assign(socket, entries: batch ++ entries, above: above)
-  end
-
-  # Reloads as many rows as are loaded, at least one batch, from where the window starts.
-  # The list does not shrink or jump under the scroll position.
+  # Rereads the rows with the counts and the heading around them.
   defp reload(socket) do
-    account = socket.assigns.current_account
     filters = socket.assigns.filters
-    subscriptions = socket.assigns.sidebar.sources
-    limit = max(length(socket.assigns.entries), @batch)
-    entries = Library.entries(account, filters, limit: limit, after: socket.assigns.above)
     # Sidebar and chips show unfiltered counts per place. The heading shows `total` for the list.
     counts = Library.tally(socket.assigns.sidebar.counts, %{}, socket.assigns.sidebar.tag_feeds)
 
     socket
+    |> Rows.reread()
     |> assign(
-      empty?: subscriptions == [],
-      entries: entries,
-      more?: length(entries) == limit,
+      empty?: socket.assigns.sidebar.sources == [],
       counts: counts,
       total: total(socket, filters),
       heading: heading(filters, socket.assigns.sidebar),
@@ -1067,7 +961,7 @@ defmodule SikioWeb.LibraryLive do
             class="border-t border-line bg-surface empty:hidden lg:border-t-0"
           >
             <.list_row
-              :for={row <- grouped(@entries, @filters, @time_zone_offset, @above)}
+              :for={row <- Rows.grouped(@entries, @filters, @time_zone_offset, @above)}
               :key={row_id(row)}
               row={row}
               filters={@filters}
