@@ -8,6 +8,7 @@ defmodule Sikio.LibraryTest do
 
   alias Sikio.Accounts.User
   alias Sikio.Feeds
+  alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.HTTP
   alias Sikio.Feeds.Parser
@@ -523,6 +524,31 @@ defmodule Sikio.LibraryTest do
 
       {:ok, _} = save(ctx)
       assert [%{playback: %{status: :heard}}] = Library.entries(ctx.alice)
+    end
+
+    # A video built from oEmbed has no notes and no length. It saves like any other entry.
+    test "an older video built from oEmbed is saved", ctx do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/oembed" ->
+            Req.Test.json(conn, %{
+              title: "An old video",
+              author_url: "https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv"
+            })
+
+          "/feeds/videos.xml" ->
+            Plug.Conn.send_resp(conn, 200, youtube())
+
+          _page ->
+            Plug.Conn.send_resp(conn, 200, "<html></html>")
+        end
+      end)
+
+      {:ok, %{preview: preview, external_id: id}} =
+        Discovery.item("https://youtu.be/zzzzzzzzzzz")
+
+      assert {:ok, %{title: "An old video", published_at: nil}} =
+               Library.save(ctx.alice, preview, id, :inbox)
     end
 
     # A Short saved singly shows even where the account follows the channel with Shorts off.

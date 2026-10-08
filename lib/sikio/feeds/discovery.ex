@@ -43,6 +43,19 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  @doc """
+  Resolves a link to one video or episode into `%{preview: feed, external_id: id}`.
+
+  The preview is the item's feed, and it holds the item. An item missing from its feed is built
+  from what its source states. `Sikio.Library.save/4` saves only an entry such a preview holds.
+  Returns `{:error, :not_an_item}` for a link to a channel, a show or another page.
+  """
+  def item(url) do
+    with {:ok, uri} <- HTTP.normalize(url) do
+      if uri.host in @youtube_hosts, do: youtube_item(uri), else: {:error, :not_an_item}
+    end
+  end
+
   def search(term) when is_binary(term) do
     term = String.trim(term)
 
@@ -332,6 +345,72 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   defp video_channel(_), do: {:error, :not_found}
+
+  defp youtube_item(uri) do
+    parts = String.split(uri.path || "", "/", trim: true)
+    id = video_id(uri, parts)
+
+    if is_binary(id) and Regex.match?(@video, id),
+      do: video_item(id, parts),
+      else: {:error, :not_an_item}
+  end
+
+  # The channel comes from oEmbed, as for a subscription. A video missing from the channel's feed,
+  # which lists only the newest, is built from oEmbed and dated by its watch page.
+  defp video_item(id, parts) do
+    page = "https://www.youtube.com/watch?v=" <> id
+    query = URI.encode_query(%{url: page, format: "json"})
+    external_id = "yt:video:" <> id
+
+    with {:ok, %{"author_url" => author} = oembed} <-
+           json("https://www.youtube.com/oembed?" <> query),
+         {:ok, uri} <- HTTP.normalize(author),
+         {:ok, [feed | _]} <- youtube(uri) do
+      entries =
+        if Enum.any?(feed.entries, &(&1.external_id == external_id)),
+          do: feed.entries,
+          else: [
+            oembed_entry(%{id: id, external_id: external_id, page: page}, oembed, parts)
+            | feed.entries
+          ]
+
+      {:ok, %{preview: %{feed | entries: entries}, external_id: external_id}}
+    else
+      _ -> {:error, :youtube_unavailable}
+    end
+  end
+
+  defp oembed_entry(%{id: id, external_id: external_id, page: page}, oembed, parts) do
+    %{
+      external_id: external_id,
+      title: String.slice(to_string(oembed["title"] || id), 0, 512),
+      media_url: nil,
+      video_id: id,
+      embed_url: nil,
+      page_url: page,
+      chapters: nil,
+      chapters_url: nil,
+      published_at: published(page),
+      image_url: HTTP.resolve(to_string(oembed["thumbnail_url"] || ""), page),
+      duration: nil,
+      description: nil,
+      description_format: :text,
+      excerpt: nil,
+      short: List.first(parts) == "shorts"
+    }
+  end
+
+  # Best effort: the watch page's `datePublished`. A consent page or changed markup leaves the
+  # entry undated, which is better than an invented date on a shared entry.
+  defp published(page_url) do
+    with {:ok, doc} <- page(page_url),
+         [value | _] <- Floki.attribute(doc, "meta[itemprop=datePublished]", "content"),
+         {:ok, date, _offset} <- DateTime.from_iso8601(value) do
+      DateTime.shift_zone!(date, "Etc/UTC")
+    else
+      _ -> nil
+    end
+  end
 
   # YouTube's Atom feed has no artwork, so the picture comes from the channel page. A caller that
   # already parsed that page passes its result, including nil. A missing picture does not cause a

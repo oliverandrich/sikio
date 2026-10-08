@@ -216,6 +216,70 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
   end
 
+  describe "item/1 for YouTube" do
+    # oEmbed names the channel and the video. The watch page carries the date.
+    defp stub_video(watch_page) do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/oembed" ->
+            Req.Test.json(conn, %{
+              title: "An old video",
+              author_url: "https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv",
+              thumbnail_url: "https://i.ytimg.com/vi/zzzzzzzzzzz/hqdefault.jpg"
+            })
+
+          "/feeds/videos.xml" ->
+            Plug.Conn.send_resp(conn, 200, youtube())
+
+          "/channel/UCabcdefghijklmnopqrstuv" ->
+            Plug.Conn.send_resp(conn, 200, channel_page())
+
+          "/watch" ->
+            Plug.Conn.send_resp(conn, 200, watch_page)
+        end
+      end)
+    end
+
+    # A video in the channel's feed is taken from the feed, with its notes and date.
+    test "a recent video is the feed's own entry" do
+      stub_video("")
+
+      assert {:ok, %{preview: preview, external_id: "yt:video:abcdefghijk"}} =
+               Discovery.item("https://youtu.be/abcdefghijk")
+
+      assert %{kind: :youtube, entries: [%{title: "A good video"}]} = preview
+    end
+
+    # An older video is missing from the feed. oEmbed gives its title and picture, the watch page
+    # its date. The entry joins the channel's preview.
+    test "an older video is built from oEmbed and dated by its watch page" do
+      stub_video(
+        ~s(<html><head><meta itemprop="datePublished" content="2023-04-01T08:00:00-07:00"></head></html>)
+      )
+
+      assert {:ok, %{preview: preview, external_id: "yt:video:zzzzzzzzzzz"}} =
+               Discovery.item("https://www.youtube.com/watch?v=zzzzzzzzzzz")
+
+      entry = Enum.find(preview.entries, &(&1.external_id == "yt:video:zzzzzzzzzzz"))
+      assert %{title: "An old video", video_id: "zzzzzzzzzzz"} = entry
+      assert entry.image_url == "https://i.ytimg.com/vi/zzzzzzzzzzz/hqdefault.jpg"
+      assert entry.page_url == "https://www.youtube.com/watch?v=zzzzzzzzzzz"
+      assert entry.published_at == ~U[2023-04-01 15:00:00Z]
+    end
+
+    # Without the date on the watch page the entry stays undated rather than invented.
+    test "an older video without a date on its watch page stays undated" do
+      stub_video("<html><head><title>Before you continue</title></head></html>")
+      assert {:ok, %{preview: preview}} = Discovery.item("https://youtu.be/zzzzzzzzzzz")
+      assert %{published_at: nil} = Enum.find(preview.entries, &(&1.video_id == "zzzzzzzzzzz"))
+    end
+
+    test "a channel link is not a single item" do
+      assert {:error, :not_an_item} =
+               Discovery.item("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv")
+    end
+  end
+
   test "a webpage discovers multiple podcast feeds and resolves relative links" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do
