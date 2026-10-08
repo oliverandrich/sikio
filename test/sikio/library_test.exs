@@ -116,7 +116,7 @@ defmodule Sikio.LibraryTest do
   end
 
   # The default list sorts by publication date, the queue by rank and the history by
-  # `completed_at`. Pagination with `after:` follows the same order.
+  # `completed_at`. Pagination with `after:` and `before:` follows the same order.
   test "each list sorts by its own date, and loading more follows it", ctx do
     episodes =
       for {n, day} <- [{1, 3}, {2, 2}, {3, 1}],
@@ -142,6 +142,9 @@ defmodule Sikio.LibraryTest do
     assert titles.(Library.entries(ctx.alice, %{"status" => "queue"}, after: hd(queued))) ==
              ["Episode 1", "Episode 2"]
 
+    assert titles.(Library.entries(ctx.alice, %{"status" => "queue"}, before: List.last(queued))) ==
+             ["Episode 3", "Episode 1"]
+
     for {title, minute} <- [{"Episode 3", 5}, {"Episode 1", 50}, {"Episode 2", 40}] do
       Repo.update_all(from(p in Sikio.Playback.State, where: p.entry_id == ^ids[title]),
         set: [status: :heard, completed_at: at(minute)]
@@ -153,6 +156,24 @@ defmodule Sikio.LibraryTest do
 
     assert titles.(Library.entries(ctx.alice, %{"status" => "heard"}, after: Enum.at(heard, 1))) ==
              ["Episode 3"]
+
+    assert titles.(Library.entries(ctx.alice, %{"status" => "heard"}, before: Enum.at(heard, 1))) ==
+             ["Episode 1"]
+  end
+
+  # Seven entries: pairs that share a date, and two without one.
+  defp subscribe_with_ties(ctx) do
+    dated =
+      for n <- 1..5,
+          do: %{
+            hd(ctx.preview.entries)
+            | external_id: "episode-#{n}",
+              title: "Episode #{n}",
+              published_at: ~U[2026-09-01 00:00:00Z] |> DateTime.add(div(n, 2), :day)
+          }
+
+    undated = for n <- 6..7, do: %{hd(dated) | external_id: "episode-#{n}", published_at: nil}
+    Library.subscribe(ctx.alice, %{ctx.preview | entries: dated ++ undated})
   end
 
   defp at(minute), do: DateTime.add(~U[2026-10-01 12:00:00.000000Z], minute, :minute)
@@ -232,17 +253,7 @@ defmodule Sikio.LibraryTest do
   # Infinite scroll uses keyset pagination by date, then id. Offsets would repeat or skip entries
   # when new ones arrive. The pages must concatenate to the full list, including undated entries.
   test "entries continue after the last one shown", ctx do
-    dated =
-      for n <- 1..5,
-          do: %{
-            hd(ctx.preview.entries)
-            | external_id: "episode-#{n}",
-              title: "Episode #{n}",
-              published_at: ~U[2026-09-01 00:00:00Z] |> DateTime.add(div(n, 2), :day)
-          }
-
-    undated = for n <- 6..7, do: %{hd(dated) | external_id: "episode-#{n}", published_at: nil}
-    Library.subscribe(ctx.alice, %{ctx.preview | entries: dated ++ undated})
+    subscribe_with_ties(ctx)
 
     all = Library.entries(ctx.alice, %{}, limit: 10)
     assert length(all) == 7
@@ -262,6 +273,31 @@ defmodule Sikio.LibraryTest do
       |> Enum.concat()
 
     assert Enum.map(pages, & &1.id) == Enum.map(all, & &1.id)
+  end
+
+  # A list opened in its middle grows upwards with `before:`. Those pages, read from the end,
+  # also concatenate to the full list, including ties and undated entries.
+  test "entries continue before the first one shown", ctx do
+    subscribe_with_ties(ctx)
+
+    all = Library.entries(ctx.alice, %{}, limit: 10)
+
+    pages =
+      Stream.unfold(List.last(all), fn
+        :done ->
+          nil
+
+        first ->
+          page = Library.entries(ctx.alice, %{}, limit: 2, before: first)
+
+          if page == [],
+            do: nil,
+            else: {page, if(length(page) < 2, do: :done, else: hd(page))}
+      end)
+      |> Enum.reverse()
+      |> Enum.concat()
+
+    assert Enum.map(pages ++ [List.last(all)], & &1.id) == Enum.map(all, & &1.id)
   end
 
   test "refresh deduplicates episodes, sends validators and preserves subscriptions", ctx do

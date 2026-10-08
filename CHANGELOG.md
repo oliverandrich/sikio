@@ -20,6 +20,9 @@ Its own section becomes the version's release notes.
 
 - An item counts as heard in its last minute instead of at 90 %. A two-hour episode was marked
   heard twelve minutes before its end. Items under ten minutes still count at 90 %.
+- An item opened by its address deep in a list loads with a batch above and below it. The
+  list grows upwards as one scrolls. Before, every row above it loaded first. An item 2,000 rows
+  down took half a second and sent 2.7 MiB of HTML. The queue still loads every row above.
 
 ## [0.1.1] - 2026-10-08
 

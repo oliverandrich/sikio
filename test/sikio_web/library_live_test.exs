@@ -1198,6 +1198,73 @@ defmodule SikioWeb.LibraryLiveTest do
     end
   end
 
+  # An item opened by its address deep in a list loads with a window of rows around it, not
+  # with every row above it. The window grows upwards by a batch when its top comes into view.
+  describe "an item deep in a list" do
+    setup c do
+      insert_entries(c, for(n <- 1..100, do: "Bulk #{n}"))
+      bottom = Repo.one!(from e in Sikio.Feeds.Entry, where: e.title == "Bulk 1")
+      newest = Repo.one!(from e in Sikio.Feeds.Entry, where: e.title == "Bulk 100")
+      %{bottom: bottom, newest: newest, path: "/feeds/#{c.sub.feed_id}-small-hours"}
+    end
+
+    test "loads a window around it", c do
+      {:ok, view, _} = live(c.conn, "#{c.path}/#{c.bottom.id}-bulk-1")
+      assert has_element?(view, ~s|#play-#{c.bottom.id}[aria-current="true"]|)
+      assert length(rows(view)) <= 51
+      refute has_element?(view, "#entries-#{c.newest.id}")
+      # The date group continues above the window, so its heading waits there. A heading on
+      # top would stay first after the batch above loads, and the list would jump to it.
+      refute has_element?(view, "#entries > :first-child[data-group]")
+
+      before = length(rows(view))
+      render_hook(view, "load_less", %{})
+      assert length(rows(view)) == before + 25
+      refute has_element?(view, "#entries-#{c.newest.id}")
+
+      render_hook(view, "load_less", %{})
+      render_hook(view, "load_less", %{})
+      render_hook(view, "load_less", %{})
+      assert has_element?(view, "#entries-#{c.newest.id}")
+      refute has_element?(view, "#entries[phx-viewport-top]")
+    end
+
+    test "loads the batch above when k moves past the window's first row", c do
+      {:ok, view, _} = live(c.conn, "#{c.path}/#{c.bottom.id}-bulk-1")
+      first = view |> rows() |> hd() |> String.replace_prefix("entries-", "")
+      render_patch(view, href(view, first))
+      before = length(rows(view))
+
+      render_hook(view, "move", %{"key" => "k"})
+      assert length(rows(view)) == before + 25
+      above = view |> rows() |> Enum.at(24) |> String.replace_prefix("entries-", "")
+      assert_patch(view, href(view, above))
+    end
+
+    # Dragging and arrow keys send a row's index in the list as its queue position.
+    # So the queue loads every row above an item, as the indexes would otherwise shift.
+    test "in the queue loads every row above it", c do
+      for n <- 40..1//-1 do
+        id = Repo.one!(from e in Sikio.Feeds.Entry, where: e.title == ^"Bulk #{n}", select: e.id)
+        {:ok, _} = Playback.enqueue(c.user, id, :last)
+      end
+
+      {:ok, view, _} = live(c.conn, "/queue/#{c.bottom.id}-bulk-1")
+      assert has_element?(view, ~s|#play-#{c.bottom.id}[aria-current="true"]|)
+      assert length(rows(view)) == 40
+      refute has_element?(view, "#entries[phx-viewport-top]")
+    end
+
+    # A reload keeps the window. Otherwise the list would jump to its top under the reader.
+    test "keeps its window when the list is read again", c do
+      {:ok, view, _} = live(c.conn, "#{c.path}/#{c.bottom.id}-bulk-1")
+      shown = rows(view)
+      send(view.pid, :library_window_closed)
+      send(view.pid, :library_changed)
+      assert rows(view) == shown
+    end
+  end
+
   defp rows(view) do
     view
     |> render()

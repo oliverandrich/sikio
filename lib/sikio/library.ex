@@ -195,19 +195,38 @@ defmodule Sikio.Library do
   The queue sorts by rank. Other lists sort newest first, undated last.
 
   `:limit` caps the result, 100 by default. `:after` takes the last entry a list already shows.
-  The next page uses keyset pagination on the sort key and the id.
+  `:before` takes the first one and returns the entries right above it, still in list order.
+  `:before` overrides `:after`. Both use keyset pagination on the sort key and the id.
   An entry inserted between pages causes no duplicates or gaps.
   """
   def entries(%User{id: user_id}, filters \\ %{}, opts \\ []) do
     by = sorted_by(filters)
-    query = user_id |> filtered_entries(filters) |> behind(by, opts[:after])
+    query = filtered_entries(user_id, filters)
+    limit = Keyword.get(opts, :limit, 100)
 
     order =
       if by == :queue,
         do: [asc: key(by), asc: dynamic([e], e.id)],
         else: [desc_nulls_last: key(by), desc: dynamic([e], e.id)]
 
-    Repo.all(from e in query, order_by: ^order, limit: ^Keyword.get(opts, :limit, 100))
+    case opts[:before] do
+      nil ->
+        query = behind(query, by, opts[:after])
+        Repo.all(from e in query, order_by: ^order, limit: ^limit)
+
+      # The query reads upwards from `before`, so the page comes back reversed.
+      entry ->
+        query = ahead(query, by, entry)
+        Repo.all(from e in query, order_by: ^reverse(order), limit: ^limit) |> Enum.reverse()
+    end
+  end
+
+  defp reverse(order) do
+    Enum.map(order, fn
+      {:asc, field} -> {:desc, field}
+      {:desc, field} -> {:asc, field}
+      {:desc_nulls_last, field} -> {:asc_nulls_first, field}
+    end)
   end
 
   @doc """
@@ -272,6 +291,25 @@ defmodule Sikio.Library do
       at ->
         at = dynamic(type(^at, :utc_datetime_usec))
         where(query, ^dynamic([e], ^key < ^at or (^key == ^at and e.id < ^id) or is_nil(^key)))
+    end
+  end
+
+  # Keyset pagination: the entries before `entry` in the list's order. It mirrors `behind/3`.
+  defp ahead(query, :queue, %{id: id} = entry) do
+    rank = rank(entry)
+    where(query, [e, s, p], p.queue_rank < ^rank or (p.queue_rank == ^rank and e.id < ^id))
+  end
+
+  defp ahead(query, by, %{id: id} = entry) do
+    key = key(by)
+
+    case sort_date(entry, by) do
+      nil ->
+        where(query, ^dynamic([e], not is_nil(^key) or e.id > ^id))
+
+      at ->
+        at = dynamic(type(^at, :utc_datetime_usec))
+        where(query, ^dynamic([e], ^key > ^at or (^key == ^at and e.id > ^id)))
     end
   end
 

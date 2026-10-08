@@ -16,6 +16,9 @@ defmodule SikioWeb.LibraryTest do
   alias Sikio.Feeds.Parser
   alias Sikio.Library
 
+  # Waits for two animation frames, after which a patch or a scroll has been laid out.
+  @frames "const frame = () => new Promise(resolve => requestAnimationFrame(resolve))"
+
   setup %{session: session} do
     account = signed_in(session, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
@@ -319,7 +322,7 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#item-detail h2", text: "Episode 40"))
     |> send_keys(List.duplicate("j", 6))
     |> assert_has(css("#item-detail h2", text: "Episode 34"))
-    |> execute_script(in_view(7), fn [below_head, above_end] ->
+    |> execute_script(in_view("#entries article:nth-of-type(7)"), fn [below_head, above_end] ->
       assert below_head >= 0, "the row is not under the list's head"
       assert above_end >= 0, "the row is not cut off at the window's end"
     end)
@@ -331,8 +334,8 @@ defmodule SikioWeb.LibraryTest do
     |> execute_script(
       # The list scrolls to the row after layout, one or two frames after the page loads.
       """
-      const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
-      return frame().then(frame).then(() => { #{in_view(20)} })
+      #{@frames}
+      return frame().then(frame).then(() => { #{in_view("#entries article:nth-of-type(20)")} })
       """,
       fn [below_head, above_end] ->
         assert below_head >= 0, "the opened row is not under the list's head"
@@ -341,9 +344,15 @@ defmodule SikioWeb.LibraryTest do
     )
   end
 
-  defp in_view(nth) do
+  # LiveView keeps the list's first child in view when the batch above loads.
+  @first_row "return document.getElementById('entries').firstElementChild.id"
+
+  defp episode(account, title),
+    do: account |> Library.entries(%{}, limit: 50) |> Enum.find(&(&1.title == title))
+
+  defp in_view(selector) do
     """
-    const row = document.querySelector('#entries article:nth-of-type(#{nth})').getBoundingClientRect()
+    const row = document.querySelector('#{selector}').getBoundingClientRect()
     const head = document.getElementById('list-head').getBoundingClientRect()
     return [Math.round(row.top - head.bottom), Math.round(window.innerHeight - row.bottom)]
     """
@@ -375,5 +384,62 @@ defmodule SikioWeb.LibraryTest do
     |> assert_has(css("#entries article", count: 25))
     |> execute_script("document.querySelector('#entries article:last-child').scrollIntoView()")
     |> assert_has(css("#entries article", count: 40))
+  end
+
+  # An item opened deep in the list loads with a window around it. Scrolling to the window's
+  # top loads the batch above, and the row that was first stays where the reader sees it.
+  feature "the list loads the batch above when its top comes into view", context do
+    # At this height the fourteen rows above push the first row out of view.
+    context.session
+    |> resize_window(1440, 500)
+    |> open(item_path(episode(context.account, "Episode 1")))
+    |> assert_has(css("#item-detail h2", text: "Episode 1"))
+    |> assert_has(css("#entries article", count: 26))
+    |> execute_script(@first_row, fn first -> Process.put(:first, first) end)
+    |> execute_script("document.getElementById('list-pane').scrollTop = 0")
+    |> assert_has(css("#entries article", count: 40))
+    |> execute_script("return document.getElementById('list-pane').scrollTop", fn scrolled ->
+      assert scrolled > 0, "the list jumped to its new top"
+    end)
+    |> execute_script(
+      "#{@frames}\nreturn frame().then(frame).then(() => { #{in_view("#" <> Process.get(:first))} })",
+      fn [below_head, above_end] ->
+        assert below_head >= -1, "the row that was first is hidden under the list's head"
+        assert above_end >= 0, "the row that was first is cut off at the window's end"
+      end
+    )
+  end
+
+  # On a phone the page scrolls instead of the list pane, and the back link keeps the window.
+  feature "a phone's list loads the batch above when its top comes into view", context do
+    context.session
+    |> resize_window(390, 844)
+    |> open(item_path(episode(context.account, "Episode 1")))
+    |> assert_has(css("#item-detail h2", text: "Episode 1"))
+    |> click(css("#nav-back"))
+    |> assert_has(css("#entries article", count: 26))
+    |> execute_script(@first_row, fn first -> Process.put(:first, first) end)
+    # A scroll event fires only on a change, so the page leaves its top before it returns.
+    # Both scrolls in one frame would cancel out, so the second waits for two frames.
+    |> execute_script("""
+    #{@frames}
+    window.scrollTo(0, document.body.scrollHeight)
+    return frame().then(frame).then(() => window.scrollTo(0, 0))
+    """)
+    |> assert_has(css("#entries article", count: 40))
+    |> execute_script(
+      """
+      #{@frames}
+      return frame().then(frame).then(() => {
+        const row = document.getElementById('#{Process.get(:first)}').getBoundingClientRect()
+        return [window.scrollY, Math.round(row.top), Math.round(window.innerHeight - row.top)]
+      })
+      """,
+      fn [scrolled, top, above_end] ->
+        assert scrolled > 0, "the page jumped to the list's new top"
+        assert top >= 0, "the row that was first is above the window"
+        assert above_end > 0, "the row that was first is below the window"
+      end
+    )
   end
 end

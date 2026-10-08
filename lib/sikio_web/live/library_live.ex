@@ -38,6 +38,7 @@ defmodule SikioWeb.LibraryLive do
        read: nil,
        filters: nil,
        entries: [],
+       above: nil,
        more?: false,
        search_open?: false,
        marking: nil,
@@ -95,6 +96,7 @@ defmodule SikioWeb.LibraryLive do
           |> assign(
             filters: filters,
             entries: [],
+            above: nil,
             marking: nil,
             renaming: nil,
             deleting: nil
@@ -165,18 +167,28 @@ defmodule SikioWeb.LibraryLive do
 
   # Inserts a heading row wherever the date group of the sort date changes.
   # The queue is sorted by queue rank, so it has no headings.
-  defp grouped(entries, %{"status" => "queue"}, _offset), do: Enum.map(entries, &{:entry, &1})
+  # A group that continues above a window keeps its heading there.
+  # LiveView scrolls the old first row back into view after the batch above loads.
+  # A heading on top would keep its place, and the list would jump.
+  defp grouped(entries, %{"status" => "queue"}, _offset, _above),
+    do: Enum.map(entries, &{:entry, &1})
 
-  defp grouped(entries, filters, offset) do
+  defp grouped(entries, filters, offset, above) do
     by = Library.sorted_by(filters)
     now = DateTime.utc_now()
+    group = &(Library.sort_date(&1, by) |> DateGroups.group(now, offset))
+    continued = above && elem(group.(above), 0)
 
     entries
-    |> Enum.chunk_by(&(Library.sort_date(&1, by) |> DateGroups.group(now, offset) |> elem(0)))
+    |> Enum.chunk_by(&elem(group.(&1), 0))
     |> Enum.flat_map(fn [first | _] = chunk ->
-      {key, label} = DateGroups.group(Library.sort_date(first, by), now, offset)
+      {key, label} = group.(first)
       [{:heading, key, label} | Enum.map(chunk, &{:entry, &1})]
     end)
+    |> case do
+      [{:heading, ^continued, _label} | rows] -> rows
+      rows -> rows
+    end
   end
 
   defp row_id({:heading, {year, month}, _label}), do: "group-#{year}-#{month}"
@@ -276,28 +288,52 @@ defmodule SikioWeb.LibraryLive do
   defp address(socket, filters, item \\ nil),
     do: SikioWeb.Sidebar.library_path(filters, item, socket.assigns.sidebar.titles)
 
-  # An item opened by URL may lie beyond the loaded batches. Batches load until the list
-  # contains the item or sorts past its position. The second case covers filtered-out items.
+  # An item opened by URL may lie beyond the loaded rows. The list then loads a window of a
+  # batch above and below it, not every row above it. A list that sorts past the item's
+  # position stays as it is. That covers filtered-out items.
+  # The queue loads every row above instead, a choice for its usually short length.
+  # Its drag and arrow keys send a row's index, which `Playback.move/3` takes as the position.
   defp reach(%{assigns: %{selected: nil}} = socket), do: socket
 
   defp reach(%{assigns: %{selected: selected, entries: entries, more?: more?}} = socket) do
     by = Library.sorted_by(socket.assigns.filters)
 
-    if position(socket) || !more? ||
-         (entries != [] and !Library.before?(List.last(entries), selected, by)),
-       do: socket,
-       else: socket |> load_more() |> reach()
+    cond do
+      position(socket) || !more? ||
+          (entries != [] and !Library.before?(List.last(entries), selected, by)) ->
+        socket
+
+      by == :queue ->
+        socket |> load_more() |> reach()
+
+      true ->
+        window(socket, selected)
+    end
+  end
+
+  # The rows after the last one above `selected` start with `selected` itself, if it is listed.
+  defp window(socket, selected) do
+    {above, rows} = batch_above(socket, selected)
+    %{current_account: account, filters: filters} = socket.assigns
+    below = Library.entries(account, filters, limit: @batch, after: List.last(rows) || above)
+    assign(socket, entries: rows ++ below, above: above, more?: length(below) == @batch)
+  end
+
+  # Reads a batch and one more above `entry`. The first stays unloaded and marks where the
+  # window starts. `nil` means the window starts at the top of the list.
+  defp batch_above(socket, entry) do
+    %{current_account: account, filters: filters} = socket.assigns
+
+    case Library.entries(account, filters, limit: @batch + 1, before: entry) do
+      [above | rows] = entries when length(entries) > @batch -> {above, rows}
+      entries -> {nil, entries}
+    end
   end
 
   @impl true
   def handle_event("move", %{"key" => key}, socket) when key in ["j", "k"] do
+    socket = extend(socket, key)
     current = position(socket)
-    # `j` on the last loaded row loads the next batch first.
-    socket =
-      if key == "j" and current == length(socket.assigns.entries) - 1,
-        do: load_more(socket),
-        else: socket
-
     entries = socket.assigns.entries
 
     next =
@@ -317,6 +353,7 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("move", _params, socket), do: {:noreply, socket}
 
   def handle_event("load_more", _params, socket), do: {:noreply, load_more(socket)}
+  def handle_event("load_less", _params, socket), do: {:noreply, load_less(socket)}
 
   # Opens a playing item, from the mini player's title or after the queue plays on.
   # It opens in the current list if listed there, else in its source's list.
@@ -712,14 +749,34 @@ defmodule SikioWeb.LibraryLive do
     assign(socket, entries: entries ++ batch, more?: length(batch) == @batch)
   end
 
-  # Reloads as many rows as are loaded, at least one batch.
-  # The list does not shrink under the scroll position.
+  # `j` on the last loaded row loads the next batch first, `k` on the first the one above.
+  defp extend(socket, key) do
+    case {key, position(socket)} do
+      {"k", 0} -> load_less(socket)
+      {"j", last} when last == length(socket.assigns.entries) - 1 -> load_more(socket)
+      _ -> socket
+    end
+  end
+
+  # A window opened deep in the list grows upwards by a batch when its top comes into view.
+  defp load_less(%{assigns: %{above: nil}} = socket), do: socket
+
+  defp load_less(%{assigns: %{entries: []}} = socket),
+    do: socket |> assign(:above, nil) |> reload()
+
+  defp load_less(%{assigns: %{entries: [first | _] = entries}} = socket) do
+    {above, batch} = batch_above(socket, first)
+    assign(socket, entries: batch ++ entries, above: above)
+  end
+
+  # Reloads as many rows as are loaded, at least one batch, from where the window starts.
+  # The list does not shrink or jump under the scroll position.
   defp reload(socket) do
     account = socket.assigns.current_account
     filters = socket.assigns.filters
     subscriptions = socket.assigns.sidebar.sources
     limit = max(length(socket.assigns.entries), @batch)
-    entries = Library.entries(account, filters, limit: limit)
+    entries = Library.entries(account, filters, limit: limit, after: socket.assigns.above)
     # Sidebar and chips show unfiltered counts per place. The heading shows `total` for the list.
     counts = Library.tally(socket.assigns.sidebar.counts, %{}, socket.assigns.sidebar.tag_feeds)
 
@@ -1080,11 +1137,12 @@ defmodule SikioWeb.LibraryLive do
             :if={!@empty?}
             id="entries"
             phx-hook="QueueSort"
+            phx-viewport-top={@above && "load_less"}
             phx-viewport-bottom={@more? && "load_more"}
             class="border-t border-line bg-surface empty:hidden lg:border-t-0"
           >
             <.list_row
-              :for={row <- grouped(@entries, @filters, @time_zone_offset)}
+              :for={row <- grouped(@entries, @filters, @time_zone_offset, @above)}
               :key={row_id(row)}
               row={row}
               filters={@filters}
