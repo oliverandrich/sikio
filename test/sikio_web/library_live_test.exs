@@ -954,12 +954,12 @@ defmodule SikioWeb.LibraryLiveTest do
       refute has_element?(view, ~s|#manage-subscriptions[aria-current]|)
     end
 
-    # Invitations are rare, so the link sits in the account menu, not the main navigation.
-    test "keeps invitations in the account menu", c do
+    # Invitations are rare, so they sit in the settings behind the account menu, not in the
+    # main navigation. The account menu stays marked on their page.
+    test "keeps invitations behind the account menu", c do
       {:ok, view, _} = live(c.conn, ~p"/invitations")
 
       refute has_element?(view, "#main-navigation > a[href='/invitations']")
-      assert has_element?(view, ~s|#user-menu a[href="/invitations"][aria-current="page"]|)
       assert has_element?(view, "#user-menu[data-active]")
     end
 

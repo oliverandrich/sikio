@@ -21,9 +21,10 @@ defmodule SikioWeb.SettingsBarTest do
 
   test "each page names itself and leads back", c do
     for {path, title, back, label} <- [
-          {"/invitations", "Invitations", "/library", "Library"},
-          {"/account/passkeys", "Passkeys", "/library", "Library"},
-          {"/account/recovery-codes", "Recovery codes", "/library", "Library"},
+          {"/account/settings", "Settings", "/library", "Library"},
+          {"/invitations", "Invitations", "/account/settings", "Settings"},
+          {"/account/passkeys", "Passkeys", "/account/settings", "Settings"},
+          {"/account/recovery-codes", "Recovery codes", "/account/settings", "Settings"},
           {"/add", "Add a source", "/library", "Library"},
           {"/subscriptions", "Subscriptions", "/library", "Library"},
           {"/subscriptions/import", "Import OPML", "/subscriptions", "Subscriptions"}

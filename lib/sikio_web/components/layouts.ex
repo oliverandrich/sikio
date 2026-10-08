@@ -240,7 +240,7 @@ defmodule SikioWeb.Layouts do
             </.link>
             <details
               id="user-menu"
-              data-active={@section in [:account, :invitations]}
+              data-active={@section in [:account, :invitations, :settings]}
               class="relative shrink-0"
               phx-click-away={JS.remove_attribute("open", to: "#user-menu")}
               phx-window-keydown={JS.remove_attribute("open", to: "#user-menu")}
@@ -266,23 +266,9 @@ defmodule SikioWeb.Layouts do
                 <.link
                   id="settings-link"
                   navigate={~p"/account/settings"}
-                  aria-current={@section == :settings && "page"}
+                  aria-current={@section in [:settings, :account, :invitations] && "page"}
                   class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
                 >{gettext("Settings")}</.link>
-                <.link
-                  id="invitations-link"
-                  navigate={~p"/invitations"}
-                  aria-current={@section == :invitations && "page"}
-                  class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
-                >{gettext("Invitations")}</.link>
-                <.link
-                  navigate={~p"/account/passkeys"}
-                  class="block rounded-control px-3 py-2 hover:bg-ground"
-                >{gettext("Manage passkeys")}</.link>
-                <.link
-                  navigate={~p"/account/recovery-codes"}
-                  class="block rounded-control px-3 py-2 hover:bg-ground"
-                >{gettext("Recovery codes")}</.link>
                 <button
                   id="show-shortcuts"
                   type="button"

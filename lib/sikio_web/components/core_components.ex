@@ -398,6 +398,55 @@ defmodule SikioWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders rows in a card with an optional heading above it, like an iOS settings group.
+  `tag` is the card's element, `nav` for a group of links.
+  """
+  attr :id, :string, required: true
+  attr :heading, :string, default: nil
+  attr :tag, :string, default: "div"
+  slot :action, doc: "a link beside the heading"
+  slot :inner_block, required: true
+
+  def group(assigns) do
+    ~H"""
+    <section id={@id} class="mb-6" aria-labelledby={@heading && "#{@id}-heading"}>
+      <div :if={@heading} class="mb-2 flex items-baseline justify-between gap-3 px-4">
+        <h2 id={"#{@id}-heading"} class="text-meta font-semibold tracking-wider text-muted uppercase">
+          {@heading}
+        </h2>
+        <span :if={@action != []} class="text-label">{render_slot(@action)}</span>
+      </div>
+      <.dynamic_tag
+        tag_name={@tag}
+        class="flex flex-col divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line"
+      >
+        {render_slot(@inner_block)}
+      </.dynamic_tag>
+    </section>
+    """
+  end
+
+  @doc "Renders a row of `group/1` that leads to another page."
+  attr :to, :string, required: true
+  attr :detail, :any, default: nil, doc: "muted text before the chevron, such as a count"
+  slot :icon
+  slot :inner_block, required: true
+
+  def group_link(assigns) do
+    ~H"""
+    <.link
+      navigate={@to}
+      class="flex min-h-12 items-center gap-3 px-4 text-body text-ink hover:bg-ground"
+    >
+      {render_slot(@icon)}
+      <span class="min-w-0 grow truncate">{render_slot(@inner_block)}</span>
+      <span :if={@detail} class="font-mono text-meta text-muted">{@detail}</span>
+      <Lucideicons.chevron_right aria-hidden="true" class="size-4 shrink-0 text-muted" />
+    </.link>
+    """
+  end
+
   @doc "Renders a field's error message, for fields not rendered by `input/1`."
   attr :id, :string, default: nil
   slot :inner_block, required: true

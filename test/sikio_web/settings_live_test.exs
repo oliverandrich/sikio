@@ -23,15 +23,27 @@ defmodule SikioWeb.SettingsLiveTest do
     %{conn: conn |> init_test_session(%{}) |> Gate.log_in(user), user: user}
   end
 
-  test "the gear menu leads to the settings", c do
+  # The gear menu holds the settings, the shortcuts and the about dialog. Account pages are
+  # rows on the settings page, and their back links lead there.
+  test "the gear menu leads to the settings, which lead to the account pages", c do
     {:ok, view, _} = live(c.conn, ~p"/library")
     assert has_element?(view, ~s|#user-menu a#settings-link[href="/account/settings"]|)
+    refute has_element?(view, ~s|#user-menu a[href="/invitations"]|)
+    refute has_element?(view, ~s|#user-menu a[href="/account/passkeys"]|)
+
+    {:ok, view, _} = live(c.conn, ~p"/account/settings")
+    assert has_element?(view, ~s|#settings-account a[href="/account/passkeys"]|, "0")
+    assert has_element?(view, ~s|#settings-account a[href="/account/recovery-codes"]|, "0")
+    assert has_element?(view, ~s|#settings-account a[href="/invitations"]|)
+
+    {:ok, view, _} = live(c.conn, ~p"/invitations")
+    assert has_element?(view, ~s|#nav-back[href="/account/settings"]|)
   end
 
   # Play on lives here alone. The queue has no switch for it.
   test "Play on is saved as soon as it changes", c do
     {:ok, view, _} = live(c.conn, ~p"/account/settings")
-    assert has_element?(view, ~s|#settings-form input[name="play_on"][type="checkbox"][checked]|)
+    assert has_element?(view, ~s|#settings-form input[name="play_on"][role="switch"][checked]|)
 
     assert view
            |> element("#settings-saved")
@@ -112,7 +124,11 @@ defmodule SikioWeb.SettingsLiveTest do
     {:ok, [tag]} = Tags.set(c.user, sub.id, ["Tech"])
 
     {:ok, view, _} = live(c.conn, ~p"/account/settings")
-    assert has_element?(view, ~s|#settings-form input[name="start"][value="queue"][checked]|)
+
+    assert has_element?(
+             view,
+             ~s|#settings-form select[name="start"] option[value="queue"][selected]|
+           )
 
     view |> form("#settings-form", %{"start" => "inbox"}) |> render_change()
     {:ok, view, _} = live(c.conn, ~p"/")
@@ -127,5 +143,24 @@ defmodule SikioWeb.SettingsLiveTest do
     Tags.delete(c.user, tag.id)
     {:ok, view, _} = live(c.conn, ~p"/")
     assert has_element?(view, "#view-inbox[aria-current=page]")
+  end
+
+  # A change saves only its own field. A start tag deleted in another tab leaves the select
+  # on its first option, which must not overwrite the start page.
+  test "a change saves its own field and keeps a start page the form shows stale", c do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, sub} = Library.subscribe(c.user, preview)
+    {:ok, [tag]} = Tags.set(c.user, sub.id, ["Tech"])
+    {:ok, _} = Preferences.update(c.user, %{start_view: "inbox", start_tag_id: tag.id})
+
+    {:ok, view, _} = live(c.conn, ~p"/account/settings")
+    Tags.delete(c.user, tag.id)
+
+    # The browser names the changed field in `_target`; the test helper sends it only on request.
+    view
+    |> form("#settings-form", %{"play_on" => "false"})
+    |> render_change(%{"_target" => ["play_on"]})
+
+    assert %{play_on: false, start_view: "inbox", start_tag_id: nil} = Preferences.get(c.user)
   end
 end

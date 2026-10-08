@@ -6,7 +6,7 @@ defmodule SikioWeb.AccountSecurityFeatureTest do
   alias Ithibati.Identity.Passkeys
   alias Ithibati.Identity.RecoveryCodes
 
-  feature "a member manages passkeys and replaces recovery codes from the menu", %{
+  feature "a member manages passkeys and replaces recovery codes from the settings", %{
     session: session
   } do
     first = virtual_authenticator(session)
@@ -19,8 +19,9 @@ defmodule SikioWeb.AccountSecurityFeatureTest do
     |> landed_on("/recovery-codes")
     |> open("/")
     |> click(css("#user-menu summary"))
-    |> assert_has(link("Manage passkeys"))
-    |> click(link("Manage passkeys"))
+    |> click(css("#settings-link"))
+    |> landed_on("/account/settings")
+    |> click(css(~s|#settings-account a[href="/account/passkeys"]|))
     |> landed_on("/account/passkeys")
     |> connected()
 

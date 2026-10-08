@@ -35,80 +35,50 @@ defmodule SikioWeb.PlacesLive do
       title={gettext("Library")}
     >
       <h1 data-large-title class="mb-6 text-title font-semibold">{gettext("Library")}</h1>
-      <.places id="places-views">
-        <.place
+      <.group id="places-views" tag="nav">
+        <.group_link
           :for={{status, key, label} <- views()}
           :if={key not in [:inbox, :queue]}
           to={LibraryPaths.place_path("status", status)}
-          count={if(key == :all, do: @counts[key], else: 0)}
+          detail={if(key == :all, do: nonzero(@counts[key]))}
         >
           <:icon><.view_icon view={key} class="size-5 text-muted" /></:icon>
           {label}
-        </.place>
-      </.places>
-      <.places :if={@sidebar.tags != []} id="places-tags" heading={gettext("Tags")}>
-        <.place
+        </.group_link>
+      </.group>
+      <.group :if={@sidebar.tags != []} id="places-tags" tag="nav" heading={gettext("Tags")}>
+        <.group_link
           :for={tag <- @sidebar.tags}
           to={LibraryPaths.place_path("tag", to_string(tag.id), @sidebar.titles)}
-          count={Map.get(@counts.tags, tag.id, 0)}
+          detail={nonzero(Map.get(@counts.tags, tag.id, 0))}
         >
           {tag.name}
-        </.place>
-      </.places>
-      <.places :if={@sidebar.sources != []} id="places-sources" heading={gettext("Subscriptions")}>
+        </.group_link>
+      </.group>
+      <.group
+        :if={@sidebar.sources != []}
+        id="places-sources"
+        tag="nav"
+        heading={gettext("Subscriptions")}
+      >
         <:action>
           <.link id="places-manage" navigate={~p"/subscriptions"} class="text-link">
             {gettext("Manage")}
           </.link>
         </:action>
-        <.place
+        <.group_link
           :for={source <- @sidebar.sources}
           to={LibraryPaths.place_path("source", to_string(source.feed_id), @sidebar.titles)}
-          count={Map.get(@counts.sources, source.feed_id, 0)}
+          detail={nonzero(Map.get(@counts.sources, source.feed_id, 0))}
         >
           {source_name(source)}
-        </.place>
-      </.places>
+        </.group_link>
+      </.group>
     </Layouts.member>
     """
   end
 
-  attr :id, :string, required: true
-  attr :heading, :string, default: nil
-  slot :action, doc: "a link beside the heading"
-  slot :inner_block, required: true
-
-  # A group of places, styled like an iOS settings group.
-  defp places(assigns) do
-    ~H"""
-    <section id={@id} class="mb-6" aria-label={@heading}>
-      <div :if={@heading} class="mb-2 flex items-baseline justify-between gap-3 px-4">
-        <h2 class="text-meta font-semibold tracking-wider text-muted uppercase">{@heading}</h2>
-        <span :if={@action != []} class="text-label">{render_slot(@action)}</span>
-      </div>
-      <nav class="flex flex-col divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line">
-        {render_slot(@inner_block)}
-      </nav>
-    </section>
-    """
-  end
-
-  attr :to, :string, required: true
-  attr :count, :integer, required: true
-  slot :icon
-  slot :inner_block, required: true
-
-  defp place(assigns) do
-    ~H"""
-    <.link
-      navigate={@to}
-      class="flex min-h-12 items-center gap-3 px-4 text-body text-ink hover:bg-ground"
-    >
-      {render_slot(@icon)}
-      <span class="min-w-0 grow truncate">{render_slot(@inner_block)}</span>
-      <span :if={@count > 0} class="font-mono text-meta text-muted">{@count}</span>
-      <Lucideicons.chevron_right aria-hidden="true" class="size-4 shrink-0 text-muted" />
-    </.link>
-    """
-  end
+  # Empty places show no count.
+  defp nonzero(0), do: nil
+  defp nonzero(count), do: count
 end

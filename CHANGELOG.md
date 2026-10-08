@@ -18,8 +18,9 @@ Its own section becomes the version's release notes.
 
 ### Added
 
-- A settings page in the gear menu. It holds the start page, Play on and the interface
-  language. A chosen language overrides the browser's.
+- A settings page in the gear menu. It holds the start page, the interface language and Play
+  on, and it leads to passkeys, recovery codes and invitations. A chosen language overrides the
+  browser's.
 - The library opens on the chosen start page: the queue, the inbox or a tag. A deleted start
   tag falls back to the list chosen before it.
 - [Operations](docs/operations.md#storage) describes what Sikio stores and how to measure it.
@@ -28,6 +29,8 @@ Its own section becomes the version's release notes.
 ### Changed
 
 - Play on moved from the queue's header to the settings page.
+- The gear menu holds the settings, the keyboard shortcuts, About Sikio and Sign out. Passkeys,
+  recovery codes and invitations moved to the settings page.
 - An item counts as heard in its last minute instead of at 90 %. A two-hour episode was marked
   heard twelve minutes before its end. Items under ten minutes still count at 90 %.
 - An item opened by its address deep in a list loads with a batch above and below it. The

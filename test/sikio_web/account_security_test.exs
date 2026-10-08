@@ -28,9 +28,9 @@ defmodule SikioWeb.AccountSecurityTest do
     %{conn: Plug.Test.init_test_session(build_conn(), session), account: account}
   end
 
-  test "header offers a username menu and both protected account pages", %{conn: conn} do
-    html = conn |> get("/") |> html_response(200)
-    assert html =~ "id=\"user-menu\""
+  test "the settings lead to both protected account pages", %{conn: conn} do
+    assert conn |> get("/") |> html_response(200) =~ "id=\"user-menu\""
+    html = conn |> get("/account/settings") |> html_response(200)
     assert html =~ "href=\"/account/passkeys\""
     assert html =~ "href=\"/account/recovery-codes\""
     assert conn |> get("/account/passkeys") |> html_response(200) =~ "Manage passkeys"

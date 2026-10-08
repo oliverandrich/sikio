@@ -122,7 +122,8 @@ The command prints the code once. Open your domain, enter the code, choose a use
 create a passkey. Save the recovery codes on the next page, which are shown only once. If the
 code is lost, issue a new one. See [Operations](../operations.md#claim-the-instance) for details.
 
-Further members join through invitations. Create them under Invitations in the account menu.
+Further members join through invitations. Create them under Settings, then Invitations, in
+the gear menu.
 
 ## 7. Back up
 

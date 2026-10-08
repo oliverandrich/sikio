@@ -157,7 +157,7 @@ defmodule SikioWeb.InvitationsLive do
       sidebar={@sidebar}
       section={:invitations}
       title={gettext("Invitations")}
-      back={%{to: ~p"/library", label: gettext("Library")}}
+      back={%{to: ~p"/account/settings", label: gettext("Settings")}}
     >
       <.header>
         {gettext("Invitations")}
