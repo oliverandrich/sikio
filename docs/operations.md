@@ -121,6 +121,27 @@ address.
 
 `GET /health` checks HTTP liveness. It does not check the database.
 
+## Storage
+
+Sikio stores no audio or video. Browsers load podcast audio from the publisher's server. Videos
+play in the official embeds. Sikio keeps two kinds of data: the database and the picture cache.
+
+The database holds feeds, entries with their show notes, subscriptions and playback state. Each
+poll reads at most 500 entries of a feed. Sikio keeps stored entries, so the database grows with
+every new entry.
+
+The picture cache holds the pictures of feeds and entries, such as artwork and video thumbnails.
+Each picture is at most 2 MB. A daily job deletes pictures that were not served for thirty days.
+
+One PostgreSQL instance with 16 feeds and 1,845 entries used 21 MB for its database and 54 MB
+for its picture cache. These commands print the sizes:
+
+```sh
+du -sh "$PICTURE_CACHE_DIR"
+du -sh "$DATABASE_PATH"*   # SQLite, with its WAL files
+psql -d DATABASE -c "select pg_size_pretty(pg_database_size(current_database()))"
+```
+
 ## Small installations
 
 The release keeps the Erlang VM defaults. On a small instance, two environment variables lower

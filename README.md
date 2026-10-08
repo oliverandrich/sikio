@@ -22,6 +22,9 @@ and mark what you have watched or heard.
   With **Play on**, the queue plays the next item when one ends.
 - Plays podcasts in its own audio player and videos in their official embeds. Playback continues
   while you navigate the library. Playback positions are saved, and chapters are shown.
+- Follows every source through the public feed it publishes. Podcasts, YouTube channels and
+  PeerTube channels all offer one. Sikio downloads no video or audio and needs no API key. A
+  channel or video link is resolved to its feed once, when you subscribe.
 - Hides a YouTube channel's Shorts unless you enable them for that subscription.
 - Serves a small group on one instance. Accounts sign in with passkeys and join by invitation.
 

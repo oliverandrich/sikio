@@ -9,6 +9,13 @@ or changed setting, a step to take before or after the update. A release migrate
 as it starts unless `SIKIO_MIGRATE_ON_START=false`; back up the database before every update.
 Its own section becomes the version's release notes.
 
+## [Unreleased]
+
+### Added
+
+- [Operations](docs/operations.md#storage) describes what Sikio stores and how to measure it.
+  The README states that Sikio follows public feeds and downloads no media.
+
 ## [0.1.1] - 2026-10-08
 
 ### Added
