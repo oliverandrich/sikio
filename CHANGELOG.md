@@ -9,7 +9,11 @@ or changed setting, a step to take before or after the update. A release migrate
 as it starts unless `SIKIO_MIGRATE_ON_START=false`; back up the database before every update.
 Its own section becomes the version's release notes.
 
-## [Unreleased]
+## [0.4.0] - 2026-10-08
+
+### Upgrading
+
+- A migration adds the `saved_entries` table. The release runs it on start.
 
 ### Added
 
@@ -17,10 +21,6 @@ Its own section becomes the version's release notes.
   without subscribing to its source. It goes to the queue or the inbox.
 - An item saved this way can be removed from its detail page.
 - `/add?url=` opens the add page with the link filled in and looks it up.
-
-### Upgrading
-
-- A migration adds the `saved_entries` table. The release runs it on start.
 
 ## [0.3.1] - 2026-10-08
 
