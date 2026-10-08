@@ -70,6 +70,8 @@ defmodule SikioWeb.LibraryEvents do
   defp library_event?({:playback_marked, _count}), do: true
   defp library_event?({:tags_changed, _subscription_id}), do: true
   defp library_event?({:subscription_changed, _subscription_id}), do: true
+  defp library_event?({:entry_saved, _entry_id}), do: true
+  defp library_event?({:entry_removed, _entry_id}), do: true
   defp library_event?(_message), do: false
 
   defp passed_on(socket, message) do

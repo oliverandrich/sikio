@@ -61,6 +61,17 @@ defmodule SikioWeb.LibraryLiveTest do
     assert render_hook(view, "show", %{"id" => c.audio.id}) =~ "no longer in your library"
   end
 
+  # A singly saved item has no source page, so `show` opens it under all items instead.
+  test "showing a saved item outside the list opens it under all items", c do
+    {:ok, other} = Parser.parse(podcast("Elsewhere"), feed_url())
+    {:ok, entry} = Library.save(c.user, other, hd(other.entries).external_id, :inbox)
+    Playback.mark(c.user, entry.id, :heard)
+
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
+    render_hook(view, "show", %{"id" => entry.id})
+    assert_patch(view, "/all/#{entry.id}-one-two")
+  end
+
   test "marking and changes from another tab keep filtered membership current", c do
     [video] = Enum.filter(Library.entries(c.user), &(&1.feed.kind == :youtube))
     Playback.mark(c.user, video.id, :heard)

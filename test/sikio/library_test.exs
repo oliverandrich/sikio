@@ -473,6 +473,93 @@ defmodule Sikio.LibraryTest do
              Library.configure(ctx.bob, subscription.id, %{name: "Mine"}, ["Theirs"])
   end
 
+  describe "single entries" do
+    # Bob follows the show. Alice follows nothing and saves one episode from her own link.
+    setup ctx do
+      {:ok, _} = Library.subscribe(ctx.bob, ctx.preview)
+      carol = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+      %{external_id: hd(ctx.preview.entries).external_id, carol: carol}
+    end
+
+    defp save(ctx, at \\ :inbox), do: Library.save(ctx.alice, ctx.preview, ctx.external_id, at)
+
+    test "a saved entry joins the account's library without a subscription", ctx do
+      assert Library.entries(ctx.alice) == []
+      Events.subscribe(ctx.alice)
+
+      assert {:ok, entry} = save(ctx)
+      assert {:ok, ^entry} = save(ctx)
+      assert_received {:entry_saved, _}
+
+      assert [%{id: id, source_name: "Small Hours"}] =
+               Library.entries(ctx.alice, %{"status" => "inbox"})
+
+      assert id == entry.id
+      assert Library.entries(ctx.carol) == []
+      assert (ctx.alice |> Library.counts() |> Library.tally(%{})).inbox == 1
+    end
+
+    test "a saved entry can go to the end of the queue", ctx do
+      {:ok, entry} = save(ctx, :queue)
+      assert Playback.queue(ctx.alice) == [entry.id]
+    end
+
+    # Only the account's own link saves an entry. An episode the link does not hold is refused.
+    test "an episode the preview does not hold is not saved", ctx do
+      assert {:error, :not_found} = Library.save(ctx.alice, ctx.preview, "elsewhere", :inbox)
+      assert Library.entries(ctx.alice) == []
+    end
+
+    # Removing takes the entry out of the library. Its playback state stays for a later save.
+    test "a removed entry leaves the library and keeps its playback state", ctx do
+      {:ok, entry} = save(ctx)
+      {:ok, _} = Playback.mark(ctx.alice, entry.id, :heard)
+      assert [_] = Library.entries(ctx.alice, %{"status" => "heard"})
+
+      assert {:ok, _} = Library.remove_entry(ctx.alice, entry.id)
+      assert Library.entries(ctx.alice) == []
+      assert {:error, :not_found} = Library.remove_entry(ctx.alice, entry.id)
+      assert {:error, :not_found} = Library.remove_entry(ctx.carol, entry.id)
+
+      {:ok, _} = save(ctx)
+      assert [%{playback: %{status: :heard}}] = Library.entries(ctx.alice)
+    end
+
+    # A Short saved singly shows even where the account follows the channel with Shorts off.
+    test "a saved Short shows despite a subscription that hides Shorts", ctx do
+      {:ok, video} = Parser.parse(youtube(), youtube_feed_url())
+      {:ok, _} = Library.subscribe(ctx.alice, video)
+      [entry] = Library.entries(ctx.alice)
+      Repo.update_all(from(e in Entry, where: e.id == ^entry.id), set: [short: true])
+      assert Library.entries(ctx.alice) == []
+
+      {:ok, _} = Library.save(ctx.alice, video, entry.external_id, :queue)
+      assert [_] = Library.entries(ctx.alice)
+      assert Playback.queue(ctx.alice) == [entry.id]
+    end
+
+    # The content security policy lets a saved PeerTube video's instance frame its player.
+    test "a saved PeerTube video's instance may frame its player", ctx do
+      {:ok, video} = Parser.parse(peertube(), peertube_feed_url())
+      assert Library.player_origins(ctx.alice) == []
+
+      {:ok, _} = Library.save(ctx.alice, video, hd(video.entries).external_id, :inbox)
+      assert [_origin] = Library.player_origins(ctx.alice)
+    end
+
+    # The entry stays after its channel is unfollowed, and its feed is not polled for it.
+    test "a saved entry outlasts an unsubscribe and polls nothing", ctx do
+      {:ok, sub} = Library.subscribe(ctx.alice, ctx.preview)
+      {:ok, entry} = save(ctx)
+      {:ok, _} = Library.unsubscribe(ctx.alice, sub.id)
+      assert [_] = Library.entries(ctx.alice)
+
+      {:ok, _} = Library.unsubscribe(ctx.bob, hd(Library.subscriptions(ctx.bob)).id)
+      refute Library.active_feed?(entry.feed_id)
+      refute entry.feed_id in Library.due_feed_ids()
+    end
+  end
+
   describe "counts/1" do
     setup :three_kinds
 

@@ -131,6 +131,10 @@ defmodule SikioWeb.LibraryLive do
   end
 
   # Returns the filtered tag from the `:sidebar` assign.
+  # Whether the account follows the feed, so it has a source page.
+  defp followed?(socket, feed_id),
+    do: Enum.any?(socket.assigns.sidebar.sources, &(&1.feed_id == feed_id))
+
   defp chosen_tag(socket) do
     tag = socket.assigns.filters["tag"]
     Enum.find(socket.assigns.sidebar.tags, &(to_string(&1.id) == tag))
@@ -222,9 +226,17 @@ defmodule SikioWeb.LibraryLive do
 
       entry ->
         filters =
-          if Library.listed?(account, filters, entry.id),
-            do: filters,
-            else: Library.normalize_filters(%{"source" => to_string(entry.feed_id)})
+          cond do
+            Library.listed?(account, filters, entry.id) ->
+              filters
+
+            followed?(socket, entry.feed_id) ->
+              Library.normalize_filters(%{"source" => to_string(entry.feed_id)})
+
+            # A singly saved item has no source page.
+            true ->
+              Library.normalize_filters(%{"status" => ""})
+          end
 
         {:noreply, push_patch(socket, to: address(socket, filters, entry))}
     end

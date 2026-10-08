@@ -13,8 +13,11 @@ defmodule Sikio.Library do
   alias Sikio.Accounts.User
   alias Sikio.Feeds
   alias Sikio.Feeds.Entry
+  alias Sikio.Feeds.Feed
   alias Sikio.Library.Events
+  alias Sikio.Library.SavedEntry
   alias Sikio.Library.Subscription
+  alias Sikio.Playback
   alias Sikio.Playback.State
   alias Sikio.Repo
   alias Sikio.Tags
@@ -27,7 +30,7 @@ defmodule Sikio.Library do
   Returns the id of an entry the account can see, or `nil`.
 
   Writes call this for authorization on every request. They do not trust the request that started
-  the player. The query joins subscriptions and selects only the entry id.
+  the player. The query reads subscriptions and saved entries and selects only the entry id.
   """
   def visible_entry_id(%User{id: user_id}, id),
     do:
@@ -69,6 +72,67 @@ defmodule Sikio.Library do
     end
 
     result
+  end
+
+  @doc """
+  Saves the entry `external_id` of `preview` to the account's library without a subscription.
+  The preview comes from the account's own link, so only an entry it found can be saved.
+  The feed and its entries are stored shared, as for a subscription, and not polled for this.
+  `:queue` puts the entry at the end of the queue; `:inbox` leaves it where its playback state is.
+  A newly saved entry has no playback state, so it is new.
+  Returns `{:ok, entry}`, or `{:error, :not_found}` when the preview does not hold the entry.
+  Broadcasts `{:entry_saved, entry_id}` to the account, or the queue's event for `:queue`.
+  """
+  def save(%User{id: user_id} = account, preview, external_id, at) when at in [:inbox, :queue] do
+    result =
+      if Enum.any?(preview.entries, &(&1.external_id == external_id)),
+        do: Repo.transaction(fn -> saved(user_id, preview, external_id) end),
+        else: {:error, :not_found}
+
+    with {:ok, entry} <- result do
+      Events.feed_updated(entry.feed_id)
+      # A queued entry announces itself through the queue. A failed enqueue leaves it saved.
+      if at != :queue or match?({:error, _}, Playback.enqueue(account, entry.id, :last)),
+        do: Events.broadcast(account, {:entry_saved, entry.id})
+
+      {:ok, entry}
+    end
+  end
+
+  defp saved(user_id, preview, external_id) do
+    with {:ok, feed} <- Feeds.store(preview, &deliver/2),
+         %Entry{} = entry <- Repo.get_by(Entry, feed_id: feed.id, external_id: external_id) do
+      Repo.insert!(%SavedEntry{user_id: user_id, entry_id: entry.id},
+        on_conflict: :nothing,
+        conflict_target: [:user_id, :entry_id]
+      )
+
+      entry
+    else
+      {:error, reason} -> Repo.rollback(reason)
+      nil -> Repo.rollback(:not_found)
+    end
+  end
+
+  @doc """
+  Takes a singly added entry out of the account's library. Its playback state stays, so a later
+  save finds it again. An entry of a followed source stays listed through the subscription.
+  Returns `{:error, :not_found}` for an entry the account did not save.
+  """
+  def remove_entry(%User{id: user_id} = account, entry_id) do
+    removed =
+      with_id(entry_id, fn id ->
+        Repo.delete_all(from v in SavedEntry, where: v.user_id == ^user_id and v.entry_id == ^id)
+      end)
+
+    case removed do
+      {1, _} ->
+        Events.broadcast(account, {:entry_removed, entry_id})
+        {:ok, entry_id}
+
+      _none ->
+        {:error, :not_found}
+    end
   end
 
   @doc """
@@ -182,11 +246,13 @@ defmodule Sikio.Library do
   The content security policy derives its allowed frame origins from this list.
   """
   def player_origins(%User{id: user_id}) do
+    followed = from(s in Subscription, where: s.user_id == ^user_id, select: s.feed_id)
+    saved = from(e in Entry, where: e.id in subquery(saved_ids(user_id)), select: e.feed_id)
+
     Repo.all(
-      from s in Subscription,
-        join: f in assoc(s, :feed),
-        where: s.user_id == ^user_id and f.kind == :peertube,
-        distinct: true,
+      from f in Feed,
+        where: f.kind == :peertube,
+        where: f.id in subquery(followed) or f.id in subquery(saved),
         select: f.url
     )
     |> Enum.map(&origin/1)
@@ -550,18 +616,25 @@ defmodule Sikio.Library do
     dynamic([e], fragment("? LIKE ? ESCAPE '\\'", e.search_text, ^pattern))
   end
 
-  # The subscription join scopes entries to the account.
+  # The entries of the account's subscriptions and those it saved singly, scoped to the account.
   # Every entry query starts here, including the authorization check on each write.
+  # A saved entry from a source the account does not follow has no subscription row; `s` is nil.
   defp subscribed_entries(user_id) do
     from e in Entry,
-      join: s in Subscription,
-      on: s.feed_id == e.feed_id and s.user_id == ^user_id
+      left_join: s in Subscription,
+      on: s.feed_id == e.feed_id and s.user_id == ^user_id,
+      where: not is_nil(s.id) or e.id in subquery(saved_ids(user_id))
   end
 
+  defp saved_ids(user_id),
+    do: from(v in SavedEntry, where: v.user_id == ^user_id, select: v.entry_id)
+
   # Entries the account's lists show. Shorts show only where the subscription enables them.
+  # A Short saved singly shows, since it was chosen.
   # Hiding applies to lists only, so a player can still save progress on a Short.
   defp listed_entries(user_id) do
-    from [e, s] in subscribed_entries(user_id), where: s.shorts or not e.short
+    from [e, s] in subscribed_entries(user_id),
+      where: s.shorts or not e.short or e.id in subquery(saved_ids(user_id))
   end
 
   # The left join adds this account's playback row to the shared entry.
