@@ -22,6 +22,9 @@ defmodule Sikio.Feeds.Hub.Subscription do
     field :lease_expires_at, :utc_datetime_usec
     # Four fifths into the lease, when the subscription is asked for again.
     field :renew_at, :utc_datetime_usec
+    # The video the latest push announced. Until the feed holds it, the feed polls at the base
+    # interval, since YouTube's feed can lag behind the push.
+    field :awaiting, :string
     timestamps(type: :utc_datetime_usec)
   end
 end

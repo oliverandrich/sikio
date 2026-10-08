@@ -58,6 +58,13 @@ defmodule SikioWeb.Router do
     post "/recovery-codes", AccountSecurityController, :regenerate_codes
   end
 
+  # The WebSub callback for Google's hub. It has no session, cookies or CSRF token; the hub
+  # proves itself with the unguessable token and, for pushes, a signature.
+  scope "/websub", SikioWeb do
+    get "/:token", WebSubController, :verify
+    post "/:token", WebSubController, :push
+  end
+
   scope "/pictures", SikioWeb do
     pipe_through [:browser, :authenticated]
     get "/:ref", PictureController, :show

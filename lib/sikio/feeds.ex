@@ -16,6 +16,7 @@ defmodule Sikio.Feeds do
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
+  alias Sikio.Feeds.Hub
   alias Sikio.Feeds.Schedule
   alias Sikio.Feeds.SearchText
   alias Sikio.Library.Events
@@ -50,14 +51,27 @@ defmodule Sikio.Feeds do
 
   # Sets `next_check_at` from the age of the newest stored entry.
   defp schedule_next(feed_id, now, wait) do
-    next = next_check(now, newest(feed_id), wait)
+    next = next_check(feed_id, now, newest(feed_id), wait)
     Repo.update_all(from(f in Feed, where: f.id == ^feed_id), set: [next_check_at: next])
     next
   end
 
-  defp next_check(now, newest, wait) do
-    Schedule.spread(now, Schedule.next_check(now, newest, poll_minutes(), wait))
+  # A feed whose hub announces new entries polls once a day, as a safety net. While an announced
+  # video is missing, it polls at the base interval regardless of the feed's age.
+  defp next_check(feed_id, now, newest, wait) do
+    {base, newest} =
+      case Hub.pace(feed_id) do
+        :live -> {Schedule.day_minutes(), newest}
+        :awaiting -> {poll_minutes(), nil}
+        :polling -> {poll_minutes(), newest}
+      end
+
+    Schedule.spread(now, Schedule.next_check(now, newest, base, wait))
   end
+
+  # A failed check retries at the base interval, whatever the hub announces.
+  defp retry_check(now, wait),
+    do: Schedule.spread(now, Schedule.next_check(now, nil, poll_minutes(), wait))
 
   defp newest(feed_id),
     do: Repo.one(from e in Entry, where: e.feed_id == ^feed_id, select: max(e.published_at))
@@ -163,7 +177,7 @@ defmodule Sikio.Feeds do
         |> Ecto.Changeset.change(
           last_checked_at: now,
           last_error: nil,
-          next_check_at: next_check(now, newest(feed.id), wait)
+          next_check_at: next_check(feed.id, now, newest(feed.id), wait)
         )
         |> Repo.update()
         |> case do
@@ -188,7 +202,7 @@ defmodule Sikio.Feeds do
           set: [
             last_checked_at: now,
             last_error: to_string(reason),
-            next_check_at: next_check(now, nil, wait)
+            next_check_at: retry_check(now, wait)
           ]
         )
 

@@ -140,4 +140,54 @@ defmodule Sikio.Feeds.HubTest do
     assert_received {:callback, callback}
     assert callback == SikioWeb.Endpoint.url() <> "/websub/" <> token
   end
+
+  # A live feed polls once a day. A pushed video not yet stored makes it poll at the base
+  # interval, regardless of the feed's age. A failure always retries at the base interval.
+  test "a feed's pace follows its subscription and the video the hub announced", c do
+    {:ok, sub} = Hub.ensure(c.youtube)
+    assert Hub.pace(c.youtube.id) == :polling
+
+    {:ok, sub} = Hub.verify(sub.token, Hub.topic(c.youtube), 864_000)
+    assert Hub.pace(c.youtube.id) == :live
+    assert Hub.pace(c.youtube.id, enabled: false) == :polling
+
+    {:ok, _} = Hub.announce(sub, "zzzzzzzzzzz")
+    assert Hub.pace(c.youtube.id) == :awaiting
+    {:ok, _} = Hub.announce(sub, "abcdefghijk")
+    assert Hub.pace(c.youtube.id) == :live
+
+    Req.Test.stub(Sikio.Feeds.HTTP, &Plug.Conn.send_resp(&1, 304, ""))
+    {:ok, _} = Sikio.Feeds.refresh(c.youtube.id)
+    assert hours_until(c.youtube) >= 23
+
+    {:ok, _} = Hub.announce(sub, "zzzzzzzzzzz")
+    {:ok, _} = Sikio.Feeds.refresh(c.youtube.id)
+    assert hours_until(c.youtube) < 2
+
+    {:ok, _} = Hub.announce(sub, "abcdefghijk")
+    Req.Test.stub(Sikio.Feeds.HTTP, &Plug.Conn.send_resp(&1, 500, ""))
+    {:error, _} = Sikio.Feeds.refresh(c.youtube.id)
+    assert hours_until(c.youtube) < 2
+
+    # A lapsed lease no longer counts, even before the hourly sync notices.
+    Repo.update!(
+      Ecto.Changeset.change(sub, lease_expires_at: DateTime.add(DateTime.utc_now(), -1))
+    )
+
+    assert Hub.pace(c.youtube.id) == :polling
+  end
+
+  # A denial is final, and the lease the hub grants is bounded.
+  test "a verification neither revives a denial nor takes an unbounded lease", c do
+    {:ok, sub} = Hub.ensure(c.youtube)
+    {:ok, _} = Hub.verify(sub.token, Hub.topic(c.youtube), 99_999_999_999)
+    assert DateTime.diff(Repo.reload(sub).lease_expires_at, DateTime.utc_now(), :day) <= 30
+
+    {:ok, _} = Hub.deny(sub.token, Hub.topic(c.youtube))
+    assert :error = Hub.verify(sub.token, Hub.topic(c.youtube), 864_000)
+    assert Repo.reload(sub).state == :denied
+  end
+
+  defp hours_until(feed),
+    do: DateTime.diff(Repo.get!(Feed, feed.id).next_check_at, DateTime.utc_now(), :hour)
 end

@@ -10,6 +10,9 @@ defmodule Sikio.Feeds.Schedule do
 
   @day_minutes 24 * 60
 
+  @doc "Returns a day in minutes, the longest interval between checks."
+  def day_minutes, do: @day_minutes
+
   @doc """
   Returns the next check time after `now` for a feed whose newest entry is dated `newest`.
 

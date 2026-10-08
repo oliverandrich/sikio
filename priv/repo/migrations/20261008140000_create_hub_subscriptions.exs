@@ -19,6 +19,7 @@ defmodule Sikio.Repo.Migrations.CreateHubSubscriptions do
       add :verified_at, :utc_datetime_usec
       add :lease_expires_at, :utc_datetime_usec
       add :renew_at, :utc_datetime_usec
+      add :awaiting, :string
       timestamps(type: :utc_datetime_usec)
     end
 

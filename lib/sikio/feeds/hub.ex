@@ -10,6 +10,7 @@ defmodule Sikio.Feeds.Hub do
   """
   import Ecto.Query
 
+  alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
   alias Sikio.Feeds.Hub.Subscription
@@ -19,6 +20,8 @@ defmodule Sikio.Feeds.Hub do
   @hub "https://pubsubhubbub.appspot.com/subscribe"
   # Ten days, the spec's suggested default. The hub grants its own lease when it verifies.
   @lease_seconds 864_000
+  # The longest lease taken from a hub, so a wild value cannot overflow a timestamp.
+  @max_lease_seconds 30 * 86_400
   # A pending subscription is asked again after a day. An unreachable callback never verifies.
   @retry_seconds 86_400
 
@@ -143,4 +146,111 @@ defmodule Sikio.Feeds.Hub do
   def enabled?, do: Application.get_env(:sikio, :websub, true)
 
   defp followed, do: from(f in Following, where: not f.paused, select: f.feed_id)
+
+  @doc """
+  Activates the subscription with `token` when the hub verifies it for its own topic.
+  The lease starts now, and `renew_at` is four fifths into it. Without a lease the hub gets ten
+  days, and at most thirty count. A denied subscription stays denied. Returns `:error` otherwise.
+  """
+  def verify(token, topic, lease_seconds, now \\ DateTime.utc_now()) do
+    lease_seconds = min(lease_seconds || @lease_seconds, @max_lease_seconds)
+
+    case for_topic(token, topic) do
+      %Subscription{state: state} = subscription when state != :denied ->
+        subscription
+        |> Ecto.Changeset.change(
+          state: :active,
+          verified_at: now,
+          lease_expires_at: DateTime.add(now, lease_seconds),
+          renew_at: DateTime.add(now, div(lease_seconds * 4, 5))
+        )
+        |> Repo.update()
+
+      _refused ->
+        :error
+    end
+  end
+
+  @doc "Marks the subscription with `token` denied when the hub refuses its topic."
+  def deny(token, topic) do
+    case for_topic(token, topic) do
+      nil -> :error
+      subscription -> subscription |> Ecto.Changeset.change(state: :denied) |> Repo.update()
+    end
+  end
+
+  @doc "Returns the subscription with `token`, or nil."
+  def by_token(token) when is_binary(token), do: Repo.get_by(Subscription, token: token)
+
+  @doc """
+  Whether `signature`, the `X-Hub-Signature` header, signs `body` with the subscription's secret.
+  The header names its algorithm: sha1, sha256, sha384 or sha512.
+  """
+  def authentic?(%Subscription{secret: secret}, signature, body) do
+    with [method, hex] <- String.split(signature || "", "=", parts: 2),
+         {:ok, alg} <- algorithm(method),
+         {:ok, given} <- Base.decode16(hex, case: :mixed) do
+      Plug.Crypto.secure_compare(:crypto.mac(:hmac, alg, secret, body), given)
+    else
+      _invalid -> false
+    end
+  end
+
+  defp algorithm("sha1"), do: {:ok, :sha}
+  defp algorithm("sha256"), do: {:ok, :sha256}
+  defp algorithm("sha384"), do: {:ok, :sha384}
+  defp algorithm("sha512"), do: {:ok, :sha512}
+  defp algorithm(_method), do: :error
+
+  # A verification names the topic it is for. Another topic is not this subscription's request.
+  defp for_topic(token, topic) do
+    with %Subscription{} = subscription <- by_token(token),
+         %Feed{} = feed <- Repo.get(Feed, subscription.feed_id),
+         true <- topic == topic(feed) do
+      subscription
+    else
+      _other -> nil
+    end
+  end
+
+  @doc """
+  Records the video a push announced and brings the feed's next check forward.
+  The scheduler then refreshes the feed, also while a refresh of it is running.
+  """
+  def announce(%Subscription{} = subscription, video_id, now \\ DateTime.utc_now()) do
+    Repo.update_all(from(f in Feed, where: f.id == ^subscription.feed_id),
+      set: [next_check_at: now]
+    )
+
+    subscription |> Ecto.Changeset.change(awaiting: video_id) |> Repo.update()
+  end
+
+  @doc """
+  Returns how often the feed polls: `:live` once a day, since its hub announces new videos;
+  `:awaiting` at the base interval, since an announced video is not stored yet; `:polling` as
+  usual, without an active, unexpired subscription or with the hub turned off.
+  """
+  def pace(feed_id, opts \\ []) do
+    now = DateTime.utc_now()
+
+    awaiting =
+      Repo.one(
+        from s in Subscription,
+          where: s.feed_id == ^feed_id and s.state == :active and s.lease_expires_at > ^now,
+          select: {s.id, s.awaiting}
+      )
+
+    cond do
+      not Keyword.get(opts, :enabled, enabled?()) or is_nil(awaiting) -> :polling
+      stored?(feed_id, elem(awaiting, 1)) -> :live
+      true -> :awaiting
+    end
+  end
+
+  defp stored?(_feed_id, nil), do: true
+
+  defp stored?(feed_id, video_id) do
+    external_id = "yt:video:" <> video_id
+    Repo.exists?(from e in Entry, where: e.feed_id == ^feed_id and e.external_id == ^external_id)
+  end
 end
