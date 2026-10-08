@@ -37,6 +37,13 @@ printf 'SECRET_KEY_BASE=%s\n' "$(openssl rand -base64 48 | tr -d '\n')" > sikio.
 
 Add further settings to the same file, one `NAME=value` per line. See
 [Operations](../operations.md#configure-and-start). Keep `sikio.env` out of version control.
+On a small host, these two settings lower memory use:
+
+```sh
+printf 'ERL_AFLAGS=+S 2:2\nRELEASE_MODE=interactive\n' >> sikio.env
+```
+
+[Operations](../operations.md#small-installations) explains what they do.
 
 ## 3. Start it
 

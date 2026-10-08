@@ -68,6 +68,14 @@ PICTURE_CACHE_DIR=/var/lib/sikio/pictures
 `SECRET_KEY_BASE` signs sessions. Never change it after the first start. systemd reads the file
 as root before it starts the service. The service user has no read access to it.
 [Operations](../operations.md#configure-and-start) lists every setting, including PostgreSQL.
+On a small host, these two lines in `sikio.env` lower memory use:
+
+```sh
+ERL_AFLAGS=+S 2:2
+RELEASE_MODE=interactive
+```
+
+[Operations](../operations.md#small-installations) explains what they do.
 
 ## 4. Install the unit and start
 
