@@ -52,7 +52,7 @@ Production uses `DATABASE_PATH` or `DATABASE_URL`, and `SECRET_KEY_BASE`. See
 
 | Command | Purpose |
 | --- | --- |
-| `mise run check` | Workflow audit, compilation, format check, Credo, xref, Sobelow, assets, tests; the database-dependent ones for both databases, the browser features on SQLite |
+| `mise run check` | Workflow audit, secret scan of the history, compilation, format check, Credo, xref, Sobelow, assets, tests; the database-dependent ones for both databases, the browser features on SQLite |
 | `mise run check:lint`, `check:sqlite`, `check:postgres` | The three parts of `mise run check`, which CI runs as separate jobs |
 | `mise run test` | Tests against SQLite and PostgreSQL, with their test-database setup |
 | `mise run format` | Explicit formatting |
@@ -192,6 +192,12 @@ license statement without the license file.
 `.mise/tasks/license` checks the files under the paths it lists, and `mise run check` runs it.
 The task file carries the marker too. Third-party code under `assets/vendor` is excluded,
 because it is under its own license.
+
+## Secret scan
+
+`mise run check` runs gitleaks over every commit. A secret removed in a later commit still fails
+the check. Rotate a leaked secret, since the old commit stays public. `.gitleaks.toml` allows only
+the development and test `secret_key_base`. Add an exception there with its reason beside it.
 
 ## Further reading
 
