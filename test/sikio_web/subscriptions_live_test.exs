@@ -11,6 +11,7 @@ defmodule SikioWeb.SubscriptionsLiveTest do
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
   alias Sikio.Feeds.Feed
+  alias Sikio.Feeds.Hub
   alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Repo
@@ -29,6 +30,26 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert has_element?(view, "#opml-export-link")
     refute has_element?(view, "#discover-form")
     refute has_element?(view, "#search-form")
+  end
+
+  # A YouTube channel whose hub subscription is verified shows Live; one still polling says so.
+  # Other sources carry neither, since only YouTube has a hub.
+  test "YouTube channels show whether their hub announces new videos", %{conn: conn, user: user} do
+    {:ok, video} = Parser.parse(youtube(), youtube_feed_url())
+    {:ok, video_sub} = Library.subscribe(user, video)
+    {:ok, podcast} = Parser.parse(podcast(), feed_url())
+    {:ok, podcast_sub} = Library.subscribe(user, podcast)
+    feed = Repo.get!(Feed, video_sub.feed_id)
+
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    assert has_element?(view, "#subscription-#{video_sub.id} [data-hub=polling]", "Polling")
+    refute has_element?(view, "#subscription-#{podcast_sub.id} [data-hub]")
+
+    {:ok, hub} = Hub.ensure(feed)
+    {:ok, _} = Hub.verify(hub.token, Hub.topic(feed), 864_000)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    assert has_element?(view, "#subscription-#{video_sub.id} [data-hub=live]", "Live")
+    assert has_element?(view, "#polling-interval", "Live channels are also checked once a day.")
   end
 
   # The operator configures the poll interval, so the page states it.

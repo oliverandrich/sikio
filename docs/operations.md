@@ -57,6 +57,7 @@ Set these environment variables for both migration and startup:
 | `DNS_CLUSTER_QUERY` | DNS name that resolves to the other cluster nodes; unset for a single node |
 | `PICTURE_CACHE_DIR` | Absolute path for cached publisher pictures; outside the release, writable by the service |
 | `SIKIO_MIGRATE_ON_START` | `false` to migrate manually with `bin/migrate`; by default the release migrates on start |
+| `SIKIO_WEBSUB` | `false` to subscribe no YouTube channel at Google's hub; see [Background work](#background-work) |
 | `LOG_LEVEL` | `info` (the default), `notice`, `warning`, `error`, `critical`, `alert` or `emergency`, case-insensitive; any other value stops the boot |
 | `FEED_POLL_MINUTES` | Minimum poll interval per feed, in whole minutes; 60 by default, at least 5 |
 | `SOURCE_URL` | URL of this deployment's source code; only needed for a modified Sikio |
@@ -181,7 +182,8 @@ keys: `feed_id`, `feed_title`, `host`, `account_id`, `reason`, `worker`, `job_id
 | --- | --- |
 | `error` | Crashes, with their stack trace |
 | `warning` | `feed refresh failed`, with the feed's id, title and host and why; `job failed`, with a reason cut to 200 characters |
-| `info` | `instance claimed`, `invitation made`, `invitation accepted`, `signed in`, by account id; migrations as they run |
+| `notice` | `websub subscription denied`, with the feed's id and the hub's reason |
+| `info` | `instance claimed`, `invitation made`, `invitation accepted`, `signed in`, by account id; `websub subscription verified`, by feed id; migrations as they run |
 
 Sikio writes no access log. The events in the table do not contain client addresses,
 usernames, items or codes. Feed URLs are omitted, because a private feed URL may contain a token.
@@ -272,3 +274,22 @@ it ends. Each next check gets a random delay of up to a tenth of its interval, a
 minutes. Feeds imported together therefore do not stay synchronized. The scheduler runs every
 five minutes. The `maintenance` queue runs `Sikio.AuthCleanup` every 15 minutes. It deletes
 expired sessions, expired challenges and unaccepted invitations that have expired.
+
+### YouTube channels by WebSub
+
+Google's hub at `pubsubhubbub.appspot.com` announces new videos of YouTube channels. It needs no
+API key and no Google account. Once an hour, the `maintenance` queue subscribes each followed
+YouTube channel at the hub. The callback is `https://PHX_HOST/websub/<token>`, with an unguessable
+token per channel. The hub verifies the callback with a GET. Only a verified subscription is
+active, so an instance the hub cannot reach keeps polling as before.
+
+A push must carry a valid `X-Hub-Signature`. It brings the channel's next check forward, and the
+scheduler then reads the feed as usual. A channel with an active subscription is also checked
+once a day. Until a pushed video appears in the feed, its channel is checked every
+`FEED_POLL_MINUTES`. Subscriptions are renewed at four fifths of their lease. A channel nobody
+follows loses its subscription, and later pushes for it get a `410` response.
+
+The reverse proxy must pass `/websub/` with its query string and body unchanged. Caddy's
+`reverse_proxy` does. Google learns the callback URL and the channels the instance follows. The
+instance already fetches these channels' feeds from YouTube. `SIKIO_WEBSUB=false` turns the
+subscriptions off. PeerTube offers no hub, and podcasts are not covered, so both keep polling.

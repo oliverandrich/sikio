@@ -9,6 +9,19 @@ or changed setting, a step to take before or after the update. A release migrate
 as it starts unless `SIKIO_MIGRATE_ON_START=false`; back up the database before every update.
 Its own section becomes the version's release notes.
 
+## [Unreleased]
+
+### Upgrading
+
+- A migration adds the `hub_subscriptions` table. The release runs it on start.
+- YouTube channels are subscribed at Google's hub. The reverse proxy must pass `/websub/`
+  unchanged, which Caddy does. `SIKIO_WEBSUB=false` turns it off.
+
+### Added
+
+- New videos of YouTube channels arrive within minutes by WebSub, where Google's hub reaches the
+  instance. The subscriptions page marks such channels as Live. They are also checked once a day.
+
 ## [0.2.0] - 2026-10-08
 
 ### Upgrading

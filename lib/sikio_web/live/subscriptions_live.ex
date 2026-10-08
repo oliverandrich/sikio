@@ -10,6 +10,8 @@ defmodule SikioWeb.SubscriptionsLive do
   import SikioWeb.MediaComponents,
     only: [kind_mark: 1, initial: 1, refresh_problem: 1, source_label: 1, source_name: 1]
 
+  alias Sikio.Feeds.Feed
+  alias Sikio.Feeds.Hub
   alias Sikio.Library
   alias SikioWeb.LibraryPaths
   alias SikioWeb.Pictures
@@ -61,7 +63,10 @@ defmodule SikioWeb.SubscriptionsLive do
     subscriptions = Library.subscriptions(socket.assigns.current_account)
 
     socket
-    |> assign(subscription_count: length(subscriptions))
+    |> assign(
+      subscription_count: length(subscriptions),
+      live: Hub.live(Enum.map(subscriptions, & &1.feed_id))
+    )
     |> stream(:subscriptions, subscriptions, reset: true)
   end
 
@@ -160,6 +165,10 @@ defmodule SikioWeb.SubscriptionsLive do
                 <span>
                   {if subscription.paused, do: gettext("Polling paused"), else: gettext("Active")}
                 </span>
+                <.hub_state
+                  :if={!subscription.paused and Feed.channel?(subscription.feed)}
+                  live={MapSet.member?(@live, subscription.feed_id)}
+                />
                 <span>{delivery_label(subscription.delivery)}</span>
               </p>
               <p :if={subscription.feed.last_error} class="mt-1 text-label text-warning">
@@ -228,19 +237,44 @@ defmodule SikioWeb.SubscriptionsLive do
           current_account={@current_account}
           tags={@sidebar.tags}
         />
-        <.polling_interval minutes={Sikio.Feeds.poll_minutes()} />
+        <.polling_interval minutes={Sikio.Feeds.poll_minutes()} live={MapSet.size(@live) > 0} />
       </section>
     </Layouts.member>
     """
   end
 
+  attr :live, :boolean, required: true
+
+  # Whether Google's hub announces the channel's new videos, or Sikio asks for them at intervals.
+  defp hub_state(assigns) do
+    ~H"""
+    <span
+      :if={@live}
+      data-hub="live"
+      title={gettext("Google's hub announces new videos as they appear.")}
+      class="text-ink"
+    >
+      {gettext("Live")}
+    </span>
+    <span
+      :if={!@live}
+      data-hub="polling"
+      title={gettext("Sikio asks for new videos at intervals.")}
+    >
+      {gettext("Polling")}
+    </span>
+    """
+  end
+
   @doc "Renders the maximum poll interval, in hours when it is a whole number of hours."
   attr :minutes, :integer, required: true
+  attr :live, :boolean, default: false, doc: "whether a YouTube channel here is live"
 
   def polling_interval(assigns) do
     ~H"""
     <p id="polling-interval" class="mt-5 text-meta text-muted">
       {interval_sentence(@minutes)}
+      {if @live, do: gettext("Live channels are also checked once a day.")}
       {gettext("A shared feed may still update for other subscribers while your polling is paused.")}
     </p>
     """

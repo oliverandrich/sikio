@@ -225,6 +225,22 @@ defmodule Sikio.Feeds.Hub do
     subscription |> Ecto.Changeset.change(awaiting: video_id) |> Repo.update()
   end
 
+  @doc "Returns which of `feed_ids` have an active, unexpired subscription."
+  def live(feed_ids, opts \\ []) do
+    now = DateTime.utc_now()
+
+    if Keyword.get(opts, :enabled, enabled?()) do
+      Repo.all(
+        from s in Subscription,
+          where: s.feed_id in ^feed_ids and s.state == :active and s.lease_expires_at > ^now,
+          select: s.feed_id
+      )
+      |> MapSet.new()
+    else
+      MapSet.new()
+    end
+  end
+
   @doc """
   Returns how often the feed polls: `:live` once a day, since its hub announces new videos;
   `:awaiting` at the base interval, since an announced video is not stored yet; `:polling` as

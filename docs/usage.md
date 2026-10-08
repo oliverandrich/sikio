@@ -36,7 +36,9 @@ a phone. There you can:
 New episodes arrive by polling. Oban polls each active source at most once an hour by default.
 Requests are conditional HTTP requests, and failed refreshes have bounded retries. The next poll
 follows after a tenth of the newest episode's age, and at least once a day. The operator sets
-the minimum interval with `FEED_POLL_MINUTES`, and the subscriptions page shows it. Each
+the minimum interval with `FEED_POLL_MINUTES`, and the subscriptions page shows it. YouTube
+channels can be **Live**: Google's hub then announces their new videos, and the subscriptions
+page marks them. See [Operations](operations.md#youtube-channels-by-websub). Each
 subscription sets the delivery target for new episodes: the inbox, the end of the queue, or the
 archive as unheard.
 
