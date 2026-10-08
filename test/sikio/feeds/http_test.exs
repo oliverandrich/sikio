@@ -17,6 +17,31 @@ defmodule Sikio.Feeds.HTTPTest do
              HTTP.get("https://feeds.example.org/rss")
   end
 
+  # A hub subscription is a form POST to a checked address.
+  # It follows no redirect, which would resend the form elsewhere.
+  test "posts a form to the checked address and follows no redirect" do
+    Req.Test.stub(HTTP, fn conn ->
+      assert conn.method == "POST"
+      assert conn.host == "93.184.216.34"
+
+      assert Plug.Conn.get_req_header(conn, "content-type") == [
+               "application/x-www-form-urlencoded"
+             ]
+
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      assert URI.decode_query(body) == %{"hub.mode" => "subscribe"}
+
+      conn
+      |> Plug.Conn.put_resp_header("location", "https://elsewhere.example.org/")
+      |> Plug.Conn.send_resp(302, "")
+    end)
+
+    assert {:ok, %{status: 302}} =
+             HTTP.post("https://feeds.example.org/subscribe", %{"hub.mode" => "subscribe"})
+
+    assert {:error, :unsafe_url} = HTTP.post("http://127.0.0.1/", %{})
+  end
+
   test "rejects private and special-use destinations before requesting" do
     for ip <- [
           {127, 0, 0, 1},

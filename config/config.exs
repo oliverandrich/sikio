@@ -41,6 +41,8 @@ config :sikio, Oban,
     crontab: [
       # Each run asks only the feeds whose interval has passed.
       {"*/5 * * * *", Sikio.Feeds.Scheduler},
+      # Subscribes followed YouTube feeds at Google's hub and renews their leases.
+      {"23 * * * *", Sikio.Feeds.HubSync},
       {"*/15 * * * *", Sikio.Accounts.Cleanup},
       {"17 3 * * *", Sikio.Pictures.Cleanup}
     ]

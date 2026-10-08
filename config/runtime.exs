@@ -200,6 +200,24 @@ if config_env() == :prod do
 
   config :sikio, :migrate_on_start, migrate_on_start
 
+  # WebSub subscriptions at Google's hub. They become active only where the hub reaches the
+  # instance, so an instance off the public internet keeps polling. An operator may turn them off.
+  websub =
+    case "SIKIO_WEBSUB" |> System.get_env("") |> String.trim() do
+      value when value in ["", "true"] ->
+        true
+
+      "false" ->
+        false
+
+      other ->
+        raise """
+        environment variable SIKIO_WEBSUB is neither true nor false: #{inspect(other)}
+        """
+    end
+
+  config :sikio, :websub, websub
+
   # Pictures fetched from publishers are written here. It lies outside the release, so an upgrade
   # replaces the release without throwing the cache away.
   picture_cache_dir =

@@ -39,6 +39,26 @@ defmodule Sikio.Feeds.HTTP do
   end
 
   @doc """
+  Posts `form` URL-encoded to `url` under the same address checks as `get/2`.
+  A redirect is returned, not followed, so the form never reaches another destination.
+  """
+  def post(url, form, opts \\ []) do
+    opts =
+      opts
+      |> Keyword.merge(method: "POST", body: URI.encode_query(form))
+      |> Keyword.update(:headers, [content_type()], &[content_type() | &1])
+
+    with {:ok, uri} <- normalize(url),
+         {:ok, address} <- address(uri.host) do
+      request(uri, address, opts)
+    end
+  rescue
+    _error in [ArgumentError, URI.Error] -> {:error, :unsafe_url}
+  end
+
+  defp content_type, do: {"content-type", "application/x-www-form-urlencoded"}
+
+  @doc """
   Parses a pasted URL into a URI this application may fetch.
 
   The 2,048-byte limit also protects the database. The feed URL has a unique index, and an index
@@ -170,7 +190,8 @@ defmodule Sikio.Feeds.HTTP do
         {"user-agent", "Sikio/0.1 RSS reader"}
       ] ++ Keyword.get(opts, :headers, [])
 
-    with {:ok, response} <- Transport.fetch(uri, address, headers, max_bytes) do
+    with {:ok, response} <-
+           Transport.fetch(uri, address, headers, max_bytes, Keyword.take(opts, [:method, :body])) do
       check_response(response, max_bytes)
     end
   end

@@ -33,11 +33,13 @@ defmodule Sikio.Feeds.Transport do
 
   `cacerts:` replaces the system trust store. Only tests pass it, with their own certificate
   authority, to verify certificates in a real TLS handshake.
+
+  `method:` and `body:` send a request other than a GET, such as a form POST.
   """
   def fetch(uri, address, headers, limit, opts \\ []) do
     case Keyword.get(opts, :plug, Application.get_env(:sikio, :feed_http_plug)) do
       nil -> connect(uri, address, headers, limit, opts)
-      plug -> through(plug, pinned(uri, address), headers)
+      plug -> through(plug, pinned(uri, address), headers, opts)
     end
   end
 
@@ -56,7 +58,7 @@ defmodule Sikio.Feeds.Transport do
     ]
 
     case Mint.HTTP.connect(scheme, pinned(uri, address).host, uri.port, options) do
-      {:ok, conn} -> request(conn, uri, headers, limit)
+      {:ok, conn} -> request(conn, uri, headers, limit, opts)
       {:error, _reason} -> {:error, :unavailable}
     end
   rescue
@@ -71,11 +73,12 @@ defmodule Sikio.Feeds.Transport do
   #
   # Nothing is rescued here. A raising stub usually means a test forgot to register one.
   # Rescuing would turn that into a plausible server failure, and the test would pass wrongly.
-  defp through(plug, uri, headers) do
+  defp through(plug, uri, headers, opts) do
     {module, options} = if is_tuple(plug), do: plug, else: {plug, []}
 
-    :get
-    |> Plug.Test.conn(URI.to_string(uri))
+    opts
+    |> Keyword.get(:method, "GET")
+    |> Plug.Test.conn(URI.to_string(uri), Keyword.get(opts, :body))
     |> put_headers(headers)
     |> module.call(module.init(options))
     |> answered()
@@ -96,8 +99,10 @@ defmodule Sikio.Feeds.Transport do
     {:ok, %{status: conn.status, headers: headers(conn.resp_headers), body: conn.resp_body || ""}}
   end
 
-  defp request(conn, uri, headers, limit) do
-    case Mint.HTTP.request(conn, "GET", path(uri), headers, nil) do
+  defp request(conn, uri, headers, limit, opts) do
+    method = Keyword.get(opts, :method, "GET")
+
+    case Mint.HTTP.request(conn, method, path(uri), headers, Keyword.get(opts, :body)) do
       {:ok, conn, ref} ->
         deadline = System.monotonic_time(:millisecond) + @response_timeout
         {conn, result} = receive_response(conn, ref, limit, deadline, blank())

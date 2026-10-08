@@ -108,3 +108,6 @@ config :sikio, :mail_from, {"Sikio", "sikio@localhost"}
 
 # Pictures fetched from publishers, kept beside the project rather than in the release.
 config :sikio, picture_cache_dir: Path.expand("../tmp/pictures", __DIR__)
+
+# A development server is not reachable from the internet, so it asks no hub to subscribe.
+config :sikio, :websub, false
