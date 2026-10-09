@@ -182,3 +182,16 @@ test("an ended item asks for the next once its place is saved", () => {
     assert.deepEqual(f.calls, [{event: "next", params: {}}])
   } finally {f.cleanup()}
 })
+
+// Without a following item the server closes the dock, so the event names no next entry.
+test("an ended item without a successor reports that nothing follows", () => {
+  const f = fixture()
+  const played = []
+  window.addEventListener("sikio:played-on", event => played.push(event.detail))
+  f.hook.pushEvent = (_event, _params, reply) => {delete f.hook.el.dataset.entryId; reply({})}
+  try {
+    window.dispatchEvent(new CustomEvent("sikio:ended"))
+    f.finish(true)
+    assert.deepEqual(played, [{from: "1", to: null}])
+  } finally {f.cleanup()}
+})

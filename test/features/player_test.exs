@@ -142,7 +142,7 @@ defmodule SikioWeb.PlayerTest do
   end
 
   # The last queued item ends and nothing follows. The queue is empty, so the detail is too.
-  # It does not show an item the list no longer contains.
+  # Neither the detail nor the dock shows an item the list no longer contains.
   feature "the detail empties when the queue plays out its last item", context do
     %{session: session, account: account, entry: entry} = context
     {:ok, _} = Sikio.Playback.enqueue(account, entry.id, :last)
@@ -160,6 +160,7 @@ defmodule SikioWeb.PlayerTest do
     audio.dispatchEvent(new Event('ended'))
     """)
     |> gone(css("#item-detail h2"))
+    |> gone(css("#player-panel"))
     |> then(&assert(current_path(&1) == "/queue"))
   end
 

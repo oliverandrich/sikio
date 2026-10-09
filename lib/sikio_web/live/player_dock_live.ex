@@ -68,10 +68,15 @@ defmodule SikioWeb.PlayerDockLive do
   end
 
   # Sent when the current entry ends. With play-on enabled, starts the first other queued entry.
+  # Without one the dock ends the session and closes, as after marking the entry by hand.
   def handle_event("next", _params, socket) do
     case next_in_queue(socket) do
-      nil -> {:noreply, socket}
-      next -> start_entry(socket, next, nil)
+      nil ->
+        stop_current(socket)
+        done_with(socket, nil)
+
+      next ->
+        start_entry(socket, next, nil)
     end
   end
 

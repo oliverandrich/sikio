@@ -200,7 +200,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
     do: put_connect_params(conn, %{"player_entry" => to_string(id), "player_session" => session})
 
   # With play-on enabled, `next` after an ended item starts the queue head.
-  # With play-on disabled, the dock keeps the ended item.
+  # Without a following item, or with play-on disabled, the dock closes.
   test "the dock plays on with the queue when an item ends, unless told not to", c do
     {:ok, preview} = Parser.parse(FeedFixtures.podcast("Next"), FeedFixtures.feed_url("next"))
     {:ok, _} = Library.subscribe(c.user, preview)
@@ -218,11 +218,20 @@ defmodule SikioWeb.PlayerDockLiveTest do
     render_hook(dock, "next", %{})
     assert has_element?(dock, "#player-panel", following.title)
 
-    {:ok, _} = Preferences.update(c.user, %{play_on: false})
+    # The last queued item ends, and nothing follows.
     session = Library.entry(c.user, following.id).playback.session_id
     render_hook(dock, "progress", %{sample(session, 1, 100) | "ended" => true})
     render_hook(dock, "next", %{})
-    assert has_element?(dock, ~s|[phx-hook="MediaPlayer"][data-title="#{following.title}"]|)
+    refute has_element?(dock, "#player-panel")
+    assert Library.entry(c.user, following.id).playback.session_id == nil
+
+    {:ok, _} = Preferences.update(c.user, %{play_on: false})
+    {:ok, _} = Playback.enqueue(c.user, following.id, :last)
+    render_hook(dock, "start", %{id: c.entry.id})
+    session = Library.entry(c.user, c.entry.id).playback.session_id
+    render_hook(dock, "progress", %{sample(session, 1, 100) | "ended" => true})
+    render_hook(dock, "next", %{})
+    refute has_element?(dock, "#player-panel")
   end
 
   # Marking the playing item archived or heard acts like its end.

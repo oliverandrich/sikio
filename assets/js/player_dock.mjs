@@ -38,7 +38,7 @@ export const PlayerDock = {
     this.next = () => {
       const from = this.el.dataset.entryId
       this.change("next", {}, () => {
-        // Without a next entry the dock keeps the ended one, and `to` is null.
+        // Without a next entry the server closes the dock, and `to` is null.
         const next = this.el.dataset.entryId || null
         const to = next === from ? null : next
         window.dispatchEvent(new CustomEvent("sikio:played-on", {detail: {from, to}}))
