@@ -50,4 +50,11 @@ defmodule SikioWeb.AppIconsTest do
     assert Enum.map(shortcuts, & &1["url"]) == ["/inbox", "/queue", "/add"]
     assert Enum.all?(shortcuts, &(&1["name"] != nil))
   end
+
+  # iOS pauses embedded video in the background in every display mode, so standalone stays.
+  test "the installed app opens in its own window", %{conn: conn} do
+    manifest = served(conn, "/manifest.webmanifest", "application/manifest+json")
+
+    assert %{"display" => "standalone"} = Jason.decode!(manifest.resp_body)
+  end
 end
