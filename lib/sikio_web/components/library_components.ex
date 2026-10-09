@@ -79,6 +79,9 @@ defmodule SikioWeb.LibraryComponents do
   defp nothing(%{"status" => "inbox"}),
     do: {gettext("Nothing new."), gettext("You’re all caught up.")}
 
+  defp nothing(%{"status" => "open"}),
+    do: {gettext("Nothing unfinished."), gettext("You’re all caught up.")}
+
   defp nothing(%{"status" => "queue"}),
     do:
       {gettext("Nothing in the queue."),

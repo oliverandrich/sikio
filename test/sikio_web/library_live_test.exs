@@ -400,22 +400,42 @@ defmodule SikioWeb.LibraryLiveTest do
     {:ok, view, _} = live(c.conn, ~p"/inbox")
     refute has_element?(view, "#filter-status-heard")
 
-    # A feed page opens on the inbox filter and marks it with `aria-current`.
+    # A feed page opens on its unfinished items and marks that filter with `aria-current`.
+    # A podcast's finished items are listened to.
     {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
-    assert has_element?(view, ~s|#filter-status-inbox[aria-current="true"]|)
+    assert has_element?(view, ~s|#filter-status-open[aria-current="true"]|, "Unfinished")
+    assert has_element?(view, "#filter-status-heard", "Listened")
     refute has_element?(view, "#filter-kind-video")
     view |> element("#filter-status-heard") |> render_click()
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/history")
     assert has_element?(view, "#entries article", "One & two")
     assert has_element?(view, "#source-#{c.sub.feed_id}[aria-current=page]")
 
-    view |> element("#filter-status-inbox") |> render_click()
+    view |> element("#filter-status-open") |> render_click()
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours")
     refute has_element?(view, "#entries article", "One & two")
 
     view |> element("#filter-status-all") |> render_click()
     assert_patch(view, "/feeds/#{c.sub.feed_id}-small-hours/all")
     assert has_element?(view, "#entries article", "One & two")
+
+    # A video's finished items are watched.
+    [video] = Library.subscriptions(c.user) |> Enum.filter(&(&1.feed.kind == :youtube))
+    {:ok, view, _} = live(c.conn, "/feeds/#{video.feed_id}") |> follow_redirect(c.conn)
+    assert has_element?(view, "#filter-status-heard", "Watched")
+  end
+
+  # The unfinished list and the source's count hold new and started items, queued or not.
+  test "a source counts and lists what is unfinished", c do
+    {:ok, _} = Playback.start(c.user, c.audio.id)
+    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    assert has_element?(view, "#entries article", "One & two")
+    assert has_element?(view, "#source-#{c.sub.feed_id}-count", ~r/^\s*1\s*$/)
+
+    Playback.mark(c.user, c.audio.id, :archived)
+    {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+    refute has_element?(view, "#entries article", "One & two")
+    assert has_element?(view, "#list-empty", "Nothing unfinished")
   end
 
   # Search filters the current list and the heading counts the matches. The query is in the URL.
@@ -677,7 +697,14 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#entries article", "One & two")
       refute has_element?(view, "#entries article", "A good video")
       assert has_element?(view, ~s|#tag-#{tech.id}[aria-current="page"]|)
-      assert has_element?(view, ~s|#filter-status-inbox[aria-current="true"]|)
+      assert has_element?(view, ~s|#filter-status-open[aria-current="true"]|)
+      assert has_element?(view, "#filter-status-heard", "Listened")
+
+      # A tag of podcasts and videos names both.
+      [video] = Library.subscriptions(c.user) |> Enum.filter(&(&1.feed.kind == :youtube))
+      {:ok, _} = Sikio.Tags.set(c.user, video.id, ["Tech"])
+      {:ok, view, _} = live(c.conn, "/tags/#{tech.id}-tech")
+      assert has_element?(view, "#filter-status-heard", "Listened & watched")
     end
 
     # The subscription dialog lists the account's tags as checkboxes.

@@ -11,7 +11,7 @@ defmodule SikioWeb.LibraryPaths do
   alias Sikio.Preferences.Preference
   alias SikioWeb.MediaComponents
 
-  # Maps status filters to URL segments. Within a source or tag the inbox has no segment.
+  # Maps status filters to URL segments. A source's or tag's unfinished list has no segment.
   # No status filter is `all`. Older segments `new`, `in-progress` and `completed` still parse.
   @statuses %{"inbox" => "inbox", "queue" => "queue", "heard" => "history"}
   # Filters in the query string rather than the path.
@@ -26,10 +26,10 @@ defmodule SikioWeb.LibraryPaths do
 
   @doc """
   Returns the filters of an account's start page, which `/` opens.
-  A start tag opens on its inbox, like a tag in the sidebar.
+  A start tag opens on its unfinished items, like a tag in the sidebar.
   """
   def start_filters(%{start_tag_id: tag}) when not is_nil(tag),
-    do: %{"tag" => to_string(tag), "status" => "inbox"}
+    do: %{"tag" => to_string(tag), "status" => "open"}
 
   def start_filters(%{start_view: view}), do: %{"status" => view}
 
@@ -61,7 +61,7 @@ defmodule SikioWeb.LibraryPaths do
   # Source and tag paths take an optional status segment after the id.
   defp place(filters, titles) do
     status = Map.get(@statuses, filters["status"])
-    within = if status == "inbox", do: [], else: [status || "all"]
+    within = if filters["status"] in ["inbox", "open"], do: [], else: [status || "all"]
 
     cond do
       (filters["source"] || "") != "" ->
@@ -138,7 +138,7 @@ defmodule SikioWeb.LibraryPaths do
     {Library.normalize_filters(Map.merge(Map.take(query, @query), place)), item}
   end
 
-  # After a source or tag id, the next segment is a status, or else an item in its inbox.
+  # After a source or tag id, the next segment is a status, or else an item in its unfinished list.
   defp below(place, named, segment) do
     if Map.has_key?(@status_segments, segment) or segment == "all",
       do: {within(place, named, segment), nil},
@@ -177,12 +177,12 @@ defmodule SikioWeb.LibraryPaths do
   Returns the library path of one place: a status view, a source or a tag.
 
   Sidebar links and phone chips switch places instead of combining filters.
-  So the path carries no other filter. A source or a tag opens on its inbox.
+  So the path carries no other filter. A source or a tag opens on its unfinished items.
   """
   def place_path(key, value, feed_titles \\ %{})
 
   def place_path(key, value, feed_titles) when key in ["source", "tag"],
-    do: library_path(%{key => value, "status" => "inbox"}, nil, feed_titles)
+    do: library_path(%{key => value, "status" => "open"}, nil, feed_titles)
 
   def place_path(key, value, feed_titles), do: library_path(%{key => value}, nil, feed_titles)
 

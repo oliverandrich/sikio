@@ -130,11 +130,22 @@ defmodule SikioWeb.MediaComponents do
     ]
   end
 
-  @doc "Returns the segments within a source or tag: new, heard and all items."
-  def segments do
+  @doc """
+  Returns the segments within a source or tag: unfinished, finished and all items.
+
+  `videos` holds `video?/1` for each source of the place and names the finished items.
+  """
+  def status_segments(videos) do
+    finished =
+      case Enum.uniq(videos) do
+        [false] -> gettext("Listened")
+        [true] -> gettext("Watched")
+        _mixed_or_none -> gettext("Listened & watched")
+      end
+
     [
-      {"inbox", :inbox, gettext("New")},
-      {"heard", :heard, gettext("Heard")},
+      {"open", :open, gettext("Unfinished")},
+      {"heard", :heard, finished},
       {"", :all, gettext("All items")}
     ]
   end

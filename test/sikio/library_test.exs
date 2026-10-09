@@ -94,6 +94,14 @@ defmodule Sikio.LibraryTest do
     assert Library.entries(ctx.alice, %{"status" => "queue"}) == []
   end
 
+  # Within a source or tag the first list holds unfinished items; elsewhere it is the inbox.
+  test "the inbox of a source or tag is its list of unfinished items" do
+    assert Library.normalize_filters(%{"source" => "1", "status" => "inbox"})["status"] == "open"
+    assert Library.normalize_filters(%{"tag" => "1", "status" => "new"})["status"] == "open"
+    assert Library.normalize_filters(%{"status" => "open"})["status"] == "inbox"
+    assert Library.normalize_filters(%{"source" => "1", "status" => "heard"})["status"] == "heard"
+  end
+
   # Status values from before the inbox map to the current list names, so old URLs keep working.
   test "the old names of the lists still name them" do
     for {old, new} <- [{"new", "inbox"}, {"in_progress", "queue"}, {"completed", "heard"}] do
@@ -664,11 +672,40 @@ defmodule Sikio.LibraryTest do
       assert Map.take(counts, [:all, :inbox, :queue, :heard]) ==
                %{all: 3, inbox: 1, queue: 1, heard: 1}
 
+      # A source counts its unfinished items: the heard podcast no longer, the started video still.
       assert counts.sources == %{
                entries.podcast.feed_id => 0,
-               entries.youtube.feed_id => 0,
+               entries.youtube.feed_id => 1,
                entries.peertube.feed_id => 1
              }
+    end
+
+    # Unfinished means new or in progress, queued or not. Heard and archived items are not.
+    test "a source's unfinished items are new or in progress, queued or not", ctx do
+      entries = ctx.entries
+      {:ok, _} = Playback.mark(ctx.alice, entries.podcast.id, :archived)
+      {:ok, _} = Playback.start(ctx.alice, entries.youtube.id)
+      {:ok, _} = Playback.enqueue(ctx.alice, entries.peertube.id, :last)
+
+      counts = ctx.alice |> Library.counts() |> Library.tally(%{})
+
+      assert counts.sources == %{
+               entries.podcast.feed_id => 0,
+               entries.youtube.feed_id => 1,
+               entries.peertube.feed_id => 1
+             }
+
+      for {kind, shown} <- [
+            podcast: [],
+            youtube: [entries.youtube.id],
+            peertube: [entries.peertube.id]
+          ] do
+        filters = %{"source" => to_string(entries[kind].feed_id), "status" => "open"}
+        assert Enum.map(Library.entries(ctx.alice, filters), & &1.id) == shown
+
+        assert Library.total(Library.tally(Library.counts(ctx.alice), filters), filters) ==
+                 length(shown)
+      end
     end
 
     # A count equals the entries its link would show, so it applies the active filters.
@@ -705,6 +742,7 @@ defmodule Sikio.LibraryTest do
                  inbox: 0,
                  queue: 0,
                  heard: 0,
+                 open: 0,
                  sources: %{},
                  tags: %{}
                }

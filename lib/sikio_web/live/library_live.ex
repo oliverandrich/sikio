@@ -854,7 +854,7 @@ defmodule SikioWeb.LibraryLive do
               >
                 <.segments label={gettext("Status")}>
                   <.segment
-                    :for={{value, key, label} <- segments()}
+                    :for={{value, key, label} <- status_segments(place_videos(@filters, @sidebar))}
                     id={"filter-status-#{key}"}
                     to={
                       LibraryPaths.library_path(
@@ -954,6 +954,17 @@ defmodule SikioWeb.LibraryLive do
     |> JS.add_class("flex", to: "#list-filters")
     |> JS.set_attribute({"aria-expanded", "true"}, to: "#toggle-filters")
   end
+
+  # Returns `video?/1` for each source of the shown source or tag.
+  defp place_videos(%{"source" => source}, sidebar) when source != "",
+    do: for(s <- sidebar.sources, to_string(s.feed_id) == source, do: video?(s))
+
+  defp place_videos(%{"tag" => tag}, sidebar) when tag != "" do
+    feeds = Map.get(sidebar.tag_feeds, String.to_integer(tag), [])
+    for s <- sidebar.sources, s.feed_id in feeds, do: video?(s)
+  end
+
+  defp place_videos(_filters, _sidebar), do: []
 
   # Returns the filters of the place: without the status for a source or tag, else unchanged.
   defp place_of(%{"source" => source} = filters) when source != "",

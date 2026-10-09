@@ -411,18 +411,24 @@ defmodule Sikio.Library do
   # The lists besides "all" that show an entry, matching the filters in `filtered_entries/2`.
   # The queue shows every queued entry. The inbox shows new entries outside the queue.
   # Heard entries show in the history, queued or not.
-  # Archived entries and in-progress entries outside the queue show only under "all".
-  defp views(:heard, true), do: [:heard]
-  defp views(:heard, false), do: [:queue, :heard]
-  defp views(_status, false), do: [:queue]
-  defp views(status, true) when status in [nil, :new], do: [:inbox]
-  defp views(_status, true), do: []
+  # A source's or tag's unfinished list shows new and in-progress entries, queued or not.
+  # Archived entries show only under "all".
+  defp views(status, unqueued), do: listed_in(status, unqueued) ++ unfinished(status)
+
+  defp listed_in(:heard, true), do: [:heard]
+  defp listed_in(:heard, false), do: [:queue, :heard]
+  defp listed_in(_status, false), do: [:queue]
+  defp listed_in(status, true) when status in [nil, :new], do: [:inbox]
+  defp listed_in(_status, true), do: []
+
+  defp unfinished(status) when status in [nil, :new, :in_progress], do: [:open]
+  defp unfinished(_status), do: []
 
   @doc """
   Returns the item count for each sidebar link under the active filters.
 
   Each count applies the other active filters and replaces only its own.
-  Source and tag counts include only new entries unless a status filter is set.
+  Source and tag counts include only unfinished entries unless a status filter is set.
   A tag counts the feeds that `tag_feeds` maps it to.
   """
   def tally(rows, filters, tag_feeds \\ %{}) do
@@ -437,14 +443,14 @@ defmodule Sikio.Library do
     sources = Map.new(rows, &{&1.feed_id, 0})
 
     # Source and tag counts ignore both the source and the tag filter.
-    new_or_chosen =
-      beside.([:source, :tag]) |> Enum.filter(&(filters["status"] != "" or :inbox in &1.views))
+    unfinished_or_chosen =
+      beside.([:source, :tag]) |> Enum.filter(&(filters["status"] != "" or :open in &1.views))
 
-    by_feed = sum_by(new_or_chosen, :feed_id)
+    by_feed = sum_by(unfinished_or_chosen, :feed_id)
     listed = beside.([:status])
 
     # An entry can appear in two lists. Each list counts it, and `:all` counts it once.
-    Map.new([:inbox, :queue, :heard], fn view ->
+    Map.new([:inbox, :queue, :heard, :open], fn view ->
       {view, listed |> Enum.filter(&(view in &1.views)) |> Enum.sum_by(& &1.count)}
     end)
     |> Map.put(:all, Enum.sum_by(listed, & &1.count))
@@ -516,16 +522,25 @@ defmodule Sikio.Library do
 
   This lives here, not in the view, because the same values reach database queries.
   An unrecognised value becomes an empty string, which means no filter.
+  Within a source or tag the inbox is the list of unfinished entries, `open`. Elsewhere `open`
+  is the inbox.
   `day` is an ISO 8601 date and applies to the history alone.
   `offset` is the reader's time zone in minutes ahead of UTC and places the day's bounds.
   """
   def normalize_filters(params) do
-    status = params["status"] |> renamed() |> choice(~w(inbox queue heard))
+    source = source_id(params["source"])
+    tag = source_id(params["tag"])
+
+    status =
+      params["status"]
+      |> renamed()
+      |> choice(~w(inbox queue heard open))
+      |> placed(source != "" or tag != "")
 
     %{
       "status" => status,
-      "source" => source_id(params["source"]),
-      "tag" => source_id(params["tag"]),
+      "source" => source,
+      "tag" => tag,
       "q" => search_text(params["q"]),
       "day" => if(status == "heard", do: day(params["day"]), else: ""),
       "offset" => offset(params["offset"])
@@ -557,6 +572,10 @@ defmodule Sikio.Library do
   defp renamed(status), do: status
 
   defp choice(value, values), do: if(value in values, do: value, else: "")
+
+  defp placed("inbox", true = _within), do: "open"
+  defp placed("open", false = _within), do: "inbox"
+  defp placed(status, _within), do: status
 
   # A source's id from an address: a positive 64-bit integer as text, or "" for anything else.
   defp source_id(value) when is_binary(value) do
@@ -596,6 +615,9 @@ defmodule Sikio.Library do
 
         "heard" ->
           where(query, [e, s, p], p.status == :heard)
+
+        "open" ->
+          where(query, [e, s, p], is_nil(p.id) or p.status in [:new, :in_progress])
       end
 
     query |> matching(filters["q"]) |> on_day(filters)

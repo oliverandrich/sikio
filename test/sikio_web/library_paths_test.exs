@@ -40,7 +40,7 @@ defmodule SikioWeb.LibraryPathsTest do
   # A source path without a status segment opens the source's inbox.
   test "a source is named by its number and its title, and opens on its inbox" do
     assert LibraryPaths.library_path(
-             filters(%{"source" => "106", "status" => "inbox"}),
+             filters(%{"source" => "106", "status" => "open"}),
              nil,
              @feeds
            ) ==
@@ -56,7 +56,7 @@ defmodule SikioWeb.LibraryPathsTest do
            ) ==
              "/feeds/106-metacheles-tonspur/history"
 
-    assert LibraryPaths.library_path(filters(%{"source" => "7", "status" => "inbox"})) ==
+    assert LibraryPaths.library_path(filters(%{"source" => "7", "status" => "open"})) ==
              "/feeds/7",
            "a source without a known title keeps its number alone"
 
@@ -67,28 +67,28 @@ defmodule SikioWeb.LibraryPathsTest do
   test "a tag is named by its number and its name, and opens on its inbox" do
     tags = %{{:tag, 3} => "Must view"}
 
-    assert LibraryPaths.library_path(filters(%{"tag" => "3", "status" => "inbox"}), nil, tags) ==
+    assert LibraryPaths.library_path(filters(%{"tag" => "3", "status" => "open"}), nil, tags) ==
              "/tags/3-must-view"
 
     assert LibraryPaths.library_path(filters(%{"tag" => "3"}), nil, tags) ==
              "/tags/3-must-view/all"
 
-    assert LibraryPaths.library_path(filters(%{"tag" => "3", "status" => "inbox"}), @item, tags) ==
+    assert LibraryPaths.library_path(filters(%{"tag" => "3", "status" => "open"}), @item, tags) ==
              "/tags/3-must-view/4056-ki-verfassung-die-irre-selbstkontrolle-der-tech-bros"
 
     assert LibraryPaths.place_path("tag", "3", tags) == "/tags/3-must-view"
 
     assert LibraryPaths.read_path("/tags/3-must-view", %{}) ==
-             {filters(%{"tag" => "3", "status" => "inbox"}), nil}
+             {filters(%{"tag" => "3", "status" => "open"}), nil}
 
     assert LibraryPaths.read_path("/tags/3-x/history/4056-y", %{}) ==
              {filters(%{"tag" => "3", "status" => "heard"}), "4056"}
 
     assert LibraryPaths.read_path("/tags/3-x/4056-y", %{}) ==
-             {filters(%{"tag" => "3", "status" => "inbox"}), "4056"}
+             {filters(%{"tag" => "3", "status" => "open"}), "4056"}
 
-    assert LibraryPaths.place?(filters(%{"tag" => "3", "status" => "inbox"}), "tag", "3")
-    refute LibraryPaths.place?(filters(%{"tag" => "3", "status" => "inbox"}), "status", "inbox")
+    assert LibraryPaths.place?(filters(%{"tag" => "3", "status" => "open"}), "tag", "3")
+    refute LibraryPaths.place?(filters(%{"tag" => "3", "status" => "open"}), "status", "inbox")
   end
 
   test "an item follows the list it is shown in" do
@@ -96,7 +96,7 @@ defmodule SikioWeb.LibraryPathsTest do
              "/inbox/4056-ki-verfassung-die-irre-selbstkontrolle-der-tech-bros"
 
     assert LibraryPaths.library_path(
-             filters(%{"source" => "106", "status" => "inbox"}),
+             filters(%{"source" => "106", "status" => "open"}),
              @item,
              @feeds
            ) ==
@@ -130,10 +130,10 @@ defmodule SikioWeb.LibraryPathsTest do
     assert LibraryPaths.start_filters(%Preference{start_view: "inbox"}) == %{"status" => "inbox"}
 
     assert LibraryPaths.start_filters(%Preference{start_view: "inbox", start_tag_id: 3}) ==
-             %{"tag" => "3", "status" => "inbox"}
+             %{"tag" => "3", "status" => "open"}
 
-    assert LibraryPaths.read_path("/", %{}, %{"tag" => "3", "status" => "inbox"}) ==
-             {filters(%{"tag" => "3", "status" => "inbox"}), nil}
+    assert LibraryPaths.read_path("/", %{}, %{"tag" => "3", "status" => "open"}) ==
+             {filters(%{"tag" => "3", "status" => "open"}), nil}
   end
 
   test "an address reads back into the filters and the item" do
@@ -145,7 +145,7 @@ defmodule SikioWeb.LibraryPathsTest do
              {filters(%{"status" => "queue", "q" => "akku"}), "4056"}
 
     assert LibraryPaths.read_path("/feeds/106-metacheles-tonspur", %{}) ==
-             {filters(%{"source" => "106", "status" => "inbox"}), nil}
+             {filters(%{"source" => "106", "status" => "open"}), nil}
 
     assert LibraryPaths.read_path("/feeds/106-metacheles-tonspur/all", %{}) ==
              {filters(%{"source" => "106"}), nil}
@@ -154,10 +154,10 @@ defmodule SikioWeb.LibraryPathsTest do
              {filters(%{"source" => "106"}), "4056"}
 
     assert LibraryPaths.read_path("/feeds/106-x/inbox", %{"q" => "akku"}) ==
-             {filters(%{"source" => "106", "status" => "inbox", "q" => "akku"}), nil}
+             {filters(%{"source" => "106", "status" => "open", "q" => "akku"}), nil}
 
     assert LibraryPaths.read_path("/feeds/106-x/4056-y", %{}) ==
-             {filters(%{"source" => "106", "status" => "inbox"}), "4056"}
+             {filters(%{"source" => "106", "status" => "open"}), "4056"}
 
     assert LibraryPaths.read_path("/feeds/106/history/4056", %{}) ==
              {filters(%{"source" => "106", "status" => "heard"}), "4056"}
@@ -176,7 +176,7 @@ defmodule SikioWeb.LibraryPathsTest do
              {filters(%{"source" => "106", "status" => "heard"}), nil}
 
     assert LibraryPaths.read_path("/feeds/106-x/new", %{}) ==
-             {filters(%{"source" => "106", "status" => "inbox"}), nil}
+             {filters(%{"source" => "106", "status" => "open"}), nil}
   end
 
   test "an address that names no item or source by number names none" do

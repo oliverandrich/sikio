@@ -121,7 +121,7 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css("#filter-status-all"))
     |> click(css("#filter-status-all"))
     |> assert_has(css(~s|#filter-status-all[aria-current="true"]|))
-    |> assert_has(css("#filter-status-inbox"))
+    |> assert_has(css("#filter-status-open"))
     |> assert_has(css(~s|#toggle-filters[aria-expanded="true"]|))
   end
 
