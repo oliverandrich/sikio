@@ -4,7 +4,7 @@ defmodule SikioWeb.LibraryPaths do
   @moduledoc """
   The library's URL grammar: filters and an item to a path, and a path back to them.
 
-  The library filters by status, source, tag and search. A list's path names one place.
+  The library filters by status, source, tag, search and the history's day. A list's path names one place.
   Sources, tags and items carry a title slug after their id, and parsing reads only the id.
   """
   alias Sikio.Library
@@ -14,6 +14,9 @@ defmodule SikioWeb.LibraryPaths do
   # Maps status filters to URL segments. Within a source or tag the inbox has no segment.
   # No status filter is `all`. Older segments `new`, `in-progress` and `completed` still parse.
   @statuses %{"inbox" => "inbox", "queue" => "queue", "heard" => "history"}
+  # Filters in the query string rather than the path.
+  @query ["day", "q"]
+
   @status_segments Map.new(@statuses, fn {status, segment} -> {segment, status} end)
                    |> Map.merge(%{
                      "new" => "inbox",
@@ -35,7 +38,7 @@ defmodule SikioWeb.LibraryPaths do
 
   Sources, tags and items appear as their id followed by a title slug. Parsing reads only the id.
   `feed_titles` maps feed ids and `{:tag, id}` to titles. `item` is an entry, an id or nil.
-  The search text stays in the query string.
+  The history's day and the search text stay in the query string.
 
       /inbox  /queue  /history  /all
       /feeds/106-metacheles-tonspur  /feeds/106-metacheles-tonspur/all
@@ -48,7 +51,7 @@ defmodule SikioWeb.LibraryPaths do
     path = "/" <> Enum.join(place(filters, feed_titles) ++ item_segment(item), "/")
 
     case filters
-         |> Map.take(["q"])
+         |> Map.take(@query)
          |> Enum.reject(fn {_key, value} -> value in [nil, ""] end) do
       [] -> path
       query -> path <> "?" <> URI.encode_query(query)
@@ -132,7 +135,7 @@ defmodule SikioWeb.LibraryPaths do
           {%{"status" => status(status)}, item_id(item)}
       end
 
-    {Library.normalize_filters(Map.merge(Map.take(query, ["q"]), place)), item}
+    {Library.normalize_filters(Map.merge(Map.take(query, @query), place)), item}
   end
 
   # After a source or tag id, the next segment is a status, or else an item in its inbox.

@@ -30,10 +30,14 @@ defmodule SikioWeb.LibraryLive.Rows do
   @doc "Returns the rows to render: entries, with a heading where the date group changes."
   # Inserts a heading row wherever the date group of the sort date changes.
   # The queue is sorted by queue rank, so it has no headings.
+  # The history of one day has a single group, which the calendar already names.
   # A group that continues above a window keeps its heading there.
   # LiveView scrolls the old first row back into view after the batch above loads.
   # A heading on top would keep its place, and the list would jump.
   def grouped(entries, %{"status" => "queue"}, _offset, _above),
+    do: Enum.map(entries, &{:entry, &1})
+
+  def grouped(entries, %{"day" => day}, _offset, _above) when day != "",
     do: Enum.map(entries, &{:entry, &1})
 
   def grouped(entries, filters, offset, above) do

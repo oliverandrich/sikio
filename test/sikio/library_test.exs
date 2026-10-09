@@ -101,6 +101,58 @@ defmodule Sikio.LibraryTest do
     end
   end
 
+  # A day is a calendar date in the reader's time zone, given as minutes ahead of UTC.
+  test "keeps a valid day and offset only for the history" do
+    filters = Library.normalize_filters(%{"status" => "heard", "day" => "2026-10-07"})
+    assert {filters["day"], filters["offset"]} == {"2026-10-07", 0}
+
+    assert Library.normalize_filters(%{"status" => "inbox", "day" => "2026-10-07"})["day"] == ""
+    assert Library.normalize_filters(%{"status" => "heard", "day" => "2026-02-30"})["day"] == ""
+    assert Library.normalize_filters(%{"status" => "heard", "day" => "9999-12-31"})["day"] == ""
+    assert Library.normalize_filters(%{"offset" => 120})["offset"] == 120
+    assert Library.normalize_filters(%{"offset" => -780})["offset"] == -780
+    assert Library.normalize_filters(%{"offset" => 5000})["offset"] == 0
+    assert Library.normalize_filters(%{"offset" => "120"})["offset"] == 0
+  end
+
+  # 23:30 UTC on 6 October is 01:30 on 7 October two hours east of UTC.
+  test "the history of a day holds the entries heard on that local day", ctx do
+    episodes =
+      for n <- 1..4,
+          do: %{hd(ctx.preview.entries) | external_id: "e#{n}", title: "Episode #{n}"}
+
+    {:ok, subscription} = Library.subscribe(ctx.alice, %{ctx.preview | entries: episodes})
+    ids = Map.new(Library.entries(ctx.alice), &{&1.title, &1.id})
+
+    for {title, at} <- [
+          {"Episode 1", ~U[2026-10-06 21:59:00.000000Z]},
+          {"Episode 2", ~U[2026-10-06 23:30:00.000000Z]},
+          {"Episode 3", ~U[2026-10-07 21:59:00.000000Z]},
+          {"Episode 4", ~U[2026-10-07 22:00:00.000000Z]}
+        ] do
+      Playback.mark(ctx.alice, ids[title], :heard)
+
+      Repo.update_all(from(p in Sikio.Playback.State, where: p.entry_id == ^ids[title]),
+        set: [completed_at: at]
+      )
+    end
+
+    day = %{"status" => "heard", "day" => "2026-10-07", "offset" => 120}
+    titles = Enum.map(Library.entries(ctx.alice, day), & &1.title)
+    assert titles == ["Episode 3", "Episode 2"]
+    assert Library.count(ctx.alice, day) == 2
+    assert Library.entries(ctx.bob, day) == []
+
+    elsewhere = Map.put(day, "source", to_string(subscription.feed_id + 1))
+    assert Library.entries(ctx.alice, elsewhere) == []
+
+    assert Library.heard_days(ctx.alice, day, ~D[2026-10-01]) ==
+             %{~D[2026-10-06] => 1, ~D[2026-10-07] => 2, ~D[2026-10-08] => 1}
+
+    assert Library.heard_days(ctx.alice, day, ~D[2026-09-01]) == %{}
+    assert Library.heard_days(ctx.bob, day, ~D[2026-10-01]) == %{}
+  end
+
   test "filters before applying the latest-100 limit and orders ties consistently", ctx do
     entries =
       for n <- 1..105,

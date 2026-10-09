@@ -31,29 +31,45 @@ defmodule SikioWeb.DateGroups do
     end
   end
 
-  defp local_day(datetime, offset),
+  @doc "Returns the reader's calendar date of `datetime`, for an offset in minutes ahead of UTC."
+  def local_day(datetime, offset),
     do: datetime |> DateTime.add(offset, :minute) |> DateTime.to_date()
 
-  defp month(day) do
-    name =
-      Enum.at(
-        [
-          gettext("January"),
-          gettext("February"),
-          gettext("March"),
-          gettext("April"),
-          gettext("May"),
-          gettext("June"),
-          gettext("July"),
-          gettext("August"),
-          gettext("September"),
-          gettext("October"),
-          gettext("November"),
-          gettext("December")
-        ],
-        day.month - 1
-      )
+  @doc "Returns the label of the month that holds `date`, such as \"October 2026\"."
+  def month(date), do: gettext("%{month} %{year}", month: month_name(date), year: date.year)
 
-    gettext("%{month} %{year}", month: name, year: day.year)
+  @doc "Returns the label of `date` without its year, such as \"October 7\"."
+  def day(date), do: gettext("%{month} %{day}", month: month_name(date), day: date.day)
+
+  @doc "Returns the short weekday names from Monday to Sunday."
+  def weekdays,
+    do: [
+      gettext("Mon"),
+      gettext("Tue"),
+      gettext("Wed"),
+      gettext("Thu"),
+      gettext("Fri"),
+      gettext("Sat"),
+      gettext("Sun")
+    ]
+
+  defp month_name(date) do
+    Enum.at(
+      [
+        gettext("January"),
+        gettext("February"),
+        gettext("March"),
+        gettext("April"),
+        gettext("May"),
+        gettext("June"),
+        gettext("July"),
+        gettext("August"),
+        gettext("September"),
+        gettext("October"),
+        gettext("November"),
+        gettext("December")
+      ],
+      date.month - 1
+    )
   end
 end

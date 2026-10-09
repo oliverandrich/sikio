@@ -41,4 +41,14 @@ defmodule SikioWeb.DateGroupsTest do
     assert DateGroups.group(~U[2026-09-27 10:00:00Z], monday, 0) == {:yesterday, "Yesterday"}
     assert DateGroups.group(~U[2026-09-26 10:00:00Z], monday, 0) == {:last_week, "Last week"}
   end
+
+  # The history's calendar names a day without its year, in the reader's language.
+  test "a day's label follows the locale" do
+    assert DateGroups.day(~D[2026-10-07]) == "October 7"
+
+    Gettext.with_locale(SikioWeb.Gettext, "de", fn ->
+      assert DateGroups.day(~D[2026-10-07]) == "7. Oktober"
+      assert hd(DateGroups.weekdays()) == "Mo"
+    end)
+  end
 end

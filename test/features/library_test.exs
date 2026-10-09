@@ -442,4 +442,43 @@ defmodule SikioWeb.LibraryTest do
       end
     )
   end
+
+  # The history's calendar opens from the head on a phone and fits its width.
+  feature "a phone's history filters by a day from the calendar", context do
+    Sikio.Playback.mark(context.account, episode(context.account, "Episode 1").id, :heard)
+
+    layout = """
+    const calendar = document.getElementById('history-calendar')
+    const day = document.querySelector('#history-calendar a[id^=calendar-day-]')
+    return [getComputedStyle(calendar).display, document.documentElement.scrollWidth,
+      window.innerWidth, Math.round(day.getBoundingClientRect().width),
+      getComputedStyle(day).backgroundColor]
+    """
+
+    context.session
+    |> resize_window(390, 844)
+    |> open("/history")
+    |> execute_script(
+      "return getComputedStyle(document.getElementById('history-calendar')).display",
+      &assert(&1 == "none")
+    )
+    |> click(css("#toggle-calendar"))
+    |> assert_has(css("#history-calendar a[id^=calendar-day-]", count: 1))
+    |> execute_script(layout, fn [display, scroll_width, width, size, background] ->
+      assert display == "block"
+      assert scroll_width <= width, "the calendar widens the page"
+      assert size == 36
+      assert background == "rgba(0, 0, 0, 0)"
+    end)
+    |> click(css("#history-calendar a[id^=calendar-day-]"))
+    |> assert_has(css("#calendar-clear"))
+    |> assert_has(css("#entries article", count: 1))
+    |> execute_script(layout, fn [display, _, _, _, background] ->
+      assert display == "block"
+      refute background == "rgba(0, 0, 0, 0)", "the selected day is not highlighted"
+    end)
+    |> click(css("#calendar-clear"))
+    |> gone(css("#calendar-clear"))
+    |> assert_has(css("#entries article", count: 1))
+  end
 end

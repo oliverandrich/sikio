@@ -21,6 +21,8 @@ defmodule SikioWeb.LibraryLive do
   alias Sikio.Library
   alias Sikio.Playback
   alias Sikio.Preferences
+  alias SikioWeb.DateGroups
+  alias SikioWeb.LibraryLive.Calendar
   alias SikioWeb.LibraryLive.Rows
   alias SikioWeb.LibraryPaths
   alias SikioWeb.MarkAll
@@ -41,6 +43,9 @@ defmodule SikioWeb.LibraryLive do
        above: nil,
        more?: false,
        search_open?: false,
+       calendar_open?: false,
+       calendar_month: nil,
+       heard_days: %{},
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket)),
        tab: :inbox
@@ -61,6 +66,7 @@ defmodule SikioWeb.LibraryLive do
   def handle_params(params, uri, socket) do
     %URI{path: path, query: query} = URI.parse(uri)
     {filters, item} = read(path, params, socket.assigns.current_account)
+    filters = %{filters | "offset" => socket.assigns.time_zone_offset}
     # A URL with `q` opens the search field, also after a reload or Back.
     # `/search` is the phone's Search tab. It lists all items and focuses the field.
     socket =
@@ -93,6 +99,7 @@ defmodule SikioWeb.LibraryLive do
             entries: [],
             above: nil
           )
+          |> calendar()
           |> close_settings()
           |> reload()
 
@@ -299,6 +306,31 @@ defmodule SikioWeb.LibraryLive do
      |> push_event("focus", %{id: "toggle-search"})
      |> searched("")}
   end
+
+  # Closing the calendar removes its day filter. `handle_params` keeps it closed.
+  # The selection goes too: an item far down would load a window around it, not the top.
+  def handle_event("toggle_calendar", _params, %{assigns: %{calendar_open?: true}} = socket) do
+    socket = assign(socket, calendar_open?: false, heard_days: %{})
+    filters = socket.assigns.filters
+
+    if filters["day"] == "",
+      do: {:noreply, socket},
+      else: {:noreply, push_patch(socket, to: address(socket, %{filters | "day" => ""}))}
+  end
+
+  def handle_event("toggle_calendar", _params, socket),
+    do: {:noreply, socket |> assign(:calendar_open?, true) |> with_heard_days()}
+
+  # The calendar does not move past the reader's current month.
+  def handle_event("calendar_month", %{"step" => step}, socket)
+      when step in ["-1", "1"] and socket.assigns.calendar_month != nil do
+    month = Date.shift(socket.assigns.calendar_month, month: String.to_integer(step))
+
+    {:noreply,
+     socket |> assign(:calendar_month, at_most_this_month(socket, month)) |> with_heard_days()}
+  end
+
+  def handle_event("calendar_month", _params, socket), do: {:noreply, socket}
 
   def handle_event("toggle_search", params, socket),
     do:
@@ -522,8 +554,9 @@ defmodule SikioWeb.LibraryLive do
   # A failed fetch is not stored. The next selection of the item retries it.
   def handle_async(:chapters, _result, socket), do: {:noreply, socket}
 
-  # Without a search the total comes from the sidebar counts. A search runs a count query.
-  defp total(socket, %{"q" => ""} = filters),
+  # Without a search or a day the total comes from the sidebar counts.
+  # Both of those run a count query.
+  defp total(socket, %{"q" => "", "day" => ""} = filters),
     do:
       socket.assigns.sidebar.counts
       |> Library.tally(filters, socket.assigns.sidebar.tag_feeds)
@@ -547,7 +580,38 @@ defmodule SikioWeb.LibraryLive do
       heading: heading(filters, socket.assigns.sidebar),
       filtered?: place_of(filters) != filters
     )
+    |> with_heard_days()
   end
+
+  # Only the history has a calendar. A day opens it on the day's month, at most the current one.
+  # Without a day it keeps the month browsed to, or shows the reader's current month.
+  defp calendar(%{assigns: %{filters: %{"status" => "heard", "day" => ""}}} = socket),
+    do: assign(socket, :calendar_month, socket.assigns.calendar_month || this_month(socket))
+
+  defp calendar(%{assigns: %{filters: %{"status" => "heard", "day" => day}}} = socket) do
+    month = day |> Date.from_iso8601!() |> Date.beginning_of_month()
+    assign(socket, calendar_open?: true, calendar_month: at_most_this_month(socket, month))
+  end
+
+  defp calendar(socket), do: assign(socket, calendar_open?: false, calendar_month: nil)
+
+  defp with_heard_days(socket), do: assign(socket, :heard_days, heard_days(socket))
+
+  # A closed calendar shows no days, so it reads none.
+  defp heard_days(%{assigns: %{calendar_open?: false}}), do: %{}
+  defp heard_days(%{assigns: %{calendar_month: nil}}), do: %{}
+
+  defp heard_days(socket) do
+    %{current_account: account, filters: filters, calendar_month: month} = socket.assigns
+    Library.heard_days(account, filters, month)
+  end
+
+  defp today(offset), do: DateGroups.local_day(DateTime.utc_now(), offset)
+
+  defp at_most_this_month(socket, month), do: Enum.min([month, this_month(socket)], Date)
+
+  defp this_month(socket),
+    do: socket.assigns.time_zone_offset |> today() |> Date.beginning_of_month()
 
   # A search across all items is titled Search. A search within a place keeps the place's name.
   defp name(:search, %{"status" => "", "source" => "", "tag" => ""}, _heading),
@@ -698,6 +762,19 @@ defmodule SikioWeb.LibraryLive do
                     <Lucideicons.external_link aria-hidden="true" class="size-4.5" />
                   </.link>
                   <button
+                    :if={!@empty? and @filters["status"] == "heard"}
+                    id="toggle-calendar"
+                    type="button"
+                    aria-controls="history-calendar"
+                    aria-expanded={to_string(@calendar_open?)}
+                    aria-label={gettext("Calendar")}
+                    title={gettext("Calendar")}
+                    phx-click="toggle_calendar"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-expanded:text-accent"
+                  >
+                    <Lucideicons.calendar_days aria-hidden="true" class="size-4.5" />
+                  </button>
+                  <button
                     :if={!@empty?}
                     id="toggle-search"
                     type="button"
@@ -745,6 +822,15 @@ defmodule SikioWeb.LibraryLive do
                 class="w-full rounded-full border border-control bg-surface px-4 py-2 text-label text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
               />
             </form>
+            <Calendar.calendar
+              :if={!@empty? and @calendar_month}
+              open={@calendar_open?}
+              month={@calendar_month}
+              today={today(@time_zone_offset)}
+              days={@heard_days}
+              filters={@filters}
+              titles={@sidebar.titles}
+            />
             <%!-- Status filters show within a source or tag. Elsewhere statuses are places. --%>
             <div
               :if={!@empty? and (@filters["source"] != "" or @filters["tag"] != "")}

@@ -533,7 +533,7 @@ msgstr "Sikio Startseite"
 msgid "Your time. Your queue."
 msgstr "Deine Zeit. Deine Liste."
 
-#: lib/sikio_web/live/add_source_live.ex:507
+#: lib/sikio_web/live/add_source_live.ex:504
 #, elixir-autogen, elixir-format
 msgid "%{count} recent items available"
 msgstr "%{count} aktuelle Einträge verfügbar"
@@ -553,7 +553,7 @@ msgstr "Aktiv"
 msgid "Already subscribed, unchanged"
 msgstr "Bereits abonniert, unverändert"
 
-#: lib/sikio_web/live/add_source_live.ex:320
+#: lib/sikio_web/live/add_source_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "Apple Podcasts search is unavailable right now. You can still paste a feed or webpage URL."
 msgstr "Die Apple-Podcasts-Suche ist gerade nicht erreichbar. Du kannst weiterhin eine Feed- oder Webseiten-URL einfügen."
@@ -593,17 +593,17 @@ msgstr "Wähle eine Datei auf einmal."
 msgid "Could not read this feed. Check its URL and try it individually."
 msgstr "Dieser Feed konnte nicht gelesen werden. Prüfe die URL und versuche ihn einzeln."
 
-#: lib/sikio_web/live/add_source_live.ex:331
+#: lib/sikio_web/live/add_source_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Could not read this source. Please check the link or try again later."
 msgstr "Diese Quelle konnte nicht gelesen werden. Prüfe den Link oder versuche es später erneut."
 
-#: lib/sikio_web/live/add_source_live.ex:290
+#: lib/sikio_web/live/add_source_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Could not save this subscription. Please try again."
 msgstr "Dieses Abo konnte nicht gespeichert werden. Bitte versuche es erneut."
 
-#: lib/sikio_web/live/add_source_live.ex:316
+#: lib/sikio_web/live/add_source_live.ex:313
 #, elixir-autogen, elixir-format
 msgid "Enter between 2 and 120 characters to search Apple Podcasts."
 msgstr "Gib 2 bis 120 Zeichen ein, um Apple Podcasts zu durchsuchen."
@@ -628,7 +628,7 @@ msgstr "Die Datei ist größer als 1 MB."
 msgid "Import %{count} sources"
 msgstr "%{count} Quellen importieren"
 
-#: lib/sikio_web/live/add_source_live.ex:531
+#: lib/sikio_web/live/add_source_live.ex:528
 #: lib/sikio_web/live/opml_live.ex:162
 #: lib/sikio_web/live/subscriptions_live.ex:107
 #, elixir-autogen, elixir-format
@@ -660,12 +660,12 @@ msgstr "Importiere bis zu 50 eindeutige Quellen auf einmal. Teile größere List
 msgid "Imported"
 msgstr "Importiert"
 
-#: lib/sikio_web/live/add_source_live.ex:407
+#: lib/sikio_web/live/add_source_live.ex:404
 #, elixir-autogen, elixir-format
 msgid "Looking for your next good listen or watch…"
 msgstr "Suche nach deinem nächsten guten Fund…"
 
-#: lib/sikio_web/live/add_source_live.ex:414
+#: lib/sikio_web/live/add_source_live.ex:411
 #, elixir-autogen, elixir-format
 msgid "No podcasts found. Try another name or paste the show's website."
 msgstr "Keine Podcasts gefunden. Versuche einen anderen Namen oder füge die Webseite der Sendung ein."
@@ -680,7 +680,7 @@ msgstr "Nur öffentliche HTTP(S)-Feed-URLs werden unterstützt."
 msgid "Pause polling"
 msgstr "Abfrage pausieren"
 
-#: lib/sikio_web/live/add_source_live.ex:299
+#: lib/sikio_web/live/add_source_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "Please use a public http or https URL. Local and private addresses cannot be imported."
 msgstr "Verwende eine öffentliche http- oder https-URL. Lokale und private Adressen können nicht importiert werden."
@@ -716,22 +716,22 @@ msgstr "Datei entfernen"
 msgid "Resume"
 msgstr "Fortsetzen"
 
-#: lib/sikio_web/live/add_source_live.ex:488
+#: lib/sikio_web/live/add_source_live.ex:485
 #, elixir-autogen, elixir-format
 msgid "Searches Apple's German directory. Results are provided by Apple; subscriptions use the show's own RSS feed."
 msgstr "Durchsucht Apples deutsches Verzeichnis. Die Ergebnisse stammen von Apple; Abos nutzen den eigenen RSS-Feed der Sendung."
 
-#: lib/sikio_web/live/add_source_live.ex:521
+#: lib/sikio_web/live/add_source_live.ex:518
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
 msgstr "Abonnieren"
 
-#: lib/sikio_web/live/add_source_live.ex:283
+#: lib/sikio_web/live/add_source_live.ex:280
 #, elixir-autogen, elixir-format
 msgid "Subscribed to %{title}."
 msgstr "%{title} abonniert."
 
-#: lib/sikio_web/live/library_live.ex:508
+#: lib/sikio_web/live/library_live.ex:540
 #: lib/sikio_web/live/subscriptions_live.ex:34
 #: lib/sikio_web/live/subscriptions_live.ex:56
 #, elixir-autogen, elixir-format
@@ -757,7 +757,7 @@ msgstr "Diese OPML-Datei enthält keine Feed-URLs."
 msgid "This is not a valid OPML subscription list."
 msgstr "Das ist keine gültige OPML-Aboliste."
 
-#: lib/sikio_web/live/add_source_live.ex:328
+#: lib/sikio_web/live/add_source_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "This page or feed is too large to import. Try a direct feed URL."
 msgstr "Diese Seite oder dieser Feed ist zu groß für den Import. Versuche eine direkte Feed-URL."
@@ -785,7 +785,7 @@ msgstr "Upload fehlgeschlagen. Bitte versuche es erneut."
 msgid "YouTube"
 msgstr "YouTube"
 
-#: lib/sikio_web/live/add_source_live.ex:311
+#: lib/sikio_web/live/add_source_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "YouTube did not reveal this channel. Try its channel URL; private or unavailable videos cannot be resolved."
 msgstr "YouTube hat diesen Kanal nicht preisgegeben. Versuche die Kanal-URL; private oder nicht verfügbare Videos lassen sich nicht auflösen."
@@ -808,8 +808,8 @@ msgstr "← Deine Abos"
 #: lib/sikio_web/components/layouts.ex:235
 #: lib/sikio_web/components/layouts.ex:236
 #: lib/sikio_web/live/add_source_live.ex:32
-#: lib/sikio_web/live/add_source_live.ex:341
-#: lib/sikio_web/live/add_source_live.ex:346
+#: lib/sikio_web/live/add_source_live.ex:338
+#: lib/sikio_web/live/add_source_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "Add a source"
 msgstr "Quelle hinzufügen"
@@ -819,7 +819,7 @@ msgstr "Quelle hinzufügen"
 msgid "Close player"
 msgstr "Player schließen"
 
-#: lib/sikio_web/live/library_live.ex:800
+#: lib/sikio_web/live/library_live.ex:886
 #, elixir-autogen, elixir-format
 msgid "Find your first source →"
 msgstr "Finde deine erste Quelle →"
@@ -831,9 +831,9 @@ msgstr "Angefangen"
 
 #: lib/sikio_web/components/layouts.ex:439
 #: lib/sikio_web/components/layouts.ex:482
-#: lib/sikio_web/live/add_source_live.ex:342
-#: lib/sikio_web/live/library_live.ex:178
-#: lib/sikio_web/live/library_live.ex:443
+#: lib/sikio_web/live/add_source_live.ex:339
+#: lib/sikio_web/live/library_live.ex:185
+#: lib/sikio_web/live/library_live.ex:475
 #: lib/sikio_web/live/places_live.ex:17
 #: lib/sikio_web/live/places_live.ex:35
 #: lib/sikio_web/live/places_live.ex:37
@@ -879,7 +879,7 @@ msgstr "Neu"
 msgid "Now playing"
 msgstr "Läuft gerade"
 
-#: lib/sikio_web/live/library_live.ex:795
+#: lib/sikio_web/live/library_live.ex:881
 #, elixir-autogen, elixir-format
 msgid "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
 msgstr "Füge einen YouTube-Kanal, ein Video oder eine Podcast-Webseite ein. Oder finde deinen nächsten Hörtipp in Apple Podcasts."
@@ -896,14 +896,14 @@ msgstr "Abspielen"
 msgid "Play again"
 msgstr "Erneut abspielen"
 
-#: lib/sikio_web/live/library_live.ex:793
+#: lib/sikio_web/live/library_live.ex:879
 #, elixir-autogen, elixir-format
 msgid "Space for something good."
 msgstr "Platz für etwas Gutes."
 
-#: lib/sikio_web/live/library_live.ex:225
-#: lib/sikio_web/live/library_live.ex:356
-#: lib/sikio_web/live/library_live.ex:399
+#: lib/sikio_web/live/library_live.ex:232
+#: lib/sikio_web/live/library_live.ex:388
+#: lib/sikio_web/live/library_live.ex:431
 #: lib/sikio_web/live/player_dock_live.ex:127
 #: lib/sikio_web/live/player_dock_live.ex:182
 #, elixir-autogen, elixir-format
@@ -915,7 +915,7 @@ msgstr "Dieser Eintrag ist nicht mehr in deiner Mediathek."
 msgid "This source is no longer in your library."
 msgstr "Diese Quelle ist nicht mehr in deiner Mediathek."
 
-#: lib/sikio_web/live/library_live.ex:572
+#: lib/sikio_web/live/library_live.ex:636
 #, elixir-autogen, elixir-format
 msgid "Unavailable source"
 msgstr "Nicht verfügbare Quelle"
@@ -977,7 +977,7 @@ msgstr ""
 "Diese Instanz war nicht erreichbar. Sie ist entweder offline oder blockiert "
 "diese Seite."
 
-#: lib/sikio_web/live/add_source_live.ex:305
+#: lib/sikio_web/live/add_source_live.ex:302
 #, elixir-autogen, elixir-format
 msgid "No podcast, YouTube or PeerTube feed found. Try the show's RSS URL or the channel's URL."
 msgstr ""
@@ -989,7 +989,7 @@ msgstr ""
 msgid "PeerTube"
 msgstr "PeerTube"
 
-#: lib/sikio_web/live/add_source_live.ex:325
+#: lib/sikio_web/live/add_source_live.ex:322
 #, elixir-autogen, elixir-format
 msgid "This source is not a supported podcast, YouTube or PeerTube feed."
 msgstr "Diese Quelle ist kein unterstützter Podcast-, YouTube- oder PeerTube-Feed."
@@ -1180,7 +1180,7 @@ msgstr "Alle Einträge"
 msgid "Views"
 msgstr "Ansichten"
 
-#: lib/sikio_web/live/library_live.ex:577
+#: lib/sikio_web/live/library_live.ex:641
 #, elixir-autogen, elixir-format
 msgid "%{count} item"
 msgid_plural "%{count} items"
@@ -1197,7 +1197,7 @@ msgstr "Fortschritt"
 msgid "Open on YouTube"
 msgstr "Auf YouTube öffnen"
 
-#: lib/sikio_web/live/library_live.ex:825
+#: lib/sikio_web/live/library_live.ex:911
 #, elixir-autogen, elixir-format
 msgid "Selected item"
 msgstr "Ausgewählter Eintrag"
@@ -1253,7 +1253,7 @@ msgid "Mar"
 msgstr "März"
 
 #: lib/sikio_web/components/media_components.ex:177
-#: lib/sikio_web/date_groups.ex:45
+#: lib/sikio_web/date_groups.ex:63
 #, elixir-autogen, elixir-format
 msgid "May"
 msgstr "Mai"
@@ -1318,26 +1318,26 @@ msgstr "Bereits geladene Einträge bleiben erhalten."
 msgid "The address no longer exists on its server."
 msgstr "Die Adresse gibt es auf ihrem Server nicht mehr."
 
-#: lib/sikio_web/live/library_live.ex:762
+#: lib/sikio_web/live/library_live.ex:848
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/sikio_web/live/library_live.ex:769
+#: lib/sikio_web/live/library_live.ex:855
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "Status"
 
 #: lib/sikio_web/components/layouts.ex:443
 #: lib/sikio_web/components/layouts.ex:486
-#: lib/sikio_web/live/library_live.ex:554
-#: lib/sikio_web/live/library_live.ex:706
+#: lib/sikio_web/live/library_live.ex:618
+#: lib/sikio_web/live/library_live.ex:783
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr "Suchen"
 
-#: lib/sikio_web/live/library_live.ex:742
-#: lib/sikio_web/live/library_live.ex:743
+#: lib/sikio_web/live/library_live.ex:819
+#: lib/sikio_web/live/library_live.ex:820
 #, elixir-autogen, elixir-format
 msgid "Search in %{place}"
 msgstr "In %{place} suchen"
@@ -1477,42 +1477,42 @@ msgstr "Sikio ist freie Open-Source-Software unter der AGPL-3.0."
 msgid "Your personal media library"
 msgstr "Deine persönliche Medienbibliothek"
 
-#: lib/sikio_web/date_groups.ex:57
+#: lib/sikio_web/date_groups.ex:39
 #, elixir-autogen, elixir-format
 msgid "%{month} %{year}"
 msgstr "%{month} %{year}"
 
-#: lib/sikio_web/date_groups.ex:44
+#: lib/sikio_web/date_groups.ex:62
 #, elixir-autogen, elixir-format
 msgid "April"
 msgstr "April"
 
-#: lib/sikio_web/date_groups.ex:48
+#: lib/sikio_web/date_groups.ex:66
 #, elixir-autogen, elixir-format
 msgid "August"
 msgstr "August"
 
-#: lib/sikio_web/date_groups.ex:52
+#: lib/sikio_web/date_groups.ex:70
 #, elixir-autogen, elixir-format
 msgid "December"
 msgstr "Dezember"
 
-#: lib/sikio_web/date_groups.ex:42
+#: lib/sikio_web/date_groups.ex:60
 #, elixir-autogen, elixir-format
 msgid "February"
 msgstr "Februar"
 
-#: lib/sikio_web/date_groups.ex:41
+#: lib/sikio_web/date_groups.ex:59
 #, elixir-autogen, elixir-format
 msgid "January"
 msgstr "Januar"
 
-#: lib/sikio_web/date_groups.ex:47
+#: lib/sikio_web/date_groups.ex:65
 #, elixir-autogen, elixir-format
 msgid "July"
 msgstr "Juli"
 
-#: lib/sikio_web/date_groups.ex:46
+#: lib/sikio_web/date_groups.ex:64
 #, elixir-autogen, elixir-format
 msgid "June"
 msgstr "Juni"
@@ -1522,7 +1522,7 @@ msgstr "Juni"
 msgid "Last week"
 msgstr "Letzte Woche"
 
-#: lib/sikio_web/date_groups.ex:43
+#: lib/sikio_web/date_groups.ex:61
 #, elixir-autogen, elixir-format
 msgid "March"
 msgstr "März"
@@ -1532,17 +1532,17 @@ msgstr "März"
 msgid "No date"
 msgstr "Ohne Datum"
 
-#: lib/sikio_web/date_groups.ex:51
+#: lib/sikio_web/date_groups.ex:69
 #, elixir-autogen, elixir-format
 msgid "November"
 msgstr "November"
 
-#: lib/sikio_web/date_groups.ex:50
+#: lib/sikio_web/date_groups.ex:68
 #, elixir-autogen, elixir-format
 msgid "October"
 msgstr "Oktober"
 
-#: lib/sikio_web/date_groups.ex:49
+#: lib/sikio_web/date_groups.ex:67
 #, elixir-autogen, elixir-format
 msgid "September"
 msgstr "September"
@@ -1589,7 +1589,7 @@ msgstr "Aktuelle Folge im Player einschließen"
 msgid "Tags"
 msgstr "Tags"
 
-#: lib/sikio_web/live/library_live.ex:564
+#: lib/sikio_web/live/library_live.ex:628
 #, elixir-autogen, elixir-format
 msgid "Unavailable tag"
 msgstr "Nicht verfügbarer Tag"
@@ -1619,8 +1619,8 @@ msgstr "Ein anderer Tag heißt schon so."
 msgid "Delete %{name}?"
 msgstr "%{name} löschen?"
 
-#: lib/sikio_web/live/library_live.ex:668
-#: lib/sikio_web/live/library_live.ex:669
+#: lib/sikio_web/live/library_live.ex:732
+#: lib/sikio_web/live/library_live.ex:733
 #: lib/sikio_web/live/tag_settings.ex:112
 #, elixir-autogen, elixir-format
 msgid "Delete tag"
@@ -1642,8 +1642,8 @@ msgstr "Umbenennen"
 msgid "Rename %{name}"
 msgstr "%{name} umbenennen"
 
-#: lib/sikio_web/live/library_live.ex:657
-#: lib/sikio_web/live/library_live.ex:658
+#: lib/sikio_web/live/library_live.ex:721
+#: lib/sikio_web/live/library_live.ex:722
 #, elixir-autogen, elixir-format
 msgid "Rename tag"
 msgstr "Tag umbenennen"
@@ -1703,8 +1703,8 @@ msgstr[1] "%{count} Einträge in dieser Liste werden archiviert. Sie erscheinen 
 msgid "Archive"
 msgstr "Archivieren"
 
-#: lib/sikio_web/live/library_live.ex:646
-#: lib/sikio_web/live/library_live.ex:647
+#: lib/sikio_web/live/library_live.ex:710
+#: lib/sikio_web/live/library_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "Archive all"
 msgstr "Alle archivieren"
@@ -1719,7 +1719,7 @@ msgstr "Alles hier archivieren?"
 msgid "Archived"
 msgstr "Archiviert"
 
-#: lib/sikio_web/live/library_live.ex:318
+#: lib/sikio_web/live/library_live.ex:350
 #, elixir-autogen, elixir-format
 msgid "Nothing here is left to archive."
 msgstr "Hier gibt es nichts mehr abzulegen."
@@ -1747,7 +1747,7 @@ msgstr "In der Queue"
 
 #: lib/sikio_web/components/layouts.ex:429
 #: lib/sikio_web/components/media_components.ex:126
-#: lib/sikio_web/live/add_source_live.ex:473
+#: lib/sikio_web/live/add_source_live.ex:470
 #: lib/sikio_web/live/settings_live.ex:71
 #, elixir-autogen, elixir-format
 msgid "Inbox"
@@ -1775,7 +1775,7 @@ msgstr "Als Nächstes"
 
 #: lib/sikio_web/components/layouts.ex:432
 #: lib/sikio_web/components/media_components.ex:127
-#: lib/sikio_web/live/add_source_live.ex:463
+#: lib/sikio_web/live/add_source_live.ex:460
 #: lib/sikio_web/live/settings_live.ex:71
 #, elixir-autogen, elixir-format
 msgid "Queue"
@@ -1816,8 +1816,8 @@ msgstr "am Ende der Queue"
 msgid "The inbox"
 msgstr "in der Inbox"
 
-#: lib/sikio_web/live/library_live.ex:681
-#: lib/sikio_web/live/library_live.ex:682
+#: lib/sikio_web/live/library_live.ex:745
+#: lib/sikio_web/live/library_live.ex:746
 #: lib/sikio_web/live/subscriptions_live.ex:202
 #: lib/sikio_web/live/subscriptions_live.ex:203
 #, elixir-autogen, elixir-format
@@ -1855,7 +1855,7 @@ msgid "Your progress changed in another player. Open the episode to continue her
 msgstr "Dein Fortschritt hat sich in einem anderen Player geändert. Öffne die Folge, um hier weiterzuhören."
 
 #: lib/sikio_web/components/layouts.ex:315
-#: lib/sikio_web/live/add_source_live.ex:476
+#: lib/sikio_web/live/add_source_live.ex:473
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr "Hinzufügen"
@@ -1878,7 +1878,7 @@ msgid_plural "%{count} sources"
 msgstr[0] "%{count} Quelle"
 msgstr[1] "%{count} Quellen"
 
-#: lib/sikio_web/live/add_source_live.ex:529
+#: lib/sikio_web/live/add_source_live.ex:526
 #, elixir-autogen, elixir-format
 msgid "Coming from another app?"
 msgstr "Du kommst von einer anderen App?"
@@ -1903,66 +1903,66 @@ msgstr "Ans Ende der Queue"
 msgid "To the inbox"
 msgstr "In die Inbox"
 
-#: lib/sikio_web/live/library_live.ex:694
-#: lib/sikio_web/live/library_live.ex:695
+#: lib/sikio_web/live/library_live.ex:758
+#: lib/sikio_web/live/library_live.ex:759
 #: lib/sikio_web/live/subscriptions_live.ex:214
 #: lib/sikio_web/live/subscriptions_live.ex:215
 #, elixir-autogen, elixir-format
 msgid "Open website"
 msgstr "Website öffnen"
 
-#: lib/sikio_web/live/add_source_live.ex:389
+#: lib/sikio_web/live/add_source_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "Find"
 msgstr "Finden"
 
-#: lib/sikio_web/live/add_source_live.ex:360
+#: lib/sikio_web/live/add_source_live.ex:357
 #, elixir-autogen, elixir-format
 msgid "Link or search"
 msgstr "Link oder Suchbegriff"
 
-#: lib/sikio_web/live/add_source_live.ex:348
+#: lib/sikio_web/live/add_source_live.ex:345
 #, elixir-autogen, elixir-format
 msgid "Paste a link, or search for a show by its name."
 msgstr "Füge einen Link ein oder suche eine Sendung nach ihrem Namen."
 
-#: lib/sikio_web/live/add_source_live.ex:484
+#: lib/sikio_web/live/add_source_live.ex:481
 #, elixir-autogen, elixir-format
 msgid "Podcasts"
 msgstr "Podcasts"
 
-#: lib/sikio_web/live/add_source_live.ex:432
+#: lib/sikio_web/live/add_source_live.ex:429
 #, elixir-autogen, elixir-format
 msgid "Search for it instead"
 msgstr "Stattdessen danach suchen"
 
-#: lib/sikio_web/live/add_source_live.ex:485
+#: lib/sikio_web/live/add_source_live.ex:482
 #, elixir-autogen, elixir-format
 msgid "via Apple Podcasts"
 msgstr "über Apple Podcasts"
 
-#: lib/sikio_web/live/add_source_live.ex:373
+#: lib/sikio_web/live/add_source_live.ex:370
 #, elixir-autogen, elixir-format
 msgid "A link or a show's name"
 msgstr "Link oder Name einer Sendung"
 
-#: lib/sikio_web/live/add_source_live.ex:399
+#: lib/sikio_web/live/add_source_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "Anything else is searched for in Apple Podcasts."
 msgstr "Alles andere wird in Apple Podcasts gesucht."
 
-#: lib/sikio_web/live/add_source_live.ex:395
+#: lib/sikio_web/live/add_source_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Links to YouTube and PeerTube channels and videos, podcast websites, RSS feeds and Apple Podcasts."
 msgstr "Links zu YouTube- und PeerTube-Kanälen und -Videos, Podcast-Webseiten, RSS-Feeds und Apple Podcasts."
 
-#: lib/sikio_web/live/add_source_live.ex:520
+#: lib/sikio_web/live/add_source_live.ex:517
 #, elixir-autogen, elixir-format
 msgid "Subscribing…"
 msgstr "Abonniere …"
 
-#: lib/sikio_web/live/add_source_live.ex:381
-#: lib/sikio_web/live/add_source_live.ex:382
+#: lib/sikio_web/live/add_source_live.ex:378
+#: lib/sikio_web/live/add_source_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "Clear search"
 msgstr "Suche zurücksetzen"
@@ -2097,31 +2097,102 @@ msgstr "Live-Kanäle werden zusätzlich einmal am Tag abgefragt."
 msgid "Remove from library"
 msgstr "Aus der Bibliothek entfernen"
 
-#: lib/sikio_web/live/add_source_live.ex:454
+#: lib/sikio_web/live/add_source_live.ex:451
 #, elixir-autogen, elixir-format
 msgid "Add to"
 msgstr "Hinzufügen zu"
 
-#: lib/sikio_web/live/add_source_live.ex:245
+#: lib/sikio_web/live/add_source_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Added %{title} to the inbox."
 msgstr "%{title} liegt in der Inbox."
 
-#: lib/sikio_web/live/add_source_live.ex:244
+#: lib/sikio_web/live/add_source_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "Added %{title} to the queue."
 msgstr "%{title} steht in der Queue."
 
-#: lib/sikio_web/live/add_source_live.ex:255
+#: lib/sikio_web/live/add_source_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Could not save this item. Please try again."
 msgstr "Dieser Eintrag konnte nicht gespeichert werden. Bitte versuche es erneut."
 
-#: lib/sikio_web/live/add_source_live.ex:441
+#: lib/sikio_web/live/add_source_live.ex:438
 #, elixir-autogen, elixir-format
 msgid "Only this item"
 msgstr "Nur dieser Eintrag"
 
-#: lib/sikio_web/live/add_source_live.ex:246
+#: lib/sikio_web/live/add_source_live.ex:243
+#, elixir-autogen, elixir-format
 msgid "Saved %{title}."
 msgstr "%{title} ist gespeichert."
+
+#: lib/sikio_web/live/library_live/calendar.ex:85
+#, elixir-autogen, elixir-format
+msgid "%{day}, %{count} item"
+msgid_plural "%{day}, %{count} items"
+msgstr[0] "%{day}, %{count} Eintrag"
+msgstr[1] "%{day}, %{count} Einträge"
+
+#: lib/sikio_web/date_groups.ex:42
+#, elixir-autogen, elixir-format
+msgid "%{month} %{day}"
+msgstr "%{day}. %{month}"
+
+#: lib/sikio_web/live/library_live.ex:770
+#: lib/sikio_web/live/library_live.ex:771
+#, elixir-autogen, elixir-format
+msgid "Calendar"
+msgstr "Kalender"
+
+#: lib/sikio_web/date_groups.ex:51
+#, elixir-autogen, elixir-format
+msgid "Fri"
+msgstr "Fr"
+
+#: lib/sikio_web/date_groups.ex:47
+#, elixir-autogen, elixir-format
+msgid "Mon"
+msgstr "Mo"
+
+#: lib/sikio_web/live/library_live/calendar.ex:60
+#: lib/sikio_web/live/library_live/calendar.ex:61
+#, elixir-autogen, elixir-format
+msgid "Next month"
+msgstr "Nächster Monat"
+
+#: lib/sikio_web/live/library_live/calendar.ex:45
+#: lib/sikio_web/live/library_live/calendar.ex:46
+#, elixir-autogen, elixir-format
+msgid "Previous month"
+msgstr "Vorheriger Monat"
+
+#: lib/sikio_web/date_groups.ex:52
+#, elixir-autogen, elixir-format
+msgid "Sat"
+msgstr "Sa"
+
+#: lib/sikio_web/live/library_live/calendar.ex:104
+#, elixir-autogen, elixir-format
+msgid "Show all days"
+msgstr "Alle Tage zeigen"
+
+#: lib/sikio_web/date_groups.ex:53
+#, elixir-autogen, elixir-format
+msgid "Sun"
+msgstr "So"
+
+#: lib/sikio_web/date_groups.ex:50
+#, elixir-autogen, elixir-format
+msgid "Thu"
+msgstr "Do"
+
+#: lib/sikio_web/date_groups.ex:48
+#, elixir-autogen, elixir-format
+msgid "Tue"
+msgstr "Di"
+
+#: lib/sikio_web/date_groups.ex:49
+#, elixir-autogen, elixir-format
+msgid "Wed"
+msgstr "Mi"

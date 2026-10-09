@@ -11,11 +11,24 @@ defmodule SikioWeb.LibraryPathsTest do
 
   alias SikioWeb.LibraryPaths
 
-  @none %{"status" => "", "source" => "", "tag" => "", "q" => ""}
+  @none %{"status" => "", "source" => "", "tag" => "", "q" => "", "day" => "", "offset" => 0}
   @feeds %{106 => "MeTacheles Tonspur"}
   @item %{id: 4056, title: "KI-Verfassung - Die irre Selbstkontrolle der Tech-Bros"}
 
   defp filters(changes), do: Map.merge(@none, changes)
+
+  # The time zone offset comes from the browser, not from the address.
+  test "the history's day stays in the query string" do
+    day = filters(%{"status" => "heard", "day" => "2026-10-07", "offset" => 120})
+    assert LibraryPaths.library_path(day) == "/history?day=2026-10-07"
+    assert LibraryPaths.library_path(%{day | "q" => "akku"}) == "/history?day=2026-10-07&q=akku"
+
+    assert LibraryPaths.read_path("/history", %{"day" => "2026-10-07", "offset" => "120"}) ==
+             {%{day | "offset" => 0}, nil}
+
+    assert LibraryPaths.read_path("/inbox", %{"day" => "2026-10-07"}) ==
+             {filters(%{"status" => "inbox"}), nil}
+  end
 
   test "a list by status is its own path, and no filter is /all" do
     assert LibraryPaths.library_path(filters(%{"status" => "inbox"})) == "/inbox"

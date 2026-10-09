@@ -512,19 +512,39 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  Reduces request parameters to `status`, `source`, `tag` and `q`, dropping everything else.
+  Reduces request parameters to `status`, `source`, `tag`, `q`, `day` and `offset`.
 
   This lives here, not in the view, because the same values reach database queries.
   An unrecognised value becomes an empty string, which means no filter.
+  `day` is an ISO 8601 date and applies to the history alone.
+  `offset` is the reader's time zone in minutes ahead of UTC and places the day's bounds.
   """
   def normalize_filters(params) do
+    status = params["status"] |> renamed() |> choice(~w(inbox queue heard))
+
     %{
-      "status" => params["status"] |> renamed() |> choice(~w(inbox queue heard)),
+      "status" => status,
       "source" => source_id(params["source"]),
       "tag" => source_id(params["tag"]),
-      "q" => search_text(params["q"])
+      "q" => search_text(params["q"]),
+      "day" => if(status == "heard", do: day(params["day"]), else: ""),
+      "offset" => offset(params["offset"])
     }
   end
+
+  # Four-digit years keep the day's bounds comparable, which SQLite stores as text.
+  defp day(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, %Date{year: year} = date} when year in 1..9998 -> Date.to_iso8601(date)
+      _invalid -> ""
+    end
+  end
+
+  defp day(_value), do: ""
+
+  # Time zones lie within 14 hours of UTC.
+  defp offset(minutes) when is_integer(minutes) and abs(minutes) <= 840, do: minutes
+  defp offset(_minutes), do: 0
 
   # Search input, trimmed and capped at 100 characters.
   defp search_text(text) when is_binary(text), do: text |> String.trim() |> String.slice(0, 100)
@@ -578,7 +598,41 @@ defmodule Sikio.Library do
           where(query, [e, s, p], p.status == :heard)
       end
 
-    matching(query, filters["q"])
+    query |> matching(filters["q"]) |> on_day(filters)
+  end
+
+  defp on_day(query, %{"day" => ""}), do: query
+
+  defp on_day(query, %{"day" => day, "offset" => offset}) do
+    day = Date.from_iso8601!(day)
+    heard_between(query, local_midnight(day, offset), local_midnight(Date.add(day, 1), offset))
+  end
+
+  defp heard_between(query, from, to),
+    do: where(query, [e, s, p], p.completed_at >= ^from and p.completed_at < ^to)
+
+  defp local_midnight(date, offset),
+    do: date |> DateTime.new!(~T[00:00:00.000000]) |> DateTime.add(-offset, :minute)
+
+  @doc """
+  Returns the history's entry count per local day of the month that holds `month`.
+
+  The other filters apply, the day filter excepted. Days without heard entries are absent.
+  """
+  def heard_days(%User{id: user_id}, filters, month) do
+    filters = filters |> Map.merge(%{"status" => "heard", "day" => ""}) |> normalize_filters()
+    offset = filters["offset"]
+    first = Date.beginning_of_month(month)
+    next = first |> Date.end_of_month() |> Date.add(1)
+
+    user_id
+    |> filtered_entries(filters)
+    |> heard_between(local_midnight(first, offset), local_midnight(next, offset))
+    |> exclude(:preload)
+    |> exclude(:select)
+    |> select([e, s, p], p.completed_at)
+    |> Repo.all()
+    |> Enum.frequencies_by(&(&1 |> DateTime.add(offset, :minute) |> DateTime.to_date()))
   end
 
   # Matches title, notes and excerpt as Sikio.Feeds.SearchText stores them: lowercase, no markup.

@@ -521,6 +521,86 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#subscriptions article .meta-dots", "Podcast")
   end
 
+  # The history's calendar marks days with heard items. A day filters the list, and the
+  # chip or a second click on that day removes the filter again.
+  test "the history's calendar filters by a day and removes the filter", c do
+    [video] = Enum.reject(Library.entries(c.user), &(&1.id == c.audio.id))
+    now = DateTime.utc_now()
+    today = DateTime.to_date(now)
+    last_month = today |> Date.beginning_of_month() |> Date.add(-1)
+
+    for {id, at} <- [
+          {c.audio.id, now},
+          {video.id, DateTime.new!(last_month, ~T[12:00:00.000000])}
+        ] do
+      Playback.mark(c.user, id, :heard)
+
+      Repo.update_all(from(p in Sikio.Playback.State, where: p.entry_id == ^id),
+        set: [completed_at: at]
+      )
+    end
+
+    {:ok, view, _} = live(c.conn, ~p"/inbox")
+    refute has_element?(view, "#toggle-calendar")
+
+    {:ok, view, _} = live(c.conn, ~p"/history")
+    assert has_element?(view, "#toggle-calendar[aria-expanded=false]")
+    assert has_element?(view, "#history-calendar[hidden]")
+    # A closed calendar reads no days.
+    refute has_element?(view, "a#calendar-day-#{today}")
+
+    view |> element("#toggle-calendar") |> render_click()
+    assert has_element?(view, "#toggle-calendar[aria-expanded=true]")
+    refute has_element?(view, "#history-calendar[hidden]")
+    refute has_element?(view, "#calendar-next")
+    refute has_element?(view, "a#calendar-day-#{last_month}")
+
+    view |> element("a#calendar-day-#{today}") |> render_click()
+    assert_patch(view, "/history?day=#{today}")
+    assert has_element?(view, "#entries article", c.audio.title)
+    refute has_element?(view, "#entries article", video.title)
+    assert has_element?(view, "#library-count", "1")
+    assert has_element?(view, "a#calendar-day-#{today}[aria-current=date][href='/history']")
+
+    view |> element("#calendar-clear") |> render_click()
+    assert_patch(view, "/history")
+    assert has_element?(view, "#entries article", video.title)
+    refute has_element?(view, "#calendar-clear")
+
+    # Closing the calendar removes the day filter and the selection, so the history starts
+    # at its top again.
+    render_patch(view, "/history/#{c.audio.id}-one-two?day=#{today}")
+    assert has_element?(view, "#calendar-clear[href='/history']")
+    assert has_element?(view, "a#calendar-day-#{today}[href='/history']")
+    view |> element("#toggle-calendar") |> render_click()
+    assert_patch(view, "/history")
+    assert has_element?(view, "#history-calendar[hidden]")
+    refute has_element?(view, "#calendar-clear")
+    assert has_element?(view, "#entries article", video.title)
+
+    view |> element("#toggle-calendar") |> render_click()
+    view |> element("#calendar-previous") |> render_click()
+    assert has_element?(view, "a#calendar-day-#{last_month}")
+    refute has_element?(view, "a#calendar-day-#{today}")
+    view |> element("#calendar-next") |> render_click()
+    assert has_element?(view, "a#calendar-day-#{today}")
+
+    # A step other than one month back or forward changes nothing.
+    render_hook(view, "calendar_month", %{"step" => "2"})
+    assert has_element?(view, "a#calendar-day-#{today}")
+
+    # A day after today opens the calendar on the current month.
+    {:ok, view, _} = live(c.conn, "/history?day=#{Date.add(today, 400)}")
+    assert has_element?(view, "#calendar-month", SikioWeb.DateGroups.month(today))
+    refute has_element?(view, "#calendar-next")
+
+    # An address with a day opens the calendar on that day's month.
+    {:ok, view, _} = live(c.conn, "/history?day=#{last_month}")
+    refute has_element?(view, "#history-calendar[hidden]")
+    assert has_element?(view, "a#calendar-day-#{last_month}[aria-current=date]")
+    assert has_element?(view, "#entries article", video.title)
+  end
+
   # The double-check button archives a whole list after a confirm dialog with the count.
   # /history has no such button.
   describe "marking a list finished" do
