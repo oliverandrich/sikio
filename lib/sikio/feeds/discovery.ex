@@ -847,6 +847,23 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  @doc """
+  Returns the preview picture a web page names, as for a broadcaster's programme.
+
+  Returns `{:error, :not_found}` for a page without one or a page that is gone, and
+  `{:error, :unavailable}` when the server did not answer.
+  """
+  def page_picture(url) do
+    # The picture sits in the page's head. A broadcaster's page is a few hundred KB.
+    with {:ok, doc, base} <- fetched_page(url, max_bytes: 2_000_000),
+         picture when is_binary(picture) <- picture(doc, base) do
+      {:ok, picture}
+    else
+      {:error, :unavailable} -> {:error, :unavailable}
+      _ -> {:error, :not_found}
+    end
+  end
+
   defp channel_page(url) do
     with {:ok, doc} <- page(url),
          id when is_binary(id) <- channel_id(doc) do
@@ -857,15 +874,34 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   defp page(url) do
-    case HTTP.get(url) do
-      {:ok, %{status: 200, body: body}} -> Floki.parse_document(body)
+    case fetched_page(url) do
+      {:ok, doc, _base} -> {:ok, doc}
       _ -> :error
     end
   end
 
+  # Returns the parsed page and the address it came from after redirects.
+  # A timeout, 408, 429 or 5xx may pass, so it is `:unavailable`. Every other failure is final.
+  defp fetched_page(url, opts \\ []) do
+    case HTTP.get(url, opts) do
+      {:ok, %{status: 200, body: body} = response} ->
+        with {:ok, doc} <- Floki.parse_document(body), do: {:ok, doc, response.url}
+
+      {:ok, %{status: status}} when status in [408, 429] or status >= 500 ->
+        {:error, :unavailable}
+
+      {:error, :unavailable} ->
+        {:error, :unavailable}
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
   # The page states the picture in two places. The value is an href, resolved against the page.
+  # KiKA names the Open Graph property with `name`.
   defp picture(doc, page_url) do
-    Floki.attribute(doc, "meta[property='og:image']", "content")
+    Floki.attribute(doc, "meta[property='og:image'], meta[name='og:image']", "content")
     |> Enum.concat(Floki.attribute(doc, "link[rel=image_src]", "href"))
     |> Enum.find_value(&HTTP.resolve(&1, page_url))
   end

@@ -18,6 +18,7 @@ defmodule Sikio.Feeds do
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
   alias Sikio.Feeds.Hub
+  alias Sikio.Feeds.PagePicture
   alias Sikio.Feeds.Schedule
   alias Sikio.Feeds.SearchText
   alias Sikio.Library.Events
@@ -93,12 +94,14 @@ defmodule Sikio.Feeds do
         {:ok, feed} ->
           {written, new} = import_entries(feed.id, preview.entries)
           announce(on_new, feed.id, new)
-          {%{feed | next_check_at: schedule_next(feed.id, attrs.last_checked_at, wait)}, written}
+          next = schedule_next(feed.id, attrs.last_checked_at, wait)
+          {%{feed | next_check_at: next}, written, new}
 
         {:error, error} ->
           Repo.rollback(error)
       end
     end)
+    |> asking_for_pictures()
   end
 
   @doc """
@@ -169,6 +172,17 @@ defmodule Sikio.Feeds do
   end
 
   defp ask_for_artwork(_feed), do: nil
+
+  # New Mediathek programmes ask their broadcasters' pages for pictures, in one job. It is
+  # enqueued after the store commits, so a failed insert never undoes the store.
+  defp asking_for_pictures({:ok, {feed, written, new}}) do
+    if feed.kind == :mediathek and new != [],
+      do: %{feed_id: feed.id, entry_ids: new} |> PagePicture.new() |> Oban.insert()
+
+    {:ok, {feed, written}}
+  end
+
+  defp asking_for_pictures(result), do: result
 
   defp store_artwork(feed, {:ok, url}), do: put_artwork(feed, icon_url: url)
   defp store_artwork(feed, {:error, :not_found}), do: put_artwork(feed, [])

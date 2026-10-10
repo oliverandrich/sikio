@@ -157,7 +157,8 @@ Safari, from PeerTube or a broadcaster. Everything else is bundled through `asse
 
 Oban runs on the application's database with two queues. `feeds` refreshes sources and
 `maintenance` expires sessions, challenges and unaccepted invitations. `feeds` also asks
-Apple's directory for a podcast's missing artwork. A feed is polled
+Apple's directory for a podcast's missing artwork, and a broadcaster's page for a new Mediathek
+programme's picture. A feed is polled
 once regardless of how many accounts subscribe to it, and a queued refresh rechecks
 whether anybody still wants it.
 

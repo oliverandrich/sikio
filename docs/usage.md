@@ -22,7 +22,8 @@ guessed URL fails, the page offers a search for the same input. You can:
   [MediathekViewWeb](https://mediathekviewweb.de) for title and topic. A series is a
   programme's topic on its channel. Sikio plays the broadcaster's HD file in its own player.
   Versions with audio description, plain language or sign language and trailers are left out.
-  A programme disappears when the broadcaster removes it from its media library.
+  A programme disappears when the broadcaster removes it from its media library. A newly saved
+  or subscribed programme shows the picture its broadcaster's page names.
 
 A search shows its results in four tabs: **Podcasts**, **Episodes**, **Series** and
 **Programmes**. Each tab shows its count. Episodes come from Apple Podcasts and are read from

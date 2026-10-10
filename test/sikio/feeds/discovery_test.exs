@@ -828,6 +828,61 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
   end
 
+  # A broadcaster's page names its preview picture. KiKA writes `name` where others write
+  # `property`. A relative address resolves against the page.
+  test "a page's picture comes from its og:image" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/property" ->
+          Plug.Conn.send_resp(conn, 200, ~s(<meta property="og:image" content="/img/a.jpg">))
+
+        "/name" ->
+          Plug.Conn.send_resp(
+            conn,
+            200,
+            ~s(<meta name="og:image" content="https://img.example/b.jpg">)
+          )
+
+        "/bare" ->
+          Plug.Conn.send_resp(conn, 200, "<title>No picture</title>")
+
+        "/down" ->
+          Plug.Conn.send_resp(conn, 503, "")
+
+        "/busy" ->
+          Plug.Conn.send_resp(conn, 429, "")
+
+        "/forbidden" ->
+          Plug.Conn.send_resp(conn, 403, "")
+
+        "/moved" ->
+          conn
+          |> Plug.Conn.put_resp_header("location", "/new/page")
+          |> Plug.Conn.send_resp(301, "")
+
+        "/new/page" ->
+          Plug.Conn.send_resp(conn, 200, ~s(<meta property="og:image" content="img.jpg">))
+      end
+    end)
+
+    assert Discovery.page_picture("https://www.ard.example/property") ==
+             {:ok, "https://www.ard.example/img/a.jpg"}
+
+    assert Discovery.page_picture("https://www.kika.example/name") ==
+             {:ok, "https://img.example/b.jpg"}
+
+    assert Discovery.page_picture("https://www.ard.example/bare") == {:error, :not_found}
+    assert Discovery.page_picture("https://www.ard.example/down") == {:error, :unavailable}
+    assert Discovery.page_picture("https://www.ard.example/busy") == {:error, :unavailable}
+
+    # A refusal does not change on a retry.
+    assert Discovery.page_picture("https://www.ard.example/forbidden") == {:error, :not_found}
+
+    # A relative picture resolves against the page the redirect led to.
+    assert Discovery.page_picture("https://www.ard.example/moved") ==
+             {:ok, "https://www.ard.example/new/img.jpg"}
+  end
+
   # Apple also finds single episodes. Each names its podcast's feed and its guid there.
   test "Apple's episode search returns episodes with their podcast's feed" do
     Req.Test.stub(HTTP, fn conn ->
