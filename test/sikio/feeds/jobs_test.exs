@@ -9,12 +9,14 @@ defmodule Sikio.Feeds.JobsTest do
   import Sikio.FeedFixtures
 
   alias Sikio.Accounts.User
+  alias Sikio.Feeds.Artwork
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
   alias Sikio.Feeds.Parser
   alias Sikio.Feeds.Refresh
   alias Sikio.Feeds.Scheduler
   alias Sikio.Library
+  alias Sikio.Library.Events
 
   setup do
     url = feed_url()
@@ -22,6 +24,28 @@ defmodule Sikio.Feeds.JobsTest do
     {:ok, preview} = Parser.parse(podcast(), url)
     {:ok, subscription} = Library.subscribe(user, preview)
     %{user: user, subscription: subscription, url: url}
+  end
+
+  # The logo appears seconds after subscribing, not at the feed's next poll.
+  test "subscribing to a podcast without artwork asks Apple's directory for it", ctx do
+    assert ctx.subscription.feed.icon_url, "the fixture carries its own artwork"
+    refute_enqueued(worker: Artwork)
+
+    url = feed_url()
+    {:ok, preview} = Parser.parse(podcast("Bare"), url)
+    {:ok, %{feed_id: id}} = Library.subscribe(ctx.user, %{preview | icon_url: nil})
+    assert_enqueued(worker: Artwork, args: %{feed_id: id})
+
+    Req.Test.stub(HTTP, fn conn ->
+      Req.Test.json(conn, %{
+        results: [%{feedUrl: url, artworkUrl600: "https://img.example/a.jpg"}]
+      })
+    end)
+
+    Events.subscribe_updates(ctx.user)
+    assert :ok = perform_job(Artwork, %{feed_id: id})
+    assert Repo.get(Feed, id).icon_url == "https://img.example/a.jpg"
+    assert_received :library_changed, "sidebar and list show the new artwork"
   end
 
   test "schedules one refresh per active feed, whoever subscribed to it", ctx do

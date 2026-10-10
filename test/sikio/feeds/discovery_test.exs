@@ -588,6 +588,47 @@ defmodule Sikio.Feeds.DiscoveryTest do
              Discovery.search("a & b")
   end
 
+  # The directory searches by title. Only the show with the same feed URL lends its artwork, so
+  # a namesake's cover never lands on the feed.
+  test "Apple's directory lends artwork to the show with the same feed URL" do
+    Req.Test.stub(HTTP, fn conn ->
+      assert conn.request_path == "/search"
+      assert URI.decode_query(conn.query_string)["term"] == "Talk ohne Gast"
+
+      Req.Test.json(conn, %{
+        results: [
+          %{
+            feedUrl: "https://other.example/feed.xml",
+            artworkUrl600: "https://img.example/other.jpg"
+          },
+          %{feedUrl: "https://www.fritz.de/tog.xml", artworkUrl600: "https://img.example/tog.jpg"}
+        ]
+      })
+    end)
+
+    assert Discovery.directory_artwork("Talk ohne Gast", "https://www.fritz.de/tog.xml") ==
+             {:ok, "https://img.example/tog.jpg"}
+
+    assert Discovery.directory_artwork("Talk ohne Gast", "https://www.fritz.de/other.xml") ==
+             {:error, :not_found}
+  end
+
+  # An outage is not an answer. The caller asks again later.
+  test "an unreachable directory is told apart from a show it does not list" do
+    Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 503, ""))
+
+    assert Discovery.directory_artwork("Talk ohne Gast", "https://www.fritz.de/tog.xml") ==
+             {:error, :unavailable}
+  end
+
+  # The directory search refuses such a term too. Nothing is asked.
+  test "a title too short to search lends no artwork" do
+    Req.Test.stub(HTTP, fn _conn -> flunk("the directory was asked") end)
+
+    assert Discovery.directory_artwork(" X ", "https://www.fritz.de/tog.xml") ==
+             {:error, :not_found}
+  end
+
   test "Apple show links resolve through lookup, not HTML scraping" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do

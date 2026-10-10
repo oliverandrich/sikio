@@ -17,6 +17,8 @@ defmodule Sikio.Feeds.Feed do
     field :last_checked_at, :utc_datetime_usec
     field :last_error, :string
     field :next_check_at, :utc_datetime_usec
+    # When Apple's directory was last asked for a podcast's missing artwork.
+    field :artwork_checked_at, :utc_datetime_usec
     timestamps(type: :utc_datetime_usec)
   end
 

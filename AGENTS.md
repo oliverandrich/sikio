@@ -155,8 +155,9 @@ Safari. Everything else is bundled through `assets/js/app.js`.
 
 ## Background work
 
-Oban runs on the application's database with two queues. `feeds` refreshes sources, and
-`maintenance` expires sessions, challenges and unaccepted invitations. A feed is polled
+Oban runs on the application's database with two queues. `feeds` refreshes sources and
+`maintenance` expires sessions, challenges and unaccepted invitations. `feeds` also asks
+Apple's directory for a podcast's missing artwork. A feed is polled
 once regardless of how many accounts subscribe to it, and a queued refresh rechecks
 whether anybody still wants it.
 

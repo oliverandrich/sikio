@@ -12,6 +12,7 @@ defmodule Sikio.Feeds do
   require Logger
 
   alias Sikio.Chapters
+  alias Sikio.Feeds.Artwork
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
@@ -41,7 +42,10 @@ defmodule Sikio.Feeds do
   subscriptions.
   """
   def store(preview, on_new \\ &ignore/2) do
-    with {:ok, {feed, _written}} <- store_entries(preview, on_new), do: {:ok, feed}
+    with {:ok, {feed, _written}} <- store_entries(preview, on_new) do
+      ask_for_artwork(feed)
+      {:ok, feed}
+    end
   end
 
   defp ignore(_feed_id, _entry_ids), do: :ok
@@ -138,6 +142,54 @@ defmodule Sikio.Feeds do
   """
   def media(embed_url), do: Discovery.peertube_files(embed_url)
 
+  # A podcast Apple's directory does not list is asked about again after this many days.
+  @artwork_retry_days 30
+
+  @doc """
+  Takes a podcast's artwork from Apple's directory when its feed carries none.
+
+  Some publishers send an empty channel image. The episodes fall back to the feed's artwork, so
+  they show it too. A feed that brings its own artwork later replaces it on the next poll.
+  A show the directory does not list is looked up again after #{@artwork_retry_days} days.
+  An unreachable directory is asked again on the next call. Returns the feed as stored.
+  The caller broadcasts a change.
+  """
+  def artwork(%Feed{kind: :podcast, icon_url: nil} = feed) do
+    if artwork_due?(feed.artwork_checked_at),
+      do: store_artwork(feed, Discovery.directory_artwork(feed.title, feed.url)),
+      else: feed
+  end
+
+  def artwork(feed), do: feed
+
+  # A podcast without artwork that is due asks Apple's directory in a job, so no poll waits.
+  defp ask_for_artwork(%Feed{kind: :podcast, icon_url: nil} = feed) do
+    if artwork_due?(feed.artwork_checked_at),
+      do: %{feed_id: feed.id} |> Artwork.new() |> Oban.insert()
+  end
+
+  defp ask_for_artwork(_feed), do: nil
+
+  defp store_artwork(feed, {:ok, url}), do: put_artwork(feed, icon_url: url)
+  defp store_artwork(feed, {:error, :not_found}), do: put_artwork(feed, [])
+  defp store_artwork(feed, {:error, :unavailable}), do: feed
+
+  # A poll may have stored the feed's own artwork meanwhile. That artwork stays.
+  defp put_artwork(feed, set) do
+    set = [artwork_checked_at: DateTime.utc_now()] ++ set
+    query = from(f in Feed, where: f.id == ^feed.id and is_nil(f.icon_url))
+
+    case Repo.update_all(query, set: set) do
+      {1, _} -> struct(feed, set)
+      _ -> feed
+    end
+  end
+
+  defp artwork_due?(nil), do: true
+
+  defp artwork_due?(checked_at),
+    do: DateTime.diff(DateTime.utc_now(), checked_at, :day) >= @artwork_retry_days
+
   @doc """
   Fetches a feed again. `on_new` receives new entries as in `store/2`.
 
@@ -152,6 +204,10 @@ defmodule Sikio.Feeds do
 
       feed ->
         result = refresh_feed(feed, on_new)
+
+        with {state, refreshed} when state in [:ok, :unchanged] <- result,
+             do: ask_for_artwork(refreshed)
+
         if news?(result, feed), do: Events.feed_updated(feed.id)
 
         case result do

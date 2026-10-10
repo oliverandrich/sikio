@@ -3,6 +3,7 @@
 defmodule Sikio.FeedsTest do
   @moduledoc false
   use Sikio.DataCase, async: true
+  use Oban.Testing, repo: Sikio.Repo
 
   import Sikio.FeedFixtures
 
@@ -432,6 +433,111 @@ defmodule Sikio.FeedsTest do
       {:ok, feed} = Feeds.store(preview())
       entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
       assert Feeds.chapters(entry) == {:ok, nil}
+    end
+  end
+
+  describe "artwork/1" do
+    # A podcast feed without its own artwork, as rbb's "Talk ohne Gast" sends one.
+    defp without_artwork do
+      {:ok, feed} = Feeds.store(%{preview() | icon_url: nil})
+      feed
+    end
+
+    defp directory_lists(feed, artwork) do
+      Sikio.PictureFixtures.serving(%{
+        "/search" =>
+          {"application/json",
+           Jason.encode!(%{results: [%{feedUrl: feed.url, artworkUrl600: artwork}]})}
+      })
+    end
+
+    test "takes the artwork Apple's directory lists for the feed" do
+      feed = without_artwork()
+      directory_lists(feed, "https://img.example/cover.jpg")
+
+      assert %{icon_url: "https://img.example/cover.jpg"} = Feeds.artwork(feed)
+
+      assert %{icon_url: "https://img.example/cover.jpg", artwork_checked_at: %DateTime{}} =
+               Repo.get(Feed, feed.id)
+
+      assert_received {:fetched, "/search"}
+    end
+
+    # The directory is asked again after 30 days at the earliest.
+    test "a feed the directory does not list is asked about again only a month later" do
+      feed = without_artwork()
+      Sikio.PictureFixtures.serving(%{"/search" => {"application/json", ~s({"results":[]})}})
+
+      assert %{icon_url: nil} = Feeds.artwork(feed)
+      assert_received {:fetched, "/search"}
+      checked = Repo.get(Feed, feed.id)
+      assert %DateTime{} = checked.artwork_checked_at
+
+      Feeds.artwork(checked)
+      refute_received {:fetched, _}
+
+      month_ago = DateTime.add(DateTime.utc_now(), -31, :day)
+      Feeds.artwork(%{checked | artwork_checked_at: month_ago})
+      assert_received {:fetched, "/search"}
+    end
+
+    # An existing subscription gets its artwork after the next poll, also when the feed is
+    # unchanged. A job asks the directory, so the poll waits for nobody.
+    test "a refresh asks for the missing artwork, also after a 304" do
+      feed = without_artwork()
+      Repo.delete_all(Oban.Job)
+      Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 304, ""))
+
+      assert {:ok, _} = Feeds.refresh(feed.id)
+      assert_enqueued(worker: Sikio.Feeds.Artwork, args: %{feed_id: feed.id})
+    end
+
+    test "a refresh asks nothing for a feed checked this month" do
+      feed = without_artwork()
+
+      Repo.update_all(from(f in Feed, where: f.id == ^feed.id),
+        set: [artwork_checked_at: DateTime.utc_now()]
+      )
+
+      Repo.delete_all(Oban.Job)
+      Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 304, ""))
+
+      assert {:ok, _} = Feeds.refresh(feed.id)
+      refute_enqueued(worker: Sikio.Feeds.Artwork)
+    end
+
+    # A 503 or a timeout is no answer. The next refresh asks again.
+    test "an unreachable directory leaves the feed due" do
+      feed = without_artwork()
+      Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 503, ""))
+
+      Feeds.artwork(feed)
+      assert Repo.get(Feed, feed.id).artwork_checked_at == nil
+    end
+
+    # A poll may store the feed's own artwork while the directory answers. That artwork stays.
+    test "the feed's own artwork stored meanwhile is kept" do
+      feed = without_artwork()
+      directory_lists(feed, "https://img.example/cover.jpg")
+
+      Repo.update_all(from(f in Feed, where: f.id == ^feed.id),
+        set: [icon_url: "https://feed.example/own.jpg"]
+      )
+
+      Feeds.artwork(feed)
+      assert Repo.get(Feed, feed.id).icon_url == "https://feed.example/own.jpg"
+    end
+
+    test "a feed with its own artwork and a video feed ask nothing" do
+      {:ok, own} = Feeds.store(preview())
+      {:ok, video} = Feeds.store(peertube_preview())
+      Sikio.PictureFixtures.serving(%{})
+
+      for feed <- [%{own | icon_url: "https://feed.example/own.jpg"}, %{video | icon_url: nil}] do
+        assert Feeds.artwork(feed) == feed
+      end
+
+      refute_received {:fetched, _}
     end
   end
 

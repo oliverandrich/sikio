@@ -19,7 +19,9 @@ fails, the page offers an Apple Podcasts search for the same input. You can:
 - Search Apple Podcasts by show name, or paste an Apple Podcasts URL. Subscribing to a search
   result takes one click. Sikio fetches and validates the show's RSS feed first.
 
-Subscribing imports the current episodes and opens the new source.
+Subscribing imports the current episodes and opens the new source. A podcast whose feed carries
+no artwork takes its cover from Apple Podcasts, if Apple lists the same feed. Its episodes show
+that cover when their own picture is missing, unreachable or larger than 2 MB.
 
 A link to one YouTube video, PeerTube video or podcast episode also offers **Only this item**.
 That saves the item without a subscription, to the queue by default or to the inbox. A saved

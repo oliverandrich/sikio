@@ -65,25 +65,65 @@ defmodule Sikio.Feeds.Discovery do
     term = String.trim(term)
 
     if String.length(term) in 2..120 do
-      query =
-        URI.encode_query(%{
-          term: term,
-          media: "podcast",
-          entity: "podcast",
-          country: "DE",
-          limit: 20
-        })
-
-      case json("https://itunes.apple.com/search?" <> query) do
-        {:ok, %{"results" => results}} when is_list(results) ->
+      case directory(term) do
+        {:ok, results} ->
           {:ok,
            results |> Enum.flat_map(&search_result/1) |> Enum.uniq_by(& &1.url) |> Enum.take(20)}
 
-        _ ->
+        {:error, :unavailable} ->
           {:error, :directory_unavailable}
       end
     else
       {:error, :invalid_search}
+    end
+  end
+
+  @doc """
+  Returns the artwork Apple's directory lists for a podcast feed.
+
+  The directory is searched by title. Only a show with the same normalized feed URL counts, so
+  a namesake's artwork never lands on the feed. Returns `{:error, :unavailable}` when the
+  directory did not answer, and `{:error, :not_found}` when it lists no such show.
+  A title shorter than two characters is not searched, as in `search/1`.
+  """
+  def directory_artwork(title, feed_url) do
+    term = title |> String.trim() |> String.slice(0, 120)
+
+    with true <- String.length(term) >= 2,
+         {:ok, feed} <- HTTP.normalize(feed_url),
+         {:ok, results} <- directory(term),
+         %{"artworkUrl600" => artwork} <-
+           Enum.find(results, &same_feed?(&1, URI.to_string(feed))),
+         {:ok, uri} <- HTTP.normalize(artwork) do
+      {:ok, URI.to_string(uri)}
+    else
+      {:error, :unavailable} -> {:error, :unavailable}
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp same_feed?(%{"feedUrl" => url}, feed) when is_binary(url) do
+    case HTTP.normalize(url) do
+      {:ok, uri} -> URI.to_string(uri) == feed
+      _ -> false
+    end
+  end
+
+  defp same_feed?(_result, _feed), do: false
+
+  defp directory(term) do
+    query =
+      URI.encode_query(%{
+        term: term,
+        media: "podcast",
+        entity: "podcast",
+        country: "DE",
+        limit: 20
+      })
+
+    case json("https://itunes.apple.com/search?" <> query) do
+      {:ok, %{"results" => results}} when is_list(results) -> {:ok, results}
+      _ -> {:error, :unavailable}
     end
   end
 
