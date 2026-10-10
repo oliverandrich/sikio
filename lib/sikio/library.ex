@@ -249,6 +249,11 @@ defmodule Sikio.Library do
 
   defp place_present(%Subscription{} = subscription, feed_id, existing) do
     %{user_id: user_id, shorts: shorts, delivery: delivery} = subscription
+    # The archive as target takes no entry.
+    existing = if delivery == :skip, do: :none, else: existing
+
+    # Without entries to take, every present entry is archived again anyway.
+    if existing != :none, do: forget_unplayed_archive(user_id, feed_id)
 
     present =
       Repo.all(
@@ -271,7 +276,7 @@ defmodule Sikio.Library do
         %{entry | at: DateTime.to_unix(entry.at, :microsecond)}
       end
 
-    taken = if delivery == :skip, do: [], else: taken(shown, existing)
+    taken = taken(shown, existing)
 
     # An entry the account saved on its own stays where it put it.
     taken_ids = MapSet.new(taken, & &1.id)
@@ -285,6 +290,19 @@ defmodule Sikio.Library do
     end
 
     Repo.insert_all(State, delivered(user_id, :skip, archived, now), on_conflict: :nothing)
+  end
+
+  # An earlier subscription may have archived entries unplayed. A new one decides afresh about
+  # them. Heard, started and queued entries and saved ones keep their state.
+  defp forget_unplayed_archive(user_id, feed_id) do
+    Repo.delete_all(
+      from p in State,
+        where: p.user_id == ^user_id and p.status == :archived and p.position == 0.0,
+        where: is_nil(p.queue_rank),
+        where:
+          p.entry_id in subquery(from e in Entry, where: e.feed_id == ^feed_id, select: e.id),
+        where: p.entry_id not in subquery(saved_ids(user_id))
+    )
   end
 
   # The newest of one date is the one stored last. `:all` orders entries of one date by title,

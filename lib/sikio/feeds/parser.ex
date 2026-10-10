@@ -118,7 +118,7 @@ defmodule Sikio.Feeds.Parser do
       icon_url: nil,
       page_url: nil,
       ttl: ttl(channel),
-      entries: items |> Enum.map(&mediathek_entry/1) |> Enum.reject(&is_nil/1)
+      entries: items |> Enum.map(&mediathek_entry/1) |> Enum.reject(&is_nil/1) |> one_per_page()
     }
   end
 
@@ -135,22 +135,56 @@ defmodule Sikio.Feeds.Parser do
     [topic, channel] |> Enum.reject(&(&1 == "")) |> Enum.join(" · ")
   end
 
-  # The content security policy admits media from HTTPS only. The guid is MediathekViewWeb's id,
-  # the one its search returns, so a programme saved alone matches the series later.
+  @doc """
+  Returns the id a Mediathek programme is stored under: its broadcaster's page and its title.
+
+  MediathekViewWeb's own id can change between fetches. It serves only without a page.
+  A page can hold several programmes, so the title tells them apart.
+  """
+  def mediathek_id(page_url, title, _id) when is_binary(page_url), do: page_url <> " " <> title
+  def mediathek_id(nil, _title, id), do: id
+
+  @doc """
+  Keeps one copy of each programme, in the given order. A copy is the same title on one page.
+
+  MediathekViewWeb lists a copy blocked outside Germany, Austria or Switzerland beside the open
+  one. The open copy takes the first copy's place.
+  """
+  def one_per_page(programmes) do
+    keyed = Enum.with_index(programmes, &{mediathek_id(&1.page_url, &1.title, &2), &1})
+
+    open =
+      keyed
+      |> Enum.reverse()
+      |> Enum.reject(fn {_key, programme} -> geo_blocked?(programme.media_url) end)
+      |> Map.new()
+
+    keyed
+    |> Enum.uniq_by(&elem(&1, 0))
+    |> Enum.map(fn {key, first} -> Map.get(open, key, first) end)
+  end
+
+  # The ARD marks blocked files with /geo/, ZDF and 3sat with /de/, ORF with cms-austria.
+  defp geo_blocked?(url) when is_binary(url), do: Regex.match?(~r{/geo/|/de/|cms-austria}, url)
+  defp geo_blocked?(_url), do: false
+
+  # The content security policy admits media from HTTPS only.
   defp mediathek_entry(item) do
     with title when title != "" <- value(item, "title"),
          false <- mediathek_variant?(title),
          {:ok, %URI{scheme: "https"} = uri} <-
            HTTP.normalize(attr(child(item, "enclosure"), "url")),
          id when id != "" <- value(item, "guid") do
+      page = HTTP.resolve(value(item, "websiteUrl"), "https://mediathekviewweb.de")
+
       %{
-        external_id: id,
+        external_id: mediathek_id(page, title, id),
         title: title,
         media_url: URI.to_string(uri),
         audio_url: nil,
         video_id: nil,
         embed_url: nil,
-        page_url: HTTP.resolve(value(item, "websiteUrl"), "https://mediathekviewweb.de"),
+        page_url: page,
         chapters: nil,
         chapters_url: nil,
         published_at: date(value(item, "pubDate")),

@@ -684,18 +684,34 @@ defmodule Sikio.Feeds.DiscoveryTest do
               hit("Die Erfindung des Rades (klare Sprache)"),
               hit("Die Erfindung des Rades (mit Gebärdensprache)"),
               hit("Trailer: Die Erfindung des Rades"),
-              hit("Ohne HD", %{url_video_hd: "", description: 7}),
+              hit("Ohne HD", %{
+                url_video_hd: "",
+                description: 7,
+                url_website: "https://www.ardmediathek.de/video/ohne-hd"
+              }),
               # Media from plain http breaks the content security policy.
               hit("Nur http", %{url_video_hd: "", url_video: "http://wdr.example/v.mp4"}),
               # A broken timestamp drops its programme, not the search.
-              hit("Kaputte Zeit", %{timestamp: 999_999_999_999_999})
+              hit("Kaputte Zeit", %{timestamp: 999_999_999_999_999}),
+              # A geo-blocked copy of a programme gives way to the open one. ZDF marks it /de/.
+              hit("Geo", %{
+                url_website: "https://www.ardmediathek.de/video/geo",
+                url_video_hd: "https://zdf.example/de/zdf/v.mp4"
+              }),
+              hit("Geo", %{
+                id: "id-Geo-open",
+                url_website: "https://www.ardmediathek.de/video/geo",
+                url_video_hd: "https://swr.example/v.mp4"
+              })
             ]
           }
         })
       end)
 
-      assert {:ok, [rades, without_hd]} =
+      assert {:ok, [rades, without_hd, geo]} =
                Discovery.mediathek_search("tatort", "https://mediathek.example")
+
+      assert %{id: "id-Geo-open", media_url: "https://swr.example/v.mp4"} = geo
 
       assert rades == %{
                id: "id-Die Erfindung des Rades",
@@ -728,7 +744,11 @@ defmodule Sikio.Feeds.DiscoveryTest do
         page_url: "https://www.ardmediathek.de/video/abc"
       }
 
-      assert %{preview: preview, external_id: "abc="} = Discovery.mediathek_item(programme)
+      # The broadcaster's page names the programme. MediathekViewWeb's id can change.
+      assert %{
+               preview: preview,
+               external_id: "https://www.ardmediathek.de/video/abc Die Erfindung des Rades"
+             } = Discovery.mediathek_item(programme)
 
       assert %{kind: :mediathek, title: "Tatort · WDR", icon_url: nil} = preview
 
@@ -761,7 +781,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
 
       assert [
                %{
-                 external_id: "abc=",
+                 external_id: "https://www.ardmediathek.de/video/abc Die Erfindung des Rades",
                  title: "Die Erfindung des Rades",
                  media_url: "https://wdr.example/v-hd.mp4",
                  page_url: "https://www.ardmediathek.de/video/abc",

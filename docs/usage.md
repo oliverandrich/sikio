@@ -22,8 +22,10 @@ guessed URL fails, the page offers a search for the same input. You can:
   [MediathekViewWeb](https://mediathekviewweb.de) for title and topic. A series is a
   programme's topic on its channel. Sikio plays the broadcaster's HD file in its own player.
   Versions with audio description, plain language or sign language and trailers are left out.
-  A programme disappears when the broadcaster removes it from its media library. A newly saved
-  or subscribed programme shows the picture its broadcaster's page names.
+  A programme disappears when the broadcaster removes it from its media library. A saved or
+  subscribed programme shows the picture its broadcaster's page names. MediathekViewWeb lists
+  some programmes twice, once blocked outside Germany, Austria and Switzerland. Sikio keeps one
+  per broadcaster page, the open copy where there is one.
 
 A search shows its results in four tabs: **Podcasts**, **Episodes**, **Series** and
 **Programmes**. Each tab shows its count. Episodes come from Apple Podcasts and are read from
@@ -36,7 +38,9 @@ oldest first, or none. Episodes of one date are ordered by title. **New episodes
 delivery target. The episodes taken go there too. The others are archived and stay in the source
 under **All items**. The archive as target takes every episode, so the first question goes away.
 A series from the search taken whole brings up to 100 programmes. Its refreshes ask for 20.
-Subscribing then imports the current episodes and opens the new source.
+Subscribing then imports the current episodes and opens the new source. Subscribing again after
+an unsubscribe decides afresh about episodes archived unplayed. Heard, started and queued
+episodes keep their state.
 
 A podcast whose feed carries no artwork takes its cover from Apple Podcasts, if Apple lists the
 same feed. Its episodes show that cover when their own picture is missing, unreachable or

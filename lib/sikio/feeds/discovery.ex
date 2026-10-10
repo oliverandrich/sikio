@@ -94,6 +94,7 @@ defmodule Sikio.Feeds.Discovery do
        results
        |> Enum.reject(&variant?/1)
        |> Enum.flat_map(&programme/1)
+       |> Parser.one_per_page()
        |> Enum.take(20)}
     else
       {:error, :invalid_search} -> {:error, :invalid_search}
@@ -120,9 +121,10 @@ defmodule Sikio.Feeds.Discovery do
       end
 
     query = URI.encode_query(%{query: selector, everywhere: false, future: false, size: 20})
+    id = Parser.mediathek_id(programme.page_url, programme.title, programme.id)
 
     entry = %{
-      external_id: programme.id,
+      external_id: id,
       title: programme.title,
       media_url: programme.media_url,
       audio_url: nil,
@@ -149,7 +151,7 @@ defmodule Sikio.Feeds.Discovery do
       entries: [entry]
     }
 
-    %{preview: preview, external_id: programme.id}
+    %{preview: preview, external_id: id}
   end
 
   # Commas join a topic's words. Spaces would also match topics that hold only some of them.

@@ -477,6 +477,24 @@ defmodule Sikio.LibraryTest do
     assert newest == Enum.max(ids)
   end
 
+  # A new subscription decides afresh about entries that an earlier one archived unplayed.
+  # What the account heard or started stays.
+  test "subscribing again places entries an earlier subscription archived", ctx do
+    {:ok, preview} = Parser.parse(podcast_later(), feed_url())
+    {:ok, first} = Library.subscribe(ctx.alice, preview)
+    source = %{"source" => to_string(first.feed_id), "status" => ""}
+    [later, older] = Library.entries(ctx.alice, source)
+    assert older.playback.status == :archived
+
+    {:ok, _} = Playback.mark(ctx.alice, later.id, :heard)
+    {:ok, _} = Library.unsubscribe(ctx.alice, first.id)
+    {:ok, _} = Library.subscribe(ctx.alice, preview, existing: :all, delivery: :inbox)
+
+    assert [%{id: id}] = Library.entries(ctx.alice, %{"status" => "inbox"})
+    assert id == older.id
+    assert Library.entry(ctx.alice, later.id).playback.status == :heard
+  end
+
   # A saved newest entry still counts as the newest, so no older entry joins it.
   test "subscribing after saving the newest entry brings no other", ctx do
     {:ok, preview} = Parser.parse(podcast_later(), feed_url())

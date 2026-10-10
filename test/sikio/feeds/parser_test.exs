@@ -435,7 +435,8 @@ defmodule Sikio.Feeds.ParserTest do
 
     assert [
              %{
-               external_id: "maus-1=",
+               external_id:
+                 "https://www.ardmediathek.de/video/maus-1 Sachgeschichte: Immer geradeaus",
                title: "Sachgeschichte: Immer geradeaus",
                media_url: "https://ard.example.org/maus/1.mp4",
                page_url: "https://www.ardmediathek.de/video/maus-1",
@@ -445,6 +446,30 @@ defmodule Sikio.Feeds.ParserTest do
                description_format: :text
              }
            ] = feed.entries
+
+    # MediathekViewWeb lists a geo-blocked and an open copy of one programme. The open one
+    # stays. Another programme on the same page stays too.
+    copies =
+      String.replace(
+        mediathek_feed(),
+        "<item>",
+        """
+        <item><title>Sachgeschichte: Immer geradeaus</title><guid>maus-1-geo=</guid>
+        <enclosure url="https://ard.example.org/geo/de-at-ch/maus/1.mp4" type="video/mp4"/>
+        <websiteUrl>https://www.ardmediathek.de/video/maus-1</websiteUrl></item>
+        <item><title>Lachgeschichte</title><guid>maus-1-lach=</guid>
+        <enclosure url="https://ard.example.org/maus/lach.mp4" type="video/mp4"/>
+        <websiteUrl>https://www.ardmediathek.de/video/maus-1</websiteUrl></item>
+        <item>
+        """,
+        global: false
+      )
+
+    # The open copy takes the place of the blocked one, ahead of the other programme.
+    assert {:ok, %{entries: [%{media_url: "https://ard.example.org/maus/1.mp4"}, lach]}} =
+             Parser.parse(copies, url)
+
+    assert lach.title == "Lachgeschichte"
 
     assert {:error, :invalid_feed} = Parser.parse(mediathek_feed(), "https://example.org/feed")
 
