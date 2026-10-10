@@ -146,7 +146,8 @@ defmodule SikioWeb.SubscriptionSettings do
   defp give_back_focus(%{assigns: %{trigger: nil}} = socket), do: socket
   defp give_back_focus(socket), do: push_event(socket, "focus", %{id: socket.assigns.trigger})
 
-  defp deliveries,
+  @doc "Returns the places new entries can go, as `{delivery, label}`."
+  def deliveries,
     do: [
       {"inbox", gettext("The inbox")},
       {"queue", gettext("The end of the queue")},
@@ -188,28 +189,15 @@ defmodule SikioWeb.SubscriptionSettings do
             </label>
             <.field_error errors={@editing.errors} field={:name} />
           </div>
-          <fieldset
-            class="flex flex-col gap-2"
+          <.radio_group
+            name="delivery"
+            legend={gettext("New episodes go to")}
+            options={deliveries()}
+            value={@editing.delivery}
             aria-describedby={@editing.errors[:delivery] && error_id(:delivery)}
           >
-            <legend class="mb-1.5 text-label font-semibold text-ink">
-              {gettext("New episodes go to")}
-            </legend>
-            <label
-              :for={{value, label} <- deliveries()}
-              class="flex items-center gap-2.5 text-label text-ink"
-            >
-              <input
-                type="radio"
-                name="delivery"
-                value={value}
-                checked={@editing.delivery == value}
-                class="size-4 accent-accent"
-              />
-              {label}
-            </label>
             <.field_error errors={@editing.errors} field={:delivery} />
-          </fieldset>
+          </.radio_group>
           <label
             :if={Sikio.Feeds.Feed.channel?(@editing.subscription.feed)}
             class="flex items-center gap-2.5 text-label text-ink"

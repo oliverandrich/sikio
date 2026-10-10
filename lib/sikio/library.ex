@@ -46,20 +46,33 @@ defmodule Sikio.Library do
   def listed_entry_ids(%User{id: user_id}),
     do: from(e in listed_entries(user_id), select: e.id)
 
-  def subscribe(%User{id: user_id}, preview) do
+  @doc """
+  Subscribes the account to the source in `preview`.
+
+  `existing` picks which of the feed's present entries the account receives: `:newest` (the
+  default), `:all` or `:none`. They go where `delivery` sends later entries: `:inbox` (the
+  default), `:queue` or `:skip`. The other present entries are archived for the account.
+  Subscribing again changes nothing.
+  """
+  def subscribe(%User{id: user_id}, preview, opts \\ []) do
+    existing = Keyword.get(opts, :existing, :newest)
+    delivery = Keyword.get(opts, :delivery, :inbox)
+
     result =
       Repo.transaction(fn ->
         # The subscription is inserted after the store, so `deliver/2` does not see it.
-        # Of the feed's current entries, the newest stays in this account's inbox.
         # Existing subscriptions receive only the new entries.
         with {:ok, feed} <- Feeds.store(preview, &deliver/2),
              {:ok, subscription} <-
                Repo.insert(
-                 Subscription.changeset(%Subscription{user_id: user_id, feed_id: feed.id}, %{}),
+                 Subscription.changeset(
+                   %Subscription{user_id: user_id, feed_id: feed.id, delivery: delivery},
+                   %{}
+                 ),
                  on_conflict: :nothing,
                  conflict_target: [:user_id, :feed_id]
                ) do
-          archive_all_but_newest(subscription, feed.id)
+          place_present(subscription, feed.id, existing)
           load_subscription(subscription, user_id, feed.id)
         else
           {:error, reason} -> Repo.rollback(reason)
@@ -227,36 +240,61 @@ defmodule Sikio.Library do
     end)
   end
 
-  # A new subscription brings its newest entry into the inbox. The older ones are archived for
-  # the account, so a show's back catalogue waits in its source. Existing states stay.
+  # A new subscription places the entries its feed already holds. `existing` picks them from the
+  # entries the subscription shows, and they go where its delivery sends later entries, oldest
+  # first. The others are archived for the account, so a back catalogue waits in its source.
+  # Existing states stay.
   # A repeated subscribe inserts no row and changes nothing.
-  defp archive_all_but_newest(%Subscription{id: nil}, _feed_id), do: :ok
+  defp place_present(%Subscription{id: nil}, _feed_id, _existing), do: :ok
 
-  defp archive_all_but_newest(%Subscription{user_id: user_id, shorts: shorts}, feed_id) do
-    # The newest entry the subscription shows. A Short is hidden unless the account wants them.
-    visible = from e in Entry, where: e.feed_id == ^feed_id and (^shorts or not e.short)
+  defp place_present(%Subscription{} = subscription, feed_id, existing) do
+    %{user_id: user_id, shorts: shorts, delivery: delivery} = subscription
 
-    newest =
-      Repo.one(
-        from e in visible,
-          order_by: [desc: coalesce(e.published_at, e.inserted_at), desc: e.id],
-          limit: 1,
-          select: e.id
-      )
-
-    # An entry the account saved on its own stays where it put it.
-    older =
+    present =
       Repo.all(
         from e in Entry,
-          where: e.feed_id == ^feed_id and e.id != ^(newest || 0),
-          where: e.id not in subquery(saved_ids(user_id)),
-          select: e.id
+          left_join: v in SavedEntry,
+          on: v.entry_id == e.id and v.user_id == ^user_id,
+          where: e.feed_id == ^feed_id,
+          select: %{
+            id: e.id,
+            short: e.short,
+            at: coalesce(e.published_at, e.inserted_at),
+            title: e.title,
+            saved: not is_nil(v.entry_id)
+          }
       )
 
-    Repo.insert_all(State, delivered(user_id, :skip, older, DateTime.utc_now()),
-      on_conflict: :nothing
-    )
+    # A Short is hidden unless the account wants them. Times compare as integers in tuples.
+    shown =
+      for entry <- present, shorts or not entry.short do
+        %{entry | at: DateTime.to_unix(entry.at, :microsecond)}
+      end
+
+    taken = if delivery == :skip, do: [], else: taken(shown, existing)
+
+    # An entry the account saved on its own stays where it put it.
+    taken_ids = MapSet.new(taken, & &1.id)
+    archived = for e <- present, not e.saved, not MapSet.member?(taken_ids, e.id), do: e.id
+    taken = for e <- taken, not e.saved, do: e.id
+    now = DateTime.utc_now()
+
+    if delivery == :queue do
+      lock_queue(user_id)
+      Repo.insert_all(State, delivered(user_id, :queue, taken, now), on_conflict: :nothing)
+    end
+
+    Repo.insert_all(State, delivered(user_id, :skip, archived, now), on_conflict: :nothing)
   end
+
+  # The newest of one date is the one stored last. `:all` orders entries of one date by title,
+  # compared by bytes, since the databases' collations differ.
+  defp taken(_shown, :none), do: []
+
+  defp taken(shown, :newest),
+    do: shown |> Enum.max_by(&{&1.at, &1.id}, fn -> nil end) |> List.wrap()
+
+  defp taken(shown, :all), do: Enum.sort_by(shown, &{&1.at, &1.title, &1.id})
 
   defp landing(:queue, rank, _now), do: %{status: :new, queue_rank: rank}
   defp landing(:skip, _rank, now), do: %{status: :archived, completed_at: now}

@@ -23,6 +23,12 @@ defmodule SikioWeb.AddSourceLiveTest do
     %{conn: conn, user: user}
   end
 
+  # Answers the subscribe dialog. `choice` replaces its defaults.
+  defp confirm_subscribe(view, choice \\ %{}) do
+    if choice != %{}, do: view |> form("#subscribe-form", choice) |> render_change()
+    view |> element("#confirm-subscribe") |> render_click()
+  end
+
   # One input takes a URL or a search term. Its hint names the supported platforms.
   test "one field takes a link or a search", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/add")
@@ -64,7 +70,8 @@ defmodule SikioWeb.AddSourceLiveTest do
     assert has_element?(view, ~s|#source-0 img[src="#{src}"]|)
     assert Library.subscriptions(user) == []
 
-    result = view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> element("#source-0 button", "Subscribe") |> render_click()
+    result = confirm_subscribe(view)
     assert {:error, {:live_redirect, %{to: to}}} = result
 
     assert [%{feed_id: feed_id, feed: %{title: "Small Hours"}}] = Library.subscriptions(user)
@@ -84,6 +91,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: url}) |> render_submit()
       render_async(view)
       view |> element("#source-0 button", "Subscribe") |> render_click()
+      confirm_subscribe(view)
     end
 
     subscribe.()
@@ -144,6 +152,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     refute has_element?(view, "#source-0 button", "Preview")
 
     view |> element("#source-0 button", "Subscribe") |> render_click()
+    confirm_subscribe(view)
     assert_receive {:fetching, fetcher}
     assert has_element?(view, "#source-0 button[disabled]", "Subscribing")
     assert has_element?(view, "#source-1", "Other Show")
@@ -151,6 +160,42 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     assert {"/feeds/" <> _, _flash} = assert_redirect(view)
     assert [%{feed: %{title: "Small Hours"}}] = Library.subscriptions(user)
+  end
+
+  # Subscribing asks which present items to take and where later ones go. Nothing is subscribed
+  # until the answer.
+  test "subscribing asks which items to take and where they go", %{conn: conn, user: user} do
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast_later()) end)
+    {:ok, view, _} = live(conn, ~p"/add")
+    view |> form("#add-form", %{q: feed_url()}) |> render_submit()
+    render_async(view)
+
+    view |> element("#source-0 button", "Subscribe") |> render_click()
+    assert has_element?(view, "#subscribe-confirm", "Small Hours")
+    assert has_element?(view, ~s|#subscribe-form [name="existing"][value="newest"][checked]|)
+    assert has_element?(view, ~s|#subscribe-form [name="delivery"][value="inbox"][checked]|)
+
+    view |> element("#cancel-subscribe") |> render_click()
+    refute has_element?(view, "#subscribe-confirm")
+    assert Library.subscriptions(user) == []
+
+    view |> element("#source-0 button", "Subscribe") |> render_click()
+    result = confirm_subscribe(view, %{existing: "all", delivery: "queue"})
+    assert {:error, {:live_redirect, %{to: "/feeds/" <> _}}} = result
+    assert [%{delivery: :queue}] = Library.subscriptions(user)
+    assert length(Playback.queue(user)) == 2
+  end
+
+  # The archive takes every present item, so the first question goes away.
+  test "choosing the archive asks nothing about present items", %{conn: conn} do
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
+    {:ok, view, _} = live(conn, ~p"/add")
+    view |> form("#add-form", %{q: feed_url()}) |> render_submit()
+    render_async(view)
+
+    view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> form("#subscribe-form", %{delivery: "skip"}) |> render_change()
+    refute has_element?(view, ~s|#subscribe-form [name="existing"]|)
   end
 
   # The clear button empties the input and removes the results.
@@ -249,8 +294,44 @@ defmodule SikioWeb.AddSourceLiveTest do
       assert has_element?(view, "#series-0", "2")
 
       view |> element(~s|#series-0 [data-action="subscribe"]|) |> render_click()
+      confirm_subscribe(view)
       assert {"/feeds/" <> _, _flash} = assert_redirect(view)
       assert [%{feed: %{kind: :mediathek}}] = Library.subscriptions(user)
+    end
+
+    # A series taken whole asks once for a larger page than its refreshes do.
+    test "a series taken whole brings more programmes", %{conn: conn, user: user} do
+      searches([], [], [programme("Spur")], fn conn ->
+        assert URI.decode_query(conn.query_string)["size"] == "100"
+        Plug.Conn.send_resp(conn, 200, mediathek_feed())
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "tatort"}) |> render_submit()
+      render_async(view)
+
+      view |> element(~s|#series-0 [data-action="subscribe"]|) |> render_click()
+      confirm_subscribe(view, %{existing: "all", delivery: "inbox"})
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{url: url}}] = Library.subscriptions(user)
+      assert URI.decode_query(URI.parse(url).query)["size"] == "20"
+    end
+
+    # The archive takes every programme, so a larger page would be wasted.
+    test "a series sent to the archive asks for its usual page", %{conn: conn} do
+      searches([], [], [programme("Spur")], fn conn ->
+        assert URI.decode_query(conn.query_string)["size"] == "20"
+        Plug.Conn.send_resp(conn, 200, mediathek_feed())
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "tatort"}) |> render_submit()
+      render_async(view)
+
+      view |> element(~s|#series-0 [data-action="subscribe"]|) |> render_click()
+      view |> form("#subscribe-form", %{existing: "all"}) |> render_change()
+      confirm_subscribe(view, %{delivery: "skip"})
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
     end
 
     # A programme row subscribes to the series it belongs to.
@@ -265,6 +346,7 @@ defmodule SikioWeb.AddSourceLiveTest do
 
       assert has_element?(view, ~s|#programme-0 [data-action="subscribe"]|, "Subscribe to Tatort")
       view |> element(~s|#programme-0 [data-action="subscribe"]|) |> render_click()
+      confirm_subscribe(view)
       assert {"/feeds/" <> _, _flash} = assert_redirect(view)
       assert [%{feed: %{kind: :mediathek}}] = Library.subscriptions(user)
     end
@@ -309,6 +391,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       render_async(view)
 
       view |> element(~s|#episode-0 [data-action="subscribe"]|) |> render_click()
+      confirm_subscribe(view)
       assert {"/feeds/" <> _, _flash} = assert_redirect(view)
       assert [%{feed: %{kind: :podcast}}] = Library.subscriptions(user)
     end
@@ -410,6 +493,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     view |> form("#add-form", %{q: "small hours"}) |> render_submit()
     render_async(view)
     view |> element("#source-0 button", "Subscribe") |> render_click()
+    confirm_subscribe(view)
     assert_receive {:fetching, fetcher}
 
     view |> form("#add-form", %{q: "other"}) |> render_submit()
@@ -441,6 +525,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     view |> form("#add-form", %{q: "gone"}) |> render_submit()
     render_async(view)
     view |> element("#source-0 button", "Subscribe") |> render_click()
+    confirm_subscribe(view)
     render_async(view)
 
     assert has_element?(view, "#source-0 [role=alert]")
@@ -458,6 +543,8 @@ defmodule SikioWeb.AddSourceLiveTest do
     render_async(view)
     assert has_element?(view, "#discovery-error")
     render_hook(view, "select", %{id: "999"})
+    # An answer without an open dialog subscribes nothing.
+    render_hook(view, "confirm_subscribe", %{})
     assert Library.subscriptions(user) == []
   end
 

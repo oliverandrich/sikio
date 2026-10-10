@@ -408,6 +408,51 @@ defmodule Sikio.LibraryTest do
     assert length(Library.entries(ctx.alice, %{"status" => "inbox"})) == 2
   end
 
+  # A serial is followed from its start. Its present entries join the queue oldest first, and
+  # entries of one date by title. The subscription keeps the delivery for later entries.
+  test "subscribing can queue every present entry, oldest first", ctx do
+    {:ok, preview} = Parser.parse(podcast_later(), feed_url())
+    later = Enum.find(preview.entries, &(&1.title == "Later"))
+    tie = %{later | external_id: "episode-tie", title: "A tie"}
+    # Titles compare by their bytes on both databases, so lowercase sorts after uppercase.
+    lower = %{later | external_id: "episode-lower", title: "a later"}
+    preview = %{preview | entries: [later, lower, tie | preview.entries -- [later]]}
+
+    {:ok, subscription} = Library.subscribe(ctx.alice, preview, existing: :all, delivery: :queue)
+    assert subscription.delivery == :queue
+
+    titles = Enum.map(Playback.queue(ctx.alice), &Library.entry(ctx.alice, &1).title)
+    assert titles == ["One & two", "A tie", "Later", "a later"]
+  end
+
+  test "subscribing can bring every present entry to the inbox, or none", ctx do
+    {:ok, preview} = Parser.parse(podcast_later(), feed_url())
+
+    {:ok, _} = Library.subscribe(ctx.alice, preview, existing: :all, delivery: :inbox)
+    assert length(Library.entries(ctx.alice, %{"status" => "inbox"})) == 2
+
+    {:ok, bobs} = Library.subscribe(ctx.bob, preview, existing: :none, delivery: :inbox)
+    assert Library.entries(ctx.bob, %{"status" => "inbox"}) == []
+
+    assert [:archived, :archived] =
+             Library.entries(ctx.bob, %{"source" => to_string(bobs.feed_id), "status" => ""})
+             |> Enum.map(& &1.playback.status)
+  end
+
+  # The newest entry goes where later ones go. The archive takes every present entry.
+  test "subscribing places the newest entry by the subscription's delivery", ctx do
+    {:ok, preview} = Parser.parse(podcast_later(), feed_url())
+
+    {:ok, _} = Library.subscribe(ctx.alice, preview, existing: :newest, delivery: :queue)
+    assert [id] = Playback.queue(ctx.alice)
+    assert Library.entry(ctx.alice, id).title == "Later"
+
+    {:ok, bobs} = Library.subscribe(ctx.bob, preview, existing: :all, delivery: :skip)
+    assert bobs.delivery == :skip
+    assert Library.entries(ctx.bob, %{"status" => "inbox"}) == []
+    assert Playback.queue(ctx.bob) == []
+  end
+
   # An item the account saved to its inbox stays there when it later follows the source.
   test "subscribing leaves an item saved to the inbox in the inbox", ctx do
     {:ok, preview} = Parser.parse(podcast_later(), feed_url())
@@ -416,6 +461,31 @@ defmodule Sikio.LibraryTest do
 
     {:ok, _} = Library.subscribe(ctx.alice, preview)
     assert saved.id in Enum.map(Library.entries(ctx.alice, %{"status" => "inbox"}), & &1.id)
+  end
+
+  # Entries of one date leave the one stored last as the newest, whatever their titles.
+  test "subscribing takes the entry stored last among the newest of one date", ctx do
+    {:ok, preview} = Parser.parse(podcast_later(), feed_url())
+    later = Enum.find(preview.entries, &(&1.title == "Later"))
+    other = %{later | external_id: "episode-tie", title: "Zusammenfassung"}
+    preview = %{preview | entries: [other | preview.entries]}
+
+    {:ok, subscription} = Library.subscribe(ctx.alice, preview)
+    [%{id: newest}] = Library.entries(ctx.alice, %{"status" => "inbox"})
+
+    ids = Repo.all(from e in Entry, where: e.feed_id == ^subscription.feed_id, select: e.id)
+    assert newest == Enum.max(ids)
+  end
+
+  # A saved newest entry still counts as the newest, so no older entry joins it.
+  test "subscribing after saving the newest entry brings no other", ctx do
+    {:ok, preview} = Parser.parse(podcast_later(), feed_url())
+    newest = Enum.max_by(preview.entries, & &1.published_at, DateTime)
+    {:ok, saved} = Library.save(ctx.alice, preview, newest.external_id, :inbox)
+
+    {:ok, _} = Library.subscribe(ctx.alice, preview)
+    assert [%{id: id}] = Library.entries(ctx.alice, %{"status" => "inbox"})
+    assert id == saved.id
   end
 
   # A channel's latest upload may be a Short, which the subscription hides by default. The newest

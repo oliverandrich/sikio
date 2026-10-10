@@ -786,10 +786,35 @@ defmodule Sikio.Feeds.DiscoveryTest do
       end)
 
       assert {:ok, [%{url: ^url, kind: :mediathek, entries: [_]}]} =
-               Discovery.mediathek_series(url, "https://mediathek.example")
+               Discovery.mediathek_series(url, base: "https://mediathek.example")
 
       # A trailing slash on the instance address does not double the path's slash.
-      assert {:ok, [_]} = Discovery.mediathek_series(url, "https://mediathek.example/")
+      assert {:ok, [_]} = Discovery.mediathek_series(url, base: "https://mediathek.example/")
+    end
+
+    # A subscription that takes every present programme asks once for a larger page. The source
+    # keeps its page of 20, which every refresh asks for.
+    test "a series is fetched once with a larger page, and keeps its own" do
+      url = "https://mediathekviewweb.de/feed?query=%21ard+%23Tatort&size=20"
+
+      Req.Test.stub(HTTP, fn conn ->
+        assert %{"query" => "!ard #Tatort", "size" => "100"} = URI.decode_query(conn.query_string)
+        Plug.Conn.send_resp(conn, 200, mediathek_feed())
+      end)
+
+      for base <- ["https://mediathekviewweb.de", "https://mediathek.example"] do
+        assert {:ok, [%{url: ^url}]} = Discovery.mediathek_series(url, base: base, size: 100)
+      end
+
+      # An address without a query still gets its size.
+      bare = "https://mediathekviewweb.de/feed"
+
+      Req.Test.stub(HTTP, fn conn ->
+        assert URI.decode_query(conn.query_string) == %{"size" => "100"}
+        Plug.Conn.send_resp(conn, 200, mediathek_feed())
+      end)
+
+      assert {:ok, [%{url: ^bare}]} = Discovery.mediathek_series(bare, size: 100)
     end
 
     test "an unreachable Mediathek says so, and a term too short is not sent" do

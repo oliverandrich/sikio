@@ -153,6 +153,37 @@ defmodule SikioWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders one question of a dialog form as radio buttons under a legend.
+
+  `options` lists `{value, label}`. The inner block follows the buttons, for example an error.
+  """
+  attr :name, :string, required: true
+  attr :legend, :string, required: true
+  attr :options, :list, required: true
+  attr :value, :string, required: true
+  attr :rest, :global
+  slot :inner_block
+
+  def radio_group(assigns) do
+    ~H"""
+    <fieldset class="flex flex-col gap-2" {@rest}>
+      <legend class="mb-1.5 text-label font-semibold text-ink">{@legend}</legend>
+      <label :for={{value, label} <- @options} class="flex items-center gap-2.5 text-label text-ink">
+        <input
+          type="radio"
+          name={@name}
+          value={value}
+          checked={@value == value}
+          class="size-4 accent-accent"
+        />
+        {label}
+      </label>
+      {render_slot(@inner_block)}
+    </fieldset>
+    """
+  end
+
   @doc "Returns text field classes for dialogs: touch height on phones, button height from `sm`."
   def dialog_field,
     do:

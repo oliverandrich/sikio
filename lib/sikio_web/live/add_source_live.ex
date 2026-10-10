@@ -5,7 +5,8 @@ defmodule SikioWeb.AddSourceLive do
   Adds a source from a pasted link or a search in Apple Podcasts and the Mediathek.
 
   A pasted link shows a preview with its title and item count first.
-  A search result subscribes in one click, which fetches and parses its feed.
+  Subscribing asks which present items to take and where later ones go. A search result's feed
+  is fetched after the answer.
   A search also asks MediathekViewWeb. A programme from it is saved on its own, as an item.
   Discovery runs in `start_async/3`. Candidates stay in assigns under generated ids.
   A forged id therefore selects nothing.
@@ -23,16 +24,23 @@ defmodule SikioWeb.AddSourceLive do
   alias Sikio.Feeds.Discovery
   alias Sikio.Library
   alias SikioWeb.LibraryPaths
+  alias SikioWeb.SubscriptionSettings
 
   @tabs ~w(podcasts episodes series programmes)
 
-  # Each list's rows subscribe to a source: its row id prefix, the field with its address, and
-  # the `Discovery` function that fetches it. A capture here would be a compile-time dependency.
+  # Each list's rows subscribe to a source: its row id prefix, the fields with its address and
+  # name, and the `Discovery` function that fetches it. A capture here would be a compile-time
+  # dependency.
   @subscribable %{
-    "episodes" => {:episodes, "episode-", :feed_url, :discover},
-    "series" => {:series, "series-", :series_url, :mediathek_series},
-    "programmes" => {:programmes, "programme-", :series_url, :mediathek_series}
+    "episodes" => {:episodes, "episode-", :feed_url, :podcast, :discover},
+    "series" => {:series, "series-", :series_url, :title, :mediathek_series},
+    "programmes" => {:programmes, "programme-", :series_url, :series_title, :mediathek_series}
   }
+
+  @existing ~w(newest all none)
+
+  # A series taken whole is fetched once with this many programmes. Its refreshes ask for 20.
+  @whole_series 100
 
   # Each stream with the assign that holds its results and the field that orders them.
   @lists [
@@ -75,9 +83,6 @@ defmodule SikioWeb.AddSourceLive do
   def handle_event(event, _params, %{assigns: %{busy: true}} = socket)
       when event in ["add", "search_instead", "select"],
       do: {:noreply, socket}
-
-  def handle_event("select", _params, %{assigns: %{subscribing: id}} = socket) when id != nil,
-    do: {:noreply, socket}
 
   # Keeps the `form` assign current, so the input survives a LiveView reconnect.
   def handle_event("validate", %{"q" => q}, socket),
@@ -128,12 +133,63 @@ defmodule SikioWeb.AddSourceLive do
 
   def handle_event("save_episode", _params, socket), do: {:noreply, socket}
 
-  # The source is fetched first, so subscribing imports its current entries.
   def handle_event("subscribe", %{"list" => list, "key" => key}, socket)
       when list in ~w(episodes series programmes) do
-    {name, prefix, field, fetch} = @subscribable[list]
-    subscribe_to(socket, prefix <> key, socket.assigns[name][key][field], fetch)
+    {name, prefix, url, title, fetch} = @subscribable[list]
+
+    case socket.assigns[name][key] do
+      %{^url => address} = row when is_binary(address) ->
+        {:noreply, ask(socket, prefix <> key, row[title], {fetch, address})}
+
+      _forged ->
+        {:noreply, socket}
+    end
   end
+
+  # The dialog's choices stay in `asking` as they change.
+  def handle_event("subscribe_options", params, %{assigns: %{asking: %{} = asking}} = socket) do
+    existing = if params["existing"] in @existing, do: params["existing"], else: asking.existing
+    deliveries = Enum.map(SubscriptionSettings.deliveries(), &elem(&1, 0))
+    delivery = if params["delivery"] in deliveries, do: params["delivery"], else: asking.delivery
+    {:noreply, assign(socket, asking: %{asking | existing: existing, delivery: delivery})}
+  end
+
+  def handle_event("cancel_subscribe", _params, socket),
+    do: {:noreply, assign(socket, asking: nil)}
+
+  def handle_event("confirm_subscribe", _params, %{assigns: %{asking: %{} = asking}} = socket) do
+    # The archive takes every present entry, whatever the hidden question says.
+    existing =
+      if asking.delivery == "skip", do: :none, else: String.to_existing_atom(asking.existing)
+
+    opts = [existing: existing, delivery: String.to_existing_atom(asking.delivery)]
+    socket = assign(socket, asking: nil)
+
+    case asking.source do
+      {:preview, preview} ->
+        subscribe(socket, preview, opts)
+
+      # The source is fetched first, so subscribing imports its current entries.
+      {fetch, url} ->
+        args =
+          if fetch == :mediathek_series and existing == :all,
+            do: [url, [size: @whole_series]],
+            else: [url]
+
+        {:noreply,
+         socket
+         |> assign(
+           subscribing: asking.row,
+           row_errors: Map.delete(socket.assigns.row_errors, asking.row)
+         )
+         |> show_rows()
+         |> start_async(:subscribe, fn -> {opts, apply(Discovery, fetch, args)} end)}
+    end
+  end
+
+  def handle_event(event, _params, socket)
+      when event in ["subscribe_options", "confirm_subscribe"],
+      do: {:noreply, socket}
 
   def handle_event("save_item", %{"at" => at}, %{assigns: %{item: %{} = item}} = socket)
       when at in ["queue", "inbox"],
@@ -164,17 +220,22 @@ defmodule SikioWeb.AddSourceLive do
         {:noreply, socket}
 
       %{entries: _} = preview ->
-        subscribe(socket, preview)
+        {:noreply, ask(socket, id, preview.title, {:preview, preview})}
 
-      # A search result is discovered and subscribed in one click. The list stays visible.
-      %{url: url} ->
-        {:noreply,
-         socket
-         |> assign(subscribing: id, row_errors: Map.delete(socket.assigns.row_errors, id))
-         |> show_rows()
-         |> start_async(:subscribe, fn -> Discovery.discover(url) end)}
+      # A search result is fetched after the dialog. The list stays visible meanwhile.
+      %{url: url} = result ->
+        {:noreply, ask(socket, id, result.title, {:discover, url})}
     end
   end
+
+  # Opens the subscribe dialog for one row. A running subscribe takes no second one.
+  defp ask(%{assigns: %{subscribing: nil}} = socket, row, title, source),
+    do:
+      assign(socket,
+        asking: %{row: row, title: title, source: source, existing: "newest", delivery: "inbox"}
+      )
+
+  defp ask(socket, _row, _title, _source), do: socket
 
   defp lookup(socket, q) do
     socket = assign(socket, form: to_form(%{"q" => q}))
@@ -257,10 +318,12 @@ defmodule SikioWeb.AddSourceLive do
 
   def handle_async(:item, _result, socket), do: {:noreply, socket}
 
-  def handle_async(:subscribe, {:ok, {:ok, [preview | _]}}, socket),
-    do: socket |> assign(subscribing: nil) |> subscribe(preview)
+  def handle_async(:subscribe, {:ok, {opts, {:ok, [preview | _]}}}, socket),
+    do: socket |> assign(subscribing: nil) |> subscribe(preview, opts)
 
-  def handle_async(:subscribe, {:ok, {:error, reason}}, socket), do: row_failed(socket, reason)
+  def handle_async(:subscribe, {:ok, {_opts, {:error, reason}}}, socket),
+    do: row_failed(socket, reason)
+
   def handle_async(:subscribe, _result, socket), do: row_failed(socket, :unavailable)
 
   def handle_async(:sources, {:ok, {:error, reason}}, socket), do: failed(socket, reason)
@@ -285,19 +348,6 @@ defmodule SikioWeb.AddSourceLive do
 
   defp state_of(:programmes), do: :programmes_state
   defp state_of(:episodes), do: :episodes_state
-
-  # A forged key names no result, and a running subscribe takes no second one.
-  defp subscribe_to(socket, _row, nil, _fetch), do: {:noreply, socket}
-
-  defp subscribe_to(%{assigns: %{subscribing: nil}} = socket, row, url, fetch) do
-    {:noreply,
-     socket
-     |> assign(subscribing: row, row_errors: Map.delete(socket.assigns.row_errors, row))
-     |> show_rows()
-     |> start_async(:subscribe, fn -> apply(Discovery, fetch, [url]) end)}
-  end
-
-  defp subscribe_to(socket, _row, _url, _fetch), do: {:noreply, socket}
 
   # A programme names the source its series is subscribed as.
   defp with_series(programme) do
@@ -382,6 +432,7 @@ defmodule SikioWeb.AddSourceLive do
       candidates: %{},
       fallback: nil,
       subscribing: nil,
+      asking: nil,
       row_errors: %{},
       item: nil,
       programmes: %{},
@@ -450,10 +501,10 @@ defmodule SikioWeb.AddSourceLive do
   defp place(%{status: status}) when status not in [nil, :new], do: "all"
   defp place(_new), do: "inbox"
 
-  defp subscribe(socket, preview) do
+  defp subscribe(socket, preview, opts) do
     account = socket.assigns.current_account
 
-    case Library.subscribe(account, preview) do
+    case Library.subscribe(account, preview, opts) do
       {:ok, subscription} ->
         # An existing subscription keeps its custom name.
         name = source_name(subscription)
@@ -754,7 +805,7 @@ defmodule SikioWeb.AddSourceLive do
               more={@more == dom_id}
               save="save_episode"
               saving={@saving == dom_id}
-              subscribe_label={gettext("Subscribe to %{series}", series: episode.podcast)}
+              subscribe_label={gettext("Subscribe to %{title}", title: episode.podcast)}
               subscribing={@subscribing}
               error={@row_errors[dom_id]}
             />
@@ -835,12 +886,44 @@ defmodule SikioWeb.AddSourceLive do
               page_url={programme.page_url}
               more={@more == dom_id}
               save="save_programme"
-              subscribe_label={gettext("Subscribe to %{series}", series: programme.series_title)}
+              subscribe_label={gettext("Subscribe to %{title}", title: programme.series_title)}
               subscribing={@subscribing}
               error={@row_errors[dom_id]}
             />
           </div>
         </div>
+        <.confirm_dialog
+          :if={@asking}
+          name="subscribe"
+          title={gettext("Subscribe to %{title}", title: @asking.title)}
+          confirm_label={gettext("Subscribe")}
+          wide
+        >
+          <form
+            id="subscribe-form"
+            phx-change="subscribe_options"
+            class="flex flex-col gap-5"
+          >
+            <%!-- The archive takes every present item, so the question goes away. --%>
+            <.radio_group
+              :if={@asking.delivery != "skip"}
+              name="existing"
+              legend={gettext("Episodes so far")}
+              options={[
+                {"newest", gettext("Only the newest")},
+                {"all", gettext("All, oldest first")},
+                {"none", gettext("None")}
+              ]}
+              value={@asking.existing}
+            />
+            <.radio_group
+              name="delivery"
+              legend={gettext("New episodes go to")}
+              options={SubscriptionSettings.deliveries()}
+              value={@asking.delivery}
+            />
+          </form>
+        </.confirm_dialog>
         <p class="mt-10 text-center text-label text-muted">
           {gettext("Coming from another app?")}
           <.link id="add-opml" navigate={~p"/subscriptions/import"} class="font-semibold text-link">

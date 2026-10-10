@@ -16,22 +16,32 @@ guessed URL fails, the page offers a search for the same input. You can:
 - Paste a PeerTube instance, channel, account or video URL. A video leads to its channel.
 - Paste a podcast RSS feed or a podcast website. If a page links several feeds, you choose one,
   for example the MP3 or the Opus version of a show.
-- Search Apple Podcasts by show name, or paste an Apple Podcasts URL. Subscribing to a search
-  result takes one click. Sikio fetches and validates the show's RSS feed first.
+- Search Apple Podcasts by show name, or paste an Apple Podcasts URL. Sikio fetches and
+  validates the show's RSS feed before it subscribes.
 - Find films and programmes of the German public broadcasters. The same search asks
-  [MediathekViewWeb](https://mediathekviewweb.de) for title and topic. **Choose** adds one
-  programme to the queue or the inbox, without a subscription. **Subscribe** on the same card
-  follows its series: the programme's topic on its channel. It plays the broadcaster's HD file
-  in Sikio's player. Versions with audio description, plain language or sign language and
-  trailers are left out. A programme disappears when the broadcaster removes it from its media
-  library.
+  [MediathekViewWeb](https://mediathekviewweb.de) for title and topic. A series is a
+  programme's topic on its channel. Sikio plays the broadcaster's HD file in its own player.
+  Versions with audio description, plain language or sign language and trailers are left out.
+  A programme disappears when the broadcaster removes it from its media library.
 
-Subscribing imports the current episodes and opens the new source. Only the newest episode goes
-to the inbox. The older ones are archived and stay in the source under **All items**. A podcast
-whose feed carries no artwork takes its cover from Apple Podcasts, if Apple lists the same feed.
-Its episodes show that cover when their own picture is missing, unreachable or larger than 2 MB.
+A search shows its results in four tabs: **Podcasts**, **Episodes**, **Series** and
+**Programmes**. Each tab shows its count. Episodes come from Apple Podcasts and are read from
+their podcast's feed. A row in **Episodes** or **Programmes** adds its item to the queue or the
+inbox, without a subscription. The same row subscribes to its podcast or series. A long
+description shows two lines until **more** is pressed.
 
-A link to one YouTube video, PeerTube video or podcast episode also offers **Only this item**.
+**Subscribe** first asks two questions. **Episodes so far** takes only the newest, all of them
+oldest first, or none. Episodes of one date are ordered by title. **New episodes go to** sets the
+delivery target. The episodes taken go there too. The others are archived and stay in the source
+under **All items**. The archive as target takes every episode, so the first question goes away.
+A series from the search taken whole brings up to 100 programmes. Its refreshes ask for 20.
+Subscribing then imports the current episodes and opens the new source.
+
+A podcast whose feed carries no artwork takes its cover from Apple Podcasts, if Apple lists the
+same feed. Its episodes show that cover when their own picture is missing, unreachable or
+larger than 2 MB.
+
+A link to one YouTube video, PeerTube video or podcast episode also offers that item alone.
 That saves the item without a subscription, to the queue by default or to the inbox. A saved
 item stays when you unsubscribe from its source. **Remove from library** in the item's menu
 deletes it. `/add?url=` followed by an encoded link fills in the field and starts the lookup,

@@ -333,8 +333,7 @@ defmodule Sikio.Feeds.Discovery do
   instance. It is parsed under the public address, so its source stays the same.
   """
   def poll(url, headers, base \\ mediathek_url()) do
-    fetched = mediathek_at(url, base)
-    fetched |> HTTP.get(headers: headers) |> answered(if fetched != url, do: url)
+    url |> mediathek_at(base) |> get_as(url, headers)
   end
 
   # The public instance's feed address, moved to the configured instance.
@@ -349,14 +348,29 @@ defmodule Sikio.Feeds.Discovery do
   @doc """
   Fetches the feed of a series in the German public broadcasters' media libraries.
 
-  `url` is the public address `mediathek_item/1` names. It is asked at `base`, see `poll/3`.
+  `url` is the public address `mediathek_item/1` names. It is asked at `:base`, see `poll/3`.
+  `:size` asks once for a page of that size. The feed keeps `url`, so a refresh asks its own page.
   """
-  def mediathek_series(url, base \\ mediathek_url()) do
+  def mediathek_series(url, opts \\ []) do
+    fetched = url |> sized(opts[:size]) |> mediathek_at(Keyword.get(opts, :base, mediathek_url()))
+
     # Without validators the instance cannot answer 304.
-    case poll(url, [], base) do
+    case get_as(fetched, url, []) do
       {{:ok, feed}, _wait} -> {:ok, [feed]}
       {{:error, reason}, _wait} -> {:error, reason}
     end
+  end
+
+  # Parses the answer to `fetched` under `url`, the address the feed is stored under.
+  defp get_as(fetched, url, headers),
+    do: fetched |> HTTP.get(headers: headers) |> answered(if fetched != url, do: url)
+
+  defp sized(url, nil), do: url
+
+  defp sized(url, size) do
+    uri = URI.parse(url)
+    query = (uri.query || "") |> URI.decode_query() |> Map.put("size", to_string(size))
+    URI.to_string(%{uri | query: URI.encode_query(query)})
   end
 
   # `as` names the address the feed is stored under, when it was asked elsewhere.
