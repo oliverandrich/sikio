@@ -380,8 +380,66 @@ defmodule Sikio.LibraryTest do
     assert Repo.aggregate(Entry, :count) == 1
   end
 
+  # A new subscription brings its newest entry into the inbox. The older ones wait in the source,
+  # archived for this account only. A later poll delivers new entries as before.
+  test "subscribing puts only the newest entry into the inbox", ctx do
+    {:ok, preview} = Parser.parse(podcast_later(), feed_url())
+    {:ok, subscription} = Library.subscribe(ctx.alice, preview)
+    source = to_string(subscription.feed_id)
+
+    assert [%{title: newest}] = Library.entries(ctx.alice, %{"status" => "inbox"})
+    assert newest == Enum.max_by(preview.entries, & &1.published_at, DateTime).title
+
+    assert [%{playback: %{status: :archived}}] =
+             Library.entries(ctx.alice, %{"source" => source, "status" => ""})
+             |> Enum.reject(&(&1.title == newest))
+
+    # Another account's view of the shared feed is its own.
+    {:ok, _} = Library.subscribe(ctx.bob, preview)
+    assert [%{title: ^newest}] = Library.entries(ctx.bob, %{"status" => "inbox"})
+
+    # Subscribing again changes nothing the account did meanwhile.
+    [older] =
+      Library.entries(ctx.alice, %{"q" => "", "source" => source, "status" => ""})
+      |> Enum.reject(&(&1.title == newest))
+
+    Playback.mark(ctx.alice, older.id, :new)
+    {:ok, _} = Library.subscribe(ctx.alice, preview)
+    assert length(Library.entries(ctx.alice, %{"status" => "inbox"})) == 2
+  end
+
+  # An item the account saved to its inbox stays there when it later follows the source.
+  test "subscribing leaves an item saved to the inbox in the inbox", ctx do
+    {:ok, preview} = Parser.parse(podcast_later(), feed_url())
+    oldest = Enum.min_by(preview.entries, & &1.published_at, DateTime)
+    {:ok, saved} = Library.save(ctx.alice, preview, oldest.external_id, :inbox)
+
+    {:ok, _} = Library.subscribe(ctx.alice, preview)
+    assert saved.id in Enum.map(Library.entries(ctx.alice, %{"status" => "inbox"}), & &1.id)
+  end
+
+  # A channel's latest upload may be a Short, which the subscription hides by default. The newest
+  # entry it shows goes to the inbox instead.
+  test "subscribing brings the newest visible entry, not a hidden Short", ctx do
+    {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
+    [video] = preview.entries
+
+    older = %{
+      Map.put(video, :short, false)
+      | external_id: "yt:video:olderolder1",
+        video_id: "olderolder1",
+        title: "An older video",
+        published_at: DateTime.add(video.published_at, -1, :day)
+    }
+
+    short = video |> Map.put(:short, true) |> Map.put(:title, "A Short")
+
+    {:ok, _} = Library.subscribe(ctx.alice, %{preview | entries: [short, older]})
+    assert [%{title: "An older video"}] = Library.entries(ctx.alice, %{"status" => "inbox"})
+  end
+
   # `delivery` sends new entries to the inbox, the queue tail or the archive.
-  # Entries present at subscription time stay in the inbox.
+  # Of the entries present at subscription time, the newest stays in the inbox.
   test "new episodes go where each subscription sends them", ctx do
     carol = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     {:ok, alices} = Library.subscribe(ctx.alice, ctx.preview)

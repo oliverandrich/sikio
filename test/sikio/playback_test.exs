@@ -319,6 +319,8 @@ defmodule Sikio.PlaybackTest do
 
     {:ok, _} = Library.subscribe(c.alice, %{c.preview | entries: entries})
     {:ok, _} = Library.subscribe(c.bob, %{c.preview | entries: entries})
+    # Subscribing archives all but the newest. Here every episode starts in the inbox.
+    Repo.delete_all(Playback.State)
 
     id = fn title ->
       Repo.one!(from e in Entry, where: e.title == ^title, select: e.id)

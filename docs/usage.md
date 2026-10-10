@@ -19,14 +19,17 @@ guessed URL fails, the page offers a search for the same input. You can:
 - Search Apple Podcasts by show name, or paste an Apple Podcasts URL. Subscribing to a search
   result takes one click. Sikio fetches and validates the show's RSS feed first.
 - Find films and programmes of the German public broadcasters. The same search asks
-  [MediathekViewWeb](https://mediathekviewweb.de) for title and topic. **Choose** adds one programme to the queue or the inbox,
-  without a subscription. It plays the broadcaster's HD file in Sikio's player. Versions with
-  audio description, plain language or sign language and trailers are left out. A programme
-  disappears when the broadcaster removes it from its media library.
+  [MediathekViewWeb](https://mediathekviewweb.de) for title and topic. **Choose** adds one
+  programme to the queue or the inbox, without a subscription. **Subscribe** on the same card
+  follows its series: the programme's topic on its channel. It plays the broadcaster's HD file
+  in Sikio's player. Versions with audio description, plain language or sign language and
+  trailers are left out. A programme disappears when the broadcaster removes it from its media
+  library.
 
-Subscribing imports the current episodes and opens the new source. A podcast whose feed carries
-no artwork takes its cover from Apple Podcasts, if Apple lists the same feed. Its episodes show
-that cover when their own picture is missing, unreachable or larger than 2 MB.
+Subscribing imports the current episodes and opens the new source. Only the newest episode goes
+to the inbox. The older ones are archived and stay in the source under **All items**. A podcast
+whose feed carries no artwork takes its cover from Apple Podcasts, if Apple lists the same feed.
+Its episodes show that cover when their own picture is missing, unreachable or larger than 2 MB.
 
 A link to one YouTube video, PeerTube video or podcast episode also offers **Only this item**.
 That saves the item without a subscription, to the queue by default or to the inbox. A saved

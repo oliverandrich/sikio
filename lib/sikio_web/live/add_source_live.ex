@@ -84,6 +84,20 @@ defmodule SikioWeb.AddSourceLive do
     end
   end
 
+  # The source is fetched first, so subscribing imports its current programmes.
+  def handle_event(
+        "subscribe_series",
+        _params,
+        %{assigns: %{item: %{preview: %{kind: :mediathek} = preview}}} = socket
+      ) do
+    {:noreply,
+     socket
+     |> assign(subscribing: "series", row_errors: Map.delete(socket.assigns.row_errors, "series"))
+     |> start_async(:subscribe, fn -> Discovery.mediathek_series(preview.url) end)}
+  end
+
+  def handle_event("subscribe_series", _params, socket), do: {:noreply, socket}
+
   def handle_event("save_item", _params, %{assigns: %{item: nil}} = socket),
     do: {:noreply, socket}
 
@@ -513,6 +527,29 @@ defmodule SikioWeb.AddSourceLive do
             </fieldset>
             <.button id="add-item">{gettext("Add")}</.button>
           </.form>
+          <%!-- A programme's series is its topic on its channel, followed like a podcast. --%>
+          <div
+            :if={@item.preview.kind == :mediathek}
+            class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3"
+          >
+            <p class="min-w-0 flex-1 text-meta text-muted">
+              {gettext("New programmes of %{series} arrive in the inbox.",
+                series: @item.preview.title
+              )}
+            </p>
+            <.button
+              id="subscribe-series"
+              phx-click="subscribe_series"
+              disabled={@subscribing != nil}
+            >
+              {if @subscribing == "series",
+                do: gettext("Subscribing…"),
+                else: gettext("Subscribe")}
+            </.button>
+            <p :if={@row_errors["series"]} role="alert" class="w-full text-label text-danger">
+              {@row_errors["series"]}
+            </p>
+          </div>
         </section>
         <h2
           :if={@mode == :search and map_size(@candidates) > 0}

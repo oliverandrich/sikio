@@ -25,6 +25,46 @@ defmodule Sikio.FeedFixtures do
   @doc "Returns a PeerTube instance feed URL that no other test uses."
   def peertube_feed_url, do: feed_url("feeds/videos.xml")
 
+  @doc "A MediathekViewWeb search feed: one programme, its sign-language variant and a plain http file."
+  def mediathek_feed do
+    """
+    <?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+      <channel>
+        <title><![CDATA[MVW - !ard #Die,Sendung,mit,der,Maus | Überall]]></title>
+        <generator>RSS for Node</generator>
+        <ttl>75</ttl>
+        <item>
+          <title><![CDATA[Sachgeschichte: Immer geradeaus]]></title>
+          <description><![CDATA[Wie fährt ein Zug geradeaus?]]></description>
+          <link>https://ard.example.org/maus/1.mp4</link>
+          <guid isPermaLink="false">maus-1=</guid>
+          <category><![CDATA[Die Sendung mit der Maus]]></category>
+          <dc:creator><![CDATA[ARD]]></dc:creator>
+          <pubDate>Sun, 04 Oct 2026 07:30:00 GMT</pubDate>
+          <enclosure url="https://ard.example.org/maus/1.mp4" length="1000" type="video/mp4"/>
+          <duration>1800</duration>
+          <websiteUrl>https://www.ardmediathek.de/video/maus-1</websiteUrl>
+        </item>
+        <item>
+          <title><![CDATA[Sachgeschichte: Immer geradeaus (Gebärdensprache)]]></title>
+          <link>https://ard.example.org/maus/1-dgs.mp4</link>
+          <guid isPermaLink="false">maus-1-dgs=</guid>
+          <category><![CDATA[Die Sendung mit der Maus]]></category>
+          <dc:creator><![CDATA[ARD]]></dc:creator>
+          <pubDate>Sun, 04 Oct 2026 07:30:00 GMT</pubDate>
+          <enclosure url="https://ard.example.org/maus/1-dgs.mp4" length="1000" type="video/mp4"/>
+        </item>
+        <item>
+          <title><![CDATA[Nur über http]]></title>
+          <guid isPermaLink="false">maus-2=</guid>
+          <pubDate>Sun, 27 Sep 2026 07:30:00 GMT</pubDate>
+          <enclosure url="http://ard.example.org/maus/2.mp4" length="1000" type="video/mp4"/>
+        </item>
+      </channel>
+    </rss>
+    """
+  end
+
   @doc """
   Returns a programme as `Sikio.Feeds.Discovery.mediathek_search/2` returns it.
 

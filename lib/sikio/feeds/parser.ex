@@ -36,10 +36,9 @@ defmodule Sikio.Feeds.Parser do
     channel = child(root, "channel")
     items = children(channel, "item")
 
-    case rss_kind(channel, items, attrs) do
-      nil -> {:error, :invalid_feed}
-      kind -> {:ok, rss_feed(kind, channel, items, url)}
-    end
+    if mediathek_feed?(url),
+      do: {:ok, mediathek_feed(channel, items, url)},
+      else: rss_feed_of_kind(channel, items, attrs, url)
   end
 
   # The channel id must come from a YouTube host. The application polls that id later, and any
@@ -72,6 +71,102 @@ defmodule Sikio.Feeds.Parser do
   end
 
   defp feed(_root, _url), do: {:error, :invalid_feed}
+
+  defp rss_feed_of_kind(channel, items, attrs, url) do
+    case rss_kind(channel, items, attrs) do
+      nil -> {:error, :invalid_feed}
+      kind -> {:ok, rss_feed(kind, channel, items, url)}
+    end
+  end
+
+  @doc """
+  Returns whether a title names a variant of a programme rather than the programme: audio
+  description, plain language, sign language or a trailer.
+  """
+  def mediathek_variant?(title),
+    do:
+      Regex.match?(
+        ~r/Audiodeskription|Hörfassung|klare Sprache|Gebärdensprache|\bTrailer\b/i,
+        title
+      )
+
+  @doc """
+  Returns whether a URL is a search feed of the public MediathekViewWeb instance.
+
+  Its items look like neither podcast nor PeerTube items, so the address marks it. Another
+  instance's feed is parsed under the public address; see `Sikio.Feeds.Discovery.poll/3`.
+  """
+  def mediathek_feed?(url) do
+    match?(%URI{scheme: "https", host: "mediathekviewweb.de", path: "/feed"}, URI.parse(url))
+  end
+
+  # The title names the topic and channel as the items carry them, not the search's syntax.
+  defp mediathek_feed(channel, items, url) do
+    first = List.first(items)
+
+    title =
+      case {value(first, "category"), value(first, "dc:creator")} do
+        {"", _} -> searched(url)
+        {topic, ""} -> topic
+        {topic, broadcaster} -> "#{topic} · #{broadcaster}"
+      end
+
+    %{
+      url: url,
+      title: String.slice(title, 0, 512),
+      kind: :mediathek,
+      icon_url: nil,
+      page_url: nil,
+      ttl: ttl(channel),
+      entries: items |> Enum.map(&mediathek_entry/1) |> Enum.reject(&is_nil/1)
+    }
+  end
+
+  # A series without programmes right now is named after its search: `!channel #topic,words`.
+  defp searched(url) do
+    query = URI.decode_query(URI.parse(url).query || "")["query"] || ""
+
+    {channels, topics} =
+      query |> String.split(" ", trim: true) |> Enum.split_with(&String.starts_with?(&1, "!"))
+
+    topic = topics |> Enum.map_join(" ", &String.replace(String.trim_leading(&1, "#"), ",", " "))
+    channel = channels |> Enum.map_join(" ", &String.trim_leading(&1, "!"))
+
+    [topic, channel] |> Enum.reject(&(&1 == "")) |> Enum.join(" · ")
+  end
+
+  # The content security policy admits media from HTTPS only. The guid is MediathekViewWeb's id,
+  # the one its search returns, so a programme saved alone matches the series later.
+  defp mediathek_entry(item) do
+    with title when title != "" <- value(item, "title"),
+         false <- mediathek_variant?(title),
+         {:ok, %URI{scheme: "https"} = uri} <-
+           HTTP.normalize(attr(child(item, "enclosure"), "url")),
+         id when id != "" <- value(item, "guid") do
+      %{
+        external_id: id,
+        title: title,
+        media_url: URI.to_string(uri),
+        audio_url: nil,
+        video_id: nil,
+        embed_url: nil,
+        page_url: HTTP.resolve(value(item, "websiteUrl"), "https://mediathekviewweb.de"),
+        chapters: nil,
+        chapters_url: nil,
+        published_at: date(value(item, "pubDate")),
+        image_url: nil,
+        duration: duration(value(item, "duration")),
+        description: blank_to_nil(value(item, "description")),
+        description_format: :text,
+        excerpt: nil
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(text), do: text
 
   # The feed's `yt:channelId` may omit the `UC` prefix that entries and channel URLs carry.
   defp channel_id(id) when byte_size(id) == 22, do: "UC" <> id

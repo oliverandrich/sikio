@@ -423,4 +423,35 @@ defmodule Sikio.Feeds.ParserTest do
     assert feed.kind == :podcast
     assert [%{media_url: "https://audio.example.org/1.mp3"}] = feed.entries
   end
+
+  # MediathekViewWeb offers every search as RSS. Its address marks it, because its items look
+  # like neither podcast nor PeerTube items.
+  test "reads a MediathekViewWeb feed as a TV series, without variants" do
+    url =
+      "https://mediathekviewweb.de/feed?query=%21ard+%23Die%2CSendung%2Cmit%2Cder%2CMaus&size=20"
+
+    assert {:ok, feed} = Parser.parse(mediathek_feed(), url)
+    assert %{kind: :mediathek, title: "Die Sendung mit der Maus · ARD", ttl: 75} = feed
+
+    assert [
+             %{
+               external_id: "maus-1=",
+               title: "Sachgeschichte: Immer geradeaus",
+               media_url: "https://ard.example.org/maus/1.mp4",
+               page_url: "https://www.ardmediathek.de/video/maus-1",
+               published_at: ~U[2026-10-04 07:30:00Z],
+               duration: 1800,
+               description: "Wie fährt ein Zug geradeaus?",
+               description_format: :text
+             }
+           ] = feed.entries
+
+    assert {:error, :invalid_feed} = Parser.parse(mediathek_feed(), "https://example.org/feed")
+
+    # A series without programmes right now takes its name from the search, not the feed title.
+    empty = String.replace(mediathek_feed(), ~r|<item>.*</item>|s, "")
+
+    assert {:ok, %{title: "Die Sendung mit der Maus · ard", entries: []}} =
+             Parser.parse(empty, url)
+  end
 end

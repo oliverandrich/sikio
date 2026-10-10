@@ -208,6 +208,29 @@ defmodule SikioWeb.AddSourceLiveTest do
       assert %{feed: %{kind: :mediathek}} = Library.entry(user, id)
     end
 
+    # The card also follows the programme's topic on its channel, as a series.
+    test "a programme's series is subscribed from its card", %{conn: conn, user: user} do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/search" -> Req.Test.json(conn, %{results: []})
+          "/api/query" -> Req.Test.json(conn, %{result: %{results: [programme("Maus")]}})
+          "/feed" -> Plug.Conn.send_resp(conn, 200, mediathek_feed())
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "maus"}) |> render_submit()
+      render_async(view)
+      view |> element("#programme-0 button") |> render_click()
+
+      assert has_element?(view, "#subscribe-series", "Subscribe")
+      view |> element("#subscribe-series") |> render_click()
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+
+      assert [%{feed: %{kind: :mediathek, title: "Die Sendung mit der Maus · ARD"}}] =
+               Library.subscriptions(user)
+    end
+
     # Each search reports on its own. Apple's results stay when the Mediathek fails.
     test "an unreachable Mediathek leaves the podcasts", %{conn: conn} do
       Req.Test.stub(HTTP, fn conn ->

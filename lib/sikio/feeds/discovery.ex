@@ -109,18 +109,21 @@ defmodule Sikio.Feeds.Discovery do
   Turns a programme from `mediathek_search/2` into an item preview, as `item/1` returns one.
 
   The source is the search for the programme's topic on its channel, as MediathekViewWeb's RSS
-  address. Saving a single programme does not poll it. The public instance names the source, so
-  a different `MEDIATHEK_URL` leaves saved programmes with their source.
+  address with one page of 20. Saving a single programme does not poll it. The public instance
+  names the source, so a different `MEDIATHEK_URL` leaves saved programmes with their source.
   A programme without a topic belongs to its channel.
   """
   def mediathek_item(programme) do
     {selector, title} =
       case programme.topic do
-        "" -> {"!#{programme.channel}", programme.channel}
-        topic -> {"!#{programme.channel} ##{topic}", "#{topic} · #{programme.channel}"}
+        "" ->
+          {"!#{programme.channel}", programme.channel}
+
+        topic ->
+          {"!#{programme.channel} ##{topic_selector(topic)}", "#{topic} · #{programme.channel}"}
       end
 
-    query = URI.encode_query(%{query: selector, everywhere: false, future: false})
+    query = URI.encode_query(%{query: selector, everywhere: false, future: false, size: 20})
 
     entry = %{
       external_id: programme.id,
@@ -153,6 +156,11 @@ defmodule Sikio.Feeds.Discovery do
     %{preview: preview, external_id: programme.id}
   end
 
+  # Commas join a topic's words. Spaces would also match topics that hold only some of them.
+  # A comma inside the topic would split it, so it separates words too.
+  defp topic_selector(topic),
+    do: topic |> String.split([" ", ","], trim: true) |> Enum.join(",")
+
   @doc "Returns the MediathekViewWeb instance, `MEDIATHEK_URL` or the public one."
   def mediathek_url, do: Application.get_env(:sikio, :mediathek_url, @mediathek_public)
 
@@ -169,12 +177,7 @@ defmodule Sikio.Feeds.Discovery do
     }
   end
 
-  defp variant?(%{"title" => title}) when is_binary(title),
-    do:
-      Regex.match?(
-        ~r/Audiodeskription|Hörfassung|klare Sprache|Gebärdensprache|\bTrailer\b/i,
-        title
-      )
+  defp variant?(%{"title" => title}) when is_binary(title), do: Parser.mediathek_variant?(title)
 
   defp variant?(_result), do: true
 
@@ -276,11 +279,40 @@ defmodule Sikio.Feeds.Discovery do
 
   The wait is in seconds, or nil when absent. A 200 uses the longer of `max-age` and `<ttl>`.
   A 304 uses `Cache-Control: max-age`. A 429 or 503 uses `Retry-After`.
-  """
-  def poll(url, headers), do: url |> HTTP.get(headers: headers) |> answered()
 
-  defp answered({:ok, %{status: 200} = response}) do
-    case Parser.parse(response.body, response.url) do
+  A MediathekViewWeb feed under the public address is asked at `base`, the configured
+  instance. It is parsed under the public address, so its source stays the same.
+  """
+  def poll(url, headers, base \\ mediathek_url()) do
+    fetched = mediathek_at(url, base)
+    fetched |> HTTP.get(headers: headers) |> answered(if fetched != url, do: url)
+  end
+
+  # The public instance's feed address, moved to the configured instance.
+  defp mediathek_at(url, base) do
+    base = String.trim_trailing(base, "/")
+
+    if base != @mediathek_public and Parser.mediathek_feed?(url),
+      do: base <> "/feed?" <> (URI.parse(url).query || ""),
+      else: url
+  end
+
+  @doc """
+  Fetches the feed of a series in the German public broadcasters' media libraries.
+
+  `url` is the public address `mediathek_item/1` names. It is asked at `base`, see `poll/3`.
+  """
+  def mediathek_series(url, base \\ mediathek_url()) do
+    # Without validators the instance cannot answer 304.
+    case poll(url, [], base) do
+      {{:ok, feed}, _wait} -> {:ok, [feed]}
+      {{:error, reason}, _wait} -> {:error, reason}
+    end
+  end
+
+  # `as` names the address the feed is stored under, when it was asked elsewhere.
+  defp answered({:ok, %{status: 200} = response}, as) do
+    case Parser.parse(response.body, as || response.url) do
       {:ok, feed} ->
         ttl = feed.ttl && feed.ttl * 60
         feed = feed |> with_shorts() |> Map.merge(validators(response))
@@ -291,16 +323,17 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  defp answered({:ok, %{status: 304} = response}), do: {:not_modified, max_age(response)}
+  defp answered({:ok, %{status: 304} = response}, _as), do: {:not_modified, max_age(response)}
 
   # 404 and 410 count as permanent, not as a temporary outage.
-  defp answered({:ok, %{status: status}}) when status in [404, 410], do: {{:error, :gone}, nil}
+  defp answered({:ok, %{status: status}}, _as) when status in [404, 410],
+    do: {{:error, :gone}, nil}
 
-  defp answered({:ok, %{status: status} = response}) when status in [429, 503],
+  defp answered({:ok, %{status: status} = response}, _as) when status in [429, 503],
     do: {{:error, :unavailable}, retry_after(response)}
 
-  defp answered({:error, reason}), do: {{:error, reason}, nil}
-  defp answered(_other), do: {{:error, :unavailable}, nil}
+  defp answered({:error, reason}, _as), do: {{:error, reason}, nil}
+  defp answered(_other, _as), do: {{:error, :unavailable}, nil}
 
   # A YouTube channel feed does not mark Shorts. The channel's `UUSH` Shorts playlist has its own
   # feed. A channel without Shorts has no such feed. A failed Shorts fetch marks nothing and does

@@ -731,11 +731,24 @@ defmodule Sikio.Feeds.DiscoveryTest do
 
       assert %{kind: :mediathek, title: "Tatort · WDR", icon_url: nil} = preview
 
+      # One page of 20, as the maintainer asks for sparing use.
       assert URI.decode_query(URI.parse(preview.url).query) == %{
                "query" => "!WDR #Tatort",
                "everywhere" => "false",
-               "future" => "false"
+               "future" => "false",
+               "size" => "20"
              }
+
+      # Commas join a topic's words. With spaces MediathekViewWeb also matches "Die Maus".
+      %{preview: maus} =
+        Discovery.mediathek_item(%{programme | topic: "Die Sendung mit der Maus"})
+
+      assert URI.decode_query(URI.parse(maus.url).query)["query"] ==
+               "!WDR #Die,Sendung,mit,der,Maus"
+
+      # A comma inside a topic would split it into two terms.
+      %{preview: sturm} = Discovery.mediathek_item(%{programme | topic: "Sturm, Liebe & Co"})
+      assert URI.decode_query(URI.parse(sturm.url).query)["query"] == "!WDR #Sturm,Liebe,&,Co"
 
       # The public instance names the source, whichever instance `MEDIATHEK_URL` searches.
       assert String.starts_with?(preview.url, "https://mediathekviewweb.de/feed?")
@@ -757,6 +770,25 @@ defmodule Sikio.Feeds.DiscoveryTest do
                  description_format: :text
                }
              ] = preview.entries
+    end
+
+    # A series is the feed of a topic on a channel. Another instance answers, but the source
+    # keeps the public address, so every account shares one source.
+    test "a series is fetched from the configured instance under the public address" do
+      url = "https://mediathekviewweb.de/feed?query=%21ard+%23Tatort&size=20"
+
+      Req.Test.stub(HTTP, fn conn ->
+        assert Plug.Conn.get_req_header(conn, "host") == ["mediathek.example"]
+        assert conn.request_path == "/feed"
+        assert URI.decode_query(conn.query_string)["query"] == "!ard #Tatort"
+        Plug.Conn.send_resp(conn, 200, mediathek_feed())
+      end)
+
+      assert {:ok, [%{url: ^url, kind: :mediathek, entries: [_]}]} =
+               Discovery.mediathek_series(url, "https://mediathek.example")
+
+      # A trailing slash on the instance address does not double the path's slash.
+      assert {:ok, [_]} = Discovery.mediathek_series(url, "https://mediathek.example/")
     end
 
     test "an unreachable Mediathek says so, and a term too short is not sent" do

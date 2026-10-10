@@ -28,6 +28,8 @@ defmodule SikioWeb.LibraryTest do
           do: %{hd(preview.entries) | external_id: "episode-#{n}", title: "Episode #{n}"}
 
     {:ok, _} = Library.subscribe(account, %{preview | entries: entries})
+    # Subscribing archives all but the newest. These features start with all 40 in the inbox.
+    Repo.delete_all(Sikio.Playback.State)
     %{account: account}
   end
 

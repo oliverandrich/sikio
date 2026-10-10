@@ -50,7 +50,7 @@ defmodule Sikio.Library do
     result =
       Repo.transaction(fn ->
         # The subscription is inserted after the store, so `deliver/2` does not see it.
-        # The feed's current entries stay in this account's inbox.
+        # Of the feed's current entries, the newest stays in this account's inbox.
         # Existing subscriptions receive only the new entries.
         with {:ok, feed} <- Feeds.store(preview, &deliver/2),
              {:ok, subscription} <-
@@ -59,6 +59,7 @@ defmodule Sikio.Library do
                  on_conflict: :nothing,
                  conflict_target: [:user_id, :feed_id]
                ) do
+          archive_all_but_newest(subscription, feed.id)
           load_subscription(subscription, user_id, feed.id)
         else
           {:error, reason} -> Repo.rollback(reason)
@@ -224,6 +225,37 @@ defmodule Sikio.Library do
         landing(delivery, last + n, now)
       )
     end)
+  end
+
+  # A new subscription brings its newest entry into the inbox. The older ones are archived for
+  # the account, so a show's back catalogue waits in its source. Existing states stay.
+  # A repeated subscribe inserts no row and changes nothing.
+  defp archive_all_but_newest(%Subscription{id: nil}, _feed_id), do: :ok
+
+  defp archive_all_but_newest(%Subscription{user_id: user_id, shorts: shorts}, feed_id) do
+    # The newest entry the subscription shows. A Short is hidden unless the account wants them.
+    visible = from e in Entry, where: e.feed_id == ^feed_id and (^shorts or not e.short)
+
+    newest =
+      Repo.one(
+        from e in visible,
+          order_by: [desc: coalesce(e.published_at, e.inserted_at), desc: e.id],
+          limit: 1,
+          select: e.id
+      )
+
+    # An entry the account saved on its own stays where it put it.
+    older =
+      Repo.all(
+        from e in Entry,
+          where: e.feed_id == ^feed_id and e.id != ^(newest || 0),
+          where: e.id not in subquery(saved_ids(user_id)),
+          select: e.id
+      )
+
+    Repo.insert_all(State, delivered(user_id, :skip, older, DateTime.utc_now()),
+      on_conflict: :nothing
+    )
   end
 
   defp landing(:queue, rank, _now), do: %{status: :new, queue_rank: rank}

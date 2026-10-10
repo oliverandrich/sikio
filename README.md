@@ -18,8 +18,9 @@ and mark what you have watched or heard.
 - Subscribes to podcasts, YouTube channels and PeerTube channels. One input field accepts a
   feed URL, a website, a channel or video URL, or a search term for Apple Podcasts and the
   German public broadcasters' media libraries.
-- Adds single films and programmes from those media libraries to the queue or the inbox. The
-  Mediathek search is powered by [MediathekViewWeb](https://mediathekviewweb.de).
+- Adds single films and programmes from those media libraries to the queue or the inbox, and
+  follows their series. The Mediathek search is powered by
+  [MediathekViewWeb](https://mediathekviewweb.de).
 - Imports and exports subscriptions as OPML.
 - Keeps an inbox of new items, a queue in your own order, and a history of heard items.
   With **Play on**, the queue plays the next item when one ends.
