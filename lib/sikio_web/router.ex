@@ -16,22 +16,20 @@ defmodule SikioWeb.Router do
     plug :put_root_layout, html: {SikioWeb.Layouts, :root}
     plug :protect_from_forgery
 
-    # Three CSP exceptions, all for the player. `media-src https:` allows podcast audio from any
-    # host. `frame-src` and the extra `script-src` origin allow the YouTube embed and IFrame API.
-    # The IFrame API script loads only after the first play.
-    #
-    # PeerTube embeds come from arbitrary hosts and cannot be listed here.
-    # `SikioWeb.ContentSecurityPolicy` adds the account's subscribed instances to `frame-src`.
+    # Four CSP exceptions, all for the player. `media-src https:` allows podcast audio and
+    # PeerTube video from any host. hls.js plays PeerTube video from `blob:` URLs.
+    # `connect-src https:` lets hls.js load playlists and segments and the player report views.
+    # Any host may run PeerTube or store its files. `frame-src` and the extra `script-src`
+    # origin allow the YouTube embed and IFrame API. The IFrame API script loads only after the
+    # first play.
     plug :put_secure_browser_headers, %{
       "content-security-policy" =>
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' https:; frame-src 'self' https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' https: blob:; connect-src 'self' https:; frame-src 'self' https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
       "referrer-policy" => "no-referrer"
     }
 
     plug Ithibati.Web.Gate, :current_account
     plug SikioWeb.Locale
-    # Runs after the gate, because the added `frame-src` origins depend on the account.
-    plug SikioWeb.ContentSecurityPolicy
   end
 
   # A separate pipeline, because these endpoints return JSON.

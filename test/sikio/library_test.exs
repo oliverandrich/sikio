@@ -624,15 +624,6 @@ defmodule Sikio.LibraryTest do
       assert Playback.queue(ctx.alice) == [entry.id]
     end
 
-    # The content security policy lets a saved PeerTube video's instance frame its player.
-    test "a saved PeerTube video's instance may frame its player", ctx do
-      {:ok, video} = Parser.parse(peertube(), peertube_feed_url())
-      assert Library.player_origins(ctx.alice) == []
-
-      {:ok, _} = Library.save(ctx.alice, video, hd(video.entries).external_id, :inbox)
-      assert [_origin] = Library.player_origins(ctx.alice)
-    end
-
     # The entry stays after its channel is unfollowed, and its feed is not polled for it.
     test "a saved entry outlasts an unsubscribe and polls nothing", ctx do
       {:ok, sub} = Library.subscribe(ctx.alice, ctx.preview)

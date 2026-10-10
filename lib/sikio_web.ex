@@ -13,7 +13,8 @@ defmodule SikioWeb do
   """
 
   def static_paths,
-    do: ~w(assets fonts images favicon.ico apple-touch-icon.png manifest.webmanifest robots.txt)
+    do:
+      ~w(assets fonts images vendor favicon.ico apple-touch-icon.png manifest.webmanifest robots.txt)
 
   def router do
     quote do

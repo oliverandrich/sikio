@@ -256,6 +256,25 @@ defmodule Sikio.Feeds.ParserTest do
     assert entry.description =~ ~s(<a href="https://video.example.org/s">here</a>)
   end
 
+  # The feed's video renditions are HLS fragments, which browsers cannot play as files. The
+  # player asks the instance's API for the playlist. The audio-only file plays as it is.
+  test "a PeerTube item keeps its audio-only file and leaves the video to the API" do
+    {:ok, %{entries: [entry]}} = Parser.parse(peertube(), peertube_feed_url())
+
+    assert entry.media_url == nil
+    assert entry.audio_url == "https://video.example.org/static/a.mp4"
+  end
+
+  # A file URL is untrusted and becomes a media element's source, so it passes the URL check.
+  test "a PeerTube audio file outside the web is ignored" do
+    body =
+      String.replace(peertube(), "https://video.example.org/static/a.mp4", "javascript:alert(1)")
+
+    {:ok, %{entries: [entry]}} = Parser.parse(body, peertube_feed_url())
+
+    assert entry.audio_url == nil
+  end
+
   # An empty PeerTube feed is detected by its `<generator>` element.
   test "an empty PeerTube feed is recognised by what generated it" do
     body = String.replace(peertube(), ~r|<item>.*</item>|s, "")

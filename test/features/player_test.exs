@@ -221,11 +221,11 @@ defmodule SikioWeb.PlayerTest do
     |> resize_window(1920, 500)
     |> open(item_path(video))
     |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] video|))
     |> execute_script(
       """
       const panel = document.getElementById('player-panel')
-      const frame = panel.querySelector('iframe').getBoundingClientRect()
+      const frame = panel.querySelector('video').getBoundingClientRect()
       return [panel.scrollHeight - panel.clientHeight, frame.height,
               Math.min(frame.width * 9 / 16, innerHeight)]
       """,
@@ -234,6 +234,45 @@ defmodule SikioWeb.PlayerTest do
         assert_in_delta height, expected, 1
       end
     )
+  end
+
+  # Before play a PeerTube video shows its poster above Sikio's controls.
+  # The dock's player then covers both in the same boxes.
+  feature "a PeerTube video's card player is covered without a jump", context do
+    %{session: session, account: account} = context
+    video = video_with_notes(account)
+
+    boxes = """
+    return arguments[0].map(s => {
+      const b = document.querySelector(s).getBoundingClientRect()
+      return [b.left, b.top, b.width, b.height].map(Math.round)
+    })
+    """
+
+    session
+    |> resize_window(1280, 900)
+    |> open(item_path(video))
+    |> execute_script(boxes, [["#video-cue img", "#audio-cue"]], &Process.put(:cue, &1))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] video[poster]|))
+    |> assert_has(css("#video-cue", visible: false))
+    |> then(fn session ->
+      cue = Process.delete(:cue)
+
+      assert {:ok, _} =
+               retry(fn ->
+                 execute_script(
+                   session,
+                   boxes,
+                   [["#player-panel video", "#player-panel [data-audio-face]"]],
+                   &Process.put(:player, &1)
+                 )
+
+                 if Process.get(:player) == cue,
+                   do: {:ok, cue},
+                   else: {:error, Process.get(:player)}
+               end)
+    end)
   end
 
   describe "from lg, the player's place" do

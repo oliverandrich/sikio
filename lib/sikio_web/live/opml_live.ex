@@ -10,7 +10,6 @@ defmodule SikioWeb.OPMLLive do
   """
   use SikioWeb, :live_view
 
-  alias Sikio.Library
   alias Sikio.Library.OPML
 
   @impl true
@@ -69,7 +68,7 @@ defmodule SikioWeb.OPMLLive do
     else
       {:noreply,
        socket
-       |> assign(busy: true, error: nil, framed: Library.player_origins(account))
+       |> assign(busy: true, error: nil)
        |> start_async(:import, fn -> OPML.import_sources(account, sources) end)}
     end
   end
@@ -77,7 +76,6 @@ defmodule SikioWeb.OPMLLive do
   @impl true
   def handle_async(:import, {:ok, results}, socket) do
     counts = Enum.frequencies_by(results, & &1.status)
-    framed = socket.assigns.framed
 
     summary =
       gettext("%{imported} imported · %{existing} already subscribed · %{failed} failed",
@@ -86,13 +84,8 @@ defmodule SikioWeb.OPMLLive do
         failed: counts[:failed] || 0
       )
 
-    socket = socket |> assign(busy: false, pending: [], summary: summary) |> show_sources(results)
-
-    # A new PeerTube instance changes the CSP `frame-src`. The CSP is set per HTTP request.
-    # Live navigation sends none, so a changed origin list triggers a full redirect.
-    if Library.player_origins(socket.assigns.current_account) == framed,
-      do: {:noreply, socket},
-      else: {:noreply, redirect(socket, to: ~p"/subscriptions/import")}
+    {:noreply,
+     socket |> assign(busy: false, pending: [], summary: summary) |> show_sources(results)}
   end
 
   def handle_async(:import, {:exit, _}, socket) do

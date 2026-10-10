@@ -20,8 +20,9 @@ and mark what you have watched or heard.
 - Imports and exports subscriptions as OPML.
 - Keeps an inbox of new items, a queue in your own order, and a history of heard items.
   With **Play on**, the queue plays the next item when one ends.
-- Plays podcasts in its own audio player and videos in their official embeds. Playback continues
-  while you navigate the library. Playback positions are saved, and chapters are shown.
+- Plays podcasts and PeerTube videos in its own player and YouTube videos in their official
+  embed. Playback continues while you navigate the library. Playback positions are saved, and
+  chapters are shown.
 - Follows every source through the public feed it publishes. Podcasts, YouTube channels and
   PeerTube channels all offer one. Sikio downloads no video or audio and needs no API key. A
   channel or video link is resolved to its feed once, when you subscribe.

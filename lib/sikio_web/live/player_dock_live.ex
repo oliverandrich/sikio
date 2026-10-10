@@ -20,7 +20,6 @@ defmodule SikioWeb.PlayerDockLive do
   alias Sikio.Library
   alias Sikio.Library.Events
   alias Sikio.Playback
-  alias SikioWeb.Pictures
 
   # Declared here, because a LiveView rendered from the root layout belongs to no `live_session`.
   # Without `SikioWeb.Locale`, the dock renders in English while the page uses the session locale.
@@ -45,7 +44,7 @@ defmodule SikioWeb.PlayerDockLive do
        when is_binary(session) do
     case Library.entry(socket.assigns.current_account, id) do
       %{playback: %{session_id: ^session} = player} = entry ->
-        socket |> assign(entry: entry, player: player) |> assign_chapters()
+        socket |> assign(entry: entry, player: player) |> assign_chapters() |> fetch_media(entry)
 
       %{} = entry ->
         socket |> assign(:entry, entry) |> interrupted()
@@ -181,7 +180,8 @@ defmodule SikioWeb.PlayerDockLive do
        socket
        |> assign(entry: %{entry | playback: player}, player: player, notice: nil)
        |> assign_chapters()
-       |> fetch_chapters(entry)}
+       |> fetch_chapters(entry)
+       |> fetch_media(entry)}
     else
       _ ->
         {:noreply, assign(socket, notice: gettext("This item is no longer in your library."))}
@@ -194,6 +194,50 @@ defmodule SikioWeb.PlayerDockLive do
 
   defp fetch_chapters(socket, _entry), do: socket
 
+  # A PeerTube feed names no stream. The instance's API names it on the first play.
+  defp fetch_media(socket, %{feed: %{kind: :peertube}, media_url: nil} = entry),
+    do: start_async(socket, :media, fn -> {entry.id, Feeds.media(entry)} end)
+
+  defp fetch_media(socket, _entry), do: socket
+
+  # A PeerTube video with Sikio's controls. The pending placeholder renders it without a source.
+  # `playsinline` keeps the video in the dock on iOS. The MediaPlayer hook sets the source:
+  # Safari plays the HLS playlist itself, other browsers through hls.js.
+  attr :entry, :map, required: true
+  attr :player, :map, required: true
+  attr :chapters, :any, required: true
+  attr :src, :string, default: nil
+
+  defp video_frame(assigns) do
+    ~H"""
+    <video
+      preload="metadata"
+      playsinline
+      data-src={@src}
+      poster={artwork(@entry)}
+      aria-label={@entry.title}
+      class="aspect-video w-full rounded-control bg-black"
+    ></video>
+    <.audio_face
+      length={@entry.duration}
+      position={@player.position}
+      chapters={elem(@chapters, 1)}
+      sound={@entry.audio_url != nil}
+    />
+    """
+  end
+
+  # PeerTube's views API. The CSP's `connect-src` allows any HTTPS host.
+  defp views_url(%{feed: %{kind: :peertube}, embed_url: embed}) do
+    if api = Feeds.Discovery.video_api(embed), do: api <> "/views"
+  end
+
+  defp views_url(_entry), do: nil
+
+  # The media element mounts once, so the player waits for a PeerTube file.
+  defp playable?(%{feed: %{kind: :peertube}, media_url: url}), do: is_binary(url)
+  defp playable?(_entry), do: true
+
   @impl true
   def handle_async(
         :chapters,
@@ -204,6 +248,23 @@ defmodule SikioWeb.PlayerDockLive do
 
   # The entry changed meanwhile, or the fetch failed. Chapters parsed from the notes stay.
   def handle_async(:chapters, _result, socket), do: {:noreply, socket}
+
+  def handle_async(:media, {:ok, {id, {:ok, played}}}, %{assigns: %{entry: %{id: id}}} = socket),
+    do:
+      {:noreply,
+       update(socket, :entry, &Map.merge(&1, Map.take(played, [:media_url, :audio_url])))}
+
+  def handle_async(:media, {:ok, {id, _failed}}, %{assigns: %{entry: %{id: id}}} = socket),
+    do:
+      {:noreply,
+       assign(
+         socket,
+         :notice,
+         gettext("This video's instance could not be reached. Try again later.")
+       )}
+
+  # The entry changed meanwhile.
+  def handle_async(:media, _result, socket), do: {:noreply, socket}
 
   defp stop_current(%{assigns: %{player: nil}}), do: :ok
 
@@ -234,20 +295,6 @@ defmodule SikioWeb.PlayerDockLive do
   defp assign_progress(socket, progress),
     do:
       socket |> assign(:entry, %{socket.assigns.entry | playback: progress}) |> assign_chapters()
-
-  # Appends embed parameters to the feed's `embed_url`: API, autoplay and start position.
-  # `p2p=0` makes the instance serve the video alone.
-  # A mirror it names may fail, and P2P peers would see the viewer's IP address.
-  # The URL is not built from host and video id, so instances with other embed paths work.
-  # `URI.append_query/2` handles an `embed_url` that already has a query string.
-  defp peertube_url(entry, player) do
-    entry.embed_url
-    |> URI.parse()
-    |> URI.append_query(
-      URI.encode_query(%{api: 1, autoplay: 1, p2p: 0, start: trunc(player.position)})
-    )
-    |> URI.to_string()
-  end
 
   # Uses the privacy-enhanced host. `enablejsapi` allows reading the position back.
   # YouTube accepts postMessage calls from this page only when `origin` is set.
@@ -304,7 +351,7 @@ defmodule SikioWeb.PlayerDockLive do
           <img
             :if={@entry && @entry.feed.kind == :podcast}
             id="capsule-art"
-            src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
+            src={artwork(@entry)}
             alt=""
             class="hidden"
           />
@@ -363,16 +410,24 @@ defmodule SikioWeb.PlayerDockLive do
         >
           {@notice}
         </p>
+        <%!-- Stands in for the player while the instance's API names the playlist. Same markup
+        as the player, so the panel does not change its height when the player replaces it. --%>
+        <div :if={@player && !playable?(@entry) && !@notice} id="player-pending">
+          <.video_frame entry={@entry} player={@player} chapters={@chapters} />
+        </div>
         <div
-          :if={@player}
+          :if={@player && playable?(@entry)}
           id={"player-#{@player.session_id}"}
           phx-hook="MediaPlayer"
           phx-update="ignore"
           data-kind={@entry.feed.kind}
+          data-audio-src={@entry.audio_url}
+          data-views={views_url(@entry)}
+          data-hls={@entry.feed.kind == :peertube && ~p"/vendor/hls.js/hls-1.7.3.min.js"}
           data-session={@player.session_id}
           data-title={@entry.title}
           data-source={source_name(@entry)}
-          data-artwork={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
+          data-artwork={artwork(@entry)}
           data-position={@player.position}
           data-stale={gettext("Your progress changed elsewhere. Press Play to continue here.")}
           data-disconnected={
@@ -389,8 +444,10 @@ defmodule SikioWeb.PlayerDockLive do
               "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
             )
           }
-          data-peertube-unavailable={
-            gettext("This instance could not be reached. It may be down or blocking this page.")
+          data-video-failed={
+            gettext(
+              "This video could not be loaded. The instance may be unavailable. Try again later."
+            )
           }
           data-youtube-unavailable={
             gettext("YouTube could not be loaded. Check your connection or content blocker.")
@@ -413,7 +470,7 @@ defmodule SikioWeb.PlayerDockLive do
             gettext("YouTube cannot play this video. Try opening it on YouTube.")
           }
         >
-          <%!-- The audio element has no native controls. The audio face controls it; see
+          <%!-- Audio and PeerTube video have no native controls. The audio face controls them; see
           assets/js/audio_face.mjs. app.css holds its layout for each `data-place`. --%>
           <audio
             :if={@entry.feed.kind == :podcast}
@@ -427,16 +484,13 @@ defmodule SikioWeb.PlayerDockLive do
             position={@player.position}
             chapters={elem(@chapters, 1)}
           />
-          <iframe
+          <.video_frame
             :if={@entry.feed.kind == :peertube}
-            id={"peertube-#{@player.session_id}"}
-            src={peertube_url(@entry, @player)}
-            title={@entry.title}
-            class="aspect-video min-h-[200px] w-full"
-            referrerpolicy="strict-origin-when-cross-origin"
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowfullscreen
-          ></iframe>
+            entry={@entry}
+            player={@player}
+            chapters={@chapters}
+            src={@entry.media_url}
+          />
           <iframe
             :if={@entry.feed.kind == :youtube}
             id={"youtube-#{@player.session_id}"}

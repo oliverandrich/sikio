@@ -124,8 +124,8 @@ address.
 
 ## Storage
 
-Sikio stores no audio or video. Browsers load podcast audio from the publisher's server. Videos
-play in the official embeds. Sikio keeps two kinds of data: the database and the picture cache.
+Sikio stores no audio or video. Browsers load podcast audio from the publisher's server and
+PeerTube videos from their instance. YouTube videos play in the official embed. Sikio keeps two kinds of data: the database and the picture cache.
 
 The database holds feeds, entries with their show notes, subscriptions and playback state. Each
 poll reads at most 500 entries of a feed. Sikio keeps stored entries, so the database grows with

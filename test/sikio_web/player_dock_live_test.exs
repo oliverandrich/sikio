@@ -3,6 +3,7 @@
 defmodule SikioWeb.PlayerDockLiveTest do
   @moduledoc false
   use SikioWeb.ConnCase, async: true
+  import Ecto.Query, only: [where: 2]
   import Phoenix.LiveViewTest
   import Sikio.FeedFixtures
   alias Ithibati.Web.Gate
@@ -158,6 +159,32 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(rejoined, "#player-#{session}")
     render_hook(rejoined, "progress", sample(session, 1, 30))
     assert Library.entry(c.user, c.entry.id).playback.position == 30
+  end
+
+  # The playlist request may fail or end with the connection. The rejoined dock asks again.
+  test "a reconnect asks the instance for a PeerTube playlist still missing", c do
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, _} = Library.subscribe(c.user, preview)
+    entry = Enum.find(Library.entries(c.user), &(&1.feed.kind == :peertube))
+    Sikio.PictureFixtures.serving(%{})
+
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: entry.id})
+    render_async(dock)
+    session = Library.entry(c.user, entry.id).playback.session_id
+
+    Sikio.PictureFixtures.serving(%{
+      "/api/v1/videos/mSh0rtUu1d" =>
+        {"application/json",
+         Jason.encode!(%{
+           streamingPlaylists: [%{playlistUrl: "https://video.example.org/hls/master.m3u8"}]
+         })}
+    })
+
+    {:ok, rejoined, _} = c.conn |> rejoining(entry.id, session) |> live_isolated(PlayerDockLive)
+    render_async(rejoined)
+
+    assert has_element?(rejoined, ~s(video[data-src="https://video.example.org/hls/master.m3u8"]))
   end
 
   test "a reconnect after another player took over says why this one stopped", c do
@@ -343,71 +370,156 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, "input[data-audio-seek][value='600']")
   end
 
-  # Audio gets Sikio's controls. A video uses the embed's own controls inside the iframe.
-  test "audio gets Sikio's face and a video does not", %{conn: conn, user: user} = c do
+  # A PeerTube video whose playlist the instance's API already named.
+  defp peertube_entry(user) do
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, _} = Library.subscribe(user, preview)
+    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+
+    Repo.update_all(where(Sikio.Feeds.Entry, id: ^entry.id),
+      set: [media_url: "https://video.example.org/hls/master.m3u8"]
+    )
+
+    entry
+  end
+
+  # Audio and PeerTube get Sikio's controls. A YouTube video uses the embed's own controls.
+  test "audio and PeerTube get Sikio's face and YouTube does not",
+       %{conn: conn, user: user} = c do
     {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
     assert has_element?(dock, "[data-audio-face]")
 
-    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    video = peertube_entry(user)
+    render_hook(dock, "start", %{id: video.id})
+    assert has_element?(dock, "[data-audio-face]")
+
+    {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)
-    video = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+    video = Enum.find(Library.entries(user), &(&1.feed.kind == :youtube))
     render_hook(dock, "start", %{id: video.id})
     refute has_element?(dock, "[data-audio-face]")
   end
 
-  # The iframe uses the embed URL from the feed and adds `api=1` for the player API.
-  # The URL must contain one `?`. A second one hides the parameters after it.
-  test "a PeerTube entry is framed by the instance that holds it", %{conn: conn, user: user} do
-    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
-    {:ok, _} = Library.subscribe(user, preview)
-
-    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+  # The hook picks native HLS or hls.js, so the element gets no `src` from the server. Chrome
+  # would report an error before the hook could attach hls.js. No embed and nothing of
+  # YouTube's loads.
+  test "a PeerTube video hands its playlist to the player", %{conn: conn, user: user} do
+    entry = peertube_entry(user)
 
     {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
     render_hook(dock, "start", %{"id" => entry.id})
-    html = render(dock)
 
-    assert html =~ "https://video.example.org/videos/embed/mSh0rtUu1d"
-    assert html =~ "api=1"
-    src = Regex.run(~r|src="(https://video[^"]+)"|, html) |> Enum.at(1)
-    assert String.contains?(src, "api=1")
-    assert length(String.split(src, "?")) == 2, "an address gets one question mark, not two"
-    # `p2p=0` disables WebRTC peer loading. The instance alone serves the video.
-    # No peer can fail mid-stream, and no other viewer learns this viewer's IP address.
-    assert src
-           |> String.replace("&amp;", "&")
-           |> URI.parse()
-           |> Map.fetch!(:query)
-           |> URI.decode_query()
-           |> Map.get("p2p") == "0"
+    assert has_element?(
+             dock,
+             ~s(video[data-src="https://video.example.org/hls/master.m3u8"][playsinline])
+           )
 
-    assert html =~ ~s(data-kind="peertube")
-    refute html =~ "youtube-nocookie", "nothing of YouTube's is loaded for a PeerTube video"
+    refute has_element?(dock, "video[src]")
+    assert has_element?(dock, ~s([phx-hook="MediaPlayer"][data-hls^="/vendor/hls.js/hls-"]))
+    refute has_element?(dock, "iframe")
+    assert has_element?(dock, ~s([phx-hook="MediaPlayer"][data-kind="peertube"]))
+
+    assert has_element?(
+             dock,
+             ~s([data-views="https://video.example.org/api/v1/videos/mSh0rtUu1d/views"])
+           )
+
+    refute render(dock) =~ "youtube-nocookie",
+           "nothing of YouTube's is loaded for a PeerTube video"
+  end
+
+  # The switch plays the audio-only file, which iOS keeps playing in the background.
+  test "a PeerTube video offers its sound alone only when it has an audio file", %{
+    conn: conn,
+    user: user
+  } do
+    entry = peertube_entry(user)
+
+    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+
+    assert has_element?(
+             dock,
+             ~s([phx-hook="MediaPlayer"][data-audio-src="https://video.example.org/static/a.mp4"])
+           )
+
+    assert has_element?(dock, ~s(button[data-audio-only][aria-pressed="false"]))
+
+    render_hook(dock, "close", %{})
+    Repo.update_all(Sikio.Feeds.Entry, set: [audio_url: nil])
+    render_hook(dock, "start", %{"id" => entry.id})
+    assert has_element?(dock, "video")
+    refute has_element?(dock, "[data-audio-only]")
+  end
+
+  # The feed names no playlist. The instance's API names it when the video first plays.
+  test "a PeerTube video asks its instance for the playlist first", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, _} = Library.subscribe(user, preview)
+    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+
+    test = self()
+
+    # The instance answers only once the test has seen the dock waiting.
+    Sikio.PictureFixtures.serving(fn "/api/v1/videos/mSh0rtUu1d" ->
+      send(test, {:asked, self()})
+      receive do: (:answer -> :ok)
+
+      {"application/json",
+       Jason.encode!(%{
+         streamingPlaylists: [%{playlistUrl: "https://video.example.org/hls/master.m3u8"}]
+       })}
+    end)
+
+    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+    assert_receive {:asked, instance}
+
+    # Until then the dock shows the poster and the controls, so the panel keeps its height.
+    assert has_element?(dock, "#player-pending video[poster]:not([data-src])")
+    assert has_element?(dock, "#player-pending [data-audio-face]")
+    refute has_element?(dock, ~s([phx-hook="MediaPlayer"]))
+
+    send(instance, :answer)
+    render_async(dock)
+
+    assert has_element?(
+             dock,
+             ~s(video[data-src="https://video.example.org/hls/master.m3u8"][poster])
+           )
+
+    refute has_element?(dock, "#player-pending")
+  end
+
+  test "a PeerTube video its instance cannot name says so", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(peertube(), peertube_feed_url())
+    {:ok, _} = Library.subscribe(user, preview)
+    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
+    Sikio.PictureFixtures.serving(%{})
+
+    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+    render_async(dock)
+
+    refute has_element?(dock, "video")
+    assert has_element?(dock, "#dock-notice", "could not be reached")
   end
 
   # Play on the detail page is the only click needed.
   # `autoplay=1` skips the embed's poster with its second play button.
-  test "both embeds start playing once they load", %{conn: conn, user: user} do
-    for {body, url} <- [{peertube(), peertube_feed_url()}, {youtube(), youtube_feed_url()}] do
-      {:ok, preview} = Parser.parse(body, url)
-      {:ok, _} = Library.subscribe(user, preview)
-    end
+  test "the YouTube embed starts playing once it loads", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
+    {:ok, _} = Library.subscribe(user, preview)
+    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :youtube))
 
     {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+    [_, src] = Regex.run(~r|src="([^"]+)"|, dock |> element("iframe") |> render())
+    src = String.replace(src, "&amp;", "&")
 
-    for kind <- [:peertube, :youtube] do
-      entry = Enum.find(Library.entries(user), &(&1.feed.kind == kind))
-      render_hook(dock, "start", %{"id" => entry.id})
-      [_, src] = Regex.run(~r|src="([^"]+)"|, dock |> element("iframe") |> render())
-      src = String.replace(src, "&amp;", "&")
-
-      assert src
-             |> URI.parse()
-             |> Map.fetch!(:query)
-             |> URI.decode_query()
-             |> Map.get("autoplay") == "1"
-    end
+    assert src |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query() |> Map.get("autoplay") ==
+             "1"
   end
 
   # YouTube enables captions for some videos by default. The URL sets `cc_load_policy=0`.
@@ -423,32 +535,5 @@ defmodule SikioWeb.PlayerDockLiveTest do
     query = src |> String.replace("&amp;", "&") |> URI.parse() |> Map.fetch!(:query)
 
     assert URI.decode_query(query)["cc_load_policy"] == "0"
-  end
-
-  # The feed's embed URL can already carry a query.
-  # A second `?` would hide `api=1` from the embed.
-  test "an embed address that already has a query still gets one question mark", %{
-    conn: conn,
-    user: user
-  } do
-    body =
-      String.replace(
-        peertube(),
-        ~s|url="https://video.example.org/videos/embed/mSh0rtUu1d"|,
-        ~s|url="https://video.example.org/videos/embed/mSh0rtUu1d?title=0"|
-      )
-
-    {:ok, preview} = Parser.parse(body, peertube_feed_url())
-    {:ok, _} = Library.subscribe(user, preview)
-    entry = Enum.find(Library.entries(user), &(&1.feed.kind == :peertube))
-
-    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
-    render_hook(dock, "start", %{"id" => entry.id})
-
-    src = Regex.run(~r|src="(https://video[^"]+)"|, render(dock)) |> Enum.at(1)
-
-    assert length(String.split(src, "?")) == 2
-    assert src =~ "title=0"
-    assert src =~ "api=1"
   end
 end

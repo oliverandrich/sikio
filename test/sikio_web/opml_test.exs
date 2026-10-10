@@ -114,30 +114,4 @@ defmodule SikioWeb.OPMLTest do
     refute has_element?(view, "#import-opml")
     assert Library.subscriptions(c.user) == []
   end
-
-  # An import can add a PeerTube instance the player must frame. The content security policy
-  # is set per document. LiveView navigation loads no new document, so the import redirects.
-  test "importing an instance reloads the page that has to frame it", c do
-    Req.Test.stub(HTTP, fn conn ->
-      Plug.Conn.send_resp(conn, 200, peertube())
-    end)
-
-    {:ok, view, _} = live(c.conn, "/subscriptions/import")
-
-    xml =
-      ~s(<opml version="2.0"><body><outline text="Instance" xmlUrl="#{peertube_feed_url()}"/></body></opml>)
-
-    upload =
-      file_input(view, "#opml-upload-form", :opml, [
-        %{name: "subscriptions.opml", content: xml, type: "text/xml"}
-      ])
-
-    render_upload(upload, "subscriptions.opml")
-    view |> form("#opml-upload-form") |> render_submit()
-
-    view |> element("#import-opml") |> render_click()
-
-    assert_redirect(view, "/subscriptions/import")
-    assert [%{feed: %{kind: :peertube}}] = Library.subscriptions(c.user)
-  end
 end

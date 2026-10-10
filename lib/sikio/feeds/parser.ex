@@ -142,6 +142,7 @@ defmodule Sikio.Feeds.Parser do
         external_id: identifier(item, URI.to_string(uri)),
         title: title,
         media_url: URI.to_string(uri),
+        audio_url: nil,
         video_id: nil,
         embed_url: nil,
         page_url: rss_page(item, feed_url),
@@ -159,12 +160,15 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # The instance hosts and plays the video, so no media URL is stored. The embed URL comes from
-  # the feed. Building it from parts could break when a PeerTube release changes the URL format.
+  # The feed's video renditions are HLS fragments, which browsers cannot play as files. The
+  # instance's API names the playlist when the entry first plays; see `Sikio.Feeds.media/1`.
+  # The audio-only file plays as it is. The embed URL names the video for the API. It comes from
+  # the feed, because a PeerTube release may change the URL format.
   defp peertube_entry(item, feed_url) do
     embed = HTTP.resolve(attr(child(item, "media:embed"), "url"), feed_url)
     group = child(item, "media:group")
     {notes, format} = notes(item, "content:encoded": :html, description: :html)
+    audio = group |> children("media:content") |> Enum.find(&(attr(&1, "height") == "0"))
 
     with true <- embed != nil,
          title when title != "" <- value(item, "title") do
@@ -172,6 +176,7 @@ defmodule Sikio.Feeds.Parser do
         external_id: identifier(item, embed),
         title: title,
         media_url: nil,
+        audio_url: HTTP.resolve(attr(audio, "url"), feed_url),
         video_id: nil,
         embed_url: embed,
         page_url: rss_page(item, feed_url),
@@ -207,6 +212,7 @@ defmodule Sikio.Feeds.Parser do
         external_id: "yt:video:" <> id,
         title: value(item, "title"),
         media_url: nil,
+        audio_url: nil,
         video_id: id,
         embed_url: nil,
         page_url: youtube_page(item, feed_url),

@@ -141,14 +141,17 @@ renders inside `<Layouts.member>`.
 
 ## The player's third parties
 
-The content security policy names exactly three openings and each one is the player's:
-`media-src` for audio from whichever server published a podcast, plus `frame-src` and one
-`script-src` origin for the YouTube embed and its IFrame API. The referrer policy is
-`no-referrer`, and only the embed and the API script opt back in per element. Extend none
-of this without a reason written beside it.
+The content security policy names exactly four openings and each one is the player's:
+`media-src` for podcast audio and PeerTube video from any HTTPS server and `blob:`, plus
+`frame-src` and one `script-src` origin for the YouTube embed and its IFrame API.
+`connect-src` allows any HTTPS server, because any host may run PeerTube or store its files.
+hls.js loads playlists and segments with it, and the player reports views. The referrer
+policy is `no-referrer`, and only the embed and the API script opt back in per element.
+Extend none of this without a reason written beside it.
 
 The IFrame API is the only external script, and it loads only after somebody presses play.
-Everything else is bundled through `assets/js/app.js`.
+hls.js is vendored under `priv/static/vendor` and loads on the first PeerTube stream outside
+Safari. Everything else is bundled through `assets/js/app.js`.
 
 ## Background work
 

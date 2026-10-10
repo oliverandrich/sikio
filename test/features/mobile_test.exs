@@ -127,7 +127,7 @@ defmodule SikioWeb.MobileTest do
 
   # The video spans the screen width at the top of its item, as on YouTube.
   # It stays below the bar while the notes scroll.
-  # Its embed URL is a Sikio page and it has no image, so no instance is requested.
+  # Its file and embed URL are a Sikio page and it has no image, so no instance is requested.
   feature "a video plays across the top of its item and stays there", context do
     %{session: session, account: account} = context
     video = video_with_notes(account)
@@ -136,7 +136,7 @@ defmodule SikioWeb.MobileTest do
     |> resize_window(390, 844)
     |> open(item_path(video))
     |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] video|))
     |> execute_script(edges(), fn [left, width, top] ->
       assert left == 0
       assert width == 0, "the video spans the screen"
@@ -167,7 +167,7 @@ defmodule SikioWeb.MobileTest do
     |> resize_window(844, 390)
     |> open(item_path(video))
     |> execute_script("document.getElementById('start-playback').click()")
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] video|))
     |> execute_script(
       """
       const box = id => document.getElementById(id).getBoundingClientRect()
@@ -309,7 +309,7 @@ defmodule SikioWeb.MobileTest do
     |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
   end
 
-  # In the capsule a video keeps its iframe, shown at 96 by 54 px.
+  # In the capsule a video keeps its picture, shown at 96 by 54 px.
   feature "a video stays in the capsule at 96 by 54", context do
     %{session: session, account: account} = context
     video = video_with_notes(account)
@@ -318,12 +318,12 @@ defmodule SikioWeb.MobileTest do
     |> resize_window(390, 844)
     |> open(item_path(video))
     |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] iframe|))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] video|))
     |> click(css("#tab-inbox"))
-    |> assert_has(css(~s|#player-panel[data-place="floating"] iframe|))
+    |> assert_has(css(~s|#player-panel[data-place="floating"] video|))
     |> gone(css("#capsule-art"))
     |> execute_script(
-      "const b = document.querySelector('#player-panel iframe').getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]",
+      "const b = document.querySelector('#player-panel video').getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]",
       fn size -> assert size == [96, 54] end
     )
   end

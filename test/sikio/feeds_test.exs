@@ -228,6 +228,7 @@ defmodule Sikio.FeedsTest do
   for {field, value} <- [
         title: "A new title",
         media_url: "https://audio.example.org/moved.mp3",
+        audio_url: "https://video.example.org/static/moved.mp4",
         video_id: "abcdefghijk",
         embed_url: "https://video.example.org/videos/embed/moved",
         page_url: "https://example.org/episodes/moved",
@@ -432,6 +433,79 @@ defmodule Sikio.FeedsTest do
       entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
       assert Feeds.chapters(entry) == {:ok, nil}
     end
+  end
+
+  describe "media/1" do
+    # An entry older than the feed's window was stored before files were read. The instance's
+    # API names its files.
+    test "fetches a PeerTube video's files once and keeps them" do
+      {:ok, feed} = Feeds.store(peertube_preview())
+      Repo.update_all(Entry, set: [media_url: nil, audio_url: nil])
+      entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+
+      Sikio.PictureFixtures.serving(%{
+        "/api/v1/videos/mSh0rtUu1d" =>
+          {"application/json",
+           Jason.encode!(%{
+             files: [
+               %{resolution: %{id: 0}, fileUrl: "https://video.example.org/static/a-0.mp4"},
+               %{resolution: %{id: 720}, fileUrl: "https://video.example.org/static/v-720.mp4"}
+             ]
+           })}
+      })
+
+      assert {:ok, played} = Feeds.media(entry)
+      assert played.media_url == "https://video.example.org/static/v-720.mp4"
+      assert played.audio_url == "https://video.example.org/static/a-0.mp4"
+      assert_received {:fetched, "/api/v1/videos/mSh0rtUu1d"}
+
+      stored = Repo.get(Entry, entry.id)
+      assert {stored.media_url, stored.audio_url} == {played.media_url, played.audio_url}
+      assert DateTime.after?(stored.updated_at, entry.updated_at), "the row records its change"
+      assert Feeds.media(stored) == {:ok, stored}
+      refute_received {:fetched, _}
+    end
+
+    # The feed names no playlist. A poll must not erase the one the API named. The poll renames
+    # the video, so the row is written.
+    test "a poll keeps the files the instance's API named" do
+      {:ok, feed} = Feeds.store(peertube_preview())
+
+      Repo.update_all(Entry,
+        set: [
+          media_url: "https://video.example.org/master.m3u8",
+          audio_url: "https://video.example.org/a.mp4"
+        ]
+      )
+
+      Feeds.store(%{
+        peertube_preview()
+        | entries: [%{hd(peertube_preview().entries) | audio_url: nil, title: "Renamed"}]
+      })
+
+      assert Repo.one(
+               from e in Entry,
+                 where: e.feed_id == ^feed.id,
+                 select: {e.title, e.media_url, e.audio_url}
+             ) ==
+               {"Renamed", "https://video.example.org/master.m3u8",
+                "https://video.example.org/a.mp4"}
+    end
+
+    test "a video the instance does not answer for stays without files" do
+      {:ok, feed} = Feeds.store(peertube_preview())
+      Repo.update_all(Entry, set: [media_url: nil, audio_url: nil])
+      entry = Repo.one(from e in Entry, where: e.feed_id == ^feed.id)
+
+      Sikio.PictureFixtures.serving(%{})
+      assert {:error, _} = Feeds.media(entry)
+      assert Repo.get(Entry, entry.id).media_url == nil
+    end
+  end
+
+  defp peertube_preview do
+    {:ok, preview} = Parser.parse(peertube(), "https://video.example.org/feeds/videos.xml")
+    preview
   end
 
   # Fetched chapters belong to their file. When a poll links another file, the stored chapters

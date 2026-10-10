@@ -279,44 +279,6 @@ defmodule SikioWeb.AddSourceLiveTest do
     refute has_element?(view, "#search-instead")
   end
 
-  # The CSP header is sent per HTTP response, and live navigation sends none.
-  # A new PeerTube instance is missing from the loaded `frame-src`, so its embed would be blocked.
-  # Subscribing to a new instance therefore uses a full redirect.
-  test "subscribing to a new instance reloads the page that has to frame it", %{conn: conn} do
-    Req.Test.stub(HTTP, fn conn ->
-      case conn.request_path do
-        path when path in [nil, "/"] ->
-          Plug.Conn.send_resp(conn, 200, "<html><head></head><body></body></html>")
-
-        "/.well-known/nodeinfo" ->
-          Req.Test.json(conn, %{
-            links: [
-              %{
-                rel: "http://nodeinfo.diaspora.software/ns/schema/2.0",
-                href: "https://video.example.org/nodeinfo/2.0.json"
-              }
-            ]
-          })
-
-        "/nodeinfo/2.0.json" ->
-          Req.Test.json(conn, %{software: %{name: "peertube"}})
-
-        "/feeds/videos.xml" ->
-          Plug.Conn.send_resp(conn, 200, peertube())
-      end
-    end)
-
-    {:ok, view, _html} = live(conn, ~p"/add")
-
-    view |> form("#add-form", %{q: "https://video.example.org"}) |> render_submit()
-    render_async(view)
-
-    assert has_element?(view, "#source-0", "Good Instance Videos")
-
-    assert {:error, {:redirect, %{to: "/feeds/" <> _}}} =
-             view |> element("#source-0 button", "Subscribe") |> render_click()
-  end
-
   describe "a single item" do
     # The channel id comes from a unique feed URL, so no concurrent test saves the same feed.
     defp stub_video do

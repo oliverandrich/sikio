@@ -274,6 +274,27 @@ defmodule Sikio.Feeds.DiscoveryTest do
       assert %{published_at: nil} = Enum.find(preview.entries, &(&1.video_id == "zzzzzzzzzzz"))
     end
 
+    # An instance without HLS serves whole files. The largest at or below 1080p plays. Without
+    # one, the smallest larger file plays.
+    test "a video without a playlist plays its largest web file at or below 1080p" do
+      chosen = fn heights ->
+        files =
+          for height <- heights,
+              do: %{resolution: %{id: height}, fileUrl: "https://video.example.org/#{height}.mp4"}
+
+        Req.Test.stub(HTTP, fn conn -> Req.Test.json(conn, %{files: files}) end)
+
+        case Discovery.peertube_files("https://video.example.org/videos/embed/abc") do
+          {:ok, files} -> files.media_url
+          error -> error
+        end
+      end
+
+      assert chosen.([0, 480, 2160, 1080, 720]) == "https://video.example.org/1080.mp4"
+      assert chosen.([2160, 1440]) == "https://video.example.org/1440.mp4"
+      assert chosen.([0]) == {:error, :unavailable}
+    end
+
     test "a channel link is not a single item" do
       assert {:error, :not_an_item} =
                Discovery.item("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv")
@@ -290,7 +311,19 @@ defmodule Sikio.Feeds.DiscoveryTest do
       description: "What the talk covers.",
       thumbnailPath: "/lazy-static/thumbnails/old.jpg",
       embedPath: "/videos/embed/0b1d2c3e-1111-4222-8333-444455556666",
-      channel: %{id: 7}
+      channel: %{id: 7},
+      # Web videos and the HLS playlist, as PeerTube lists them. The audio-only one has id 0.
+      files: [
+        %{resolution: %{id: 0}, fileUrl: "https://video.example.org/static/web-videos/a-0.mp4"}
+      ],
+      streamingPlaylists: [
+        %{
+          playlistUrl: "https://video.example.org/static/hls/master.m3u8",
+          files: [
+            %{resolution: %{id: 1080}, fileUrl: "https://video.example.org/static/hls/v-1080.mp4"}
+          ]
+        }
+      ]
     }
 
     defp stub_instance do
@@ -361,11 +394,34 @@ defmodule Sikio.Feeds.DiscoveryTest do
                  embed_url:
                    "https://video.example.org/videos/embed/0b1d2c3e-1111-4222-8333-444455556666",
                  image_url: "https://video.example.org/lazy-static/thumbnails/old.jpg",
-                 page_url: "https://video.example.org/w/oLdV1d30000"
+                 page_url: "https://video.example.org/w/oLdV1d30000",
+                 media_url: "https://video.example.org/static/hls/master.m3u8",
+                 audio_url: "https://video.example.org/static/web-videos/a-0.mp4"
                } = entry
 
         assert entry.published_at == ~U[2024-05-01 10:00:00.000Z]
       end
+    end
+
+    # An instance without HLS serves whole files. The largest at or below 1080p plays. Without
+    # one, the smallest larger file plays.
+    test "a video without a playlist plays its largest web file at or below 1080p" do
+      chosen = fn heights ->
+        files =
+          for height <- heights,
+              do: %{resolution: %{id: height}, fileUrl: "https://video.example.org/#{height}.mp4"}
+
+        Req.Test.stub(HTTP, fn conn -> Req.Test.json(conn, %{files: files}) end)
+
+        case Discovery.peertube_files("https://video.example.org/videos/embed/abc") do
+          {:ok, files} -> files.media_url
+          error -> error
+        end
+      end
+
+      assert chosen.([0, 480, 2160, 1080, 720]) == "https://video.example.org/1080.mp4"
+      assert chosen.([2160, 1440]) == "https://video.example.org/1440.mp4"
+      assert chosen.([0]) == {:error, :unavailable}
     end
 
     test "a channel link is not a single item" do

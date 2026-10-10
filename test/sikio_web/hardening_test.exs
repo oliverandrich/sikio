@@ -24,16 +24,6 @@ defmodule SikioWeb.HardeningTest do
     {init_test_session(build_conn(), get_session(conn)), Repo.get_by!(User, username: username)}
   end
 
-  defp peertube_preview(origin) do
-    %{
-      url: origin <> "/feeds/videos.xml",
-      title: "Good Instance Videos",
-      kind: :peertube,
-      icon_url: nil,
-      entries: []
-    }
-  end
-
   test "health is public, minimal and does not set a session", %{conn: conn} do
     conn = get(conn, "/health")
     assert json_response(conn, 200) == %{"status" => "ok"}
@@ -41,7 +31,8 @@ defmodule SikioWeb.HardeningTest do
   end
 
   # Only the player loads third-party content. The policy allows YouTube's embed and API script,
-  # and audio from any HTTPS server. `default-src` is `'self'`.
+  # and media from any HTTPS server. Any host may run PeerTube, so hls.js and the views report
+  # may connect to any HTTPS server. `default-src` is `'self'`.
   test "the policy names the player's third parties and nothing wider", %{conn: conn} do
     conn = get(conn, "/login")
     [policy] = get_resp_header(conn, "content-security-policy")
@@ -50,7 +41,8 @@ defmodule SikioWeb.HardeningTest do
     # `'self'` is listed because any `frame-src` disables the `default-src` fallback.
     # LiveReload frames its own page in development.
     assert policy =~ "frame-src 'self' https://www.youtube-nocookie.com"
-    assert policy =~ "media-src 'self' https:"
+    assert policy =~ "media-src 'self' https: blob:"
+    assert policy =~ "connect-src 'self' https:;"
     assert policy =~ "script-src 'self' 'unsafe-inline' https://www.youtube.com"
     assert policy =~ "object-src 'none'"
     refute policy =~ "img-src *"
@@ -59,29 +51,6 @@ defmodule SikioWeb.HardeningTest do
     # Stricter than Phoenix's default, so no `Referer` reaches other servers.
     # Only the embed and the API script elements opt back in.
     assert get_resp_header(conn, "referrer-policy") == ["no-referrer"]
-  end
-
-  # Every PeerTube instance is a separate origin, unknown to the operator in advance.
-  # The policy is built per request from the account's subscribed instances.
-  test "the policy frames the instances this account subscribed to, and only those" do
-    {conn, account} = signed()
-    {:ok, _} = Sikio.Library.subscribe(account, peertube_preview("https://video.example.org"))
-
-    [policy] = conn |> get("/") |> get_resp_header("content-security-policy")
-
-    assert policy =~ "https://video.example.org"
-    assert policy =~ "https://www.youtube-nocookie.com"
-    refute policy =~ "https://other.example.org"
-  end
-
-  test "another account's instances are not framed by ours" do
-    {conn, _account} = signed()
-    stranger = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
-    {:ok, _} = Sikio.Library.subscribe(stranger, peertube_preview("https://other.example.org"))
-
-    [policy] = conn |> get("/") |> get_resp_header("content-security-policy")
-
-    refute policy =~ "https://other.example.org"
   end
 
   test "sensitive changes require a fresh confirmation" do

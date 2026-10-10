@@ -13,7 +13,6 @@ defmodule Sikio.Library do
   alias Sikio.Accounts.User
   alias Sikio.Feeds
   alias Sikio.Feeds.Entry
-  alias Sikio.Feeds.Feed
   alias Sikio.Library.Events
   alias Sikio.Library.SavedEntry
   alias Sikio.Library.Subscription
@@ -237,35 +236,6 @@ defmodule Sikio.Library do
         order_by: [desc: s.inserted_at, desc: s.id],
         preload: [:feed]
     )
-  end
-
-  @doc """
-  Returns the origins of the PeerTube instances the account subscribes to, sorted.
-
-  A PeerTube video embeds from the instance that hosts it. No fixed instance list exists.
-  The content security policy derives its allowed frame origins from this list.
-  """
-  def player_origins(%User{id: user_id}) do
-    followed = from(s in Subscription, where: s.user_id == ^user_id, select: s.feed_id)
-    saved = from(e in Entry, where: e.id in subquery(saved_ids(user_id)), select: e.feed_id)
-
-    Repo.all(
-      from f in Feed,
-        where: f.kind == :peertube,
-        where: f.id in subquery(followed) or f.id in subquery(saved),
-        select: f.url
-    )
-    |> Enum.map(&origin/1)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-    |> Enum.sort()
-  end
-
-  defp origin(url) do
-    case URI.new(url) do
-      {:ok, %URI{scheme: scheme, host: host}} when is_binary(host) -> "#{scheme}://#{host}"
-      _ -> nil
-    end
   end
 
   @doc """

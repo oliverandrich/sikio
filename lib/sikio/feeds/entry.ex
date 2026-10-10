@@ -11,8 +11,11 @@ defmodule Sikio.Feeds.Entry do
     field :external_id, :string
     field :title, :string
     field :media_url, :string
+    # A PeerTube video's audio-only file. The player offers it instead of the picture.
+    field :audio_url, :string
     field :video_id, :string
-    # The PeerTube embed URL from the feed. It is not built from parts a later release may change.
+    # The PeerTube embed URL from the feed. It names the video for the instance's API.
+    # It is not built from parts a later release may change.
     field :embed_url, :string
     # The item's page URL from the feed: the episode page, or the video page on its platform.
     field :page_url, :string

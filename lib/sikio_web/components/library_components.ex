@@ -128,7 +128,7 @@ defmodule SikioWeb.LibraryComponents do
       >
         <span class="relative h-21 w-28 shrink-0 overflow-hidden rounded-lg bg-line">
           <img
-            src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
+            src={artwork(@entry)}
             alt=""
             loading="lazy"
             class="size-full object-cover"
@@ -369,6 +369,28 @@ defmodule SikioWeb.LibraryComponents do
   end
 
   # The cue's position before playback, matching where the dock player would resume.
+  # The detail's controls before playback. Play, seek or skip starts the dock's player.
+  attr :entry, :map, required: true
+  attr :chapters, :list, required: true
+
+  defp cue(assigns) do
+    ~H"""
+    <.audio_face
+      id="audio-cue"
+      phx-hook="AudioCue"
+      cue={@entry}
+      length={length_of(@entry)}
+      position={cue_position(@entry)}
+      chapters={@chapters}
+      sound={@entry.audio_url != nil}
+      data-entry-id={@entry.id}
+      data-position-of={
+        gettext("%{position} of %{duration}", position: "{position}", duration: "{duration}")
+      }
+    />
+    """
+  end
+
   defp cue_position(%{playback: nil}), do: 0
   defp cue_position(%{playback: playback}), do: Playback.resume_position(playback)
 
@@ -603,14 +625,15 @@ defmodule SikioWeb.LibraryComponents do
         </div>
       </div>
       <%!-- Player slot. The dock positions the active player over it. Before playback it shows
-      a preview and loads no third-party resources. See assets/js/dock_place.mjs. --%>
+      Sikio's controls, or a preview for YouTube. It loads no third-party resources.
+      See assets/js/dock_place.mjs. --%>
       <div
         id="player-slot"
         phx-mounted={JS.ignore_attributes(["style", "data-pinned"])}
         class="-mx-6 sm:-mx-12 lg:-mx-6"
       >
         <button
-          :if={video?(@entry)}
+          :if={@entry.feed.kind == :youtube}
           id="start-playback"
           type="button"
           phx-click={JS.dispatch("sikio:play", detail: %{id: @entry.id})}
@@ -618,7 +641,7 @@ defmodule SikioWeb.LibraryComponents do
         >
           <span class="relative block aspect-video w-full overflow-hidden bg-line">
             <img
-              src={Pictures.path(Sikio.Pictures.candidates(@entry), kind_mark(@entry))}
+              src={artwork(@entry)}
               alt=""
               class="size-full object-cover"
             />
@@ -630,21 +653,18 @@ defmodule SikioWeb.LibraryComponents do
             <span class="sr-only">{play_label(@entry)}</span>
           </span>
         </button>
-        <%!-- An episode renders the audio controls inline. No media loads before first use; see
-        assets/js/audio_cue.mjs. --%>
-        <.audio_face
-          :if={!video?(@entry)}
-          id="audio-cue"
-          phx-hook="AudioCue"
-          cue={@entry}
-          length={length_of(@entry)}
-          position={cue_position(@entry)}
-          chapters={@chapters}
-          data-entry-id={@entry.id}
-          data-position-of={
-            gettext("%{position} of %{duration}", position: "{position}", duration: "{duration}")
-          }
-        />
+        <%!-- An episode and a PeerTube video render Sikio's controls inline. No media loads before
+        first use; see assets/js/audio_cue.mjs. A PeerTube video shows its poster above them, as
+        the dock's player does. --%>
+        <div :if={@entry.feed.kind == :peertube} id="video-cue">
+          <img
+            src={artwork(@entry)}
+            alt=""
+            class="aspect-video w-full rounded-control bg-black object-contain"
+          />
+          <.cue entry={@entry} chapters={@chapters} />
+        </div>
+        <.cue :if={@entry.feed.kind == :podcast} entry={@entry} chapters={@chapters} />
       </div>
       <%!-- Title and notes follow the player in one centered column of at most 80ch.
       `w-full` keeps that width when the text is shorter. --%>

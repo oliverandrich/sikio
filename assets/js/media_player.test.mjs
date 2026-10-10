@@ -2,7 +2,7 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {createReporter, MediaPlayer} from "./media_player.mjs"
+import {createReporter, MediaPlayer, playsHls, recreated} from "./media_player.mjs"
 
 // Messages the server renders into the element's dataset.
 // The tests assert on them, because users read them when playback stops.
@@ -17,8 +17,13 @@ const STRINGS = {
   youtubeBlocked: "This video cannot be embedded. You can open it on YouTube.",
   youtubeOrigin: "YouTube could not identify this site.",
   youtubeUnplayable: "YouTube cannot play this video.",
-  peertubeUnavailable: "This instance could not be reached."
+  videoFailed: "This video could not be loaded."
 }
+
+// The hook replaces a rendered video with one it creates. A fake creates itself, so its
+// assertions follow the element the hook plays.
+const inPlace = media => Object.assign(media, {attributes: [], ownerDocument: {createElement: () => media},
+  replaceWith() { media.recreated = true }})
 
 function reporterFixture() {
   const calls = []
@@ -386,194 +391,215 @@ test("finish refuses a switch while disconnected and can be retried", () => {
 // A PeerTube embed reports its position about twice a second. Each report is a sample.
 // The first report also shows that the player exists. Before it, a query returns zero.
 // Saving that zero would overwrite the saved position.
-test("PeerTube reports its own position and does not save before it has one", async () => {
-  const previous = {document: globalThis.document, window: globalThis.window}
-  const doc = new EventTarget(), samples = [], said = [], posted = []
-  const message = {set textContent(text) {said.push(text)}, get textContent() {return said.at(-1) ?? ""}}
-  globalThis.document = doc
-  globalThis.window = new EventTarget()
-
-  const iframe = {src: "https://video.example.org/videos/embed/abc?api=1&start=42",
-    contentWindow: {postMessage: data => posted.push(JSON.parse(data))}}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "peertube", session: "v", position: "42", ...STRINGS},
-    querySelector: selector => selector === "[data-player-message]" ? message : selector === "iframe" ? iframe : null}),
+// A PeerTube video plays in a video element. The audio element's code drives it.
+test("a PeerTube video plays in its own element with the audio's controls", () => {
+  const previousDocument = globalThis.document, previousFetch = globalThis.fetch
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false})
+  const reports = []
+  globalThis.fetch = (url, options) => { reports.push({url, ...options}); return Promise.resolve() }
+  const video = inPlace(new EventTarget())
+  Object.assign(video, {dataset: {}, currentTime: 0, duration: 600, readyState: 0, playbackRate: 1,
+    paused: true, muted: false, play() { this.paused = false; return Promise.resolve() },
+    pause() { this.paused = true }, load() {}, removeAttribute() {}})
+  const message = {textContent: ""}, samples = []
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}},
+    dataset: {kind: "peertube", session: "v", position: "120", views: "https://video.example.org/api/v1/videos/abc/views", ...STRINGS},
+    querySelector: selector => ({video, "[data-player-message]": message}[selector])}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
-
-  const fromEmbed = payload => {
-    const event = new Event("message")
-    event.data = JSON.stringify(payload)
-    event.origin = "https://video.example.org"
-    window.dispatchEvent(event)
-  }
-
   try {
     hook.mounted()
-    fromEmbed({method: "peertube::__ready", params: {type: "publish-request", publish: []}})
-    assert.deepEqual(samples, [], "nothing is saved while the player has told us nothing")
-
-    fromEmbed({method: "peertube::playbackStatusUpdate",
-      params: {position: 42.5, duration: 100, playbackState: "playing"}})
-    await Promise.resolve()
-
-    assert.ok(said.every(text => text === ""), "a player that works says nothing")
-    assert.equal(samples.at(-1)?.position, 42.5)
-    assert.equal(samples.at(-1)?.duration, 100)
-
-    // During playback a save happens every few seconds, a jump saves at once.
-    // So the page shows the chapter reached by the jump.
-    const playing = position => fromEmbed({method: "peertube::playbackStatusUpdate",
-      params: {position, duration: 100, playbackState: "playing"}})
-    playing(43)
-    playing(80)
-    assert.deepEqual(samples.map(sample => sample.position), [42.5, 80])
-
-    fromEmbed({method: "peertube::playbackStatusChange", params: "ended"})
-    await Promise.resolve()
-    assert.equal(samples.at(-1).ended, true)
-
-    // A chapter seeks the instance's player.
-    hook.el.dispatchEvent(new CustomEvent("sikio:seek", {detail: {position: 118}}))
-    assert.ok(posted.some(m => m.method === "peertube::seek" && m.params === 118), "the instance seeks")
-    // Player commands control the instance's player. Its last state was ended, so toggle plays.
-    const command = detail => hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail}))
-    command({name: "toggle"})
-    assert.ok(posted.some(m => m.method === "peertube::play"), "toggle plays what is not playing")
-    command({name: "skip", by: -15})
-    assert.ok(posted.some(m => m.method === "peertube::seek" && m.params === 65), "a skip from the reported place")
-    command({name: "mute"})
-    assert.ok(posted.some(m => m.method === "peertube::setVolume" && m.params === 0), "sound off")
-
-    // Closing flushes while the iframe is still in the page, and the flush pauses the player.
-    hook.el.dispatchEvent(new CustomEvent("sikio:flush", {detail: {done: () => {}}}))
-    assert.ok(posted.some(m => m.method === "peertube::pause"), "closing stops the instance's player")
+    assert.equal(video.recreated, true, "Safari paints a video the hook created")
+    video.readyState = 1
+    video.dispatchEvent(new Event("loadedmetadata"))
+    assert.equal(video.currentTime, 120, "the saved place")
+    assert.equal(video.paused, false)
+    // A playing video tells its instance that someone watches.
+    video.dispatchEvent(new Event("timeupdate"))
+    assert.equal(reports.length, 1)
+    assert.equal(reports[0].url, "https://video.example.org/api/v1/videos/abc/views")
+    assert.equal(reports[0].credentials, "omit")
+    assert.deepEqual(JSON.parse(reports[0].body).currentTime, 120)
+    hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail: {name: "skip", by: 30}}))
+    assert.equal(video.currentTime, 150)
+    video.dispatchEvent(new Event("pause"))
+    assert.equal(samples.at(-1).position, 150)
+    video.dispatchEvent(new Event("error"))
+    assert.equal(message.textContent, STRINGS.videoFailed)
     hook.destroyed()
+    assert.equal(video.paused, true)
   } finally {
     hook.destroyed()
-    globalThis.document = previous.document
-    globalThis.window = previous.window
+    globalThis.document = previousDocument
+    globalThis.fetch = previousFetch
   }
 })
 
-// LiveView removes the player's element before calling `destroyed`, so the iframe has no window.
-// Cleanup must not throw. An exception aborts LiveView's patch before the dock's reply arrives.
-// After that no button works.
-test("a PeerTube player whose frame is gone cleans up quietly and hears nothing more", () => {
-  const previous = {document: globalThis.document, window: globalThis.window}
-  const samples = []
-  globalThis.document = new EventTarget()
-  globalThis.window = new EventTarget()
+// Safari leaves a video blank that LiveView inserted. The hook plays a copy it creates itself.
+test("a rendered video is replaced by a created copy with its attributes", () => {
+  const created = {attributes: {}, setAttribute(name, value) { this.attributes[name] = value }}
+  const rendered = {attributes: [{name: "data-src", value: "https://video.example.org/master.m3u8"},
+    {name: "playsinline", value: ""}], ownerDocument: {createElement: tag => tag === "video" && created},
+    replaceWith(next) { this.replacement = next }}
+  assert.equal(recreated(rendered), created)
+  assert.equal(rendered.replacement, created)
+  assert.deepEqual(created.attributes, {"data-src": "https://video.example.org/master.m3u8", playsinline: ""})
+})
 
-  const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
-    querySelector: selector => selector === "[data-player-message]" ? {textContent: ""} : selector === "iframe" ? iframe : null}),
-    pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
+// Chromium answers "maybe" for HLS but cannot play it. Only Apple's WebKit plays it itself.
+test("only Safari plays an HLS playlist itself", () => {
+  const video = answer => ({canPlayType: () => answer})
+  assert.equal(playsHls(video("maybe"), "Apple Computer, Inc."), true)
+  assert.equal(playsHls(video("maybe"), "Google Inc."), false)
+  assert.equal(playsHls(video(""), "Apple Computer, Inc."), false)
+})
 
-  const fromEmbed = payload => {
-    const event = new Event("message")
-    event.data = JSON.stringify(payload)
-    event.origin = "https://video.example.org"
-    window.dispatchEvent(event)
+// Other browsers load the vendored hls.js once, on the first playlist, and play through it.
+// It stays at or below 1080p. A web file plays as it is.
+test("a playlist plays through hls.js, capped at 1080p, and a file plays as it is", async () => {
+  const previous = {document: globalThis.document, Hls: globalThis.Hls}
+  const scripts = []
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false,
+    createElement: () => ({}), head: {append: script => scripts.push(script)}})
+  const players = []
+  class FakeHls {
+    static isSupported() { return true }
+    static Events = {MANIFEST_PARSED: "manifest", ERROR: "error"}
+    constructor(config) { this.config = config; this.handlers = {}; players.push(this) }
+    on(event, handler) { this.handlers[event] = handler }
+    loadSource(url) { this.source = url }
+    attachMedia(media) { this.media = media }
+    destroy() { this.destroyed = true }
   }
-
+  const video = (src) => Object.assign(inPlace(new EventTarget()), {dataset: {src}, currentTime: 0,
+    duration: 600, readyState: 0, playbackRate: 1, paused: true, canPlayType: () => "maybe",
+    play() { return Promise.resolve() }, pause() {}, load() {}, removeAttribute() {}})
+  const hookFor = media => ({...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}},
+    dataset: {kind: "peertube", session: "v", position: "0", hls: "/vendor/hls.js/hls.min.js", ...STRINGS},
+    querySelector: selector => ({video: media, "[data-player-message]": message}[selector])}),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})})
+  const message = {textContent: ""}
+  const stream = video("https://video.example.org/master.m3u8"), file = video("https://video.example.org/v.mp4")
+  const streaming = hookFor(stream), filing = hookFor(file)
   try {
-    hook.mounted()
-    fromEmbed({method: "peertube::__ready", params: {type: "publish-request", publish: []}})
-    fromEmbed({method: "peertube::playbackStatusUpdate", params: {position: 5, duration: 36, playbackState: "playing"}})
-    iframe.contentWindow = null
-    assert.doesNotThrow(() => hook.destroyed())
-    const count = samples.length
-    fromEmbed({method: "peertube::playbackStatusChange", params: "paused"})
-    assert.equal(samples.length, count, "a destroyed player saves nothing for another embed")
+    streaming.mounted()
+    assert.equal(scripts.length, 1)
+    assert.equal(scripts[0].src, "/vendor/hls.js/hls.min.js")
+    globalThis.Hls = FakeHls
+    scripts[0].onload()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    const [player] = players
+    assert.equal(player.source, "https://video.example.org/master.m3u8")
+    assert.equal(player.media, stream)
+    player.handlers.manifest("manifest", {levels: [{height: 360}, {height: 720}, {height: 1080}, {height: 2160}]})
+    assert.equal(player.autoLevelCapping, 2)
+    player.handlers.error("error", {fatal: true})
+    assert.equal(message.textContent, STRINGS.videoFailed)
+
+    filing.mounted()
+    assert.equal(file.src, "https://video.example.org/v.mp4")
+    assert.equal(scripts.length, 1, "a file needs no hls.js")
+
+    streaming.destroyed()
+    assert.equal(player.destroyed, true)
   } finally {
+    streaming.destroyed()
+    filing.destroyed()
     globalThis.document = previous.document
-    globalThis.window = previous.window
+    globalThis.Hls = previous.Hls
   }
 })
 
-// A paused embed reports the same position twice a second. Only the change to paused is saved.
-test("a paused PeerTube video saves its place once, not with every report", async () => {
-  const previous = {document: globalThis.document, window: globalThis.window}
-  const samples = []
-  globalThis.document = new EventTarget()
-  globalThis.window = new EventTarget()
-
-  const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
-    querySelector: selector => selector === "[data-player-message]" ? {textContent: ""} : selector === "iframe" ? iframe : null}),
-    pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
-
-  const report = (state, position = 12) => {
-    const event = new Event("message")
-    event.data = JSON.stringify({method: "peertube::playbackStatusUpdate", params: {position, duration: 36, playbackState: state}})
-    event.origin = "https://video.example.org"
-    window.dispatchEvent(event)
+// The switch plays the audio-only file in an audio element, which iOS keeps playing in the
+// background. It continues at the same place and speed, and the picture comes back the same way.
+test("a PeerTube video switches to its sound alone and back at the same place", () => {
+  const fake = () => {
+    const media = new EventTarget()
+    return Object.assign(media, {dataset: {}, currentTime: 0, duration: 600, readyState: 0,
+      playbackRate: 1, paused: true, muted: false, hidden: false,
+      play() { this.paused = false; return Promise.resolve() }, pause() { this.paused = true },
+      load() {}, removeAttribute(name) { if (name === "src") this.src = "" },
+      remove() { this.removed = true }, after(next) { this.next = next }})
   }
-
+  const video = inPlace(fake()), audio = fake(), samples = []
+  const previousDocument = globalThis.document
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false, createElement: () => audio})
+  const button = Object.assign(new EventTarget(), {attributes: {},
+    setAttribute(name, value) { this.attributes[name] = value }})
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}},
+    dataset: {kind: "peertube", session: "v", position: "0", audioSrc: "https://video.example.org/a.mp4", ...STRINGS},
+    querySelector: selector => ({video, "[data-audio-only]": button, "[data-player-message]": {textContent: ""}}[selector])}),
+    pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
   try {
     hook.mounted()
-    const ready = new Event("message")
-    ready.data = JSON.stringify({method: "peertube::__ready", params: {type: "publish-request", publish: []}})
-    ready.origin = "https://video.example.org"
-    window.dispatchEvent(ready)
-    report("playing")
-    const playing = samples.length
-    for (let n = 0; n < 4; n++) report("paused")
-    assert.equal(samples.length, playing + 1)
-    // A seek while paused changes the position, which is saved immediately.
-    report("paused", 300)
-    report("paused", 300)
-    assert.equal(samples.length, playing + 2)
-    assert.equal(samples.at(-1).position, 300)
+    video.readyState = 1
+    video.dispatchEvent(new Event("loadedmetadata"))
+    video.currentTime = 200
+    video.playbackRate = 1.5
+    let fullscreen = false
+    video.requestFullscreen = () => { fullscreen = true }
+    hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail: {name: "fullscreen"}}))
+    assert.equal(fullscreen, true, "the video fills the screen")
+    fullscreen = false
+
+    button.dispatchEvent(new Event("click"))
+    assert.equal(video.paused, true)
+    assert.equal(video.hidden, true)
+    assert.equal(video.next, audio, "the audio element follows the video")
+    assert.equal(audio.src, "https://video.example.org/a.mp4")
+    assert.equal(button.attributes["aria-pressed"], "true")
+    hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail: {name: "fullscreen"}}))
+    assert.equal(fullscreen, false, "the hidden video stays out of fullscreen")
+    audio.readyState = 1
+    audio.dispatchEvent(new Event("loadedmetadata"))
+    assert.equal(audio.currentTime, 200)
+    assert.equal(audio.playbackRate, 1.5)
+    assert.equal(audio.paused, false, "a playing video goes on playing as sound")
+    audio.currentTime = 260
+    audio.pause()
+    audio.dispatchEvent(new Event("pause"))
+    assert.equal(samples.at(-1).position, 260, "the audio element now reports the place")
+    video.dispatchEvent(new Event("pause"))
+    assert.equal(samples.at(-1).position, 260, "the hidden video reports nothing")
+
+    button.dispatchEvent(new Event("click"))
+    assert.equal(audio.removed, true)
+    assert.equal(video.hidden, false)
+    assert.equal(video.currentTime, 260)
+    assert.equal(video.paused, true, "a paused sound stays paused as video")
+    assert.equal(button.attributes["aria-pressed"], "false")
   } finally {
     hook.destroyed()
-    globalThis.document = previous.document
-    globalThis.window = previous.window
+    globalThis.document = previousDocument
   }
 })
 
-// Measured on a real instance: at its end a video reports `paused`, then `ended` 1 ms later.
-// YouTube reports one state, so two concurrent saves occur only with PeerTube.
-// The later save must win, or a finished video would stay paused.
-test("PeerTube pauses a millisecond before it ends, and the end is what counts", async () => {
-  const previous = {document: globalThis.document, window: globalThis.window}
-  const samples = [], said = []
-  const message = {set textContent(text) {said.push(text)}, get textContent() {return said.at(-1) ?? ""}}
-  globalThis.document = new EventTarget()
-  globalThis.window = new EventTarget()
-
-  const iframe = {src: "https://video.example.org/videos/embed/abc?api=1", contentWindow: {postMessage: () => {}}}
-  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}}, dataset: {kind: "peertube", session: "v", position: "0", ...STRINGS},
-    querySelector: selector => selector === "[data-player-message]" ? message : selector === "iframe" ? iframe : null}),
-    pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
-
-  const fromEmbed = payload => {
-    const event = new Event("message")
-    event.data = JSON.stringify(payload)
-    event.origin = "https://video.example.org"
-    window.dispatchEvent(event)
-  }
-
+// Before the video loads it has no place of its own. The sound starts at the saved place.
+test("a switch to the sound before the video loads keeps the saved place", () => {
+  const fake = () => Object.assign(new EventTarget(), {dataset: {}, currentTime: 0, duration: 3600,
+    readyState: 0, playbackRate: 1, paused: true, hidden: false,
+    play() { this.paused = false; return Promise.resolve() }, pause() { this.paused = true },
+    load() {}, removeAttribute() {}, remove() {}, after() {}})
+  const video = inPlace(fake()), audio = fake()
+  const previousDocument = globalThis.document
+  globalThis.document = Object.assign(new EventTarget(), {hidden: false, createElement: () => audio})
+  const button = Object.assign(new EventTarget(), {setAttribute() {}})
+  const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}},
+    dataset: {kind: "peertube", session: "v", position: "1800", audioSrc: "https://video.example.org/a.mp4", ...STRINGS},
+    querySelector: selector => ({video, "[data-audio-only]": button, "[data-player-message]": {textContent: ""}}[selector])}),
+    pushEvent: (_event, _sample, reply) => reply({saved: true})}
   try {
     hook.mounted()
-    fromEmbed({method: "peertube::__ready", params: {type: "publish-request", publish: []}})
-    fromEmbed({method: "peertube::playbackStatusUpdate", params: {position: 35, duration: 36, playbackState: "playing"}})
-    await Promise.resolve()
-
-    fromEmbed({method: "peertube::playbackStatusUpdate", params: {position: 36, duration: 36, playbackState: "paused"}})
-    fromEmbed({method: "peertube::playbackStatusChange", params: "ended"})
-    await Promise.resolve()
-    await Promise.resolve()
-
-    assert.equal(samples.at(-1).ended, true, "the end is the last word, not the pause before it")
+    button.dispatchEvent(new Event("click"))
+    audio.readyState = 1
+    audio.dispatchEvent(new Event("loadedmetadata"))
+    assert.equal(audio.currentTime, 1800)
+    assert.equal(audio.paused, false, "the start the user asked for goes on")
   } finally {
     hook.destroyed()
-    globalThis.document = previous.document
-    globalThis.window = previous.window
+    globalThis.document = previousDocument
   }
 })
 
-// The capsule shows play or pause and a progress line.
-// The player sets `data-playing` and `--played` on its element. Tested for audio and PeerTube.
 test("the player says whether it plays and how far it has come", async () => {
   const previous = {document: globalThis.document, window: globalThis.window}
   globalThis.document = Object.assign(new EventTarget(), {hidden: false})
@@ -593,11 +619,6 @@ test("the player says whether it plays and how far it has come", async () => {
       selector => ({audio, "[data-player-message]": message}[selector])),
     pushEvent: (_event, _sample, reply) => reply({saved: true})}
 
-  const iframe = {src: "https://video.example.org/videos/embed/abc", contentWindow: {postMessage() {}}}
-  const video = {...MediaPlayer,
-    el: element({kind: "peertube", session: "v", position: "0"},
-      selector => selector === "iframe" ? iframe : selector === "[data-player-message]" ? message : null),
-    pushEvent: (_event, _sample, reply) => reply({saved: true})}
 
   try {
     sound.mounted()
@@ -608,23 +629,8 @@ test("the player says whether it plays and how far it has come", async () => {
     assert.equal(sound.el.props["--played"], "0.25")
     audio.dispatchEvent(new Event("pause"))
     assert.equal(sound.el.dataset.playing, "false")
-
-    video.mounted()
-    const status = (position, playbackState) => {
-      const event = new Event("message")
-      event.data = JSON.stringify({method: "peertube::playbackStatusUpdate",
-        params: {position, duration: 100, playbackState}})
-      event.origin = "https://video.example.org"
-      window.dispatchEvent(event)
-    }
-    status(50, "playing")
-    assert.equal(video.el.dataset.playing, "true")
-    assert.equal(video.el.props["--played"], "0.5")
-    status(50, "paused")
-    assert.equal(video.el.dataset.playing, "false")
   } finally {
     sound.destroyed()
-    video.destroyed()
     globalThis.document = previous.document
     globalThis.window = previous.window
   }
@@ -763,7 +769,7 @@ test("chapters learned later are drawn on the dock's bar", () => {
   globalThis.document = {createElement: () => ({dataset: {}, style: {setProperty() {}}, setAttribute() {}})}
   const bar = {appended: [], append(...els) { this.appended.push(...els) }}
   const face = {querySelector: s => s === "[data-audio-bar]" ? bar : null, querySelectorAll: () => []}
-  const hook = {...MediaPlayer, audio: {duration: 360},
+  const hook = {...MediaPlayer, media: {duration: 360},
     el: {dataset: {chapters: JSON.stringify([{at: 0, title: "A"}, {at: 90, title: "B"}])},
       querySelector: s => s === "[data-audio-face]" ? face : null}}
   try {

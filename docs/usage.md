@@ -72,8 +72,13 @@ subscription deletes no shared episodes.
 
 - Podcasts: Sikio's own audio controls with play, pause, seek and speed from 0.75× to 2×. The
   player can be collapsed without interrupting playback.
-- YouTube and PeerTube: the official embed. YouTube uses its privacy-enhanced mode. The embed
-  loads only after you press play.
+- PeerTube: the instance's HLS stream in Sikio's own player, with the same controls as podcasts.
+  Safari plays the stream itself. Other browsers play it through hls.js, up to 1080p.
+  **Sound only** switches to the video's audio-only file, where the instance offers one. On iOS,
+  only the sound keeps playing in the background. The player reports views to the instance, as
+  PeerTube's own player does.
+- YouTube: the official embed in its privacy-enhanced mode. The embed loads only after you press
+  play.
 - Playback status per account: new, in progress, heard or watched, or archived as unheard. An
   item counts as heard in its last minute. An item under ten minutes counts as heard at 90 % of
   its duration. Every mark can be undone. Marking an item unheard also resets its position.
@@ -106,10 +111,11 @@ Marking the playing item as heard or archived ends playback as if the item had e
 immediately. A full reload, signing out or closing the tab ends playback. Pause briefly or close
 the player first, so the last seconds are saved.
 
-Audio loads directly from the publisher's server. Supported formats and seeking depend on the
-browser and that server. YouTube can refuse private, deleted or non-embeddable videos. The player
-then shows a message and a link to YouTube. The referrer policy is `no-referrer`. Only the
-YouTube and PeerTube embeds and the YouTube IFrame API script send the page origin as referrer.
+Audio loads directly from the publisher's server. PeerTube videos load from their instance.
+Supported formats and seeking depend on the browser and that server. A PeerTube feed names no
+stream. Sikio asks the instance's API for it when a video first plays. YouTube can refuse private, deleted or non-embeddable videos. The player then shows
+a message and a link to YouTube. The referrer policy is `no-referrer`. Only the YouTube embed and
+the YouTube IFrame API script send the page origin as referrer.
 
 URL discovery needs no personal API keys. Not every website links a discoverable feed. Use the
 direct RSS URL in that case. Limits:

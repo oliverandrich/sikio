@@ -184,9 +184,10 @@
 #player-panel[data-place="pinned"] {
   box-shadow: none; max-height: none; border: 0; border-radius: 0; background: transparent; padding: 0;
 }
-/* A pinned panel has no max-height. The iframe is at most 100dvh tall.
-   The embedded player letterboxes the video inside the iframe. */
-#player-panel[data-place="pinned"] iframe { min-height: 0; max-height: 100dvh; }
+/* A pinned panel has no max-height. The video is at most 100dvh tall.
+   The iframe and the video element letterbox the picture. */
+#player-panel[data-place="pinned"] :is(iframe, video) { min-height: 0; max-height: 100dvh; }
+#video-cue img { min-height: 0; max-height: 100dvh; }
 /* A pinned panel uses CSS anchor positioning on #player-slot, so it follows the slot on scroll.
    position-visibility hides it while the anchor is out of view.
    assets/js/dock_place.mjs sets its width to the slot's width. */
@@ -217,7 +218,7 @@
 #player-panel[data-place="compact"] .player-title {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#player-panel[data-place="compact"] iframe { min-height: 0; margin-top: .5rem; }
+#player-panel[data-place="compact"] :is(iframe, video) { min-height: 0; margin-top: .5rem; }
 #player-panel[data-place="compact"]:has(audio) [data-player-message] { display: none; }
 /* The audio face shows the position, so the status line is hidden. */
 #player-panel:has([data-audio-face]) .player-status { display: none; }
@@ -228,7 +229,7 @@
 .audio-face {
   display: grid; align-items: center; gap: 1rem .875rem;
   grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
-  grid-template-areas: "track track track track track" "speed back play forward .";
+  grid-template-areas: "track track track track track" "speed back play forward sound";
 }
 .audio-face button { cursor: pointer; }
 .audio-face :is(button, input):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
@@ -264,6 +265,12 @@
 }
 .audio-skip:hover { background: var(--color-ground); }
 .audio-skip span { margin-top: -2px; font-family: var(--font-mono); font-size: 10px; line-height: 1; }
+/* A video's switch to its sound alone. Pressed, it takes the accent colour. */
+.audio-sound {
+  grid-area: sound; justify-self: end; display: flex; align-items: center; justify-content: center;
+  width: 2.75rem; height: 2rem; border-radius: 999px; background: var(--color-ground); color: var(--color-ink);
+}
+.audio-sound[aria-pressed="true"] { background: var(--color-accent); color: var(--color-on-accent); }
 .audio-speed {
   grid-area: speed; justify-self: start; min-width: 4rem; height: 2rem; padding: 0 .75rem;
   border-radius: 999px; background: var(--color-ground); color: var(--color-ink);
@@ -321,13 +328,17 @@
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-play svg { width: 1.375rem; height: 1.375rem; }
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-skip { width: 2.75rem; height: 2.75rem; }
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-speed { margin-left: .25rem; }
+  :is(#player-panel[data-place="pinned"], #player-slot) .audio-face:has(.audio-sound) {
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
+    grid-template-areas: "play track back forward speed sound";
+  }
 }
 /* A full-width band with borders above and below. */
 :is(#player-panel[data-place="pinned"], #player-slot) .audio-face {
   padding: .875rem 1rem; background: var(--color-ground); border-block: 1px solid var(--color-line);
 }
 :is(#player-panel[data-place="pinned"], #player-slot) .audio-skip:hover { background: var(--color-surface); }
-:is(#player-panel[data-place="pinned"], #player-slot) .audio-speed {
+:is(#player-panel[data-place="pinned"], #player-slot) :is(.audio-speed, .audio-sound:not([aria-pressed="true"])) {
   background: var(--color-surface); box-shadow: 0 0 0 1px var(--color-line);
 }
 /* Phone width: smaller column gap and skip buttons, and a narrower speed button.
@@ -346,9 +357,12 @@
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-play { width: 3.25rem; height: 3.25rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-skip { width: 2.5rem; height: 2.5rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-speed { min-width: 0; padding: 0 .5rem; }
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face:has(.audio-sound) {
+    grid-template-columns: repeat(5, auto); grid-template-areas: "track track track track track" "speed back play forward sound";
+  }
 }
-/* The speed button is disabled before playback but keeps its grid cell. */
-.audio-speed:disabled { cursor: default; }
+/* Speed and sound buttons are disabled before playback but keep their grid cells. */
+:is(.audio-speed, .audio-sound):disabled { cursor: default; }
 
 /* Compact window: a small play button beside the seek bar; skip and speed are hidden. */
 #player-panel[data-place="compact"] .audio-face {
@@ -358,18 +372,21 @@
   width: 2.25rem; height: 2.25rem; box-shadow: none;
 }
 #player-panel[data-place="compact"] .audio-play svg { width: .875rem; height: .875rem; }
-#player-panel[data-place="compact"] :is(.audio-skip, .audio-speed) { display: none; }
+#player-panel[data-place="compact"] :is(.audio-skip, .audio-speed, .audio-sound) { display: none; }
 #player-panel[data-place="compact"] .audio-track { gap: .25rem; }
+#player-panel[data-place="compact"] video + .audio-face { margin-top: .5rem; }
 #player-panel[data-place="compact"] .audio-times { font-size: 10px; }
 
 /* Below lg the main navigation is a bottom tab bar; --nav-bar is its height, Apple's 49pt.
    The tab bar, the page's bottom padding and the panel's bottom offset use it.
    --top-bar is the top bar's height; a pinned video sticks below it.
-   The safe area insets are read once here, so these rules and the browser tests share the names. */
+   The safe area insets are read once here, so these rules and the browser tests share the names.
+   --between-bars is the height between both bars, the most a pinned video may take. */
 :root {
   --nav-bar: 49px; --top-bar: 3.5rem;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
+  --between-bars: calc(100dvh - var(--top-bar) - var(--safe-top) - var(--nav-bar) - var(--safe-bottom));
 }
 
 /* Background colour on the root element. Safari tints the area behind the status bar with it.
@@ -400,12 +417,26 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
     box-shadow: 0 0 0 100vmax var(--color-ground); clip-path: inset(0 -100vmax);
   }
   /* A pinned panel has z-index 20, below the bars at 30, so it scrolls under them.
-     In landscape the iframe is no taller than the space between the bars. */
+     In landscape the video is no taller than the space between the bars. */
   #player-panel[data-place="pinned"] { z-index: 20; }
-  #player-panel[data-place="pinned"] iframe {
-    max-height: calc(100dvh - var(--top-bar) - var(--safe-top) - var(--nav-bar) - var(--safe-bottom));
+  #player-panel[data-place="pinned"] :is(iframe, video) {
+    max-height: var(--between-bars);
   }
   #player-panel[data-place="pinned"][data-stuck] { top: calc(var(--top-bar) + var(--safe-top)); }
+  /* A PeerTube video has the controls below it. Panel and player are flex columns, so the video
+     shrinks and letterboxes until both fit between the bars. */
+  #player-panel[data-place="pinned"]:has(video) {
+    display: flex; flex-direction: column;
+    max-height: var(--between-bars);
+  }
+  #player-panel[data-place="pinned"] :is([phx-hook="MediaPlayer"], #player-pending):has(video) {
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  /* The card's poster and controls before playback follow the same rule. */
+  #video-cue {
+    display: flex; flex-direction: column;
+    max-height: var(--between-bars);
+  }
   /* Before playback the slot shows the preview and is sticky below the top bar itself.
      Starting playback therefore does not move the player. */
   #player-slot:not([data-pinned]) {
@@ -424,12 +455,14 @@ html { background-color: var(--color-ground); color-scheme: light dark; }
     bottom: calc(var(--nav-bar) + .5rem + var(--safe-bottom));
     max-height: none; overflow: hidden; padding: .5rem .25rem .5rem .5rem; border-radius: .875rem;
   }
-  #player-panel[data-place="floating"] :is(.player-heading, [phx-hook="MediaPlayer"]) { display: contents; }
-  #player-panel[data-place="floating"] :is(#capsule-art, iframe) { order: -1; flex: none; }
+  #player-panel[data-place="floating"] :is(.player-heading, [phx-hook="MediaPlayer"], #player-pending) { display: contents; }
+  #player-panel[data-place="floating"] :is(#capsule-art, iframe, video) { order: -1; flex: none; }
   #player-panel[data-place="floating"] #capsule-art {
     display: block; width: 3rem; height: 3rem; border-radius: .5rem; object-fit: cover;
   }
-  #player-panel[data-place="floating"] iframe { width: 96px; height: 54px; min-height: 0; border-radius: .375rem; }
+  #player-panel[data-place="floating"] :is(iframe, video) {
+    width: 96px; height: 54px; min-height: 0; border-radius: .375rem;
+  }
   #player-panel[data-place="floating"] .player-text { display: flex; flex: 1; flex-direction: column; }
   #player-panel[data-place="floating"] :is(.player-title, .player-source) {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

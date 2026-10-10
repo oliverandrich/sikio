@@ -13,8 +13,6 @@ defmodule SikioWeb.AddSourceLive do
   `/add?url=…` fills in the link and starts the lookup, for bookmarklets and share sheets.
 
   After subscribing, the view navigates to the source's page.
-  A new PeerTube instance changes the CSP `frame-src`, which is set per HTTP request.
-  In that case the view uses `redirect/2` instead of `push_navigate/2`.
   """
   use SikioWeb, :live_view
 
@@ -229,7 +227,6 @@ defmodule SikioWeb.AddSourceLive do
   # opens the list that holds the entry afterwards.
   defp save_item(socket, %{preview: preview, external_id: id}) do
     account = socket.assigns.current_account
-    framed = Library.player_origins(account)
     at = String.to_existing_atom(socket.assigns.item_at)
 
     with {:ok, %{id: entry_id}} <- Library.save(account, preview, id, at),
@@ -243,9 +240,10 @@ defmodule SikioWeb.AddSourceLive do
           _ -> gettext("Saved %{title}.", title: entry.title)
         end
 
-      socket
-      |> put_flash(:info, message)
-      |> navigate(framed, LibraryPaths.library_path(%{"status" => place}, entry))
+      {:noreply,
+       socket
+       |> put_flash(:info, message)
+       |> push_navigate(to: LibraryPaths.library_path(%{"status" => place}, entry))}
     else
       _ ->
         {:noreply,
@@ -259,16 +257,8 @@ defmodule SikioWeb.AddSourceLive do
   defp place(%{status: status}) when status not in [nil, :new], do: "all"
   defp place(_new), do: "inbox"
 
-  # A new PeerTube instance changes the CSP `frame-src`, which only a full page load applies.
-  defp navigate(socket, framed, to) do
-    if Library.player_origins(socket.assigns.current_account) == framed,
-      do: {:noreply, push_navigate(socket, to: to)},
-      else: {:noreply, redirect(socket, to: to)}
-  end
-
   defp subscribe(socket, preview) do
     account = socket.assigns.current_account
-    framed = Library.player_origins(account)
 
     case Library.subscribe(account, preview) do
       {:ok, subscription} ->
@@ -276,9 +266,10 @@ defmodule SikioWeb.AddSourceLive do
         name = source_name(subscription)
         to = LibraryPaths.source_path(subscription)
 
-        socket
-        |> put_flash(:info, gettext("Subscribed to %{title}.", title: name))
-        |> navigate(framed, to)
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Subscribed to %{title}.", title: name))
+         |> push_navigate(to: to)}
 
       # Re-inserts the rows, so no row keeps its pending state after a failure.
       {:error, _} ->

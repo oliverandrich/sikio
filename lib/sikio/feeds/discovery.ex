@@ -284,9 +284,11 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  defp video_endpoint(origin, id), do: origin <> "/api/v1/videos/" <> URI.encode(id)
+
   # A pasted video resolves to its channel's feed, as on YouTube.
   defp video_channel_feed(origin, id) do
-    case json(origin <> "/api/v1/videos/" <> URI.encode(id)) do
+    case json(video_endpoint(origin, id)) do
       {:ok, %{"channel" => %{"id" => channel_id}}} when is_integer(channel_id) ->
         {:ok, origin <> "/feeds/videos.xml?videoChannelId=" <> Integer.to_string(channel_id)}
 
@@ -312,7 +314,7 @@ defmodule Sikio.Feeds.Discovery do
   defp instance_video(origin, id) do
     with {:ok, %{"channel" => %{"id" => channel}, "shortUUID" => short} = video}
          when is_integer(channel) and is_binary(short) <-
-           json(origin <> "/api/v1/videos/" <> URI.encode(id)),
+           json(video_endpoint(origin, id)),
          {:ok, feed} <- fetch("#{origin}/feeds/videos.xml?videoChannelId=#{channel}") do
       watch = origin <> "/w/" <> short
 
@@ -328,10 +330,13 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   defp api_entry(origin, watch, video) do
+    files = api_media(origin, video)
+
     %{
       external_id: watch,
       title: String.slice(to_string(video["name"] || watch), 0, 512),
-      media_url: nil,
+      media_url: files.media_url,
+      audio_url: files.audio_url,
       video_id: nil,
       embed_url: HTTP.resolve(to_string(video["embedPath"] || ""), origin),
       page_url: watch,
@@ -345,6 +350,66 @@ defmodule Sikio.Feeds.Discovery do
       excerpt: nil,
       short: false
     }
+  end
+
+  @doc """
+  Returns the API address of the PeerTube video an embed URL names, or nil.
+
+  The embed path ends in the video's id. The API accepts it in any of its forms.
+  """
+  def video_api(embed_url) when is_binary(embed_url) do
+    with %URI{scheme: "https", host: host, path: "/" <> _ = path} = uri when is_binary(host) <-
+           URI.parse(embed_url),
+         id when is_binary(id) <- path |> String.split("/", trim: true) |> List.last() do
+      video_endpoint(origin(uri), id)
+    else
+      _ -> nil
+    end
+  end
+
+  def video_api(_embed_url), do: nil
+
+  @doc "Asks a PeerTube instance for the media of the video an embed URL names."
+  def peertube_files(embed_url) do
+    with api when is_binary(api) <- video_api(embed_url),
+         {:ok, %{} = video} <- json(api),
+         %{media_url: url} = files when is_binary(url) <- api_media(origin(URI.parse(api)), video) do
+      {:ok, files}
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  # The video is the HLS playlist. HLS renditions are fragments a browser cannot play as files,
+  # and some carry no sound. An instance without HLS serves whole web files instead.
+  # The audio-only web file has resolution 0.
+  defp api_media(origin, video) do
+    playlist =
+      Enum.find_value(List.wrap(video["streamingPlaylists"]), fn
+        %{"playlistUrl" => url} when is_binary(url) -> HTTP.resolve(url, origin)
+        _ -> nil
+      end)
+
+    files =
+      for %{"resolution" => %{"id" => height}, "fileUrl" => url} <- List.wrap(video["files"]),
+          is_integer(height) and is_binary(url),
+          do: {height, HTTP.resolve(url, origin)}
+
+    %{
+      media_url: playlist || web_video(files),
+      audio_url: Enum.find_value(files, fn {height, url} -> height == 0 && url end)
+    }
+  end
+
+  # The largest video at or below 1080p. Larger files cost bandwidth without a visible gain in
+  # the dock. Without one, the smallest larger video. A nil URL failed the URL check.
+  defp web_video(files) do
+    videos = for {height, url} <- files, height > 0 and url, do: {height, url}
+
+    case Enum.filter(videos, fn {height, _} -> height <= 1080 end) do
+      [] -> videos |> Enum.min_by(&elem(&1, 0), fn -> {0, nil} end) |> elem(1)
+      fitting -> fitting |> Enum.max_by(&elem(&1, 0)) |> elem(1)
+    end
   end
 
   defp iso_date(value) when is_binary(value) do
@@ -451,6 +516,7 @@ defmodule Sikio.Feeds.Discovery do
       external_id: external_id,
       title: String.slice(to_string(oembed["title"] || id), 0, 512),
       media_url: nil,
+      audio_url: nil,
       video_id: id,
       embed_url: nil,
       page_url: page,

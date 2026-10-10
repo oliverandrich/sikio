@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {bindFace, feedLength, renderMarks} from "./audio_face.mjs"
-import {connect} from "../vendor/peertube_embed_client.mjs"
+import {createViews, postView} from "./peertube_views.mjs"
 
 // Sends at most one save at a time.
 // While one is in flight, a newer sample replaces the pending one.
@@ -43,8 +43,8 @@ export function createReporter({session, read, send, stop, message, strings, now
   return {
     save(ended = false, force = false) {
       // During `finish`, the final position is already pending or in flight.
-      // A paused PeerTube embed keeps sending status updates.
-      // Accepting them would refill the queue, and `finish` would never complete.
+      // A player may keep reporting while paused.
+      // Accepting those reports would refill the queue, and `finish` would never complete.
       if (closed || finishing || (!force && now() - lastSave < 5000)) return
       const current = read()
       if (!current || !Number.isFinite(current.position) || current.position < 0) return
@@ -83,10 +83,10 @@ export function createReporter({session, read, send, stop, message, strings, now
   }
 }
 
-// Video positions arrive at least once per second.
+// YouTube positions arrive once per second.
 // A change of more than 3 seconds between two readings is a seek.
 // The seek can come from a key, a chapter or the embed's controls.
-// Audio uses its `seeked` event instead.
+// Audio and video elements use their `seeked` event instead.
 export function jumped(previous, position) {
   return Math.abs(position - previous) > 3
 }
@@ -123,6 +123,27 @@ function loadYouTube(unavailable) {
   return youtubeAPI
 }
 
+// Whether the browser plays an HLS playlist itself. Safari does, on macOS and iOS, and keeps
+// background playback, AirPlay and Picture in Picture. Chromium answers "maybe" but cannot play
+// it, so only Apple's WebKit counts.
+export function playsHls(video, vendor = globalThis.navigator?.vendor) {
+  return Boolean(vendor?.startsWith("Apple") && video.canPlayType("application/vnd.apple.mpegurl"))
+}
+
+// Loads the vendored hls.js once, as a script tag, on the first playlist.
+let hlsScript
+function loadHls(src) {
+  if (globalThis.Hls) return Promise.resolve(globalThis.Hls)
+  hlsScript ??= new Promise((resolve, reject) => {
+    const script = document.createElement("script")
+    script.src = src
+    script.onload = () => resolve(globalThis.Hls)
+    script.onerror = () => { hlsScript = null; script.remove?.(); reject(new Error("hls.js")) }
+    document.head.append(script)
+  })
+  return hlsScript
+}
+
 // The hook instance that last set the Media Session.
 // Cleanup of other instances leaves it unchanged.
 let owner = null
@@ -139,6 +160,16 @@ function handle(session, action, handler) {
   try { session.setActionHandler(action, handler) } catch { /* unsupported action */ }
 }
 
+// Safari does not paint a video element that a LiveView patch inserted.
+// Through hls.js it stays blank. With native HLS it turns blank once the tab was hidden.
+// A video element that this script creates paints in both cases.
+export function recreated(video) {
+  const fresh = video.ownerDocument.createElement("video")
+  for (const {name, value} of video.attributes) fresh.setAttribute(name, value)
+  video.replaceWith(fresh)
+  return fresh
+}
+
 export const MediaPlayer = {
   mounted() {
     // User-facing text comes from server-rendered data attributes in the session locale.
@@ -147,7 +178,10 @@ export const MediaPlayer = {
     this.cleanups = []
     this.closed = false
     this.ready = false
-    this.audio = this.el.querySelector("audio")
+    // A podcast plays in an audio element and a PeerTube video in a video element.
+    const video = this.el.querySelector("video")
+    this.video = video && recreated(video)
+    this.media = this.el.querySelector("audio") ?? this.video
     this.message = text => {
       if (!this.closed) this.el.querySelector("[data-player-message]").textContent = text
     }
@@ -156,16 +190,14 @@ export const MediaPlayer = {
       this.cleanups.push(() => target.removeEventListener(event, callback))
     }
     this.stop = () => {
-      if (this.audio) this.audio.pause()
-      else if (this.peertube) this.peertube.call("pause").catch(() => {})
+      if (this.media) this.media.pause()
       else this.youtube?.pauseVideo?.()
     }
-    // Position and duration from the audio element, the last PeerTube status or the YouTube API.
+    // Position and duration from the media element or the YouTube API.
     // Returns null until the player is ready.
     this.read = () => {
       if (!this.ready) return null
-      if (this.audio) return {position: this.audio.currentTime, duration: this.audio.duration}
-      if (this.peertube) return this.reported
+      if (this.media) return {position: this.media.currentTime, duration: this.media.duration}
       return {position: this.youtube.getCurrentTime(), duration: this.youtube.getDuration()}
     }
     this.reporter = createReporter({session: this.el.dataset.session, read: this.read,
@@ -183,84 +215,122 @@ export const MediaPlayer = {
     this.listen(document, "visibilitychange", () => {
       if (document.hidden) this.reporter.save(false, true)
     })
-    if (this.audio) this.mountAudio()
-    else if (this.el.dataset.kind === "peertube") this.mountPeerTube()
-    else this.mountYouTube()
+    if (this.media) {
+      // A PeerTube video reports views to its instance, as the instance's own player does.
+      if (this.el.dataset.views) this.views = createViews({send: postView(this.el.dataset.views)})
+      this.announce()
+      this.mountMedia(this.media)
+      this.stream(this.media)
+      const only = this.el.querySelector("[data-audio-only]")
+      if (only) this.listen(only, "click", () => this.switchSound(only))
+    } else {
+      this.mountYouTube()
+    }
   },
 
-  // The embed sends a status update about twice a second, so the hook does not poll.
-  // The first status update with a position marks the player ready.
-  // Earlier position requests return 0, and saving 0 would overwrite the saved position.
-  mountPeerTube() {
-    const iframe = this.el.querySelector("iframe")
-
-    this.peertube = connect(iframe, {
-      origin: new URL(iframe.src).origin,
-      onError: () => this.message(this.strings.peertubeUnavailable),
-      onStatus: status => {
-        if (this.closed) return
-        const state = typeof status === "string" ? status : status.playbackState
-
-        if (typeof status === "object") {
-          this.reported = {position: status.position, duration: status.duration}
-          if (!this.silenced && status.volume > 0) this.volume = status.volume
-          this.ready = true
-        }
-
-        if (!this.ready) return
-        this.show({playing: state === "playing", ...this.reported})
-        // Every status update repeats state and position. A change to paused forces a save.
-        // So does a position change while paused. An unchanged position does not.
-        const changed = state !== this.lastState
-        const moved = typeof status === "object" && status.position !== this.lastPosition
-        const jump = moved && jumped(this.lastPosition, status.position)
-        this.lastState = state
-        if (typeof status === "object") this.lastPosition = status.position
-        if (state === "ended" && changed) {
-          this.reporter.save(true, true)
-          this.ended()
-        }
-        else if (state === "paused" && (changed || moved)) this.reporter.save(false, true)
-        else if (state === "playing") this.reporter.save(false, jump)
-      }
-    })
-  },
-
-  mountAudio() {
-    const audio = this.audio
-    this.announce(audio)
+  // Binds the hook to a media element. A switch to the sound alone binds the other element, so
+  // its listeners are kept apart from the hook's own and removed on the next switch.
+  mountMedia(media) {
+    this.media = media
+    this.unbind = []
+    const listen = (target, event, callback) => {
+      target.addEventListener(event, callback)
+      this.unbind.push(() => target.removeEventListener(event, callback))
+    }
     const restore = () => {
       if (this.ready || this.closed) return
       // A seek requested before `loadedmetadata` takes precedence over the saved position.
       const position = this.pendingSeek ?? Number(this.el.dataset.position)
       this.pendingSeek = null
-      audio.currentTime = Number.isFinite(audio.duration) ? Math.min(position, audio.duration) : position
+      media.currentTime = Number.isFinite(media.duration) ? Math.min(position, media.duration) : position
+      // Loading a source resets the rate, so a switch carries it over here.
+      if (this.rate) media.playbackRate = this.rate
       this.ready = true
-      audio.play().catch(() => this.message(this.strings.readyAudioManual))
+      if (this.resume !== false) media.play().catch(() => this.message(this.strings.readyAudioManual))
     }
-    this.listen(audio, "loadedmetadata", restore)
-    this.listen(audio, "timeupdate", () => {
-      this.show({position: audio.currentTime, duration: audio.duration})
-      this.placeOnSystem(audio)
+    listen(media, "loadedmetadata", restore)
+    listen(media, "timeupdate", () => {
+      this.show({position: media.currentTime, duration: media.duration})
+      this.placeOnSystem(media)
       this.reporter.save()
+      if (!media.paused) this.views?.playing(media.currentTime)
     })
-    this.listen(audio, "play", () => this.show({playing: true}))
-    for (const event of ["pause", "ended"]) this.listen(audio, event, () => this.show({playing: false}))
+    listen(media, "seeked", () => this.views?.sought())
+    listen(media, "play", () => this.show({playing: true}))
+    for (const event of ["pause", "ended"]) listen(media, event, () => this.show({playing: false}))
     for (const event of ["pause", "seeked"]) {
-      this.listen(audio, event, () => this.reporter.save(false, true))
+      listen(media, event, () => this.reporter.save(false, true))
     }
-    this.listen(audio, "ended", () => {
+    listen(media, "ended", () => {
       this.reporter.save(true, true)
       this.ended()
     })
-    this.listen(audio, "error", () => this.message(this.strings.audioFailed))
-    // Custom controls for the audio element; see assets/js/audio_face.mjs.
+    const failed = this.el.dataset.kind === "peertube" ? this.strings.videoFailed : this.strings.audioFailed
+    listen(media, "error", () => this.message(failed))
+    // Custom controls for the media element; see assets/js/audio_face.mjs.
     const face = this.el.querySelector("[data-audio-face]")
     if (face) {
-      this.cleanups.push(bindFace(audio, face, {play: this.strings.labelPlay,
+      this.unbind.push(bindFace(media, face, {play: this.strings.labelPlay,
         pause: this.strings.labelPause, positionOf: this.strings.positionOf, locale: this.strings.locale}))
     }
-    if (audio.readyState >= 1) restore()
+    if (media.readyState >= 1) restore()
+  },
+
+  // Sets a PeerTube video's source after the listeners are bound. A web file and Safari's own
+  // HLS take it as `src`. Other browsers play the playlist through hls.js, capped at 1080p.
+  // Larger renditions cost bandwidth without a visible gain in the dock.
+  // The worker is off, because the content security policy allows no `blob:` scripts.
+  stream(video) {
+    const url = video.dataset?.src
+    if (!url) return
+    if (!new URL(url, "https://sikio.invalid").pathname.endsWith(".m3u8") || playsHls(video)) {
+      video.src = url
+      return
+    }
+    loadHls(this.el.dataset.hls).then(Hls => {
+      if (this.closed) return
+      if (!Hls.isSupported()) return this.message(this.strings.videoFailed)
+      this.hls = new Hls({enableWorker: false})
+      this.hls.on(Hls.Events.MANIFEST_PARSED, (_event, {levels}) => {
+        const fitting = levels.map((level, index) => [level.height, index]).filter(([height]) => height <= 1080)
+        if (fitting.length > 0) this.hls.autoLevelCapping = fitting.reduce((a, b) => (b[0] > a[0] ? b : a))[1]
+      })
+      this.hls.on(Hls.Events.ERROR, (_event, {fatal}) => { if (fatal) this.message(this.strings.videoFailed) })
+      this.hls.loadSource(url)
+      this.hls.attachMedia(video)
+    }).catch(() => this.message(this.strings.videoFailed))
+  },
+
+  // Switches between the video and its audio-only file at the same place, speed and state.
+  // iOS keeps an audio element playing in the background, but not a video element.
+  // The hidden video keeps its element and stream, so switching back sets up nothing new.
+  switchSound(button) {
+    const from = this.media
+    this.unbind.forEach(unbind => unbind())
+    // Before the video loads, its place is the saved one and its start is still pending.
+    this.pendingSeek = this.place()
+    this.rate = from.playbackRate
+    if (this.ready) this.resume = !from.paused
+    this.ready = false
+    from.pause()
+
+    let to
+    if (this.sound) {
+      this.sound.removeAttribute("src")
+      this.sound.load()
+      this.sound.remove()
+      this.sound = null
+      to = this.video
+      to.hidden = false
+    } else {
+      to = this.sound = document.createElement("audio")
+      to.preload = "metadata"
+      to.src = this.el.dataset.audioSrc
+      from.hidden = true
+      from.after(to)
+    }
+    button.setAttribute("aria-pressed", String(Boolean(this.sound)))
+    this.mountMedia(to)
   },
 
   async mountYouTube() {
@@ -312,16 +382,13 @@ export const MediaPlayer = {
   },
 
   // Each player type seeks differently. The save follows as for a seek in the player's controls.
-  // The PeerTube channel queues calls until the channel opens.
-  // Audio accepts `currentTime` at once, but `restore` would overwrite it on `loadedmetadata`.
+  // A media element accepts `currentTime` at once, but `restore` would overwrite it on `loadedmetadata`.
   // So a seek before ready is also kept in `pendingSeek` for `restore`.
   // The YouTube API accepts seeks only after `onReady`, so earlier seeks wait in `pendingSeek`.
   seek(position) {
-    if (this.peertube) {
-      this.peertube.call("seek", position).catch(() => {})
-    } else if (this.audio) {
+    if (this.media) {
       if (!this.ready) this.pendingSeek = position
-      this.audio.currentTime = position
+      this.media.currentTime = position
     } else if (!this.ready) {
       this.pendingSeek = position
     } else {
@@ -346,7 +413,7 @@ export const MediaPlayer = {
   // The phone capsule's play icon and progress line read them in app.css.
   show({playing, position, duration}) {
     if (playing !== undefined) this.el.dataset.playing = String(playing)
-    if (playing !== undefined && this.audio && owner === this) {
+    if (playing !== undefined && this.media && owner === this) {
       systemSession().playbackState = playing ? "playing" : "paused"
     }
     if (Number.isFinite(position) && duration > 0) {
@@ -354,20 +421,20 @@ export const MediaPlayer = {
     }
   },
 
-  // Media Session metadata and action handlers for audio: lock screen, control centre, headphones,
-  // media keys. The handlers call the hook's own commands.
+  // Media Session metadata and action handlers for a media element: lock screen, control centre,
+  // headphones, media keys. The handlers call the hook's own commands.
   // Skips use the action's `seekOffset`, which iOS shows on its buttons.
   // Without one they skip 15 and 30 seconds, like Sikio's buttons.
   // A video iframe has its own media session, which this page cannot access.
-  announce(audio) {
+  announce() {
     const session = systemSession()
     if (!session || typeof MediaMetadata !== "function") return
     const {title, source, artwork} = this.el.dataset
     owner = this
     session.metadata = new MediaMetadata({title, artist: source, artwork: artwork ? [{src: artwork}] : []})
     const actions = {
-      play: () => { if (audio.paused) this.toggle() },
-      pause: () => { if (!audio.paused) this.toggle() },
+      play: () => { if (this.media.paused) this.toggle() },
+      pause: () => { if (!this.media.paused) this.toggle() },
       seekbackward: ({seekOffset}) => this.command({name: "skip", by: -offset(seekOffset, 15)}),
       seekforward: ({seekOffset}) => this.command({name: "skip", by: offset(seekOffset, 30)}),
       seekto: ({seekTime}) => this.seek(seekTime)
@@ -385,11 +452,11 @@ export const MediaPlayer = {
   },
 
   // Updates the Media Session position state. It requires a finite duration.
-  placeOnSystem(audio) {
+  placeOnSystem(media) {
     const session = systemSession()
-    if (owner !== this || !session?.setPositionState || !Number.isFinite(audio.duration)) return
-    session.setPositionState({duration: audio.duration,
-      position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate})
+    if (owner !== this || !session?.setPositionState || !Number.isFinite(media.duration)) return
+    session.setPositionState({duration: media.duration,
+      position: Math.min(media.currentTime, media.duration), playbackRate: media.playbackRate})
   },
 
   // Before the player is ready, returns the pending seek or the saved start position.
@@ -398,11 +465,9 @@ export const MediaPlayer = {
   },
 
   toggle() {
-    if (this.audio) {
-      if (this.audio.paused) this.audio.play().catch(() => this.message(this.strings.readyAudioManual))
-      else this.audio.pause()
-    } else if (this.peertube) {
-      this.peertube.call(this.lastState === "playing" ? "pause" : "play").catch(() => {})
+    if (this.media) {
+      if (this.media.paused) this.media.play().catch(() => this.message(this.strings.readyAudioManual))
+      else this.media.pause()
     } else if (this.youtube?.getPlayerState) {
       // A buffering video counts as playing, so the toggle pauses it.
       const {PLAYING, BUFFERING} = window.YT?.PlayerState ?? {}
@@ -411,25 +476,24 @@ export const MediaPlayer = {
     }
   },
 
-  // The PeerTube embed API has no mute. Mute sets volume 0.
-  // Unmute restores the last reported volume.
   mute() {
-    if (this.audio) {
-      this.audio.muted = !this.audio.muted
-    } else if (this.peertube) {
-      this.silenced = !this.silenced
-      this.peertube.call("setVolume", this.silenced ? 0 : (this.volume || 1)).catch(() => {})
+    if (this.media) {
+      this.media.muted = !this.media.muted
     } else if (this.youtube?.isMuted) {
       if (this.youtube.isMuted()) this.youtube.unMute()
       else this.youtube.mute()
     }
   },
 
-  // Toggles fullscreen for the iframe.
+  // Toggles fullscreen for the video element or the iframe.
   // The key press is the user gesture that `requestFullscreen` requires.
+  // iOS has no `requestFullscreen` on a video element, only `webkitEnterFullscreen`.
   fullscreen() {
-    if (document.fullscreenElement) document.exitFullscreen?.()
-    else this.el.querySelector("iframe")?.requestFullscreen?.()
+    if (document.fullscreenElement) return document.exitFullscreen?.()
+    // The sound alone plays in an audio element and has no picture to enlarge.
+    const target = this.sound ? null : this.video ?? this.el.querySelector("iframe")
+    if (target?.requestFullscreen) target.requestFullscreen()
+    else target?.webkitEnterFullscreen?.()
   },
 
   disconnected() { this.reporter.disconnect() },
@@ -438,9 +502,9 @@ export const MediaPlayer = {
   // Chapter marks from a later `data-chapters` value are rendered here.
   updated() {
     const face = this.el.querySelector("[data-audio-face]")
-    if (!face || !this.audio || this.el.dataset.chapters === this.drawnChapters) return
+    if (!face || !this.media || this.el.dataset.chapters === this.drawnChapters) return
     this.drawnChapters = this.el.dataset.chapters
-    const duration = this.audio.duration > 0 ? this.audio.duration : feedLength(face)
+    const duration = this.media.duration > 0 ? this.media.duration : feedLength(face)
     renderMarks(face, chapters(this.el), duration)
   },
 
@@ -453,13 +517,14 @@ export const MediaPlayer = {
     // LiveView has already removed the element from the DOM.
     // A detached iframe plays nothing and has no `contentWindow`.
     // An exception here would abort LiveView's patch, so iframe players get no pause call.
-    // Only audio keeps playing when detached, so only audio is paused.
-    this.peertube?.destroy?.()
+    // Only media elements keep playing when detached, so only they are paused.
     this.youtube?.destroy?.()
-    if (this.audio) {
-      this.audio.pause()
-      this.audio.removeAttribute("src")
-      this.audio.load()
+    this.hls?.destroy()
+    this.unbind?.forEach(unbind => unbind())
+    for (const media of [this.video ?? this.media, this.sound].filter(Boolean)) {
+      media.pause()
+      media.removeAttribute("src")
+      media.load()
     }
   }
 }

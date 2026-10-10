@@ -102,6 +102,27 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#item-actions #mark-completed", "Mark as listened")
   end
 
+  # A PeerTube video shows its poster above Sikio's controls before play, as the dock does.
+  # A YouTube video keeps its preview, since the embed brings its own controls.
+  test "the detail shows a PeerTube video's controls before play", c do
+    for {body, url} <- [{peertube(), peertube_feed_url()}, {youtube(), youtube_feed_url()}] do
+      {:ok, preview} = Parser.parse(body, url)
+      {:ok, _} = Library.subscribe(c.user, preview)
+    end
+
+    entries = Library.entries(c.user)
+    {:ok, view, _} = live(c.conn, item_path(Enum.find(entries, &(&1.feed.kind == :peertube))))
+
+    assert has_element?(view, "#player-slot #video-cue img.aspect-video")
+    assert has_element?(view, "#video-cue #audio-cue[phx-hook='AudioCue'] #start-playback")
+    assert has_element?(view, "#audio-cue button[data-audio-only][disabled]")
+    refute has_element?(view, "#player-slot video")
+
+    {:ok, view, _} = live(c.conn, item_path(Enum.find(entries, &(&1.feed.kind == :youtube))))
+    assert has_element?(view, "#player-slot button#start-playback img")
+    refute has_element?(view, "#audio-cue")
+  end
+
   # Each kind links its original page with a kind-specific label.
   # The kind name in the meta line links there too.
   test "the detail opens the original page of each kind", c do

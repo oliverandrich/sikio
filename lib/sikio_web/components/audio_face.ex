@@ -20,6 +20,7 @@ defmodule SikioWeb.AudioFace do
   attr :position, :any, required: true, doc: "the place in seconds"
   attr :cue, :map, default: nil, doc: "the entry, when this is the card's cue"
   attr :chapters, :list, default: [], doc: "the chapters as `%{at: seconds, title: text}`"
+  attr :sound, :boolean, default: false, doc: "whether a video offers its audio-only file"
   attr :rest, :global
 
   def audio_face(assigns) do
@@ -106,6 +107,20 @@ defmodule SikioWeb.AudioFace do
         class="audio-speed"
       >
         1×
+      </button>
+      <%!-- Switches a video to its audio-only file; see assets/js/media_player.mjs.
+      Disabled on the cue, like the speed button. --%>
+      <button
+        :if={@sound}
+        type="button"
+        data-audio-only
+        disabled={@cue != nil}
+        aria-pressed="false"
+        aria-label={gettext("Sound only")}
+        title={gettext("Sound only")}
+        class="audio-sound"
+      >
+        <Lucideicons.headphones aria-hidden="true" class="size-5" />
       </button>
     </div>
     """

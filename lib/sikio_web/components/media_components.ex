@@ -71,6 +71,10 @@ defmodule SikioWeb.MediaComponents do
   def refresh_problem(_reason),
     do: gettext("The server could not be reached. Sikio will try again.")
 
+  @doc "Returns the path of an entry's picture, or of its kind's placeholder."
+  def artwork(entry),
+    do: SikioWeb.Pictures.path(Sikio.Pictures.candidates(entry), kind_mark(entry))
+
   @doc "Returns the placeholder image path for an entry or feed without artwork."
   def kind_mark(%{feed: feed}), do: kind_mark(feed)
   def kind_mark(%{kind: kind}) when kind in [:youtube, :peertube], do: ~p"/images/kind-video.svg"

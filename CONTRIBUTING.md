@@ -193,9 +193,10 @@ license statement without the license file.
 The task file carries the marker too. Third-party code under `assets/vendor` is excluded,
 because it is under its own license.
 
-`assets/vendor/peertube_embed_client.mjs` is `src/index.mjs` of
-[peertube-embed-client](https://github.com/oliverandrich/peertube-embed-client) at `v0.1.0`, under
-MIT. Its tests live there. To update it, copy the file from a newer tag unchanged.
+`priv/static/vendor/hls.js/hls-1.7.3.min.js` is `dist/hls.min.js` from the npm package
+`hls.js` at `1.7.3`, under Apache-2.0. Its `LICENSE` lies beside it. To update it, take the file
+from a newer release's tarball unchanged. Check the tarball against the registry's `integrity`.
+Then change the version in the file name and in `SikioWeb.PlayerDockLive`.
 
 ## Secret scan
 

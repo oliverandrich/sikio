@@ -108,6 +108,8 @@ defmodule SikioWeb.FeatureCase do
     Repo.update!(
       Ecto.Changeset.change(video,
         embed_url: "/robots.txt",
+        media_url: "/robots.txt",
+        audio_url: nil,
         image_url: nil,
         description: notes,
         description_format: :html
