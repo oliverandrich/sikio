@@ -329,14 +329,13 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  # The playlist is asked for at play time, as for a feed's videos.
   defp api_entry(origin, watch, video) do
-    files = api_media(origin, video)
-
     %{
       external_id: watch,
       title: String.slice(to_string(video["name"] || watch), 0, 512),
-      media_url: files.media_url,
-      audio_url: files.audio_url,
+      media_url: nil,
+      audio_url: audio_file(api_files(origin, video)),
       video_id: nil,
       embed_url: HTTP.resolve(to_string(video["embedPath"] || ""), origin),
       page_url: watch,
@@ -390,16 +389,18 @@ defmodule Sikio.Feeds.Discovery do
         _ -> nil
       end)
 
-    files =
-      for %{"resolution" => %{"id" => height}, "fileUrl" => url} <- List.wrap(video["files"]),
-          is_integer(height) and is_binary(url),
-          do: {height, HTTP.resolve(url, origin)}
-
-    %{
-      media_url: playlist || web_video(files),
-      audio_url: Enum.find_value(files, fn {height, url} -> height == 0 && url end)
-    }
+    files = api_files(origin, video)
+    %{media_url: playlist || web_video(files), audio_url: audio_file(files)}
   end
+
+  # A video's web files as `{height, url}`.
+  defp api_files(origin, video) do
+    for %{"resolution" => %{"id" => height}, "fileUrl" => url} <- List.wrap(video["files"]),
+        is_integer(height) and is_binary(url),
+        do: {height, HTTP.resolve(url, origin)}
+  end
+
+  defp audio_file(files), do: Enum.find_value(files, fn {height, url} -> height == 0 && url end)
 
   # The largest video at or below 1080p. Larger files cost bandwidth without a visible gain in
   # the dock. Without one, the smallest larger video. A nil URL failed the URL check.

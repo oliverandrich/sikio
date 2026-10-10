@@ -161,10 +161,17 @@ test("same item stays playing, close flushes, failed saves keep the player", () 
 })
 
 test("a rejoin names the player the dock still holds, and nothing without one", () => {
-  const view = media => ({querySelector: selector => selector === "#player-control"
-    ? {dataset: {entryId: "7"}, querySelector: inner => inner === "[phx-hook=MediaPlayer]" ? media : null}
+  const view = (media, video = null) => ({querySelector: selector => selector === "#player-control"
+    ? {dataset: {entryId: "7"}, querySelector: inner =>
+        ({"[phx-hook=MediaPlayer]": media, "[phx-hook=MediaPlayer] video": video})[inner] ?? null}
     : null})
   assert.deepEqual(rejoinParams(view({dataset: {session: "abc"}})),
+    {player_entry: "7", player_session: "abc"})
+  // A PeerTube player that already streams needs no new playlist. The rendered `data-src` may
+  // be gone after an earlier rejoin, but the video keeps its source.
+  assert.deepEqual(rejoinParams(view({dataset: {session: "abc"}}, {src: "blob:https://sikio.example/1"})),
+    {player_entry: "7", player_session: "abc", player_streaming: true})
+  assert.deepEqual(rejoinParams(view({dataset: {session: "abc"}}, {src: ""})),
     {player_entry: "7", player_session: "abc"})
   assert.deepEqual(rejoinParams(view(null)), {})
   assert.deepEqual(rejoinParams({querySelector: () => null}), {})

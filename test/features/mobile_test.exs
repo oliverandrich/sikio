@@ -127,10 +127,10 @@ defmodule SikioWeb.MobileTest do
 
   # The video spans the screen width at the top of its item, as on YouTube.
   # It stays below the bar while the notes scroll.
-  # Its file and embed URL are a Sikio page and it has no image, so no instance is requested.
+  # It has no image. The browser blocks its instance, so no request leaves the test.
   feature "a video plays across the top of its item and stays there", context do
     %{session: session, account: account} = context
-    video = video_with_notes(account)
+    video = video_with_notes(session, account)
 
     session
     |> resize_window(390, 844)
@@ -159,7 +159,7 @@ defmodule SikioWeb.MobileTest do
   # Initially its bottom is under the tab bar. Scrolled up, it stays below the top bar.
   feature "a video fits a phone held sideways", context do
     %{session: session, account: account} = context
-    video = video_with_notes(account)
+    video = video_with_notes(session, account)
 
     # The window leaves 247 px, so the play button lies under the tab bar.
     # The test clicks it by script.
@@ -312,7 +312,7 @@ defmodule SikioWeb.MobileTest do
   # In the capsule a video keeps its picture, shown at 96 by 54 px.
   feature "a video stays in the capsule at 96 by 54", context do
     %{session: session, account: account} = context
-    video = video_with_notes(account)
+    video = video_with_notes(session, account)
 
     session
     |> resize_window(390, 844)

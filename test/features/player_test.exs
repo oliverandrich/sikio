@@ -215,7 +215,7 @@ defmodule SikioWeb.PlayerTest do
   # The panel has no overflow.
   feature "from lg a video grows to the window's height and the panel never scrolls", context do
     %{session: session, account: account} = context
-    video = video_with_notes(account)
+    video = video_with_notes(session, account)
 
     session
     |> resize_window(1920, 500)
@@ -240,7 +240,7 @@ defmodule SikioWeb.PlayerTest do
   # The dock's player then covers both in the same boxes.
   feature "a PeerTube video's card player is covered without a jump", context do
     %{session: session, account: account} = context
-    video = video_with_notes(account)
+    video = video_with_notes(session, account)
 
     boxes = """
     return arguments[0].map(s => {

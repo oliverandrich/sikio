@@ -5,10 +5,14 @@ import {playerKey} from "./player_keys.mjs"
 // LiveSocket calls `params` with the view's element on every LiveView join.
 // The Phoenix socket calls the same function without a view on every connect.
 // Only the dock contains a MediaPlayer, and only while an entry plays.
+// A PeerTube video with a source streams already, so the dock asks its instance for nothing.
+// LiveView leaves the video's own attributes alone, so its source outlasts every rejoin.
 export function rejoinParams(view) {
   const dock = view?.querySelector("#player-control")
   const session = dock?.querySelector("[phx-hook=MediaPlayer]")?.dataset.session
-  return session ? {player_entry: dock.dataset.entryId, player_session: session} : {}
+  if (!session) return {}
+  const params = {player_entry: dock.dataset.entryId, player_session: session}
+  return dock.querySelector("[phx-hook=MediaPlayer] video")?.src ? {...params, player_streaming: true} : params
 }
 
 export const PlayerDock = {

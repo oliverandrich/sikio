@@ -31,7 +31,7 @@ defmodule SikioWeb.PlayerDockLive do
     if connected?(socket), do: Events.subscribe(socket.assigns.current_account)
 
     socket =
-      assign(socket, entry: nil, player: nil, notice: nil, chapters: {nil, []})
+      assign(socket, entry: nil, player: nil, notice: nil, chapters: {nil, []}, stream: nil)
 
     {:ok, rejoin(socket, get_connect_params(socket)), layout: false}
   end
@@ -40,11 +40,13 @@ defmodule SikioWeb.PlayerDockLive do
   # The player is restored only if its session still owns the entry's playback.
   # The element then stays in the DOM and saves the position reached while offline.
   # If another session took over meanwhile, the dock shows the interrupted notice.
-  defp rejoin(socket, %{"player_entry" => id, "player_session" => session})
+  # A PeerTube player that streams already keeps its playlist, so its instance is not asked again.
+  defp rejoin(socket, %{"player_entry" => id, "player_session" => session} = params)
        when is_binary(session) do
     case Library.entry(socket.assigns.current_account, id) do
       %{playback: %{session_id: ^session} = player} = entry ->
-        socket |> assign(entry: entry, player: player) |> assign_chapters() |> fetch_media(entry)
+        socket = socket |> assign(entry: entry, player: player) |> assign_chapters()
+        if params["player_streaming"] == true, do: socket, else: fetch_media(socket, entry)
 
       %{} = entry ->
         socket |> assign(:entry, entry) |> interrupted()
@@ -178,7 +180,7 @@ defmodule SikioWeb.PlayerDockLive do
 
       {:noreply,
        socket
-       |> assign(entry: %{entry | playback: player}, player: player, notice: nil)
+       |> assign(entry: %{entry | playback: player}, player: player, notice: nil, stream: nil)
        |> assign_chapters()
        |> fetch_chapters(entry)
        |> fetch_media(entry)}
@@ -194,38 +196,12 @@ defmodule SikioWeb.PlayerDockLive do
 
   defp fetch_chapters(socket, _entry), do: socket
 
-  # A PeerTube feed names no stream. The instance's API names it on the first play.
-  defp fetch_media(socket, %{feed: %{kind: :peertube}, media_url: nil} = entry),
-    do: start_async(socket, :media, fn -> {entry.id, Feeds.media(entry)} end)
+  # A PeerTube feed names no stream. The instance's API names it each time the video plays.
+  # It may move or re-transcode a video, so the answer is not stored.
+  defp fetch_media(socket, %{feed: %{kind: :peertube}, id: id, embed_url: embed}),
+    do: start_async(socket, :media, fn -> {id, Feeds.media(embed)} end)
 
   defp fetch_media(socket, _entry), do: socket
-
-  # A PeerTube video with Sikio's controls. The pending placeholder renders it without a source.
-  # `playsinline` keeps the video in the dock on iOS. The MediaPlayer hook sets the source:
-  # Safari plays the HLS playlist itself, other browsers through hls.js.
-  attr :entry, :map, required: true
-  attr :player, :map, required: true
-  attr :chapters, :any, required: true
-  attr :src, :string, default: nil
-
-  defp video_frame(assigns) do
-    ~H"""
-    <video
-      preload="metadata"
-      playsinline
-      data-src={@src}
-      poster={artwork(@entry)}
-      aria-label={@entry.title}
-      class="aspect-video w-full rounded-control bg-black"
-    ></video>
-    <.audio_face
-      length={@entry.duration}
-      position={@player.position}
-      chapters={elem(@chapters, 1)}
-      sound={@entry.audio_url != nil}
-    />
-    """
-  end
 
   # PeerTube's views API. The CSP's `connect-src` allows any HTTPS host.
   defp views_url(%{feed: %{kind: :peertube}, embed_url: embed}) do
@@ -234,9 +210,10 @@ defmodule SikioWeb.PlayerDockLive do
 
   defp views_url(_entry), do: nil
 
-  # The media element mounts once, so the player waits for a PeerTube file.
-  defp playable?(%{feed: %{kind: :peertube}, media_url: url}), do: is_binary(url)
-  defp playable?(_entry), do: true
+  # The instance's audio-only file, else the feed's. The controls render before the instance
+  # answers, so the feed's file decides whether they offer the sound alone.
+  defp audio_src(_entry, %{audio_url: url}) when is_binary(url), do: url
+  defp audio_src(entry, _stream), do: entry.audio_url
 
   @impl true
   def handle_async(
@@ -249,18 +226,15 @@ defmodule SikioWeb.PlayerDockLive do
   # The entry changed meanwhile, or the fetch failed. Chapters parsed from the notes stay.
   def handle_async(:chapters, _result, socket), do: {:noreply, socket}
 
-  def handle_async(:media, {:ok, {id, {:ok, played}}}, %{assigns: %{entry: %{id: id}}} = socket),
-    do:
-      {:noreply,
-       update(socket, :entry, &Map.merge(&1, Map.take(played, [:media_url, :audio_url])))}
+  def handle_async(:media, {:ok, {id, {:ok, files}}}, %{assigns: %{entry: %{id: id}}} = socket),
+    do: {:noreply, assign(socket, :stream, files)}
 
   def handle_async(:media, {:ok, {id, _failed}}, %{assigns: %{entry: %{id: id}}} = socket),
     do:
       {:noreply,
-       assign(
-         socket,
-         :notice,
-         gettext("This video's instance could not be reached. Try again later.")
+       assign(socket,
+         stream: :unavailable,
+         notice: gettext("This video's instance could not be reached. Try again later.")
        )}
 
   # The entry changed meanwhile.
@@ -410,18 +384,17 @@ defmodule SikioWeb.PlayerDockLive do
         >
           {@notice}
         </p>
-        <%!-- Stands in for the player while the instance's API names the playlist. Same markup
-        as the player, so the panel does not change its height when the player replaces it. --%>
-        <div :if={@player && !playable?(@entry) && !@notice} id="player-pending">
-          <.video_frame entry={@entry} player={@player} chapters={@chapters} />
-        </div>
+        <%!-- A PeerTube player renders before the instance names its playlist. The hook starts
+        the stream once `data-src` arrives. LiveView patches this element's attributes despite
+        `phx-update="ignore"`, so a reconnect keeps a playing video. --%>
         <div
-          :if={@player && playable?(@entry)}
+          :if={@player && @stream != :unavailable}
           id={"player-#{@player.session_id}"}
           phx-hook="MediaPlayer"
           phx-update="ignore"
           data-kind={@entry.feed.kind}
-          data-audio-src={@entry.audio_url}
+          data-src={is_map(@stream) && @stream.media_url}
+          data-audio-src={audio_src(@entry, @stream)}
           data-views={views_url(@entry)}
           data-hls={@entry.feed.kind == :peertube && ~p"/vendor/hls.js/hls-1.7.3.min.js"}
           data-session={@player.session_id}
@@ -484,12 +457,22 @@ defmodule SikioWeb.PlayerDockLive do
             position={@player.position}
             chapters={elem(@chapters, 1)}
           />
-          <.video_frame
+          <%!-- `playsinline` keeps the video in the dock on iOS. The MediaPlayer hook sets the
+          source: Safari plays the HLS playlist itself, other browsers through hls.js. --%>
+          <video
             :if={@entry.feed.kind == :peertube}
-            entry={@entry}
-            player={@player}
-            chapters={@chapters}
-            src={@entry.media_url}
+            preload="metadata"
+            playsinline
+            poster={artwork(@entry)}
+            aria-label={@entry.title}
+            class="aspect-video w-full rounded-control bg-black"
+          ></video>
+          <.audio_face
+            :if={@entry.feed.kind == :peertube}
+            length={@entry.duration}
+            position={@player.position}
+            chapters={elem(@chapters, 1)}
+            sound={audio_src(@entry, @stream) != nil}
           />
           <iframe
             :if={@entry.feed.kind == :youtube}

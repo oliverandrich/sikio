@@ -98,17 +98,29 @@ defmodule SikioWeb.FeatureCase do
     on_exit(fn -> :ets.delete(:session_store, key) end)
   end
 
-  @doc "Returns a PeerTube video embedding a Sikio URL, without image, with a long description."
-  def video_with_notes(account) do
+  @doc """
+  Returns a PeerTube video without image, with a long description.
+
+  Its instance's API names a file on the instance. The browser blocks the instance's host,
+  so the file fails to load and no request leaves the test.
+  """
+  def video_with_notes(session, account) do
     {:ok, preview} = Parser.parse(FeedFixtures.peertube(), FeedFixtures.peertube_feed_url())
     {:ok, subscription} = Library.subscribe(account, preview)
     [video] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
     notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
+    file = "https://video.example.org/static/web-videos/v-720.mp4"
+
+    Sikio.PictureFixtures.serving(%{
+      "/api/v1/videos/mSh0rtUu1d" =>
+        {"application/json", Jason.encode!(%{files: [%{resolution: %{id: 720}, fileUrl: file}]})}
+    })
+
+    command(session, "Network.enable", %{})
+    command(session, "Network.setBlockedURLs", %{urls: ["https://video.example.org/*"]})
 
     Repo.update!(
       Ecto.Changeset.change(video,
-        embed_url: "/robots.txt",
-        media_url: "/robots.txt",
         audio_url: nil,
         image_url: nil,
         description: notes,

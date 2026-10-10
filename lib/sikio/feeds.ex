@@ -130,25 +130,13 @@ defmodule Sikio.Feeds do
   end
 
   @doc """
-  Returns an entry with its media, fetched from its PeerTube instance when missing.
+  Returns the media a PeerTube instance names now for the video of an embed URL.
 
   A PeerTube feed names no HLS playlist, only HLS fragments a browser cannot play as files.
-  The instance's API names the playlist on the first call. The result is cached on the shared
-  entry.
-  A failed fetch is not cached and is retried on the next call.
+  The instance's API names the playlist and the audio-only file as `media_url` and `audio_url`.
+  Nothing is stored, because the instance may move or re-transcode a video.
   """
-  def media(%Entry{media_url: url} = entry) when is_binary(url), do: {:ok, entry}
-
-  def media(%Entry{id: id, embed_url: embed} = entry) do
-    with {:ok, files} <- Discovery.peertube_files(embed) do
-      # A concurrent refresh may have stored files meanwhile. They take precedence.
-      Repo.update_all(from(e in Entry, where: e.id == ^id and is_nil(e.media_url)),
-        set: [updated_at: DateTime.utc_now()] ++ Map.to_list(files)
-      )
-
-      {:ok, Map.merge(entry, files)}
-    end
-  end
+  def media(embed_url), do: Discovery.peertube_files(embed_url)
 
   @doc """
   Fetches a feed again. `on_new` receives new entries as in `store/2`.
@@ -314,8 +302,8 @@ defmodule Sikio.Feeds do
     Map.merge(entry, Map.get(kept, entry.external_id, %{}), fn _field, new, old -> new || old end)
   end
 
-  # Title and publishing date are always replaced. A new media URL means the file moved.
-  # A missing media URL keeps the stored one. A PeerTube feed never names one; its API did.
+  # Title, media location and publishing date are always replaced. A changed media URL means the
+  # file moved.
   # The audio-only file, artwork, duration, description, excerpt, page URL and chapters keep
   # their stored value when a poll omits them. A feed that trims its document must not erase older
   # episodes' data. The feed's `icon_url` follows the same rule.
@@ -337,7 +325,7 @@ defmodule Sikio.Feeds do
         fragment(
           """
           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IS DISTINCT FROM
-          (EXCLUDED.title, COALESCE(EXCLUDED.media_url, ?), COALESCE(EXCLUDED.audio_url, ?),
+          (EXCLUDED.title, EXCLUDED.media_url, COALESCE(EXCLUDED.audio_url, ?),
            EXCLUDED.video_id, EXCLUDED.embed_url, EXCLUDED.published_at,
            COALESCE(EXCLUDED.image_url, ?), COALESCE(EXCLUDED.duration, ?),
            COALESCE(EXCLUDED.description, ?), COALESCE(EXCLUDED.description_format, ?),
@@ -360,7 +348,6 @@ defmodule Sikio.Feeds do
           e.chapters,
           e.chapters_url,
           e.short,
-          e.media_url,
           e.audio_url,
           e.image_url,
           e.duration,
@@ -376,7 +363,7 @@ defmodule Sikio.Feeds do
       update: [
         set: [
           title: fragment("EXCLUDED.title"),
-          media_url: fragment("COALESCE(EXCLUDED.media_url, ?)", e.media_url),
+          media_url: fragment("EXCLUDED.media_url"),
           audio_url: fragment("COALESCE(EXCLUDED.audio_url, ?)", e.audio_url),
           video_id: fragment("EXCLUDED.video_id"),
           embed_url: fragment("EXCLUDED.embed_url"),

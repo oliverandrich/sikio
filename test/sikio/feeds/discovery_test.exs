@@ -376,6 +376,8 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
 
     # The id is the watch address the instance's feed uses, so the entry matches the feed later.
+    # The playlist is asked for at play time, as for a feed's videos. The audio-only file tells
+    # the detail whether to offer the sound alone.
     test "an older video is built from the instance's API" do
       stub_instance()
 
@@ -395,7 +397,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
                    "https://video.example.org/videos/embed/0b1d2c3e-1111-4222-8333-444455556666",
                  image_url: "https://video.example.org/lazy-static/thumbnails/old.jpg",
                  page_url: "https://video.example.org/w/oLdV1d30000",
-                 media_url: "https://video.example.org/static/hls/master.m3u8",
+                 media_url: nil,
                  audio_url: "https://video.example.org/static/web-videos/a-0.mp4"
                } = entry
 

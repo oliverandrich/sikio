@@ -161,7 +161,7 @@ defmodule Sikio.Feeds.Parser do
   end
 
   # The feed's video renditions are HLS fragments, which browsers cannot play as files. The
-  # instance's API names the playlist when the entry first plays; see `Sikio.Feeds.media/1`.
+  # instance's API names the playlist each time the entry plays; see `Sikio.Feeds.media/1`.
   # The audio-only file plays as it is. The embed URL names the video for the API. It comes from
   # the feed, because a PeerTube release may change the URL format.
   defp peertube_entry(item, feed_url) do

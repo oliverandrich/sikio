@@ -220,7 +220,7 @@ export const MediaPlayer = {
       if (this.el.dataset.views) this.views = createViews({send: postView(this.el.dataset.views)})
       this.announce()
       this.mountMedia(this.media)
-      this.stream(this.media)
+      this.stream()
       const only = this.el.querySelector("[data-audio-only]")
       if (only) this.listen(only, "click", () => this.switchSound(only))
     } else {
@@ -276,13 +276,15 @@ export const MediaPlayer = {
     if (media.readyState >= 1) restore()
   },
 
-  // Sets a PeerTube video's source after the listeners are bound. A web file and Safari's own
+  // Sets a PeerTube video's source once `data-src` names it. The instance answers after the
+  // player mounted, and a reconnect may name it again while it plays. A web file and Safari's own
   // HLS take it as `src`. Other browsers play the playlist through hls.js, capped at 1080p.
   // Larger renditions cost bandwidth without a visible gain in the dock.
   // The worker is off, because the content security policy allows no `blob:` scripts.
-  stream(video) {
-    const url = video.dataset?.src
-    if (!url) return
+  stream() {
+    const video = this.video, url = this.el.dataset.src
+    if (!video || !url || this.streaming) return
+    this.streaming = true
     if (!new URL(url, "https://sikio.invalid").pathname.endsWith(".m3u8") || playsHls(video)) {
       video.src = url
       return
@@ -499,8 +501,9 @@ export const MediaPlayer = {
   disconnected() { this.reporter.disconnect() },
   reconnected() { this.reporter.reconnect() },
   // The hook element has `phx-update="ignore"`, so LiveView does not patch the face's children.
-  // Chapter marks from a later `data-chapters` value are rendered here.
+  // A later `data-src` starts the stream. Chapter marks from a later `data-chapters` are drawn.
   updated() {
+    this.stream()
     const face = this.el.querySelector("[data-audio-face]")
     if (!face || !this.media || this.el.dataset.chapters === this.drawnChapters) return
     this.drawnChapters = this.el.dataset.chapters

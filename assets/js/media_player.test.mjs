@@ -470,16 +470,16 @@ test("a playlist plays through hls.js, capped at 1080p, and a file plays as it i
     attachMedia(media) { this.media = media }
     destroy() { this.destroyed = true }
   }
-  const video = (src) => Object.assign(inPlace(new EventTarget()), {dataset: {src}, currentTime: 0,
+  const video = () => Object.assign(inPlace(new EventTarget()), {dataset: {}, currentTime: 0,
     duration: 600, readyState: 0, playbackRate: 1, paused: true, canPlayType: () => "maybe",
     play() { return Promise.resolve() }, pause() {}, load() {}, removeAttribute() {}})
-  const hookFor = media => ({...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}},
-    dataset: {kind: "peertube", session: "v", position: "0", hls: "/vendor/hls.js/hls.min.js", ...STRINGS},
+  const hookFor = (media, src) => ({...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}},
+    dataset: {kind: "peertube", session: "v", position: "0", hls: "/vendor/hls.js/hls.min.js", src, ...STRINGS},
     querySelector: selector => ({video: media, "[data-player-message]": message}[selector])}),
     pushEvent: (_event, _sample, reply) => reply({saved: true})})
   const message = {textContent: ""}
-  const stream = video("https://video.example.org/master.m3u8"), file = video("https://video.example.org/v.mp4")
-  const streaming = hookFor(stream), filing = hookFor(file)
+  const stream = video(), file = video()
+  const streaming = hookFor(stream, "https://video.example.org/master.m3u8"), filing = hookFor(file)
   try {
     streaming.mounted()
     assert.equal(scripts.length, 1)
@@ -495,7 +495,14 @@ test("a playlist plays through hls.js, capped at 1080p, and a file plays as it i
     player.handlers.error("error", {fatal: true})
     assert.equal(message.textContent, STRINGS.videoFailed)
 
+    // The instance names the file after the player mounted. A later answer leaves it playing.
     filing.mounted()
+    assert.equal(file.src, undefined)
+    filing.el.dataset.src = "https://video.example.org/v.mp4"
+    filing.updated()
+    assert.equal(file.src, "https://video.example.org/v.mp4")
+    filing.el.dataset.src = "https://video.example.org/other.mp4"
+    filing.updated()
     assert.equal(file.src, "https://video.example.org/v.mp4")
     assert.equal(scripts.length, 1, "a file needs no hls.js")
 

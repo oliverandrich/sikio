@@ -113,7 +113,8 @@ the player first, so the last seconds are saved.
 
 Audio loads directly from the publisher's server. PeerTube videos load from their instance.
 Supported formats and seeking depend on the browser and that server. A PeerTube feed names no
-stream. Sikio asks the instance's API for it when a video first plays. YouTube can refuse private, deleted or non-embeddable videos. The player then shows
+stream. Sikio asks the instance's API for it each time a video plays, so a moved video still
+plays. YouTube can refuse private, deleted or non-embeddable videos. The player then shows
 a message and a link to YouTube. The referrer policy is `no-referrer`. Only the YouTube embed and
 the YouTube IFrame API script send the page origin as referrer.
 
