@@ -19,7 +19,7 @@ defmodule SikioWeb.AddSourceLive do
   use SikioWeb, :live_view
 
   import SikioWeb.MediaComponents,
-    only: [artwork: 1, date: 1, runtime: 1, source_name: 1, source_picture: 1]
+    only: [artwork: 1, date: 1, page_picture: 1, runtime: 1, source_name: 1, source_picture: 1]
 
   alias Sikio.Feeds.Discovery
   alias Sikio.Library
@@ -367,6 +367,8 @@ defmodule SikioWeb.AddSourceLive do
         count: length(members),
         newest: first.published_at,
         series_url: first.series_url,
+        # A series tries the pages of its first programmes.
+        pages: members |> Enum.map(& &1.page_url) |> Enum.reject(&is_nil/1) |> Enum.take(3),
         first: String.to_integer(first.key)
       }
     end)
@@ -834,7 +836,7 @@ defmodule SikioWeb.AddSourceLive do
             <.source_row
               :for={{dom_id, series} <- @streams.series}
               id={dom_id}
-              picture={source_picture(%{kind: :mediathek})}
+              picture={page_picture(series.pages)}
               title={series.title}
               action={
                 %{
@@ -882,7 +884,7 @@ defmodule SikioWeb.AddSourceLive do
               published_at={programme.published_at}
               duration={programme.duration}
               description={programme.description}
-              picture={source_picture(%{kind: :mediathek})}
+              picture={page_picture(List.wrap(programme.page_url))}
               page_url={programme.page_url}
               more={@more == dom_id}
               save="save_programme"
@@ -967,6 +969,15 @@ defmodule SikioWeb.AddSourceLive do
     do:
       "mt-3 hidden divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line has-[article]:block"
 
+  # Rows out of view load their picture only when scrolled to.
+  attr :src, :string, required: true
+
+  defp row_picture(assigns) do
+    ~H"""
+    <img src={@src} alt="" loading="lazy" class="size-12 shrink-0 rounded-md bg-line object-cover" />
+    """
+  end
+
   # One source to subscribe to. The inner block holds its details.
   attr :id, :string, required: true
   attr :picture, :string, required: true
@@ -980,7 +991,7 @@ defmodule SikioWeb.AddSourceLive do
   defp source_row(assigns) do
     ~H"""
     <article id={@id} class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap">
-      <img src={@picture} alt="" class="size-12 shrink-0 rounded-md bg-line object-cover" />
+      <.row_picture src={@picture} />
       <div class="min-w-0 flex-1">
         <h3 class="truncate text-body font-semibold">{@title}</h3>
         <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
@@ -1037,7 +1048,7 @@ defmodule SikioWeb.AddSourceLive do
   defp item_row(assigns) do
     ~H"""
     <article id={@id} class="flex items-start gap-x-4 px-4 py-3">
-      <img src={@picture} alt="" class="size-12 shrink-0 rounded-md bg-line object-cover" />
+      <.row_picture src={@picture} />
       <div class="flex min-w-0 flex-1 flex-col gap-2">
         <div class="min-w-0">
           <h3 class="text-body font-semibold">{@title}</h3>

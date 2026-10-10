@@ -31,7 +31,9 @@ A search shows its results in four tabs: **Podcasts**, **Episodes**, **Series** 
 **Programmes**. Each tab shows its count. Episodes come from Apple Podcasts and are read from
 their podcast's feed. A row in **Episodes** or **Programmes** adds its item to the queue or the
 inbox, without a subscription. The same row subscribes to its podcast or series. A long
-description shows two lines until **more** is pressed.
+description shows two lines until **more** is pressed. Rows in **Series** and **Programmes** show
+the picture of the broadcaster's page once they come into view. Sikio fetches it and caches it,
+so the browser never contacts the broadcaster.
 
 **Subscribe** first asks two questions. **Episodes so far** takes only the newest, all of them
 oldest first, or none. Episodes of one date are ordered by title. **New episodes go to** sets the

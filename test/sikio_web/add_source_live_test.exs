@@ -274,6 +274,31 @@ defmodule SikioWeb.AddSourceLiveTest do
       assert %{feed: %{kind: :mediathek}} = Library.entry(user, id)
     end
 
+    # MediathekViewWeb names no picture. A row's picture comes from its broadcaster's page,
+    # through the picture proxy, once the row comes into view.
+    test "programmes and series show their broadcaster's picture", %{conn: conn} do
+      found = programme("Spur")
+      searches([], [], [found])
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "tatort"}) |> render_submit()
+      render_async(view)
+
+      for row <- ["#programme-0", "#series-0"] do
+        [src] =
+          view
+          |> element(row <> ~s| img[loading="lazy"]|)
+          |> render()
+          |> Floki.parse_fragment!()
+          |> Floki.attribute("src")
+
+        "/pictures/" <> reference = src
+
+        assert Pictures.verify(reference) ==
+                 {:ok, {[{:page, found.url_website}], "/images/kind-video.svg"}}
+      end
+    end
+
     # Programmes of one topic on one channel form a series, which is subscribed as a whole.
     test "the series tab groups programmes and subscribes to one", %{conn: conn, user: user} do
       maus = fn title ->

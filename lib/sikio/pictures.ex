@@ -13,12 +13,13 @@ defmodule Sikio.Pictures do
   Every file path is the configured directory joined with a SHA-256 hash, never a caller's name.
   The file functions below therefore skip Sobelow's traversal check.
   """
+  alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.HTTP
 
   @max_bytes 2_000_000
 
-  # A failed URL is retried after one day. Otherwise every page listing the item would refetch
-  # it on each render.
+  # A failed candidate is retried after one day: a picture that failed, or a page that names none.
+  # Otherwise every page listing the item would refetch it on each render.
   @retry_after 86_400
 
   # Matches a cached picture, a failure marker or an unfinished write. Pruning removes nothing
@@ -47,11 +48,13 @@ defmodule Sikio.Pictures do
   @doc """
   Returns the first candidate that yields a picture, from the cache or freshly fetched.
 
+  A candidate is a picture's URL, or `{:page, url}` for the preview picture a web page names.
   Returns `{:ok, %{type: type, path: path}}`, or `:error` when no candidate does. A missing,
-  unreadable or invalid cache file is fetched again, unless the URL failed within the last day.
+  unreadable or invalid cache file is fetched again, unless the candidate failed within the last
+  day.
   """
-  def fetch(urls, dir \\ cache_dir()) do
-    Enum.find_value(urls, :error, &picture(&1, dir))
+  def fetch(candidates, dir \\ cache_dir()) do
+    Enum.find_value(candidates, :error, &picture(&1, dir))
   end
 
   @doc """
@@ -77,14 +80,33 @@ defmodule Sikio.Pictures do
   @doc "Returns the picture cache directory. The operator configures it outside the release."
   def cache_dir, do: Application.fetch_env!(:sikio, :picture_cache_dir)
 
-  defp picture(url, dir) do
-    path = Path.join(dir, :crypto.hash(:sha256, url) |> Base.url_encode64(padding: false))
+  # `{:page, url}` names a web page whose preview picture is fetched, as for a search result. The
+  # picture is cached under the page, so a cached one needs no request to the page.
+  defp picture(candidate, dir) do
+    path = cache_path(cache_key(candidate), dir)
 
     case served(path) do
       {:ok, picture} -> {:ok, picture}
-      :error -> unless failed_recently?(path), do: download(url, path)
+      :error -> unless failed_recently?(path), do: fetch_into(candidate, path)
     end
   end
+
+  defp cache_key({:page, page}), do: "page " <> page
+  defp cache_key(url), do: url
+
+  # A page that did not answer is asked again on the next request.
+  defp fetch_into({:page, page}, path) do
+    case Discovery.page_picture(page) do
+      {:ok, url} -> download(url, path)
+      {:error, :unavailable} -> nil
+      {:error, :not_found} -> missed(path)
+    end
+  end
+
+  defp fetch_into(url, path), do: download(url, path)
+
+  defp cache_path(key, dir),
+    do: Path.join(dir, :crypto.hash(:sha256, key) |> Base.url_encode64(padding: false))
 
   # Reads only the first 12 bytes to detect the type. The file is sent unchanged.
   # sobelow_skip ["Traversal.FileModule"]
@@ -114,10 +136,13 @@ defmodule Sikio.Pictures do
          :ok <- write(path, response.body) do
       {:ok, %{type: type, path: path}}
     else
-      _ ->
-        write(path <> ".failed", "")
-        nil
+      _ -> missed(path)
     end
+  end
+
+  defp missed(path) do
+    write(path <> ".failed", "")
+    nil
   end
 
   defp claims_raster?(headers) do

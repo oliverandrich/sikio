@@ -52,6 +52,46 @@ defmodule Sikio.PicturesTest do
       refute_received {:fetched, _}
     end
 
+    # A search result names only its broadcaster's page. The page names the picture, and the
+    # picture is cached under the page, so a later view asks the broadcaster nothing.
+    test "a page's picture is found through the page and cached under it", %{tmp_dir: dir} do
+      serving(%{
+        "/video/1" => {"text/html", ~s(<meta property="og:image" content="/img/1.jpg">)},
+        "/img/1.jpg" => {"image/jpeg", jpeg()},
+        "/video/bare" => {"text/html", "<title>No picture</title>"}
+      })
+
+      page = {:page, "https://www.ard.example/video/1"}
+      assert {:ok, %{type: "image/jpeg", path: path}} = Pictures.fetch([page], dir)
+      assert File.read!(path) == jpeg()
+      assert_received {:fetched, "/video/1"}
+      assert_received {:fetched, "/img/1.jpg"}
+
+      assert {:ok, %{path: ^path}} = Pictures.fetch([page], dir)
+      refute_received {:fetched, _}
+
+      # A page without a picture is not asked again within the retry time.
+      bare = {:page, "https://www.ard.example/video/bare"}
+      assert Pictures.fetch([bare], dir) == :error
+      assert_received {:fetched, "/video/bare"}
+      assert Pictures.fetch([bare], dir) == :error
+      refute_received {:fetched, _}
+    end
+
+    # A busy broadcaster may answer the next request. Only a final answer waits a day.
+    test "a page that did not answer is asked again", %{tmp_dir: dir} do
+      Req.Test.stub(Sikio.Feeds.HTTP, &Plug.Conn.send_resp(&1, 503, ""))
+      page = {:page, "https://www.ard.example/video/busy"}
+      assert Pictures.fetch([page], dir) == :error
+
+      serving(%{
+        "/video/busy" => {"text/html", ~s(<meta property="og:image" content="/1.jpg">)},
+        "/1.jpg" => {"image/jpeg", jpeg()}
+      })
+
+      assert {:ok, %{type: "image/jpeg"}} = Pictures.fetch([page], dir)
+    end
+
     test "the next candidate is tried when one is missing", %{tmp_dir: dir} do
       serving(%{"/show.png" => {"image/png", png()}})
 

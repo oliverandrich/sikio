@@ -86,6 +86,13 @@ defmodule SikioWeb.MediaComponents do
   def source_picture(source),
     do: SikioWeb.Pictures.path(List.wrap(Map.get(source, :icon_url)), kind_mark(source))
 
+  @doc """
+  Returns the path of the preview picture the first of `pages` names, or the Mediathek's
+  placeholder. MediathekViewWeb names no picture, the broadcasters' pages do.
+  """
+  def page_picture(pages),
+    do: SikioWeb.Pictures.path(Enum.map(pages, &{:page, &1}), kind_mark(%{kind: :mediathek}))
+
   @doc "Returns the placeholder image path for an entry or feed without artwork."
   def kind_mark(%{feed: feed}), do: kind_mark(feed)
 
