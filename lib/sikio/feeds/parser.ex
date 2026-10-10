@@ -469,10 +469,17 @@ defmodule Sikio.Feeds.Parser do
   defp attr({_, attrs, _}, name), do: attrs |> List.keyfind(name, 0, {name, ""}) |> elem(1)
   defp attr(_, _), do: ""
 
-  # The identifier matches an episode across polls, so it is not truncated like a title.
-  # A GUID over 2,000 bytes is hashed with SHA-256. Long identifiers often differ at the end.
-  defp identifier(item, fallback) do
-    guid = item |> child("guid") |> text() |> String.trim() |> nonempty(fallback)
+  defp identifier(item, fallback),
+    do: item |> child("guid") |> text() |> String.trim() |> nonempty(fallback) |> external_id()
+
+  @doc """
+  Returns the external id an entry with this guid is stored under.
+
+  The id matches an episode across polls, so it is not truncated like a title. A guid over
+  2,000 bytes is hashed with SHA-256, since long identifiers often differ at the end.
+  """
+  def external_id(guid) do
+    guid = String.trim(guid)
 
     if byte_size(guid) > 2_000,
       do: "sha256:" <> Base.encode16(:crypto.hash(:sha256, guid)),

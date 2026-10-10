@@ -28,8 +28,8 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, html} = live(conn, ~p"/add")
     assert has_element?(view, "#add-form input[name=q]")
     assert has_element?(view, "#add-hint", "PeerTube")
-    # The hint states that non-URL input is searched in Apple Podcasts.
-    assert has_element?(view, "#add-hint", "searched for in Apple Podcasts")
+    # The hint states that other input searches Apple Podcasts and the Mediathek.
+    assert has_element?(view, "#add-hint", "search Apple Podcasts and the Mediathek")
     assert has_element?(view, ~s|#add-q[aria-describedby="add-hint"]|)
     refute has_element?(view, "#discover-form")
     refute has_element?(view, "#search-form")
@@ -130,7 +130,8 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, _} = live(conn, ~p"/add")
     view |> form("#add-form", %{q: "small hours"}) |> render_submit()
     render_async(view)
-    assert has_element?(view, "#results-heading", "Apple Podcasts")
+    assert has_element?(view, ~s|#tab-podcasts[aria-selected="true"]|, "2")
+    assert has_element?(view, "#panel-podcasts", "Apple Podcasts")
     assert has_element?(view, "#source-0", "Ada")
     src = Pictures.path(["https://img.example/small-hours.jpg"], ~p"/images/kind-audio.svg")
     assert has_element?(view, ~s|#source-0 img[src="#{src}"]|)
@@ -171,64 +172,160 @@ defmodule SikioWeb.AddSourceLiveTest do
       }
     end
 
-    # One search asks Apple and the Mediathek. A programme goes to the queue on its own.
-    test "a search finds programmes, and one goes to the queue", %{conn: conn, user: user} do
+    # Apple answers podcasts and episodes on one path, told apart by `entity`.
+    defp searches(podcasts, episodes, programmes, extra \\ fn _conn -> nil end) do
       Req.Test.stub(HTTP, fn conn ->
-        case conn.request_path do
-          "/search" ->
-            Req.Test.json(conn, %{
-              results: [%{collectionName: "Small Hours", feedUrl: feed_url()}]
-            })
-
-          "/api/query" ->
-            Req.Test.json(conn, %{
-              result: %{results: [programme("Die Erfindung des Rades"), programme("Spur")]}
-            })
+        case {conn.request_path, URI.decode_query(conn.query_string)["entity"]} do
+          {"/search", "podcast"} -> Req.Test.json(conn, %{results: podcasts})
+          {"/search", "podcastEpisode"} -> Req.Test.json(conn, %{results: episodes})
+          {"/api/query", _} -> Req.Test.json(conn, %{result: %{results: programmes}})
+          _ -> extra.(conn)
         end
+      end)
+    end
+
+    defp episode(title, feed) do
+      %{
+        trackName: title,
+        collectionName: "Small Hours",
+        feedUrl: feed,
+        episodeGuid: "episode-1",
+        releaseDate: "2026-09-18T09:00:00Z",
+        trackTimeMillis: 3_723_000,
+        description: String.duplicate("A long description of the episode. ", 8)
+      }
+    end
+
+    # Four tabs: podcasts, their episodes, the Mediathek's series and its programmes. Each
+    # shows its count. A programme's actions show without a click.
+    test "a search fills four tabs, and a programme goes to the queue", %{conn: conn, user: user} do
+      searches(
+        [%{collectionName: "Small Hours", feedUrl: feed_url()}],
+        [episode("One & two", feed_url())],
+        [programme("Die Erfindung des Rades"), programme("Spur")]
+      )
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "tatort"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, ~s|#tab-podcasts[aria-selected="true"]|, "1")
+      assert has_element?(view, "#tab-episodes", "1")
+      assert has_element?(view, "#tab-series", "2")
+      assert has_element?(view, "#tab-programmes", "2")
+      assert has_element?(view, "#panel-programmes.hidden")
+
+      view |> element("#tab-programmes") |> render_click()
+      assert has_element?(view, ~s|#tab-programmes[aria-selected="true"]|)
+      assert has_element?(view, "#panel-podcasts.hidden")
+      assert has_element?(view, "#programme-0", "Die Erfindung des Rades")
+      assert has_element?(view, "#programme-0", "WDR")
+      assert has_element?(view, "#programme-0", "Fernsehfilm")
+      assert has_element?(view, ~s|#programme-0 a[href^="https://mediathek"][target="_blank"]|)
+
+      result = view |> element(~s|#programme-0 [data-action="queue"]|) |> render_click()
+      assert {:error, {:live_redirect, %{to: "/queue/" <> _}}} = result
+      assert [id] = Playback.queue(user)
+      assert %{feed: %{kind: :mediathek}} = Library.entry(user, id)
+    end
+
+    # Programmes of one topic on one channel form a series, which is subscribed as a whole.
+    test "the series tab groups programmes and subscribes to one", %{conn: conn, user: user} do
+      maus = fn title ->
+        Map.merge(programme(title), %{channel: "ARD", topic: "Die Sendung mit der Maus"})
+      end
+
+      searches([], [], [maus.("Sachgeschichte"), maus.("Lachgeschichte")], fn conn ->
+        Plug.Conn.send_resp(conn, 200, mediathek_feed())
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "maus"}) |> render_submit()
+      render_async(view)
+
+      # Without podcasts, the first tab with results opens.
+      assert has_element?(view, ~s|#tab-series[aria-selected="true"]|, "1")
+      assert has_element?(view, "#series-0", "Die Sendung mit der Maus · ARD")
+      assert has_element?(view, "#series-0", "2")
+
+      view |> element(~s|#series-0 [data-action="subscribe"]|) |> render_click()
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{kind: :mediathek}}] = Library.subscriptions(user)
+    end
+
+    # A programme row subscribes to the series it belongs to.
+    test "a programme's series is subscribed from its row", %{conn: conn, user: user} do
+      searches([], [], [programme("Spur")], fn conn ->
+        Plug.Conn.send_resp(conn, 200, mediathek_feed())
       end)
 
       {:ok, view, _} = live(conn, ~p"/add")
       view |> form("#add-form", %{q: "tatort"}) |> render_submit()
       render_async(view)
 
-      assert has_element?(view, "#source-0", "Small Hours")
-      assert has_element?(view, "#programmes-heading", "Mediathek")
-      assert has_element?(view, "#programme-0", "Die Erfindung des Rades")
-      assert has_element?(view, "#programme-0", "WDR")
-      assert has_element?(view, "#programme-1", "Spur")
-
-      view |> element("#programme-0 button") |> render_click()
-      assert_push_event(view, "focus", %{id: "single-item-title"})
-      assert has_element?(view, "#single-item", "Die Erfindung des Rades")
-      assert has_element?(view, "#single-item img.aspect-video")
-
-      result = view |> form("#single-item-form", %{at: "queue"}) |> render_submit()
-      assert {:error, {:live_redirect, %{to: "/queue/" <> _}}} = result
-      assert [id] = Playback.queue(user)
-      assert %{feed: %{kind: :mediathek}} = Library.entry(user, id)
+      assert has_element?(view, ~s|#programme-0 [data-action="subscribe"]|, "Subscribe to Tatort")
+      view |> element(~s|#programme-0 [data-action="subscribe"]|) |> render_click()
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{kind: :mediathek}}] = Library.subscriptions(user)
     end
 
-    # The card also follows the programme's topic on its channel, as a series.
-    test "a programme's series is subscribed from its card", %{conn: conn, user: user} do
-      Req.Test.stub(HTTP, fn conn ->
-        case conn.request_path do
-          "/search" -> Req.Test.json(conn, %{results: []})
-          "/api/query" -> Req.Test.json(conn, %{result: %{results: [programme("Maus")]}})
-          "/feed" -> Plug.Conn.send_resp(conn, 200, mediathek_feed())
-        end
+    # An episode behaves as a programme does. Saving it reads its podcast's feed first.
+    test "an episode goes to the inbox, and its description shows in full on request", %{
+      conn: conn,
+      user: user
+    } do
+      url = feed_url()
+
+      searches([], [episode("One & two", url)], [], fn conn ->
+        Plug.Conn.send_resp(conn, 200, podcast())
       end)
 
       {:ok, view, _} = live(conn, ~p"/add")
-      view |> form("#add-form", %{q: "maus"}) |> render_submit()
+      view |> form("#add-form", %{q: "small hours"}) |> render_submit()
       render_async(view)
-      view |> element("#programme-0 button") |> render_click()
 
-      assert has_element?(view, "#subscribe-series", "Subscribe")
-      view |> element("#subscribe-series") |> render_click()
+      assert has_element?(view, ~s|#tab-episodes[aria-selected="true"]|)
+      assert has_element?(view, "#episode-0", "One & two")
+      assert has_element?(view, "#episode-0", "Small Hours")
+      assert has_element?(view, "#episode-0 [data-description].line-clamp-2")
+
+      view |> element("#episode-0 [data-more]") |> render_click()
+      refute has_element?(view, "#episode-0 [data-description].line-clamp-2")
+
+      view |> element(~s|#episode-0 [data-action="inbox"]|) |> render_click()
+      assert {"/inbox/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{kind: :podcast}}] = Library.entries(user, %{"status" => "inbox"})
+      assert Library.subscriptions(user) == []
+    end
+
+    # An episode row subscribes to its podcast through the podcast's feed.
+    test "an episode's podcast is subscribed from its row", %{conn: conn, user: user} do
+      searches([], [episode("One & two", feed_url())], [], fn conn ->
+        Plug.Conn.send_resp(conn, 200, podcast())
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "small hours"}) |> render_submit()
+      render_async(view)
+
+      view |> element(~s|#episode-0 [data-action="subscribe"]|) |> render_click()
       assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{kind: :podcast}}] = Library.subscriptions(user)
+    end
 
-      assert [%{feed: %{kind: :mediathek, title: "Die Sendung mit der Maus · ARD"}}] =
-               Library.subscriptions(user)
+    # A retry cannot help when the feed no longer holds the episode, so the row says so.
+    test "an episode missing from its feed says so on its row", %{conn: conn} do
+      gone = %{episode("One & two", feed_url()) | episodeGuid: "episode-gone"}
+
+      searches([], [gone], [], fn conn -> Plug.Conn.send_resp(conn, 200, podcast()) end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "small hours"}) |> render_submit()
+      render_async(view)
+
+      view |> element(~s|#episode-0 [data-action="queue"]|) |> render_click()
+      render_async(view)
+      assert has_element?(view, "#episode-0 [role=alert]", "no longer in its podcast's feed")
     end
 
     # Each search reports on its own. Apple's results stay when the Mediathek fails.
@@ -264,7 +361,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       {:ok, view, _} = live(conn, ~p"/add")
       view |> form("#add-form", %{q: feed_url()}) |> render_submit()
       render_async(view)
-      refute has_element?(view, "#programmes-heading")
+      refute has_element?(view, "#search-tabs")
     end
   end
 
@@ -284,7 +381,7 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     view |> element("#clear-search") |> render_click()
     refute has_element?(view, "#source-0")
-    refute has_element?(view, "#results-heading")
+    refute has_element?(view, "#search-tabs")
     assert has_element?(view, ~s|#add-q[value=""]|)
     refute has_element?(view, "#clear-search")
   end
@@ -448,9 +545,8 @@ defmodule SikioWeb.AddSourceLiveTest do
       render_async(view)
     end
 
-    # A video link offers the video alone beside its channel. The queue is preselected, since a
-    # single link is usually meant to be played.
-    test "a video link adds only the video, to the queue by default", %{conn: conn, user: user} do
+    # A video link offers the video alone beside its channel, to the queue or the inbox.
+    test "a video link adds only the video, to the queue", %{conn: conn, user: user} do
       stub_video()
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, "https://youtu.be/abcdefghijk")
@@ -464,10 +560,10 @@ defmodule SikioWeb.AddSourceLiveTest do
 
       assert {:ok, {[_channel], "/images/kind-video.svg"}} = picture(view, "#source-0 img")
       assert has_element?(view, "#single-item img.aspect-video")
-      assert has_element?(view, ~s|#single-item input[name="at"][value="queue"][checked]|)
+      assert has_element?(view, "#single-item #add-to-inbox")
       assert has_element?(view, "#source-0", "Good Channel")
 
-      result = view |> form("#single-item-form", %{at: "queue"}) |> render_submit()
+      result = view |> element("#add-to-queue") |> render_click()
       assert {:error, {:live_redirect, %{to: to}}} = result
       [entry] = Library.entries(user)
       assert to == "/queue/#{entry.id}-a-good-video"
@@ -480,10 +576,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, "https://youtu.be/abcdefghijk")
 
-      view |> form("#single-item-form", %{at: "inbox"}) |> render_change()
-      assert has_element?(view, ~s|#single-item input[value="inbox"][checked]|)
-
-      result = view |> form("#single-item-form", %{at: "inbox"}) |> render_submit()
+      result = view |> element("#add-to-inbox") |> render_click()
       assert {:error, {:live_redirect, %{to: "/inbox/" <> _}}} = result
       assert Playback.queue(user) == []
       assert [_] = Library.entries(user, %{"status" => "inbox"})
@@ -494,15 +587,14 @@ defmodule SikioWeb.AddSourceLiveTest do
       stub_video()
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, "https://youtu.be/abcdefghijk")
-      view |> form("#single-item-form", %{at: "queue"}) |> render_submit()
+      view |> element("#add-to-queue") |> render_click()
       [entry] = Library.entries(user)
       {:ok, _} = Playback.mark(user, entry.id, :heard)
       {:ok, _} = Library.remove_entry(user, entry.id)
 
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, "https://youtu.be/abcdefghijk")
-      view |> form("#single-item-form", %{at: "inbox"}) |> render_change()
-      result = view |> form("#single-item-form", %{at: "inbox"}) |> render_submit()
+      result = view |> element("#add-to-inbox") |> render_click()
       assert {:error, {:live_redirect, %{to: "/history/" <> _}}} = result
       {:ok, _view, html} = follow_redirect(result, conn)
       assert html =~ "Saved A good video."

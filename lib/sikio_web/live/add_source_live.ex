@@ -24,6 +24,26 @@ defmodule SikioWeb.AddSourceLive do
   alias Sikio.Library
   alias SikioWeb.LibraryPaths
 
+  @tabs ~w(podcasts episodes series programmes)
+
+  # Each list's rows subscribe to a source: its row id prefix, the field with its address, and
+  # the `Discovery` function that fetches it. A capture here would be a compile-time dependency.
+  @subscribable %{
+    "episodes" => {:episodes, "episode-", :feed_url, :discover},
+    "series" => {:series, "series-", :series_url, :mediathek_series},
+    "programmes" => {:programmes, "programme-", :series_url, :mediathek_series}
+  }
+
+  # Each stream with the assign that holds its results and the field that orders them.
+  @lists [
+    {:sources, :candidates, :id},
+    {:episodes, :episodes, :key},
+    {:series, :series, :key},
+    {:programmes, :programmes, :key}
+  ]
+
+  @lookups [:subscribe, :item, :programmes, :episodes, :episode_item]
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
@@ -36,6 +56,8 @@ defmodule SikioWeb.AddSourceLive do
      )
      |> stream_configure(:sources, dom_id: &"source-#{&1.id}")
      |> stream_configure(:programmes, dom_id: &"programme-#{&1.key}")
+     |> stream_configure(:episodes, dom_id: &"episode-#{&1.key}")
+     |> stream_configure(:series, dom_id: &"series-#{&1.key}")
      |> without_results()}
   end
 
@@ -64,44 +86,60 @@ defmodule SikioWeb.AddSourceLive do
   # One input: a URL is discovered, any other text is searched.
   def handle_event("add", %{"q" => q}, socket), do: {:noreply, lookup(socket, q)}
 
-  # Keeps the chosen target, so it survives a LiveView reconnect.
-  def handle_event("pick_item", %{"at" => at}, socket) when at in ["queue", "inbox"],
-    do: {:noreply, assign(socket, item_at: at)}
+  # A tab keeps its place once the account picked it, while the other searches still answer.
+  def handle_event("tab", %{"tab" => tab}, socket) when tab in @tabs,
+    do: {:noreply, assign(socket, tab: String.to_existing_atom(tab), tab_picked: true)}
 
-  def handle_event("pick_item", _params, socket), do: {:noreply, socket}
+  # One description shows in full at a time.
+  def handle_event("more", %{"row" => row}, socket) do
+    more = if socket.assigns.more == row, do: nil, else: row
+    {:noreply, socket |> assign(more: more) |> show_rows()}
+  end
 
-  # A programme from the Mediathek opens the single item card, as a link to one video does.
-  def handle_event("pick_programme", %{"key" => key}, socket) do
+  def handle_event("save_programme", %{"key" => key, "at" => at}, socket)
+      when at in ["queue", "inbox"] do
     case socket.assigns.programmes[key] do
-      nil ->
-        {:noreply, socket}
-
-      programme ->
-        {:noreply,
-         socket
-         |> show_item(Discovery.mediathek_item(programme))
-         |> push_event("focus", %{id: "single-item-title"})}
+      nil -> {:noreply, socket}
+      programme -> save_item(socket, Discovery.mediathek_item(programme), at)
     end
   end
 
-  # The source is fetched first, so subscribing imports its current programmes.
+  # An episode is saved from its podcast's feed, which is fetched first.
   def handle_event(
-        "subscribe_series",
-        _params,
-        %{assigns: %{item: %{preview: %{kind: :mediathek} = preview}}} = socket
-      ) do
-    {:noreply,
-     socket
-     |> assign(subscribing: "series", row_errors: Map.delete(socket.assigns.row_errors, "series"))
-     |> start_async(:subscribe, fn -> Discovery.mediathek_series(preview.url) end)}
+        "save_episode",
+        %{"key" => key, "at" => at},
+        %{assigns: %{saving: nil}} = socket
+      )
+      when at in ["queue", "inbox"] do
+    case socket.assigns.episodes[key] do
+      nil ->
+        {:noreply, socket}
+
+      episode ->
+        row = "episode-" <> key
+
+        {:noreply,
+         socket
+         |> assign(saving: row, row_errors: Map.delete(socket.assigns.row_errors, row))
+         |> show_rows()
+         |> start_async(:episode_item, fn -> {at, Discovery.episode_item(episode)} end)}
+    end
   end
 
-  def handle_event("subscribe_series", _params, socket), do: {:noreply, socket}
+  def handle_event("save_episode", _params, socket), do: {:noreply, socket}
 
-  def handle_event("save_item", _params, %{assigns: %{item: nil}} = socket),
-    do: {:noreply, socket}
+  # The source is fetched first, so subscribing imports its current entries.
+  def handle_event("subscribe", %{"list" => list, "key" => key}, socket)
+      when list in ~w(episodes series programmes) do
+    {name, prefix, field, fetch} = @subscribable[list]
+    subscribe_to(socket, prefix <> key, socket.assigns[name][key][field], fetch)
+  end
 
-  def handle_event("save_item", _params, socket), do: save_item(socket, socket.assigns.item)
+  def handle_event("save_item", %{"at" => at}, %{assigns: %{item: %{} = item}} = socket)
+      when at in ["queue", "inbox"],
+      do: save_item(socket, item, at)
+
+  def handle_event("save_item", _params, socket), do: {:noreply, socket}
 
   # Clears the input, the results and any pending subscribe task.
   def handle_event("clear", _params, socket) do
@@ -133,7 +171,7 @@ defmodule SikioWeb.AddSourceLive do
         {:noreply,
          socket
          |> assign(subscribing: id, row_errors: Map.delete(socket.assigns.row_errors, id))
-         |> show_candidates()
+         |> show_rows()
          |> start_async(:subscribe, fn -> Discovery.discover(url) end)}
     end
   end
@@ -162,24 +200,56 @@ defmodule SikioWeb.AddSourceLive do
     {:noreply,
      socket
      |> assign(busy: false, searched: true, candidates: Map.new(sources, &{&1.id, &1}))
-     |> stream(:sources, sources, reset: true)}
+     |> stream(:sources, sources, reset: true)
+     |> choose_tab()}
   end
 
   def handle_async(:programmes, {:ok, {:ok, found}}, socket) do
+    found = found |> Enum.map(&with_series/1) |> keyed(:key)
+    series = found |> grouped() |> keyed(:key)
+
+    {:noreply,
+     socket
+     |> assign(
+       programmes: Map.new(found, &{&1.key, &1}),
+       series: Map.new(series, &{&1.key, &1}),
+       programmes_state: :done
+     )
+     |> stream(:programmes, found, reset: true)
+     |> stream(:series, series, reset: true)
+     |> choose_tab()}
+  end
+
+  def handle_async(:episodes, {:ok, {:ok, found}}, socket) do
     found = keyed(found, :key)
 
     {:noreply,
      socket
-     |> assign(programmes: Map.new(found, &{&1.key, &1}), programmes_state: :done)
-     |> stream(:programmes, found, reset: true)}
+     |> assign(episodes: Map.new(found, &{&1.key, &1}), episodes_state: :done)
+     |> stream(:episodes, found, reset: true)
+     |> choose_tab()}
   end
 
-  # Apple's search reports an invalid term. The Mediathek stays silent about it.
-  def handle_async(:programmes, {:ok, {:error, :invalid_search}}, socket),
-    do: {:noreply, assign(socket, programmes_state: nil)}
+  # The podcast search reports an invalid term. The other searches stay silent about it.
+  def handle_async(source, {:ok, {:error, :invalid_search}}, socket)
+      when source in [:programmes, :episodes],
+      do: {:noreply, assign(socket, [{state_of(source), nil}])}
 
-  def handle_async(:programmes, _failed, socket),
-    do: {:noreply, assign(socket, programmes_state: :failed)}
+  def handle_async(source, _failed, socket) when source in [:programmes, :episodes],
+    do: {:noreply, socket |> assign([{state_of(source), :failed}]) |> choose_tab()}
+
+  def handle_async(:episode_item, {:ok, {at, {:ok, item}}}, socket),
+    do: socket |> assign(saving: nil) |> save_item(item, at)
+
+  # A cleared page has no row left to report on.
+  def handle_async(:episode_item, _failed, %{assigns: %{saving: nil}} = socket),
+    do: {:noreply, socket}
+
+  def handle_async(:episode_item, {:ok, {_at, {:error, :not_found}}}, socket),
+    do: episode_failed(socket, gettext("This episode is no longer in its podcast's feed."))
+
+  def handle_async(:episode_item, _failed, socket),
+    do: episode_failed(socket, message(:unavailable))
 
   # Only a link to one video or episode yields an item. Its preview holds the entry.
   def handle_async(:item, {:ok, {:ok, %{preview: _, external_id: _} = item}}, socket),
@@ -196,22 +266,85 @@ defmodule SikioWeb.AddSourceLive do
   def handle_async(:sources, {:ok, {:error, reason}}, socket), do: failed(socket, reason)
   def handle_async(:sources, {:exit, _reason}, socket), do: failed(socket, :unavailable)
 
-  defp failed(socket, reason), do: {:noreply, assign(socket, busy: false, error: message(reason))}
+  defp failed(socket, reason),
+    do: {:noreply, socket |> assign(busy: false, error: message(reason)) |> choose_tab()}
+
+  defp episode_failed(socket, error) do
+    errors = Map.put(socket.assigns.row_errors, socket.assigns.saving, error)
+    {:noreply, socket |> assign(saving: nil, row_errors: errors) |> show_rows()}
+  end
 
   defp row_failed(socket, reason) do
     errors = Map.put(socket.assigns.row_errors, socket.assigns.subscribing, message(reason))
-    {:noreply, socket |> assign(subscribing: nil, row_errors: errors) |> show_candidates()}
+
+    {:noreply,
+     socket
+     |> assign(subscribing: nil, row_errors: errors)
+     |> show_rows()}
+  end
+
+  defp state_of(:programmes), do: :programmes_state
+  defp state_of(:episodes), do: :episodes_state
+
+  # A forged key names no result, and a running subscribe takes no second one.
+  defp subscribe_to(socket, _row, nil, _fetch), do: {:noreply, socket}
+
+  defp subscribe_to(%{assigns: %{subscribing: nil}} = socket, row, url, fetch) do
+    {:noreply,
+     socket
+     |> assign(subscribing: row, row_errors: Map.delete(socket.assigns.row_errors, row))
+     |> show_rows()
+     |> start_async(:subscribe, fn -> apply(Discovery, fetch, [url]) end)}
+  end
+
+  defp subscribe_to(socket, _row, _url, _fetch), do: {:noreply, socket}
+
+  # A programme names the source its series is subscribed as.
+  defp with_series(programme) do
+    %{preview: source} = Discovery.mediathek_item(programme)
+    Map.merge(programme, %{series_url: source.url, series_title: source.title})
+  end
+
+  # The Mediathek's programmes grouped by topic and channel, in the order they first appear.
+  # A programme without a topic forms no series.
+  defp grouped(programmes) do
+    programmes
+    |> Enum.reject(&(&1.topic == ""))
+    |> Enum.group_by(&{&1.channel, &1.topic})
+    |> Enum.map(fn {_, [first | _] = members} ->
+      %{
+        title: first.series_title,
+        count: length(members),
+        newest: first.published_at,
+        series_url: first.series_url,
+        first: String.to_integer(first.key)
+      }
+    end)
+    |> Enum.sort_by(& &1.first)
+  end
+
+  # The first tab with results opens, unless the account picked one.
+  defp choose_tab(%{assigns: %{tab_picked: true}} = socket), do: socket
+
+  defp choose_tab(socket) do
+    %{candidates: podcasts, episodes: episodes, series: series, programmes: programmes} =
+      socket.assigns
+
+    found = [podcasts: podcasts, episodes: episodes, series: series, programmes: programmes]
+
+    tab =
+      Enum.find_value(found, :podcasts, fn {tab, results} -> map_size(results) > 0 && tab end)
+
+    assign(socket, tab: tab)
   end
 
   # A stream re-renders a row only when it is inserted again.
-  # Re-inserting all candidates in order updates each row's state.
-  defp show_candidates(socket) do
-    candidates =
-      socket.assigns.candidates
-      |> Map.values()
-      |> Enum.sort_by(&String.to_integer(&1.id))
-
-    stream(socket, :sources, candidates, reset: true)
+  # Re-inserting all rows in order updates each row's state.
+  defp show_rows(socket) do
+    Enum.reduce(@lists, socket, fn {stream, results, key}, socket ->
+      rows = socket.assigns[results] |> Map.values() |> Enum.sort_by(&String.to_integer(&1[key]))
+      stream(socket, stream, rows, reset: true)
+    end)
   end
 
   defp discover(socket, url),
@@ -224,8 +357,9 @@ defmodule SikioWeb.AddSourceLive do
   defp search(socket, term) do
     socket
     |> searching(:search)
-    |> assign(programmes_state: :searching)
+    |> assign(programmes_state: :searching, episodes_state: :searching)
     |> start_async(:sources, fn -> Discovery.search(term) end)
+    |> start_async(:episodes, fn -> Discovery.episode_search(term) end)
     |> start_async(:programmes, fn -> Discovery.mediathek_search(term) end)
   end
 
@@ -237,8 +371,7 @@ defmodule SikioWeb.AddSourceLive do
     |> without_results()
   end
 
-  defp cancel_lookups(socket),
-    do: socket |> cancel_async(:subscribe) |> cancel_async(:item) |> cancel_async(:programmes)
+  defp cancel_lookups(socket), do: Enum.reduce(@lookups, socket, &cancel_async(&2, &1))
 
   # The state of a page that has looked nothing up yet.
   defp without_results(socket) do
@@ -251,12 +384,20 @@ defmodule SikioWeb.AddSourceLive do
       subscribing: nil,
       row_errors: %{},
       item: nil,
-      item_at: "queue",
       programmes: %{},
-      programmes_state: nil
+      programmes_state: nil,
+      episodes: %{},
+      episodes_state: nil,
+      series: %{},
+      saving: nil,
+      more: nil,
+      tab: :podcasts,
+      tab_picked: false
     )
     |> stream(:sources, [], reset: true)
     |> stream(:programmes, [], reset: true)
+    |> stream(:episodes, [], reset: true)
+    |> stream(:series, [], reset: true)
   end
 
   # Gives each result a key in list order. A row's button names the key, not the result.
@@ -274,9 +415,9 @@ defmodule SikioWeb.AddSourceLive do
 
   # Saving into the inbox keeps an earlier playback state, and an enqueue can fail. The page
   # opens the list that holds the entry afterwards.
-  defp save_item(socket, %{preview: preview, external_id: id}) do
+  defp save_item(socket, %{preview: preview, external_id: id}, at) do
     account = socket.assigns.current_account
-    at = String.to_existing_atom(socket.assigns.item_at)
+    at = String.to_existing_atom(at)
 
     with {:ok, %{id: entry_id}} <- Library.save(account, preview, id, at),
          %{} = entry <- Library.entry(account, entry_id) do
@@ -294,9 +435,12 @@ defmodule SikioWeb.AddSourceLive do
        |> put_flash(:info, message)
        |> push_navigate(to: LibraryPaths.library_path(%{"status" => place}, entry))}
     else
+      # An episode's row was disabled while its feed was fetched.
       _ ->
         {:noreply,
-         put_flash(socket, :error, gettext("Could not save this item. Please try again."))}
+         socket
+         |> put_flash(:error, gettext("Could not save this item. Please try again."))
+         |> show_rows()}
     end
   end
 
@@ -325,7 +469,7 @@ defmodule SikioWeb.AddSourceLive do
         {:noreply,
          socket
          |> put_flash(:error, gettext("Could not save this subscription. Please try again."))
-         |> show_candidates()}
+         |> show_rows()}
     end
   end
 
@@ -428,34 +572,24 @@ defmodule SikioWeb.AddSourceLive do
             </.button>
           </fieldset>
           <p id="add-hint" class="mt-2 text-center text-meta leading-relaxed text-muted">
-            <span class="block">
-              {gettext(
-                "Links to YouTube and PeerTube channels and videos, podcast websites, RSS feeds and Apple Podcasts."
-              )}
-            </span>
-            <span class="block">
-              {gettext("Anything else is searched for in Apple Podcasts and the Mediathek.")}
-            </span>
+            {gettext(
+              "Paste a link to a podcast, a YouTube or PeerTube channel or video, or search Apple Podcasts and the Mediathek."
+            )}
           </p>
         </.form>
         <div
+          :if={@mode != :search}
           aria-live="polite"
           class="mx-auto mt-6 flex max-w-2xl flex-col gap-3 text-center empty:hidden"
         >
           <p :if={@busy} id="discovery-loading" class="text-label text-muted">
             {gettext("Looking for your next good listen or watch…")}
           </p>
-          <p
-            :if={@searched and map_size(@candidates) == 0}
-            id="no-results"
-            class="text-muted"
-          >
-            {gettext("No podcasts found. Try another name or paste the show's website.")}
-          </p>
         </div>
-        <%!-- `role="alert"` outside the `aria-live` region, so it is announced once. --%>
+        <%!-- `role="alert"` outside the `aria-live` region, so it is announced once. A search
+        reports its errors in its own tab. --%>
         <div
-          :if={@error}
+          :if={@error && @mode != :search}
           id="discovery-error"
           role="alert"
           class="mx-auto mt-6 flex max-w-2xl flex-col gap-2 rounded-control bg-danger-surface p-4 text-label text-danger sm:flex-row sm:items-center sm:justify-between"
@@ -487,189 +621,225 @@ defmodule SikioWeb.AddSourceLive do
               ]}
             />
             <div class="min-w-0">
-              <p class="text-meta font-semibold text-muted">{gettext("Only this item")}</p>
-              <%!-- Focusable, so a programme picked further down brings the card into view. --%>
-              <h3 id="single-item-title" tabindex="-1" class="mt-0.5 text-body font-semibold">
+              <p class="text-meta font-semibold text-muted">{gettext("Add this item alone")}</p>
+              <h3 id="single-item-title" class="mt-0.5 text-body font-semibold">
                 {@item.entry.title}
               </h3>
               <p class="text-meta text-muted">{@item.preview.title}</p>
             </div>
           </div>
-          <.form
-            for={%{}}
-            id="single-item-form"
-            phx-change="pick_item"
-            phx-submit="save_item"
-            class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2"
-          >
-            <fieldset class="flex flex-1 flex-wrap items-center gap-x-4 gap-y-2">
-              <legend class="sr-only">{gettext("Add to")}</legend>
-              <label class="flex items-center gap-2.5 text-label text-ink">
-                <input
-                  type="radio"
-                  name="at"
-                  value="queue"
-                  checked={@item_at == "queue"}
-                  class="size-4 accent-accent"
-                />
-                {gettext("Queue")}
-              </label>
-              <label class="flex items-center gap-2.5 text-label text-ink">
-                <input
-                  type="radio"
-                  name="at"
-                  value="inbox"
-                  checked={@item_at == "inbox"}
-                  class="size-4 accent-accent"
-                />
-                {gettext("Inbox")}
-              </label>
-            </fieldset>
-            <.button id="add-item">{gettext("Add")}</.button>
-          </.form>
-          <%!-- A programme's series is its topic on its channel, followed like a podcast. --%>
-          <div
-            :if={@item.preview.kind == :mediathek}
-            class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3"
-          >
-            <p class="min-w-0 flex-1 text-meta text-muted">
-              {gettext("New programmes of %{series} arrive in the inbox.",
-                series: @item.preview.title
-              )}
-            </p>
-            <.button
-              id="subscribe-series"
-              phx-click="subscribe_series"
-              disabled={@subscribing != nil}
-            >
-              {if @subscribing == "series",
-                do: gettext("Subscribing…"),
-                else: gettext("Subscribe")}
+          <div class="mt-3 flex flex-wrap gap-2">
+            <.button id="add-to-queue" phx-click="save_item" phx-value-at="queue">
+              {gettext("Add to queue")}
             </.button>
-            <p :if={@row_errors["series"]} role="alert" class="w-full text-label text-danger">
-              {@row_errors["series"]}
-            </p>
+            <.button id="add-to-inbox" phx-click="save_item" phx-value-at="inbox">
+              {gettext("Add to inbox")}
+            </.button>
           </div>
         </section>
-        <h2
-          :if={@mode == :search and map_size(@candidates) > 0}
-          id="results-heading"
-          class="mt-6 flex items-baseline gap-2 text-label font-semibold"
-        >
-          {gettext("Podcasts")}
-          <span class="font-normal text-muted">{gettext("via Apple Podcasts")}</span>
-        </h2>
-        <p :if={@mode == :search and map_size(@candidates) > 0} class="mt-1 text-meta text-muted">
-          {gettext(
-            "Searches Apple's German directory. Results are provided by Apple; subscriptions use the show's own RSS feed."
-          )}
-        </p>
-        <%!-- Shown only with a row. After live navigation an empty stream holds whitespace,
-        which `:empty` would count as content. --%>
+        <%!-- A search shows its two sources as tabs. Each tab reports its count, loading and
+        errors. The panels stay in the DOM, because a stream loses its rows when its container
+        leaves it. --%>
         <div
-          id="sources"
-          phx-update="stream"
-          class="mt-3 hidden divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line has-[article]:block"
+          :if={@mode == :search}
+          id="search-tabs"
+          role="tablist"
+          aria-label={gettext("Search results")}
+          class="mt-8 -mx-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line px-4 [scrollbar-width:none] sm:mx-0 sm:px-0"
         >
-          <article
-            :for={{dom_id, source} <- @streams.sources}
-            id={dom_id}
-            class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap"
-          >
-            <img
-              src={source_picture(source)}
-              alt=""
-              class="size-12 shrink-0 rounded-md bg-line object-cover"
-            />
-            <div class="min-w-0 flex-1">
-              <h3 class="truncate text-body font-semibold">{source.title}</h3>
-              <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
-                <span :if={source[:author]}>{source.author}</span>
-                <span :if={source[:entries]}>
-                  {gettext("%{count} recent items available", count: length(source.entries))}
-                </span>
-                <span class="min-w-0 truncate font-mono" title={source.url}>
-                  {String.replace_prefix(source.url, "https://", "")}
-                </span>
-              </p>
-            </div>
-            <.button
-              phx-click="select"
-              phx-value-id={source.id}
-              disabled={@busy or @subscribing != nil}
-            >
-              {if @subscribing == source.id,
-                do: gettext("Subscribing…"),
-                else: gettext("Subscribe")}
-            </.button>
-            <p :if={@row_errors[source.id]} role="alert" class="w-full text-label text-danger">
-              {@row_errors[source.id]}
-            </p>
-          </article>
+          <.search_tab
+            tab="podcasts"
+            selected={@tab == :podcasts}
+            label={gettext("Podcasts")}
+            count={if @busy, do: "…", else: map_size(@candidates)}
+          />
+          <.search_tab
+            tab="episodes"
+            selected={@tab == :episodes}
+            label={gettext("Episodes")}
+            count={if @episodes_state == :searching, do: "…", else: map_size(@episodes)}
+          />
+          <.search_tab
+            tab="series"
+            selected={@tab == :series}
+            label={gettext("Series")}
+            count={if @programmes_state == :searching, do: "…", else: map_size(@series)}
+          />
+          <.search_tab
+            tab="programmes"
+            selected={@tab == :programmes}
+            label={gettext("Programmes")}
+            count={if @programmes_state == :searching, do: "…", else: map_size(@programmes)}
+          />
         </div>
-        <h2
-          :if={@programmes_state in [:done, :failed]}
-          id="programmes-heading"
-          class="mt-8 flex items-baseline gap-2 text-label font-semibold"
-        >
-          {gettext("Mediathek")}
-          <span class="font-normal text-muted">{gettext("via MediathekViewWeb")}</span>
-        </h2>
-        <p :if={@programmes_state == :done} class="mt-1 text-meta text-muted">
-          {gettext(
-            "Searches the German public broadcasters' media libraries. A programme is added on its own, without a subscription."
-          )}
-        </p>
-        <p
-          :if={@programmes_state == :searching}
-          id="programmes-loading"
-          class="mt-8 text-center text-label text-muted"
-        >
-          {gettext("Searching the Mediathek…")}
-        </p>
-        <p
-          :if={@programmes_state == :done and map_size(@programmes) == 0}
-          id="no-programmes"
-          class="mt-3 text-muted"
-        >
-          {gettext("No programmes found in the Mediathek.")}
-        </p>
-        <p
-          :if={@programmes_state == :failed}
-          id="programmes-error"
-          role="alert"
-          class="mt-3 text-label text-danger"
-        >
-          {gettext("The Mediathek search is unavailable right now. Try again later.")}
-        </p>
         <div
-          id="programmes"
-          phx-update="stream"
-          class="mt-3 hidden divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line has-[article]:block"
+          id="panel-podcasts"
+          role={@mode == :search && "tabpanel"}
+          aria-labelledby={@mode == :search && "tab-podcasts"}
+          class={[(@mode == :search and @tab != :podcasts) && "hidden"]}
         >
-          <article
-            :for={{dom_id, programme} <- @streams.programmes}
-            id={dom_id}
-            class="flex items-center gap-x-4 px-4 py-3"
+          <p :if={@mode == :search} class="mt-3 text-meta text-muted">
+            {gettext("Via Apple Podcasts. Subscriptions use the show's own RSS feed.")}
+          </p>
+          <p :if={@mode == :search and @busy} class="mt-3 text-label text-muted">
+            {gettext("Searching Apple Podcasts…")}
+          </p>
+          <p
+            :if={@searched and map_size(@candidates) == 0 and is_nil(@error)}
+            id="no-results"
+            class="mt-3 text-muted"
           >
-            <img
-              src={source_picture(%{kind: :mediathek})}
-              alt=""
-              class="size-12 shrink-0 rounded-md bg-line object-cover"
+            {gettext("No podcasts found. Try another name or paste the show's website.")}
+          </p>
+          <p
+            :if={@error && @mode == :search}
+            id="search-error"
+            role="alert"
+            class="mt-3 text-label text-danger"
+          >
+            {@error}
+          </p>
+          <%!-- Shown only with a row. After live navigation an empty stream holds whitespace,
+          which `:empty` would count as content. --%>
+          <div id="sources" phx-update="stream" class={list_class()}>
+            <.source_row
+              :for={{dom_id, source} <- @streams.sources}
+              id={dom_id}
+              picture={source_picture(source)}
+              title={source.title}
+              action={%{"phx-click" => "select", "phx-value-id" => source.id}}
+              disabled={@busy or @subscribing != nil}
+              subscribing={@subscribing == source.id}
+              error={@row_errors[source.id]}
+            >
+              <span :if={source[:author]}>{source.author}</span>
+              <span :if={source[:entries]}>
+                {gettext("%{count} recent items available", count: length(source.entries))}
+              </span>
+              <span class="min-w-0 truncate font-mono" title={source.url}>
+                {String.replace_prefix(source.url, "https://", "")}
+              </span>
+            </.source_row>
+          </div>
+        </div>
+        <div
+          id="panel-episodes"
+          role="tabpanel"
+          aria-labelledby="tab-episodes"
+          class={[@tab != :episodes && "hidden"]}
+        >
+          <p class="mt-3 text-meta text-muted">
+            {gettext("Single episodes via Apple Podcasts. An episode is added on its own.")}
+          </p>
+          <.search_state
+            id="episodes"
+            state={@episodes_state}
+            count={map_size(@episodes)}
+            searching={gettext("Searching Apple Podcasts…")}
+            empty={gettext("No episodes found.")}
+            failed={gettext("Apple Podcasts search is unavailable right now. Try again later.")}
+          />
+          <div id="episodes" phx-update="stream" class={list_class()}>
+            <.item_row
+              :for={{dom_id, episode} <- @streams.episodes}
+              id={dom_id}
+              list="episodes"
+              key={episode.key}
+              title={episode.title}
+              origin={[episode.podcast]}
+              published_at={episode.published_at}
+              duration={episode.duration}
+              description={episode.description}
+              picture={source_picture(%{kind: :podcast, icon_url: episode.icon_url})}
+              more={@more == dom_id}
+              save="save_episode"
+              saving={@saving == dom_id}
+              subscribe_label={gettext("Subscribe to %{series}", series: episode.podcast)}
+              subscribing={@subscribing}
+              error={@row_errors[dom_id]}
             />
-            <div class="min-w-0 flex-1">
-              <h3 class="truncate text-body font-semibold">{programme.title}</h3>
-              <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
-                <span>{programme.channel}</span>
-                <span :if={programme.topic != ""} class="min-w-0 truncate">{programme.topic}</span>
-                <span>{date(programme.published_at)}</span>
-                <span :if={programme.duration} class="font-mono">{runtime(programme.duration)}</span>
-              </p>
-            </div>
-            <.button phx-click="pick_programme" phx-value-key={programme.key}>
-              {gettext("Choose")}
-            </.button>
-          </article>
+          </div>
+        </div>
+        <div
+          id="panel-series"
+          role="tabpanel"
+          aria-labelledby="tab-series"
+          class={[@tab != :series && "hidden"]}
+        >
+          <p class="mt-3 text-meta text-muted">
+            {gettext(
+              "Series via MediathekViewWeb, from the German public broadcasters. A subscription follows a topic on its channel."
+            )}
+          </p>
+          <.search_state
+            id="series"
+            state={@programmes_state}
+            count={map_size(@series)}
+            searching={gettext("Searching the Mediathek…")}
+            empty={gettext("No series found in the Mediathek.")}
+            failed={gettext("The Mediathek search is unavailable right now. Try again later.")}
+          />
+          <div id="series" phx-update="stream" class={list_class()}>
+            <.source_row
+              :for={{dom_id, series} <- @streams.series}
+              id={dom_id}
+              picture={source_picture(%{kind: :mediathek})}
+              title={series.title}
+              action={
+                %{
+                  "phx-click" => "subscribe",
+                  "phx-value-list" => "series",
+                  "phx-value-key" => series.key
+                }
+              }
+              disabled={@subscribing != nil}
+              subscribing={@subscribing == dom_id}
+              error={@row_errors[dom_id]}
+            >
+              <span>{ngettext("1 programme", "%{count} programmes", series.count)}</span>
+              <span>{gettext("newest %{date}", date: date(series.newest))}</span>
+            </.source_row>
+          </div>
+        </div>
+        <div
+          id="panel-programmes"
+          role="tabpanel"
+          aria-labelledby="tab-programmes"
+          class={[@tab != :programmes && "hidden"]}
+        >
+          <p class="mt-3 text-meta text-muted">
+            {gettext(
+              "Films and programmes via MediathekViewWeb, from the German public broadcasters. A programme is added on its own."
+            )}
+          </p>
+          <.search_state
+            id="programmes"
+            state={@programmes_state}
+            count={map_size(@programmes)}
+            searching={gettext("Searching the Mediathek…")}
+            empty={gettext("No programmes found in the Mediathek.")}
+            failed={gettext("The Mediathek search is unavailable right now. Try again later.")}
+          />
+          <div id="programmes" phx-update="stream" class={list_class()}>
+            <.item_row
+              :for={{dom_id, programme} <- @streams.programmes}
+              id={dom_id}
+              list="programmes"
+              key={programme.key}
+              title={programme.title}
+              origin={[programme.channel, programme.topic]}
+              published_at={programme.published_at}
+              duration={programme.duration}
+              description={programme.description}
+              picture={source_picture(%{kind: :mediathek})}
+              page_url={programme.page_url}
+              more={@more == dom_id}
+              save="save_programme"
+              subscribe_label={gettext("Subscribe to %{series}", series: programme.series_title)}
+              subscribing={@subscribing}
+              error={@row_errors[dom_id]}
+            />
+          </div>
         </div>
         <p class="mt-10 text-center text-label text-muted">
           {gettext("Coming from another app?")}
@@ -679,6 +849,185 @@ defmodule SikioWeb.AddSourceLive do
         </p>
       </div>
     </Layouts.member>
+    """
+  end
+
+  attr :tab, :string, required: true
+  attr :selected, :boolean, required: true
+  attr :label, :string, required: true
+  attr :count, :any, required: true
+
+  defp search_tab(assigns) do
+    ~H"""
+    <button
+      id={"tab-" <> @tab}
+      type="button"
+      role="tab"
+      aria-selected={to_string(@selected)}
+      aria-controls={"panel-" <> @tab}
+      phx-click="tab"
+      phx-value-tab={@tab}
+      class={[
+        "-mb-px flex items-center gap-2 border-b-2 px-3 py-2 text-label font-semibold",
+        if(@selected, do: "border-ink text-ink", else: "border-transparent text-muted hover:text-ink")
+      ]}
+    >
+      {@label}
+      <span class="rounded-full bg-ground px-2 font-mono text-meta font-normal">{@count}</span>
+    </button>
+    """
+  end
+
+  # A result list. Shown only with a row: after live navigation an empty stream holds
+  # whitespace, which `:empty` would count as content.
+  defp list_class,
+    do:
+      "mt-3 hidden divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line has-[article]:block"
+
+  # One source to subscribe to. The inner block holds its details.
+  attr :id, :string, required: true
+  attr :picture, :string, required: true
+  attr :title, :string, required: true
+  attr :action, :map, required: true, doc: "the button's click event and values"
+  attr :disabled, :boolean, required: true
+  attr :subscribing, :boolean, required: true
+  attr :error, :string, default: nil
+  slot :inner_block, required: true
+
+  defp source_row(assigns) do
+    ~H"""
+    <article id={@id} class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap">
+      <img src={@picture} alt="" class="size-12 shrink-0 rounded-md bg-line object-cover" />
+      <div class="min-w-0 flex-1">
+        <h3 class="truncate text-body font-semibold">{@title}</h3>
+        <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
+          {render_slot(@inner_block)}
+        </p>
+      </div>
+      <.button data-action="subscribe" disabled={@disabled} {@action}>
+        {if @subscribing, do: gettext("Subscribing…"), else: gettext("Subscribe")}
+      </.button>
+      <p :if={@error} role="alert" class="w-full text-label text-danger">{@error}</p>
+    </article>
+    """
+  end
+
+  # The loading, empty and failed lines of one search.
+  attr :id, :string, required: true
+  attr :state, :atom, required: true
+  attr :count, :integer, required: true
+  attr :searching, :string, required: true
+  attr :empty, :string, required: true
+  attr :failed, :string, required: true
+
+  defp search_state(assigns) do
+    ~H"""
+    <p :if={@state == :searching} id={@id <> "-loading"} class="mt-3 text-label text-muted">
+      {@searching}
+    </p>
+    <p :if={@state == :done and @count == 0} id={"no-" <> @id} class="mt-3 text-muted">{@empty}</p>
+    <p :if={@state == :failed} id={@id <> "-error"} role="alert" class="mt-3 text-label text-danger">
+      {@failed}
+    </p>
+    """
+  end
+
+  # One episode or programme with its actions in view. A long description shows two lines until
+  # “more” is pressed.
+  attr :id, :string, required: true
+  attr :list, :string, required: true, doc: "the results' name in `@subscribable`"
+  attr :key, :string, required: true
+  attr :title, :string, required: true
+  attr :origin, :list, required: true
+  attr :published_at, :any, default: nil
+  attr :duration, :integer, default: nil
+  attr :description, :string, default: nil
+  attr :picture, :string, required: true
+  attr :page_url, :string, default: nil
+  attr :more, :boolean, required: true
+  attr :save, :string, required: true
+  attr :saving, :boolean, default: false
+  attr :subscribe_label, :string, required: true
+  attr :subscribing, :string, default: nil
+  attr :error, :string, default: nil
+
+  defp item_row(assigns) do
+    ~H"""
+    <article id={@id} class="flex items-start gap-x-4 px-4 py-3">
+      <img src={@picture} alt="" class="size-12 shrink-0 rounded-md bg-line object-cover" />
+      <div class="flex min-w-0 flex-1 flex-col gap-2">
+        <div class="min-w-0">
+          <h3 class="text-body font-semibold">{@title}</h3>
+          <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
+            <span :for={part <- @origin} :if={part not in [nil, ""]} class="min-w-0 truncate">
+              {part}
+            </span>
+            <span :if={@published_at}>{date(@published_at)}</span>
+            <span :if={@duration} class="font-mono">{runtime(@duration)}</span>
+          </p>
+        </div>
+        <%!-- The text sits flush in the tag, because `whitespace-pre-line` would show the
+        template's line breaks. --%>
+        <p
+          :if={@description}
+          data-description
+          class={["text-meta whitespace-pre-line text-ink", !@more && "line-clamp-2"]}
+          phx-no-format
+        >{@description}</p>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-label">
+          <button
+            :if={@description && String.length(@description) > 120}
+            type="button"
+            data-more
+            phx-click="more"
+            phx-value-row={@id}
+            aria-expanded={to_string(@more)}
+            class="font-semibold text-link"
+          >
+            {if @more, do: gettext("less"), else: gettext("more")}
+          </button>
+          <a
+            :if={@page_url}
+            href={@page_url}
+            target="_blank"
+            rel="noopener"
+            class="font-semibold text-link"
+          >
+            {gettext("Open in the Mediathek")}
+          </a>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <.button
+            data-action="queue"
+            phx-click={@save}
+            phx-value-key={@key}
+            phx-value-at="queue"
+            disabled={@saving}
+          >
+            {gettext("Add to queue")}
+          </.button>
+          <.button
+            data-action="inbox"
+            phx-click={@save}
+            phx-value-key={@key}
+            phx-value-at="inbox"
+            disabled={@saving}
+          >
+            {gettext("Add to inbox")}
+          </.button>
+          <.button
+            data-action="subscribe"
+            phx-click="subscribe"
+            phx-value-list={@list}
+            phx-value-key={@key}
+            disabled={@subscribing != nil}
+          >
+            {if @subscribing == @id, do: gettext("Subscribing…"), else: @subscribe_label}
+          </.button>
+        </div>
+        <p :if={@error} role="alert" class="text-label text-danger">{@error}</p>
+      </div>
+    </article>
     """
   end
 end

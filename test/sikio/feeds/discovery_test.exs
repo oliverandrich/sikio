@@ -684,7 +684,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
               hit("Die Erfindung des Rades (klare Sprache)"),
               hit("Die Erfindung des Rades (mit Gebärdensprache)"),
               hit("Trailer: Die Erfindung des Rades"),
-              hit("Ohne HD", %{url_video_hd: ""}),
+              hit("Ohne HD", %{url_video_hd: "", description: 7}),
               # Media from plain http breaks the content security policy.
               hit("Nur http", %{url_video_hd: "", url_video: "http://wdr.example/v.mp4"}),
               # A broken timestamp drops its programme, not the search.
@@ -710,6 +710,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
              }
 
       assert without_hd.media_url == "https://wdr.example/v.mp4", "HD first, else the default"
+      assert without_hd.description == nil
     end
 
     # A programme is saved like a single YouTube video. Its source is the search for its topic
@@ -800,6 +801,74 @@ defmodule Sikio.Feeds.DiscoveryTest do
       assert Discovery.mediathek_search(" x ", "https://mediathek.example") ==
                {:error, :invalid_search}
     end
+  end
+
+  # Apple also finds single episodes. Each names its podcast's feed and its guid there.
+  test "Apple's episode search returns episodes with their podcast's feed" do
+    Req.Test.stub(HTTP, fn conn ->
+      params = URI.decode_query(conn.query_string)
+      assert %{"entity" => "podcastEpisode", "term" => "tatort", "limit" => "20"} = params
+
+      Req.Test.json(conn, %{
+        results: [
+          %{
+            trackName: "Einer von uns",
+            collectionName: "ARD Radio Tatort",
+            feedUrl: "https://feeds.example.org/tatort.xml",
+            episodeGuid: "guid-1",
+            releaseDate: "2026-09-17T22:01:00Z",
+            trackTimeMillis: 3_223_000,
+            description: "Ein tödlicher Schusswechsel.",
+            artworkUrl160: "https://img.example/160.jpg"
+          },
+          %{trackName: "Without a feed", episodeGuid: "guid-2"},
+          # Apple passes the guid and description as the feed writes them.
+          %{
+            trackName: "Odd",
+            feedUrl: "https://feeds.example.org/odd.xml",
+            episodeGuid: " guid-3\n",
+            description: 42
+          },
+          %{
+            trackName: "Long",
+            feedUrl: "https://feeds.example.org/long.xml",
+            episodeGuid: String.duplicate("g", 2001),
+            description: String.duplicate("d", 3000)
+          }
+        ]
+      })
+    end)
+
+    assert {:ok, [episode, odd, long]} = Discovery.episode_search("tatort")
+
+    assert episode == %{
+             id: "guid-1",
+             title: "Einer von uns",
+             podcast: "ARD Radio Tatort",
+             feed_url: "https://feeds.example.org/tatort.xml",
+             icon_url: "https://img.example/160.jpg",
+             published_at: ~U[2026-09-17 22:01:00Z],
+             duration: 3223,
+             description: "Ein tödlicher Schusswechsel."
+           }
+
+    # The guid matches the feed's entry as the parser stores it.
+    assert %{id: "guid-3", description: nil} = odd
+    assert "sha256:" <> _ = long.id
+    assert String.length(long.description) == 2000
+  end
+
+  # Saving an episode reads its podcast's feed, so the entry is the feed's own.
+  test "an episode found by the search becomes the preview of its podcast" do
+    id = "episode-1"
+
+    Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 200, podcast()))
+
+    assert {:ok, %{preview: %{kind: :podcast}, external_id: ^id}} =
+             Discovery.episode_item(%{feed_url: "https://feeds.example.org/p.xml", id: id})
+
+    assert {:error, :not_found} =
+             Discovery.episode_item(%{feed_url: "https://feeds.example.org/p.xml", id: "gone"})
   end
 
   test "Apple show links resolve through lookup, not HTML scraping" do

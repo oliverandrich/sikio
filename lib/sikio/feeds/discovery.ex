@@ -62,20 +62,18 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   def search(term) when is_binary(term) do
-    term = String.trim(term)
-
-    if String.length(term) in 2..120 do
-      case directory(term) do
-        {:ok, results} ->
-          {:ok,
-           results |> Enum.flat_map(&search_result/1) |> Enum.uniq_by(& &1.url) |> Enum.take(20)}
-
-        {:error, :unavailable} ->
-          {:error, :directory_unavailable}
-      end
+    with {:ok, term} <- search_term(term),
+         {:ok, results} <- directory(term) do
+      {:ok, results |> Enum.flat_map(&search_result/1) |> Enum.uniq_by(& &1.url) |> Enum.take(20)}
     else
-      {:error, :invalid_search}
+      {:error, :invalid_search} -> {:error, :invalid_search}
+      {:error, :unavailable} -> {:error, :directory_unavailable}
     end
+  end
+
+  defp search_term(term) do
+    term = String.trim(term)
+    if String.length(term) in 2..120, do: {:ok, term}, else: {:error, :invalid_search}
   end
 
   @mediathek_public "https://mediathekviewweb.de"
@@ -88,9 +86,7 @@ defmodule Sikio.Feeds.Discovery do
   HD file where the broadcaster offers one. `base` is the instance; see `mediathek_url/0`.
   """
   def mediathek_search(term, base \\ mediathek_url()) when is_binary(term) do
-    term = String.trim(term)
-
-    with true <- String.length(term) in 2..120 || {:error, :invalid_search},
+    with {:ok, term} <- search_term(term),
          {:ok, %{status: 200, body: body}} <-
            HTTP.post_json(base <> "/api/query", mediathek_query(term), max_bytes: 2_000_000),
          {:ok, %{"result" => %{"results" => results}}} when is_list(results) <- Jason.decode(body) do
@@ -191,7 +187,7 @@ defmodule Sikio.Feeds.Discovery do
           title: String.slice(title, 0, 512),
           channel: to_string(hit["channel"] || ""),
           topic: to_string(hit["topic"] || ""),
-          description: hit["description"],
+          description: blurb(hit["description"]),
           published_at: published_at,
           duration: if(is_integer(hit["duration"]), do: hit["duration"]),
           media_url: url,
@@ -205,6 +201,10 @@ defmodule Sikio.Feeds.Discovery do
 
   defp programme(_hit), do: []
 
+  # A search result's description is kept in the page's state, so it is capped.
+  defp blurb(text) when is_binary(text), do: text |> String.trim() |> String.slice(0, 2000)
+  defp blurb(_text), do: nil
+
   # The content security policy admits media from HTTPS only.
   defp video_file(hit), do: https_url(hit["url_video_hd"]) || https_url(hit["url_video"])
 
@@ -216,6 +216,55 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   defp safe_url(url), do: HTTP.resolve(url, @mediathek_public)
+
+  @doc """
+  Searches Apple's directory for single podcast episodes.
+
+  Each names its podcast's feed and its guid there, so `episode_item/1` finds it in the feed.
+  """
+  def episode_search(term) when is_binary(term) do
+    with {:ok, term} <- search_term(term),
+         {:ok, results} <- directory(term, "podcastEpisode") do
+      {:ok, results |> Enum.flat_map(&episode/1) |> Enum.take(20)}
+    else
+      {:error, :invalid_search} -> {:error, :invalid_search}
+      _ -> {:error, :directory_unavailable}
+    end
+  end
+
+  defp episode(%{"trackName" => title, "episodeGuid" => id, "feedUrl" => feed} = hit)
+       when is_binary(title) and is_binary(id) and is_binary(feed) do
+    case HTTP.normalize(feed) do
+      {:ok, uri} ->
+        [
+          %{
+            id: Parser.external_id(id),
+            title: String.slice(title, 0, 512),
+            podcast: to_string(hit["collectionName"] || ""),
+            feed_url: URI.to_string(uri),
+            icon_url: directory_picture(hit["artworkUrl160"]),
+            published_at: iso_date(hit["releaseDate"]),
+            duration:
+              if(is_integer(hit["trackTimeMillis"]), do: div(hit["trackTimeMillis"], 1000)),
+            description: blurb(hit["description"])
+          }
+        ]
+
+      _ ->
+        []
+    end
+  end
+
+  defp episode(_hit), do: []
+
+  @doc """
+  Turns an episode from `episode_search/1` into an item preview, as `item/1` returns one.
+
+  It fetches the podcast's feed. The episode is the entry with the guid Apple names.
+  """
+  def episode_item(%{feed_url: url, id: id}) do
+    with {:ok, feed} <- fetch(url), do: held(feed, id)
+  end
 
   @doc """
   Returns the artwork Apple's directory lists for a podcast feed.
@@ -250,12 +299,12 @@ defmodule Sikio.Feeds.Discovery do
 
   defp same_feed?(_result, _feed), do: false
 
-  defp directory(term) do
+  defp directory(term, entity \\ "podcast") do
     query =
       URI.encode_query(%{
         term: term,
         media: "podcast",
-        entity: "podcast",
+        entity: entity,
         country: "DE",
         limit: 20
       })
