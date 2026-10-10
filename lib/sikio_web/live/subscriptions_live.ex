@@ -8,13 +8,12 @@ defmodule SikioWeb.SubscriptionsLive do
   use SikioWeb, :live_view
 
   import SikioWeb.MediaComponents,
-    only: [kind_mark: 1, initial: 1, refresh_problem: 1, source_label: 1, source_name: 1]
+    only: [initial: 1, refresh_problem: 1, source_label: 1, source_name: 1, source_picture: 1]
 
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.Hub
   alias Sikio.Library
   alias SikioWeb.LibraryPaths
-  alias SikioWeb.Pictures
   alias SikioWeb.Sidebar
   alias SikioWeb.SubscriptionSettings
 
@@ -138,7 +137,7 @@ defmodule SikioWeb.SubscriptionsLive do
             >
               <img
                 :if={subscription.feed.icon_url}
-                src={Pictures.path([subscription.feed.icon_url], kind_mark(subscription.feed))}
+                src={source_picture(subscription.feed)}
                 alt=""
                 class="size-full object-cover"
               />

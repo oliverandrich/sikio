@@ -10,7 +10,6 @@ defmodule SikioWeb.LibraryComponents do
   import SikioWeb.MediaComponents
 
   alias Sikio.Playback
-  alias SikioWeb.Pictures
 
   @doc "Returns a list row's DOM id, which is also its comprehension key."
   def row_id({:heading, {year, month}, _label}), do: "group-#{year}-#{month}"
@@ -503,7 +502,7 @@ defmodule SikioWeb.LibraryComponents do
         >
           <img
             :if={@entry.feed.icon_url}
-            src={Pictures.path([@entry.feed.icon_url], kind_mark(@entry.feed))}
+            src={source_picture(@entry.feed)}
             alt=""
             class="size-full object-cover"
           />

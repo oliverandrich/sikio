@@ -94,8 +94,8 @@ defmodule Sikio.Feeds.Discovery do
          {:ok, results} <- directory(term),
          %{"artworkUrl600" => artwork} <-
            Enum.find(results, &same_feed?(&1, URI.to_string(feed))),
-         {:ok, uri} <- HTTP.normalize(artwork) do
-      {:ok, URI.to_string(uri)}
+         url when is_binary(url) <- directory_picture(artwork) do
+      {:ok, url}
     else
       {:error, :unavailable} -> {:error, :unavailable}
       _ -> {:error, :not_found}
@@ -829,7 +829,9 @@ defmodule Sikio.Feeds.Discovery do
           %{
             url: URI.to_string(uri),
             title: String.slice(title, 0, 512),
-            author: to_string(hit["artistName"] || "")
+            author: to_string(hit["artistName"] || ""),
+            # The 100 px cover fills a 48 px row at twice the pixel density.
+            icon_url: directory_picture(hit["artworkUrl100"])
           }
         ]
 
@@ -839,4 +841,7 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   defp search_result(_), do: []
+
+  # A picture URL from Apple's directory, or nil for a missing or unsafe one.
+  defp directory_picture(url), do: HTTP.resolve(url, "https://itunes.apple.com")
 end

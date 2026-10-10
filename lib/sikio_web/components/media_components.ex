@@ -75,6 +75,10 @@ defmodule SikioWeb.MediaComponents do
   def artwork(entry),
     do: SikioWeb.Pictures.path(Sikio.Pictures.candidates(entry), kind_mark(entry))
 
+  @doc "Returns the path of a source's artwork, or of its kind's placeholder."
+  def source_picture(source),
+    do: SikioWeb.Pictures.path(List.wrap(Map.get(source, :icon_url)), kind_mark(source))
+
   @doc "Returns the placeholder image path for an entry or feed without artwork."
   def kind_mark(%{feed: feed}), do: kind_mark(feed)
   def kind_mark(%{kind: kind}) when kind in [:youtube, :peertube], do: ~p"/images/kind-video.svg"

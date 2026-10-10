@@ -15,6 +15,7 @@ defmodule SikioWeb.AddSourceLiveTest do
   alias Sikio.Library
   alias Sikio.Playback
   alias Sikio.Repo
+  alias SikioWeb.Pictures
 
   setup %{conn: conn} do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
@@ -58,6 +59,9 @@ defmodule SikioWeb.AddSourceLiveTest do
     view |> form("#add-form", %{q: feed_url()}) |> render_submit()
     render_async(view)
     assert has_element?(view, "#source-0", "Small Hours")
+    # The feed's artwork, through Sikio's picture proxy.
+    src = Pictures.path(["https://img.example.org/show.jpg"], ~p"/images/kind-audio.svg")
+    assert has_element?(view, ~s|#source-0 img[src="#{src}"]|)
     assert Library.subscriptions(user) == []
 
     result = view |> element("#source-0 button", "Subscribe") |> render_click()
@@ -103,7 +107,12 @@ defmodule SikioWeb.AddSourceLiveTest do
         "/search" ->
           Req.Test.json(conn, %{
             results: [
-              %{collectionName: "Small Hours", artistName: "Ada", feedUrl: feed_url()},
+              %{
+                collectionName: "Small Hours",
+                artistName: "Ada",
+                feedUrl: feed_url(),
+                artworkUrl100: "https://img.example/small-hours.jpg"
+              },
               %{collectionName: "Other Show", artistName: "Bo", feedUrl: feed_url()}
             ]
           })
@@ -123,6 +132,14 @@ defmodule SikioWeb.AddSourceLiveTest do
     render_async(view)
     assert has_element?(view, "#results-heading", "Apple Podcasts")
     assert has_element?(view, "#source-0", "Ada")
+    src = Pictures.path(["https://img.example/small-hours.jpg"], ~p"/images/kind-audio.svg")
+    assert has_element?(view, ~s|#source-0 img[src="#{src}"]|)
+    # A result without a cover shows the placeholder.
+    assert has_element?(
+             view,
+             ~s|#source-1 img[src="#{Pictures.path([], ~p"/images/kind-audio.svg")}"]|
+           )
+
     refute has_element?(view, "#source-0 button", "Preview")
 
     view |> element("#source-0 button", "Subscribe") |> render_click()
@@ -301,6 +318,16 @@ defmodule SikioWeb.AddSourceLiveTest do
       end)
     end
 
+    defp picture(view, selector) do
+      [src] =
+        view
+        |> element(selector)
+        |> render()
+        |> then(&Regex.run(~r|src="/pictures/([^"]+)"|, &1, capture: :all_but_first))
+
+      Pictures.verify(src)
+    end
+
     defp find(view, url) do
       view |> form("#add-form", %{q: url}) |> render_submit()
       render_async(view)
@@ -314,6 +341,14 @@ defmodule SikioWeb.AddSourceLiveTest do
       find(view, "https://youtu.be/abcdefghijk")
 
       assert has_element?(view, "#single-item", "A good video")
+      # The video's own thumbnail comes first, the channel's picture after it.
+      assert {:ok,
+              {["https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg" | _],
+               "/images/kind-video.svg"}} =
+               picture(view, "#single-item img")
+
+      assert {:ok, {[_channel], "/images/kind-video.svg"}} = picture(view, "#source-0 img")
+      assert has_element?(view, "#single-item img.aspect-video")
       assert has_element?(view, ~s|#single-item input[name="at"][value="queue"][checked]|)
       assert has_element?(view, "#source-0", "Good Channel")
 

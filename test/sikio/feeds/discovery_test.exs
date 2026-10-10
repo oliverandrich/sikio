@@ -576,16 +576,32 @@ defmodule Sikio.Feeds.DiscoveryTest do
             collectionId: 1,
             collectionName: "First",
             artistName: "Ada",
-            feedUrl: "https://example.org/rss"
+            feedUrl: "https://example.org/rss",
+            artworkUrl100: "https://img.example/first-100.jpg"
           },
           %{collectionId: 2, collectionName: "No feed"},
+          %{collectionName: "No cover", feedUrl: "https://example.org/bare"},
+          %{
+            collectionName: "Odd cover",
+            feedUrl: "https://example.org/odd",
+            artworkUrl100: "file:///etc/passwd"
+          },
           %{collectionId: 3, collectionName: "Unsafe", feedUrl: "file:///etc/passwd"}
         ]
       })
     end)
 
-    assert {:ok, [%{title: "First", author: "Ada", url: "https://example.org/rss"}]} =
-             Discovery.search("a & b")
+    assert {:ok,
+            [
+              %{
+                title: "First",
+                author: "Ada",
+                url: "https://example.org/rss",
+                icon_url: "https://img.example/first-100.jpg"
+              },
+              %{title: "No cover", icon_url: nil},
+              %{title: "Odd cover", icon_url: nil}
+            ]} = Discovery.search("a & b")
   end
 
   # The directory searches by title. Only the show with the same feed URL lends its artwork, so

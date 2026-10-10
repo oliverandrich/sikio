@@ -16,7 +16,7 @@ defmodule SikioWeb.AddSourceLive do
   """
   use SikioWeb, :live_view
 
-  import SikioWeb.MediaComponents, only: [source_name: 1]
+  import SikioWeb.MediaComponents, only: [artwork: 1, source_name: 1, source_picture: 1]
 
   alias Sikio.Feeds.Discovery
   alias Sikio.Library
@@ -426,11 +426,23 @@ defmodule SikioWeb.AddSourceLive do
           aria-labelledby="single-item-title"
           class="mt-6 rounded-xl bg-surface px-4 py-3 ring-1 ring-line"
         >
-          <p class="text-meta font-semibold text-muted">{gettext("Only this item")}</p>
-          <h3 id="single-item-title" class="mt-0.5 text-body font-semibold">
-            {@item.entry.title}
-          </h3>
-          <p class="text-meta text-muted">{@item.preview.title}</p>
+          <div class="flex items-start gap-3">
+            <img
+              src={artwork(Map.put(@item.entry, :feed, @item.preview))}
+              alt=""
+              class={[
+                "shrink-0 rounded-md bg-line object-cover",
+                if(@item.preview.kind == :podcast, do: "size-14", else: "aspect-video w-24")
+              ]}
+            />
+            <div class="min-w-0">
+              <p class="text-meta font-semibold text-muted">{gettext("Only this item")}</p>
+              <h3 id="single-item-title" class="mt-0.5 text-body font-semibold">
+                {@item.entry.title}
+              </h3>
+              <p class="text-meta text-muted">{@item.preview.title}</p>
+            </div>
+          </div>
           <.form
             for={%{}}
             id="single-item-form"
@@ -487,6 +499,11 @@ defmodule SikioWeb.AddSourceLive do
             id={dom_id}
             class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:flex-nowrap"
           >
+            <img
+              src={source_picture(source)}
+              alt=""
+              class="size-12 shrink-0 rounded-md bg-line object-cover"
+            />
             <div class="min-w-0 flex-1">
               <h3 class="truncate text-body font-semibold">{source.title}</h3>
               <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
