@@ -20,13 +20,20 @@ defmodule SikioWeb.MediaComponents do
   def source_name(%{source_name: name}) when is_binary(name), do: name
   def source_name(%{feed: feed}), do: feed.title
 
-  @doc "Returns true for YouTube and PeerTube entries."
-  def video?(%{feed: %{kind: kind}}), do: kind in [:youtube, :peertube]
+  @video_kinds [:youtube, :peertube, :mediathek]
+  @native_video_kinds [:peertube, :mediathek]
+
+  @doc "Returns true for YouTube, PeerTube and Mediathek entries."
+  def video?(%{feed: %{kind: kind}}), do: kind in @video_kinds
+
+  @doc "Returns true for a source whose videos play in Sikio's own player, not an embed."
+  def native_video?(%{kind: kind}), do: kind in @native_video_kinds
 
   @doc "Returns the translated label for a source's kind."
   def source_label(%{kind: :youtube}), do: gettext("YouTube")
   def source_label(%{kind: :peertube}), do: gettext("PeerTube")
   def source_label(%{kind: :podcast}), do: gettext("Podcast")
+  def source_label(%{kind: :mediathek}), do: gettext("Mediathek")
 
   def status(%{playback: nil}), do: :new
   def status(%{playback: state}), do: state.status
@@ -81,7 +88,9 @@ defmodule SikioWeb.MediaComponents do
 
   @doc "Returns the placeholder image path for an entry or feed without artwork."
   def kind_mark(%{feed: feed}), do: kind_mark(feed)
-  def kind_mark(%{kind: kind}) when kind in [:youtube, :peertube], do: ~p"/images/kind-video.svg"
+
+  def kind_mark(%{kind: kind}) when kind in @video_kinds, do: ~p"/images/kind-video.svg"
+
   def kind_mark(_source), do: ~p"/images/kind-audio.svg"
 
   @doc "Returns the uppercased first letter of a name, shown where no image is available."
@@ -90,6 +99,7 @@ defmodule SikioWeb.MediaComponents do
   @doc "Returns the medium label for a list row. Platform names are not translated."
   def medium_label(%{feed: %{kind: :youtube}}), do: "YouTube"
   def medium_label(%{feed: %{kind: :peertube}}), do: "PeerTube"
+  def medium_label(%{feed: %{kind: :mediathek}}), do: gettext("Mediathek")
   def medium_label(_entry), do: gettext("Podcast")
 
   @doc """
@@ -107,6 +117,7 @@ defmodule SikioWeb.MediaComponents do
 
   defp original_label(%{feed: %{kind: :youtube}}), do: gettext("Open on YouTube")
   defp original_label(%{feed: %{kind: :peertube}}), do: gettext("Open on PeerTube")
+  defp original_label(%{feed: %{kind: :mediathek}}), do: gettext("Open in the Mediathek")
   defp original_label(_entry), do: gettext("Open episode page")
 
   def timestamp(seconds) do

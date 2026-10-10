@@ -9,7 +9,7 @@ defmodule Sikio.Feeds.Feed do
   schema "feeds" do
     field :url, :string
     field :title, :string
-    field :kind, Ecto.Enum, values: [:youtube, :podcast, :peertube]
+    field :kind, Ecto.Enum, values: [:youtube, :podcast, :peertube, :mediathek]
     field :icon_url, :string
     field :page_url, :string
     field :etag, :string

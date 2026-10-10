@@ -8,8 +8,8 @@ have usernames and invitation links are shared by hand. In email mode, links are
 
 **Add** is the button below the wordmark, or the plus button on a phone. Its input field
 accepts a URL or a search term. Input with `://`, or a single word with a dot such as
-`radiolab.org`, is treated as a URL. Other input is an Apple Podcasts search. If a guessed URL
-fails, the page offers an Apple Podcasts search for the same input. You can:
+`radiolab.org`, is treated as a URL. Other input searches Apple Podcasts and the Mediathek. If a
+guessed URL fails, the page offers a search for the same input. You can:
 
 - Paste a YouTube channel URL, handle, video URL, Shorts URL or live URL. Sikio resolves the
   channel and shows a preview of its feed before you subscribe.
@@ -18,6 +18,11 @@ fails, the page offers an Apple Podcasts search for the same input. You can:
   for example the MP3 or the Opus version of a show.
 - Search Apple Podcasts by show name, or paste an Apple Podcasts URL. Subscribing to a search
   result takes one click. Sikio fetches and validates the show's RSS feed first.
+- Find films and programmes of the German public broadcasters. The same search asks
+  [MediathekViewWeb](https://mediathekviewweb.de) for title and topic. **Choose** adds one programme to the queue or the inbox,
+  without a subscription. It plays the broadcaster's HD file in Sikio's player. Versions with
+  audio description, plain language or sign language and trailers are left out. A programme
+  disappears when the broadcaster removes it from its media library.
 
 Subscribing imports the current episodes and opens the new source. A podcast whose feed carries
 no artwork takes its cover from Apple Podcasts, if Apple lists the same feed. Its episodes show

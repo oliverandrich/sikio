@@ -8,6 +8,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
   alias Sikio.FeedFixtures
+  alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Playback
@@ -410,6 +411,28 @@ defmodule SikioWeb.PlayerDockLiveTest do
         {"application/json",
          Jason.encode!(%{streamingPlaylists: [%{playlistUrl: @playlist}], files: audio})}
     })
+  end
+
+  # A Mediathek film names its file directly, so the player starts it without asking anyone.
+  test "a Mediathek film plays its file in the video player", %{conn: conn, user: user} do
+    programme = mediathek_programme()
+
+    %{preview: preview, external_id: id} = Discovery.mediathek_item(programme)
+    {:ok, entry} = Library.save(user, preview, id, :queue)
+    Req.Test.stub(Sikio.Feeds.HTTP, fn _conn -> flunk("the player asked a server") end)
+
+    {:ok, dock, _html} = live_isolated(conn, PlayerDockLive)
+    render_hook(dock, "start", %{"id" => entry.id})
+
+    assert has_element?(
+             dock,
+             ~s([phx-hook="MediaPlayer"][data-kind="mediathek"][data-src="#{programme.media_url}"] video[poster])
+           )
+
+    assert has_element?(dock, "[data-audio-face]")
+    # Some broadcasters offer an HLS playlist only. Other browsers than Safari need hls.js then.
+    assert has_element?(dock, ~s([phx-hook="MediaPlayer"][data-hls^="/vendor/hls.js/hls-"]))
+    refute has_element?(dock, "[data-views], [data-audio-only]")
   end
 
   # Audio and PeerTube get Sikio's controls. A YouTube video uses the embed's own controls.

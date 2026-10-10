@@ -42,11 +42,18 @@ defmodule Sikio.Feeds.HTTP do
   Posts `form` URL-encoded to `url` under the same address checks as `get/2`.
   A redirect is returned, not followed, so the form never reaches another destination.
   """
-  def post(url, form, opts \\ []) do
+  def post(url, form, opts \\ []),
+    do: send_body(url, URI.encode_query(form), "application/x-www-form-urlencoded", opts)
+
+  @doc "Posts `data` as JSON to `url`, as `post/3` posts a form."
+  def post_json(url, data, opts \\ []),
+    do: send_body(url, Jason.encode!(data), "application/json", opts)
+
+  defp send_body(url, body, type, opts) do
     opts =
       opts
-      |> Keyword.merge(method: "POST", body: URI.encode_query(form))
-      |> Keyword.update(:headers, [content_type()], &[content_type() | &1])
+      |> Keyword.merge(method: "POST", body: body)
+      |> Keyword.update(:headers, [{"content-type", type}], &[{"content-type", type} | &1])
 
     with {:ok, uri} <- normalize(url),
          {:ok, address} <- address(uri.host) do
@@ -55,8 +62,6 @@ defmodule Sikio.Feeds.HTTP do
   rescue
     _error in [ArgumentError, URI.Error] -> {:error, :unsafe_url}
   end
-
-  defp content_type, do: {"content-type", "application/x-www-form-urlencoded"}
 
   @doc """
   Parses a pasted URL into a URI this application may fetch.

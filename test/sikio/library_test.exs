@@ -560,6 +560,20 @@ defmodule Sikio.LibraryTest do
       assert (ctx.alice |> Library.counts() |> Library.tally(%{})).inbox == 1
     end
 
+    # A film from the Mediathek search has no feed to follow. It is saved on its own.
+    test "a Mediathek programme is saved to the queue", ctx do
+      programme = mediathek_programme()
+
+      %{preview: preview, external_id: id} =
+        Discovery.mediathek_item(programme)
+
+      assert {:ok, entry} = Library.save(ctx.alice, preview, id, :queue)
+      assert Playback.queue(ctx.alice) == [entry.id]
+
+      assert %{title: "Die Erfindung des Rades", feed: %{kind: :mediathek}} =
+               Library.entry(ctx.alice, entry.id)
+    end
+
     test "a saved entry can go to the end of the queue", ctx do
       {:ok, entry} = save(ctx, :queue)
       assert Playback.queue(ctx.alice) == [entry.id]

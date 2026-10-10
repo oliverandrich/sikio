@@ -160,6 +160,11 @@ function handle(session, action, handler) {
   try { session.setActionHandler(action, handler) } catch { /* unsupported action */ }
 }
 
+// The message for media that fails to load. PeerTube and the Mediathek play video.
+export function failure(kind, strings) {
+  return ["peertube", "mediathek"].includes(kind) ? strings.videoFailed : strings.audioFailed
+}
+
 // Safari does not paint a video element that a LiveView patch inserted.
 // Through hls.js it stays blank. With native HLS it turns blank once the tab was hidden.
 // A video element that this script creates paints in both cases.
@@ -265,7 +270,7 @@ export const MediaPlayer = {
       this.reporter.save(true, true)
       this.ended()
     })
-    const failed = this.el.dataset.kind === "peertube" ? this.strings.videoFailed : this.strings.audioFailed
+    const failed = failure(this.el.dataset.kind, this.strings)
     listen(media, "error", () => this.message(failed))
     // Custom controls for the media element; see assets/js/audio_face.mjs.
     const face = this.el.querySelector("[data-audio-face]")

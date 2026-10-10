@@ -12,6 +12,7 @@ defmodule SikioWeb.LibraryDetailTest do
   import Sikio.FeedFixtures
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
+  alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Playback
@@ -121,6 +122,25 @@ defmodule SikioWeb.LibraryDetailTest do
     {:ok, view, _} = live(c.conn, item_path(Enum.find(entries, &(&1.feed.kind == :youtube))))
     assert has_element?(view, "#player-slot button#start-playback img")
     refute has_element?(view, "#audio-cue")
+  end
+
+  # A Mediathek film shows Sikio's controls before play, as a PeerTube video does. Its page at
+  # the broadcaster opens from the menu.
+  test "the detail shows a Mediathek film's controls and its broadcaster's page", c do
+    programme = mediathek_programme()
+
+    %{preview: preview, external_id: id} = Discovery.mediathek_item(programme)
+    {:ok, entry} = Library.save(c.user, preview, id, :inbox)
+    {:ok, view, _} = live(c.conn, item_path(Library.entry(c.user, entry.id)))
+
+    assert has_element?(view, "#player-slot #video-cue #audio-cue #start-playback")
+    refute has_element?(view, "#audio-cue button[data-audio-only]")
+
+    assert has_element?(
+             view,
+             ~s|#open-original[href="#{programme.page_url}"]|,
+             "Open in the Mediathek"
+           )
   end
 
   # Each kind links its original page with a kind-specific label.

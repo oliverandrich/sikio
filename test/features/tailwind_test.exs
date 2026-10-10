@@ -201,4 +201,20 @@ defmodule SikioWeb.TailwindTest do
 
     session
   end
+
+  # The result lists carry a ring. Empty, they must take no space, or the ring draws a line.
+  # After live navigation an empty stream container holds whitespace, so `:empty` misses it.
+  feature "empty result lists on the add page draw nothing", %{session: session} do
+    signed_in(session, "ada")
+
+    session
+    |> resize_window(1280, 900)
+    |> open("/inbox")
+    |> click(css("#main-navigation a[href='/add'], header a[href='/add']", count: :any, at: 0))
+    |> assert_has(css("#add-form"))
+    |> execute_script(
+      "return ['sources', 'programmes'].map(id => getComputedStyle(document.getElementById(id)).display)",
+      fn displays -> assert displays == ["none", "none"] end
+    )
+  end
 end

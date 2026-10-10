@@ -53,6 +53,27 @@ case "TRUSTED_PROXIES" |> System.get_env("") |> String.trim() do
            end)
 end
 
+# The MediathekViewWeb instance the Mediathek search asks. The public one is the default.
+# See docs/operations.md.
+# Sikio fetches only from the default HTTPS port, without credentials in the address.
+case "MEDIATHEK_URL" |> System.get_env("") |> String.trim() |> String.trim_trailing("/") do
+  "" ->
+    :ok
+
+  url ->
+    case URI.new(url) do
+      {:ok, %URI{scheme: "https", host: host, port: 443, userinfo: nil, query: nil}}
+      when is_binary(host) and host != "" ->
+        config :sikio, :mediathek_url, url
+
+      _ ->
+        raise """
+        environment variable MEDIATHEK_URL is not an https URL on the default port: #{inspect(url)}
+        For example: MEDIATHEK_URL=https://mediathekviewweb.de
+        """
+    end
+end
+
 # How often a feed is asked, in minutes. The scheduler looks every five minutes, so that is the
 # shortest interval it can keep. See docs/operations.md.
 case "FEED_POLL_MINUTES" |> System.get_env("") |> String.trim() do

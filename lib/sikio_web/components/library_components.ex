@@ -652,10 +652,10 @@ defmodule SikioWeb.LibraryComponents do
             <span class="sr-only">{play_label(@entry)}</span>
           </span>
         </button>
-        <%!-- An episode and a PeerTube video render Sikio's controls inline. No media loads before
-        first use; see assets/js/audio_cue.mjs. A PeerTube video shows its poster above them, as
-        the dock's player does. --%>
-        <div :if={@entry.feed.kind == :peertube} id="video-cue">
+        <%!-- An episode, a PeerTube video and a Mediathek film render Sikio's controls inline. No
+        media loads before first use; see assets/js/audio_cue.mjs. A video shows its poster above
+        them, as the dock's player does. --%>
+        <div :if={native_video?(@entry.feed)} id="video-cue">
           <img
             src={artwork(@entry)}
             alt=""

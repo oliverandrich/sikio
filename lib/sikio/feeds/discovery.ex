@@ -78,6 +78,142 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  @mediathek_public "https://mediathekviewweb.de"
+
+  @doc """
+  Searches the German public broadcasters' media libraries through MediathekViewWeb.
+
+  Matches title and topic, newest first, at most 20 programmes. Variants of one programme are
+  left out: audio description, plain language, sign language and trailers. The video is the
+  HD file where the broadcaster offers one. `base` is the instance; see `mediathek_url/0`.
+  """
+  def mediathek_search(term, base \\ mediathek_url()) when is_binary(term) do
+    term = String.trim(term)
+
+    with true <- String.length(term) in 2..120 || {:error, :invalid_search},
+         {:ok, %{status: 200, body: body}} <-
+           HTTP.post_json(base <> "/api/query", mediathek_query(term), max_bytes: 2_000_000),
+         {:ok, %{"result" => %{"results" => results}}} when is_list(results) <- Jason.decode(body) do
+      {:ok,
+       results
+       |> Enum.reject(&variant?/1)
+       |> Enum.flat_map(&programme/1)
+       |> Enum.take(20)}
+    else
+      {:error, :invalid_search} -> {:error, :invalid_search}
+      _ -> {:error, :mediathek_unavailable}
+    end
+  end
+
+  @doc """
+  Turns a programme from `mediathek_search/2` into an item preview, as `item/1` returns one.
+
+  The source is the search for the programme's topic on its channel, as MediathekViewWeb's RSS
+  address. Saving a single programme does not poll it. The public instance names the source, so
+  a different `MEDIATHEK_URL` leaves saved programmes with their source.
+  A programme without a topic belongs to its channel.
+  """
+  def mediathek_item(programme) do
+    {selector, title} =
+      case programme.topic do
+        "" -> {"!#{programme.channel}", programme.channel}
+        topic -> {"!#{programme.channel} ##{topic}", "#{topic} · #{programme.channel}"}
+      end
+
+    query = URI.encode_query(%{query: selector, everywhere: false, future: false})
+
+    entry = %{
+      external_id: programme.id,
+      title: programme.title,
+      media_url: programme.media_url,
+      audio_url: nil,
+      video_id: nil,
+      embed_url: nil,
+      page_url: programme.page_url,
+      chapters: nil,
+      chapters_url: nil,
+      published_at: programme.published_at,
+      image_url: nil,
+      duration: programme.duration,
+      description: programme.description,
+      description_format: :text,
+      excerpt: nil,
+      short: false
+    }
+
+    preview = %{
+      url: @mediathek_public <> "/feed?" <> query,
+      title: String.slice(title, 0, 512),
+      kind: :mediathek,
+      icon_url: nil,
+      page_url: nil,
+      entries: [entry]
+    }
+
+    %{preview: preview, external_id: programme.id}
+  end
+
+  @doc "Returns the MediathekViewWeb instance, `MEDIATHEK_URL` or the public one."
+  def mediathek_url, do: Application.get_env(:sikio, :mediathek_url, @mediathek_public)
+
+  # One page per search, with no follow-up pages. Its maintainer asks for sparing use.
+  # Variants are fetched too, so 30 results leave enough programmes after the filter.
+  defp mediathek_query(term) do
+    %{
+      queries: [%{fields: ["title", "topic"], query: term}],
+      sortBy: "timestamp",
+      sortOrder: "desc",
+      future: false,
+      offset: 0,
+      size: 30
+    }
+  end
+
+  defp variant?(%{"title" => title}) when is_binary(title),
+    do:
+      Regex.match?(
+        ~r/Audiodeskription|Hörfassung|klare Sprache|Gebärdensprache|\bTrailer\b/i,
+        title
+      )
+
+  defp variant?(_result), do: true
+
+  defp programme(%{"id" => id, "title" => title, "timestamp" => at} = hit)
+       when is_binary(id) and is_binary(title) and is_integer(at) do
+    with url when is_binary(url) <- video_file(hit),
+         {:ok, published_at} <- DateTime.from_unix(at) do
+      [
+        %{
+          id: id,
+          title: String.slice(title, 0, 512),
+          channel: to_string(hit["channel"] || ""),
+          topic: to_string(hit["topic"] || ""),
+          description: hit["description"],
+          published_at: published_at,
+          duration: if(is_integer(hit["duration"]), do: hit["duration"]),
+          media_url: url,
+          page_url: safe_url(hit["url_website"])
+        }
+      ]
+    else
+      _ -> []
+    end
+  end
+
+  defp programme(_hit), do: []
+
+  # The content security policy admits media from HTTPS only.
+  defp video_file(hit), do: https_url(hit["url_video_hd"]) || https_url(hit["url_video"])
+
+  defp https_url(url) do
+    case safe_url(url) do
+      "https://" <> _ = url -> url
+      _ -> nil
+    end
+  end
+
+  defp safe_url(url), do: HTTP.resolve(url, @mediathek_public)
+
   @doc """
   Returns the artwork Apple's directory lists for a podcast feed.
 

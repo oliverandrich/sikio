@@ -16,12 +16,15 @@ and mark what you have watched or heard.
 ## What it does
 
 - Subscribes to podcasts, YouTube channels and PeerTube channels. One input field accepts a
-  feed URL, a website, a channel or video URL, or an Apple Podcasts search term.
+  feed URL, a website, a channel or video URL, or a search term for Apple Podcasts and the
+  German public broadcasters' media libraries.
+- Adds single films and programmes from those media libraries to the queue or the inbox. The
+  Mediathek search is powered by [MediathekViewWeb](https://mediathekviewweb.de).
 - Imports and exports subscriptions as OPML.
 - Keeps an inbox of new items, a queue in your own order, and a history of heard items.
   With **Play on**, the queue plays the next item when one ends.
-- Plays podcasts and PeerTube videos in its own player and YouTube videos in their official
-  embed. Playback continues while you navigate the library. Playback positions are saved, and
+- Plays podcasts, PeerTube videos and media library films in its own player and YouTube videos
+  in their official embed. Playback continues while you navigate the library. Playback positions are saved, and
   chapters are shown.
 - Follows every source through the public feed it publishes. Podcasts, YouTube channels and
   PeerTube channels all offer one. Sikio downloads no video or audio and needs no API key. A

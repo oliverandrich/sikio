@@ -2,7 +2,7 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {createReporter, MediaPlayer, playsHls, recreated} from "./media_player.mjs"
+import {createReporter, failure, MediaPlayer, playsHls, recreated} from "./media_player.mjs"
 
 // Messages the server renders into the element's dataset.
 // The tests assert on them, because users read them when playback stops.
@@ -443,6 +443,13 @@ test("a rendered video is replaced by a created copy with its attributes", () =>
   assert.equal(recreated(rendered), created)
   assert.equal(rendered.replacement, created)
   assert.deepEqual(created.attributes, {"data-src": "https://video.example.org/master.m3u8", playsinline: ""})
+})
+
+// A video that fails to load says so in video words. PeerTube and the Mediathek play video.
+test("a failed video says it is a video, a failed episode that it is audio", () => {
+  assert.equal(failure("peertube", STRINGS), STRINGS.videoFailed)
+  assert.equal(failure("mediathek", STRINGS), STRINGS.videoFailed)
+  assert.equal(failure("podcast", STRINGS), STRINGS.audioFailed)
 })
 
 // Chromium answers "maybe" for HLS but cannot play it. Only Apple's WebKit plays it itself.

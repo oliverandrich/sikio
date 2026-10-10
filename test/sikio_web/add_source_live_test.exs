@@ -153,6 +153,98 @@ defmodule SikioWeb.AddSourceLiveTest do
   end
 
   # The clear button empties the input and removes the results.
+  describe "the Mediathek" do
+    # An API result whose id and addresses no other test writes.
+    defp programme(title) do
+      n = Sikio.DataCase.unique()
+
+      %{
+        id: "id-#{n}",
+        channel: "WDR",
+        topic: "Tatort #{n}",
+        title: title,
+        description: "Fernsehfilm",
+        timestamp: 1_791_656_100,
+        duration: 5322,
+        url_website: "https://mediathek#{n}.example.org/video/abc",
+        url_video_hd: "https://wdr#{n}.example.org/v-hd.mp4"
+      }
+    end
+
+    # One search asks Apple and the Mediathek. A programme goes to the queue on its own.
+    test "a search finds programmes, and one goes to the queue", %{conn: conn, user: user} do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/search" ->
+            Req.Test.json(conn, %{
+              results: [%{collectionName: "Small Hours", feedUrl: feed_url()}]
+            })
+
+          "/api/query" ->
+            Req.Test.json(conn, %{
+              result: %{results: [programme("Die Erfindung des Rades"), programme("Spur")]}
+            })
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "tatort"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, "#source-0", "Small Hours")
+      assert has_element?(view, "#programmes-heading", "Mediathek")
+      assert has_element?(view, "#programme-0", "Die Erfindung des Rades")
+      assert has_element?(view, "#programme-0", "WDR")
+      assert has_element?(view, "#programme-1", "Spur")
+
+      view |> element("#programme-0 button") |> render_click()
+      assert_push_event(view, "focus", %{id: "single-item-title"})
+      assert has_element?(view, "#single-item", "Die Erfindung des Rades")
+      assert has_element?(view, "#single-item img.aspect-video")
+
+      result = view |> form("#single-item-form", %{at: "queue"}) |> render_submit()
+      assert {:error, {:live_redirect, %{to: "/queue/" <> _}}} = result
+      assert [id] = Playback.queue(user)
+      assert %{feed: %{kind: :mediathek}} = Library.entry(user, id)
+    end
+
+    # Each search reports on its own. Apple's results stay when the Mediathek fails.
+    test "an unreachable Mediathek leaves the podcasts", %{conn: conn} do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/search" ->
+            Req.Test.json(conn, %{
+              results: [%{collectionName: "Small Hours", feedUrl: feed_url()}]
+            })
+
+          "/api/query" ->
+            Plug.Conn.send_resp(conn, 503, "")
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "tatort"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, "#source-0", "Small Hours")
+      assert has_element?(view, "#programmes-error", "Mediathek")
+      refute has_element?(view, "#discovery-error")
+    end
+
+    # A pasted link is no search, so the Mediathek is not asked.
+    test "a pasted link asks no Mediathek", %{conn: conn} do
+      Req.Test.stub(HTTP, fn conn ->
+        refute conn.request_path == "/api/query"
+        Plug.Conn.send_resp(conn, 200, podcast())
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: feed_url()}) |> render_submit()
+      render_async(view)
+      refute has_element?(view, "#programmes-heading")
+    end
+  end
+
   test "the search is cleared with its results", %{conn: conn} do
     Req.Test.stub(HTTP, fn conn ->
       Req.Test.json(conn, %{

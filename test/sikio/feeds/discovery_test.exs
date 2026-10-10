@@ -645,6 +645,131 @@ defmodule Sikio.Feeds.DiscoveryTest do
              {:error, :not_found}
   end
 
+  describe "mediathek_search/2" do
+    defp hit(title, extra \\ %{}) do
+      Map.merge(
+        %{
+          id: "id-" <> title,
+          channel: "WDR",
+          topic: "Tatort",
+          title: title,
+          description: "Fernsehfilm Deutschland 2025",
+          timestamp: 1_791_656_100,
+          duration: 5322,
+          url_website: "https://www.ardmediathek.de/video/abc",
+          url_video: "https://wdr.example/v.mp4",
+          url_video_hd: "https://wdr.example/v-hd.mp4"
+        },
+        extra
+      )
+    end
+
+    # The newest programmes come first. Variants of one programme are left out: audio
+    # description, plain language, sign language and trailers.
+    test "returns programmes without their variants, newest first" do
+      Req.Test.stub(HTTP, fn conn ->
+        assert conn.method == "POST"
+        assert conn.request_path == "/api/query"
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        query = Jason.decode!(body)
+        assert [%{"fields" => ["title", "topic"], "query" => "tatort"}] = query["queries"]
+        assert %{"sortBy" => "timestamp", "sortOrder" => "desc", "future" => false} = query
+        assert %{"offset" => 0, "size" => 30} = query, "one modest page, as the maintainer asks"
+
+        Req.Test.json(conn, %{
+          result: %{
+            results: [
+              hit("Die Erfindung des Rades"),
+              hit("Die Erfindung des Rades (Audiodeskription)"),
+              hit("Die Erfindung des Rades (klare Sprache)"),
+              hit("Die Erfindung des Rades (mit Gebärdensprache)"),
+              hit("Trailer: Die Erfindung des Rades"),
+              hit("Ohne HD", %{url_video_hd: ""}),
+              # Media from plain http breaks the content security policy.
+              hit("Nur http", %{url_video_hd: "", url_video: "http://wdr.example/v.mp4"}),
+              # A broken timestamp drops its programme, not the search.
+              hit("Kaputte Zeit", %{timestamp: 999_999_999_999_999})
+            ]
+          }
+        })
+      end)
+
+      assert {:ok, [rades, without_hd]} =
+               Discovery.mediathek_search("tatort", "https://mediathek.example")
+
+      assert rades == %{
+               id: "id-Die Erfindung des Rades",
+               title: "Die Erfindung des Rades",
+               channel: "WDR",
+               topic: "Tatort",
+               description: "Fernsehfilm Deutschland 2025",
+               published_at: ~U[2026-10-10 18:15:00Z],
+               duration: 5322,
+               media_url: "https://wdr.example/v-hd.mp4",
+               page_url: "https://www.ardmediathek.de/video/abc"
+             }
+
+      assert without_hd.media_url == "https://wdr.example/v.mp4", "HD first, else the default"
+    end
+
+    # A programme is saved like a single YouTube video. Its source is the search for its topic
+    # on its channel, the feed a series subscription would follow.
+    test "a programme becomes the preview of its topic on its channel" do
+      programme = %{
+        id: "abc=",
+        title: "Die Erfindung des Rades",
+        channel: "WDR",
+        topic: "Tatort",
+        description: "Fernsehfilm",
+        published_at: ~U[2026-10-10 18:15:00Z],
+        duration: 5322,
+        media_url: "https://wdr.example/v-hd.mp4",
+        page_url: "https://www.ardmediathek.de/video/abc"
+      }
+
+      assert %{preview: preview, external_id: "abc="} = Discovery.mediathek_item(programme)
+
+      assert %{kind: :mediathek, title: "Tatort · WDR", icon_url: nil} = preview
+
+      assert URI.decode_query(URI.parse(preview.url).query) == %{
+               "query" => "!WDR #Tatort",
+               "everywhere" => "false",
+               "future" => "false"
+             }
+
+      # The public instance names the source, whichever instance `MEDIATHEK_URL` searches.
+      assert String.starts_with?(preview.url, "https://mediathekviewweb.de/feed?")
+
+      # A programme without a topic belongs to its channel alone.
+      %{preview: bare} = Discovery.mediathek_item(%{programme | topic: ""})
+      assert bare.title == "WDR"
+      assert URI.decode_query(URI.parse(bare.url).query)["query"] == "!WDR"
+
+      assert [
+               %{
+                 external_id: "abc=",
+                 title: "Die Erfindung des Rades",
+                 media_url: "https://wdr.example/v-hd.mp4",
+                 page_url: "https://www.ardmediathek.de/video/abc",
+                 published_at: ~U[2026-10-10 18:15:00Z],
+                 duration: 5322,
+                 description: "Fernsehfilm",
+                 description_format: :text
+               }
+             ] = preview.entries
+    end
+
+    test "an unreachable Mediathek says so, and a term too short is not sent" do
+      Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 503, ""))
+
+      assert Discovery.mediathek_search("tatort", "https://mediathek.example") ==
+               {:error, :mediathek_unavailable}
+
+      assert Discovery.mediathek_search(" x ", "https://mediathek.example") ==
+               {:error, :invalid_search}
+    end
+  end
+
   test "Apple show links resolve through lookup, not HTML scraping" do
     Req.Test.stub(HTTP, fn conn ->
       case conn.request_path do

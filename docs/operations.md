@@ -59,6 +59,7 @@ Set these environment variables for both migration and startup:
 | `SIKIO_MIGRATE_ON_START` | `false` to migrate manually with `bin/migrate`; by default the release migrates on start |
 | `SIKIO_WEBSUB` | `false` to subscribe no YouTube channel at Google's hub; see [Background work](#background-work) |
 | `LOG_LEVEL` | `info` (the default), `notice`, `warning`, `error`, `critical`, `alert` or `emergency`, case-insensitive; any other value stops the boot |
+| `MEDIATHEK_URL` | HTTPS address on the default port of the MediathekViewWeb instance the Mediathek search asks; `https://mediathekviewweb.de` by default |
 | `FEED_POLL_MINUTES` | Minimum poll interval per feed, in whole minutes; 60 by default, at least 5 |
 | `SOURCE_URL` | URL of this deployment's source code; only needed for a modified Sikio |
 | `TRUSTED_PROXIES` | Addresses or ranges such as `172.20.0.0/16` whose `X-Forwarded-For` is trusted; only needed for a proxy outside the loopback |

@@ -210,6 +210,11 @@ defmodule SikioWeb.PlayerDockLive do
 
   defp views_url(_entry), do: nil
 
+  # A PeerTube video streams what its instance named. A Mediathek film names its file itself.
+  defp video_src(%{feed: %{kind: :peertube}}, %{media_url: url}), do: url
+  defp video_src(%{feed: %{kind: :mediathek}, media_url: url}, _stream), do: url
+  defp video_src(_entry, _stream), do: nil
+
   # The instance's audio-only file, else the feed's. The controls render before the instance
   # answers, so the feed's file decides whether they offer the sound alone.
   defp audio_src(_entry, %{audio_url: url}) when is_binary(url), do: url
@@ -393,10 +398,10 @@ defmodule SikioWeb.PlayerDockLive do
           phx-hook="MediaPlayer"
           phx-update="ignore"
           data-kind={@entry.feed.kind}
-          data-src={is_map(@stream) && @stream.media_url}
+          data-src={video_src(@entry, @stream)}
           data-audio-src={audio_src(@entry, @stream)}
           data-views={views_url(@entry)}
-          data-hls={@entry.feed.kind == :peertube && ~p"/vendor/hls.js/hls-1.7.3.min.js"}
+          data-hls={native_video?(@entry.feed) && ~p"/vendor/hls.js/hls-1.7.3.min.js"}
           data-session={@player.session_id}
           data-title={@entry.title}
           data-source={source_name(@entry)}
@@ -458,9 +463,10 @@ defmodule SikioWeb.PlayerDockLive do
             chapters={elem(@chapters, 1)}
           />
           <%!-- `playsinline` keeps the video in the dock on iOS. The MediaPlayer hook sets the
-          source: Safari plays the HLS playlist itself, other browsers through hls.js. --%>
+          source: Safari plays an HLS playlist itself, other browsers through hls.js. A
+          Mediathek film is mostly an MP4 file, from some broadcasters an HLS playlist. --%>
           <video
-            :if={@entry.feed.kind == :peertube}
+            :if={native_video?(@entry.feed)}
             preload="metadata"
             playsinline
             poster={artwork(@entry)}
@@ -468,7 +474,7 @@ defmodule SikioWeb.PlayerDockLive do
             class="aspect-video w-full rounded-control bg-black"
           ></video>
           <.audio_face
-            :if={@entry.feed.kind == :peertube}
+            :if={native_video?(@entry.feed)}
             length={@entry.duration}
             position={@player.position}
             chapters={elem(@chapters, 1)}

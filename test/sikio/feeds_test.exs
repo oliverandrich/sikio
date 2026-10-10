@@ -436,6 +436,14 @@ defmodule Sikio.FeedsTest do
     end
   end
 
+  # A Mediathek source is the search for one topic on one channel. Its films play as video.
+  test "stores a Mediathek source" do
+    url = "https://mediathekviewweb.de/feed?query=%21ard+%23tatort&everywhere=false&future=false"
+
+    assert {:ok, %Feed{kind: :mediathek}} =
+             Feeds.store(%{preview() | kind: :mediathek, url: url, title: "Tatort · ARD"})
+  end
+
   describe "artwork/1" do
     # A podcast feed without its own artwork, as rbb's "Talk ohne Gast" sends one.
     defp without_artwork do

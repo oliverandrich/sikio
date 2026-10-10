@@ -26,6 +26,27 @@ defmodule Sikio.FeedFixtures do
   def peertube_feed_url, do: feed_url("feeds/videos.xml")
 
   @doc """
+  Returns a programme as `Sikio.Feeds.Discovery.mediathek_search/2` returns it.
+
+  Its id, topic and addresses are unique, so no other test writes the same rows.
+  """
+  def mediathek_programme do
+    n = Sikio.DataCase.unique()
+
+    %{
+      id: "programme-#{n}=",
+      title: "Die Erfindung des Rades",
+      channel: "WDR",
+      topic: "Tatort #{n}",
+      description: "Fernsehfilm",
+      published_at: ~U[2026-10-10 18:15:00Z],
+      duration: 5322,
+      media_url: "https://wdr#{n}.example.org/v-hd.mp4",
+      page_url: "https://mediathek#{n}.example.org/video/abc"
+    }
+  end
+
+  @doc """
   Blocks a stubbed request until it receives `:release`, then returns `respond.()`.
 
   Each held request sends `{:held, pid}` to `test`.

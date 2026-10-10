@@ -2,10 +2,11 @@
 
 defmodule SikioWeb.AddSourceLive do
   @moduledoc """
-  Adds a source from a pasted link or an Apple Podcasts search.
+  Adds a source from a pasted link or a search in Apple Podcasts and the Mediathek.
 
   A pasted link shows a preview with its title and item count first.
   A search result subscribes in one click, which fetches and parses its feed.
+  A search also asks MediathekViewWeb. A programme from it is saved on its own, as an item.
   Discovery runs in `start_async/3`. Candidates stay in assigns under generated ids.
   A forged id therefore selects nothing.
 
@@ -16,7 +17,8 @@ defmodule SikioWeb.AddSourceLive do
   """
   use SikioWeb, :live_view
 
-  import SikioWeb.MediaComponents, only: [artwork: 1, source_name: 1, source_picture: 1]
+  import SikioWeb.MediaComponents,
+    only: [artwork: 1, date: 1, runtime: 1, source_name: 1, source_picture: 1]
 
   alias Sikio.Feeds.Discovery
   alias Sikio.Library
@@ -30,18 +32,11 @@ defmodule SikioWeb.AddSourceLive do
        page_title: gettext("Add a source"),
        form: to_form(%{"q" => ""}),
        mode: nil,
-       fallback: nil,
-       candidates: %{},
-       subscribing: nil,
-       row_errors: %{},
-       busy: false,
-       error: nil,
-       searched: false,
-       item: nil,
-       item_at: "queue"
+       busy: false
      )
      |> stream_configure(:sources, dom_id: &"source-#{&1.id}")
-     |> stream(:sources, [])}
+     |> stream_configure(:programmes, dom_id: &"programme-#{&1.key}")
+     |> without_results()}
   end
 
   @impl true
@@ -75,6 +70,20 @@ defmodule SikioWeb.AddSourceLive do
 
   def handle_event("pick_item", _params, socket), do: {:noreply, socket}
 
+  # A programme from the Mediathek opens the single item card, as a link to one video does.
+  def handle_event("pick_programme", %{"key" => key}, socket) do
+    case socket.assigns.programmes[key] do
+      nil ->
+        {:noreply, socket}
+
+      programme ->
+        {:noreply,
+         socket
+         |> show_item(Discovery.mediathek_item(programme))
+         |> push_event("focus", %{id: "single-item-title"})}
+    end
+  end
+
   def handle_event("save_item", _params, %{assigns: %{item: nil}} = socket),
     do: {:noreply, socket}
 
@@ -84,22 +93,9 @@ defmodule SikioWeb.AddSourceLive do
   def handle_event("clear", _params, socket) do
     {:noreply,
      socket
-     |> cancel_async(:subscribe)
-     |> cancel_async(:item)
-     |> assign(
-       form: to_form(%{"q" => ""}),
-       busy: false,
-       error: nil,
-       searched: false,
-       candidates: %{},
-       mode: nil,
-       fallback: nil,
-       subscribing: nil,
-       row_errors: %{},
-       item: nil,
-       item_at: "queue"
-     )
-     |> stream(:sources, [], reset: true)
+     |> cancel_lookups()
+     |> assign(form: to_form(%{"q" => ""}), busy: false, mode: nil)
+     |> without_results()
      |> push_event("focus", %{id: "add-q"})}
   end
 
@@ -147,10 +143,7 @@ defmodule SikioWeb.AddSourceLive do
 
   @impl true
   def handle_async(:sources, {:ok, {:ok, sources}}, socket) do
-    sources =
-      sources
-      |> Enum.with_index()
-      |> Enum.map(fn {source, index} -> Map.put(source, :id, to_string(index)) end)
+    sources = keyed(sources, :id)
 
     {:noreply,
      socket
@@ -158,11 +151,25 @@ defmodule SikioWeb.AddSourceLive do
      |> stream(:sources, sources, reset: true)}
   end
 
-  # Only a link to one video or episode yields an item. Its preview holds the entry.
-  def handle_async(:item, {:ok, {:ok, %{preview: preview, external_id: id}}}, socket) do
-    entry = Enum.find(preview.entries, &(&1.external_id == id))
-    {:noreply, assign(socket, item: %{preview: preview, external_id: id, entry: entry})}
+  def handle_async(:programmes, {:ok, {:ok, found}}, socket) do
+    found = keyed(found, :key)
+
+    {:noreply,
+     socket
+     |> assign(programmes: Map.new(found, &{&1.key, &1}), programmes_state: :done)
+     |> stream(:programmes, found, reset: true)}
   end
+
+  # Apple's search reports an invalid term. The Mediathek stays silent about it.
+  def handle_async(:programmes, {:ok, {:error, :invalid_search}}, socket),
+    do: {:noreply, assign(socket, programmes_state: nil)}
+
+  def handle_async(:programmes, _failed, socket),
+    do: {:noreply, assign(socket, programmes_state: :failed)}
+
+  # Only a link to one video or episode yields an item. Its preview holds the entry.
+  def handle_async(:item, {:ok, {:ok, %{preview: _, external_id: _} = item}}, socket),
+    do: {:noreply, show_item(socket, item)}
 
   def handle_async(:item, _result, socket), do: {:noreply, socket}
 
@@ -200,27 +207,55 @@ defmodule SikioWeb.AddSourceLive do
       |> start_async(:sources, fn -> Discovery.discover(url) end)
       |> start_async(:item, fn -> Discovery.item(url) end)
 
-  defp search(socket, term),
-    do: socket |> searching(:search) |> start_async(:sources, fn -> Discovery.search(term) end)
+  defp search(socket, term) do
+    socket
+    |> searching(:search)
+    |> assign(programmes_state: :searching)
+    |> start_async(:sources, fn -> Discovery.search(term) end)
+    |> start_async(:programmes, fn -> Discovery.mediathek_search(term) end)
+  end
 
   # A new lookup cancels a pending subscribe task.
   defp searching(socket, mode) do
     socket
-    |> cancel_async(:subscribe)
-    |> cancel_async(:item)
+    |> cancel_lookups()
+    |> assign(busy: true, mode: mode)
+    |> without_results()
+  end
+
+  defp cancel_lookups(socket),
+    do: socket |> cancel_async(:subscribe) |> cancel_async(:item) |> cancel_async(:programmes)
+
+  # The state of a page that has looked nothing up yet.
+  defp without_results(socket) do
+    socket
     |> assign(
-      busy: true,
       error: nil,
       searched: false,
       candidates: %{},
-      mode: mode,
       fallback: nil,
       subscribing: nil,
       row_errors: %{},
       item: nil,
-      item_at: "queue"
+      item_at: "queue",
+      programmes: %{},
+      programmes_state: nil
     )
     |> stream(:sources, [], reset: true)
+    |> stream(:programmes, [], reset: true)
+  end
+
+  # Gives each result a key in list order. A row's button names the key, not the result.
+  defp keyed(results, field) do
+    results
+    |> Enum.with_index()
+    |> Enum.map(fn {result, index} -> Map.put(result, field, to_string(index)) end)
+  end
+
+  # The single item card for one video, episode or programme in `preview`.
+  defp show_item(socket, %{preview: preview, external_id: id}) do
+    entry = Enum.find(preview.entries, &(&1.external_id == id))
+    assign(socket, item: %{preview: preview, external_id: id, entry: entry})
   end
 
   # Saving into the inbox keeps an earlier playback state, and an enqueue can fail. The page
@@ -384,7 +419,9 @@ defmodule SikioWeb.AddSourceLive do
                 "Links to YouTube and PeerTube channels and videos, podcast websites, RSS feeds and Apple Podcasts."
               )}
             </span>
-            <span class="block">{gettext("Anything else is searched for in Apple Podcasts.")}</span>
+            <span class="block">
+              {gettext("Anything else is searched for in Apple Podcasts and the Mediathek.")}
+            </span>
           </p>
         </.form>
         <div
@@ -437,7 +474,8 @@ defmodule SikioWeb.AddSourceLive do
             />
             <div class="min-w-0">
               <p class="text-meta font-semibold text-muted">{gettext("Only this item")}</p>
-              <h3 id="single-item-title" class="mt-0.5 text-body font-semibold">
+              <%!-- Focusable, so a programme picked further down brings the card into view. --%>
+              <h3 id="single-item-title" tabindex="-1" class="mt-0.5 text-body font-semibold">
                 {@item.entry.title}
               </h3>
               <p class="text-meta text-muted">{@item.preview.title}</p>
@@ -489,10 +527,12 @@ defmodule SikioWeb.AddSourceLive do
             "Searches Apple's German directory. Results are provided by Apple; subscriptions use the show's own RSS feed."
           )}
         </p>
+        <%!-- Shown only with a row. After live navigation an empty stream holds whitespace,
+        which `:empty` would count as content. --%>
         <div
           id="sources"
           phx-update="stream"
-          class="mt-3 divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line empty:hidden"
+          class="mt-3 hidden divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line has-[article]:block"
         >
           <article
             :for={{dom_id, source} <- @streams.sources}
@@ -528,6 +568,70 @@ defmodule SikioWeb.AddSourceLive do
             <p :if={@row_errors[source.id]} role="alert" class="w-full text-label text-danger">
               {@row_errors[source.id]}
             </p>
+          </article>
+        </div>
+        <h2
+          :if={@programmes_state in [:done, :failed]}
+          id="programmes-heading"
+          class="mt-8 flex items-baseline gap-2 text-label font-semibold"
+        >
+          {gettext("Mediathek")}
+          <span class="font-normal text-muted">{gettext("via MediathekViewWeb")}</span>
+        </h2>
+        <p :if={@programmes_state == :done} class="mt-1 text-meta text-muted">
+          {gettext(
+            "Searches the German public broadcasters' media libraries. A programme is added on its own, without a subscription."
+          )}
+        </p>
+        <p
+          :if={@programmes_state == :searching}
+          id="programmes-loading"
+          class="mt-8 text-center text-label text-muted"
+        >
+          {gettext("Searching the Mediathek…")}
+        </p>
+        <p
+          :if={@programmes_state == :done and map_size(@programmes) == 0}
+          id="no-programmes"
+          class="mt-3 text-muted"
+        >
+          {gettext("No programmes found in the Mediathek.")}
+        </p>
+        <p
+          :if={@programmes_state == :failed}
+          id="programmes-error"
+          role="alert"
+          class="mt-3 text-label text-danger"
+        >
+          {gettext("The Mediathek search is unavailable right now. Try again later.")}
+        </p>
+        <div
+          id="programmes"
+          phx-update="stream"
+          class="mt-3 hidden divide-y divide-line overflow-hidden rounded-xl bg-surface ring-1 ring-line has-[article]:block"
+        >
+          <article
+            :for={{dom_id, programme} <- @streams.programmes}
+            id={dom_id}
+            class="flex items-center gap-x-4 px-4 py-3"
+          >
+            <img
+              src={source_picture(%{kind: :mediathek})}
+              alt=""
+              class="size-12 shrink-0 rounded-md bg-line object-cover"
+            />
+            <div class="min-w-0 flex-1">
+              <h3 class="truncate text-body font-semibold">{programme.title}</h3>
+              <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
+                <span>{programme.channel}</span>
+                <span :if={programme.topic != ""} class="min-w-0 truncate">{programme.topic}</span>
+                <span>{date(programme.published_at)}</span>
+                <span :if={programme.duration} class="font-mono">{runtime(programme.duration)}</span>
+              </p>
+            </div>
+            <.button phx-click="pick_programme" phx-value-key={programme.key}>
+              {gettext("Choose")}
+            </.button>
           </article>
         </div>
         <p class="mt-10 text-center text-label text-muted">

@@ -60,6 +60,23 @@ defmodule SikioWeb.MediaComponentsTest do
       assert medium_label(%{feed: %{kind: :youtube}}) == "YouTube"
       assert medium_label(%{feed: %{kind: :peertube}}) == "PeerTube"
       assert medium_label(%{feed: %{kind: :podcast}}) == "Podcast"
+      assert medium_label(%{feed: %{kind: :mediathek}}) == "Mediathek"
+    end
+  end
+
+  # A film from the broadcasters' media libraries is video, as YouTube and PeerTube are.
+  describe "a Mediathek programme" do
+    test "is a video with its own label, mark and link" do
+      assert video?(entry(:mediathek))
+      assert status_label(entry(:mediathek, %{status: :heard})) == "Watched"
+      assert source_label(%{kind: :mediathek}) == "Mediathek"
+      assert kind_mark(%{kind: :mediathek}) == "/images/kind-video.svg"
+      # PeerTube and the Mediathek play in Sikio's player. YouTube keeps its embed.
+      assert Enum.map([:peertube, :mediathek, :youtube, :podcast], &native_video?(%{kind: &1})) ==
+               [true, true, false, false]
+
+      assert original(%{feed: %{kind: :mediathek}, page_url: "https://ard.example/v"}) ==
+               {"https://ard.example/v", "Open in the Mediathek"}
     end
   end
 
