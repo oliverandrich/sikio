@@ -207,8 +207,10 @@
    Each item is a flex container, which drops the template's whitespace beside the dot. */
 .meta-dots { margin-left: -1rem; clip-path: inset(0 0 0 1rem); }
 .meta-dots > * { display: flex; align-items: center; }
+/* The dot keeps its width when a truncated item shrinks, so the clip hides only the dot. */
 .meta-dots > *::before {
-  content: "·" / ""; display: inline-block; width: 1rem; text-align: center; font-family: var(--font-sans);
+  content: "·" / ""; display: inline-block; width: 1rem; flex-shrink: 0; text-align: center;
+  font-family: var(--font-sans);
 }
 
 /* The message line shows only warnings and errors, so it is hidden when empty. */

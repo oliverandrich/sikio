@@ -364,8 +364,9 @@ defmodule SikioWeb.AddSourceLive do
     |> Enum.map(fn {_, [first | _] = members} ->
       %{
         title: first.series_title,
-        count: length(members),
-        newest: first.published_at,
+        # The search sees one page, so the row names the hit, not the series' size or newest.
+        found: first.title,
+        found_at: first.published_at,
         series_url: first.series_url,
         # A series tries the pages of its first programmes.
         pages: members |> Enum.map(& &1.page_url) |> Enum.reject(&is_nil/1) |> Enum.take(3),
@@ -849,8 +850,11 @@ defmodule SikioWeb.AddSourceLive do
               subscribing={@subscribing == dom_id}
               error={@row_errors[dom_id]}
             >
-              <span>{ngettext("1 programme", "%{count} programmes", series.count)}</span>
-              <span>{gettext("newest %{date}", date: date(series.newest))}</span>
+              <%!-- The inner element truncates; the outer one is the flex item that holds the dot. --%>
+              <span :if={series.found != ""} class="min-w-0" title={series.found}>
+                <span class="truncate">{gettext("found: %{title}", title: series.found)}</span>
+              </span>
+              <span>{date(series.found_at)}</span>
             </.source_row>
           </div>
         </div>
@@ -1053,8 +1057,8 @@ defmodule SikioWeb.AddSourceLive do
         <div class="min-w-0">
           <h3 class="text-body font-semibold">{@title}</h3>
           <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
-            <span :for={part <- @origin} :if={part not in [nil, ""]} class="min-w-0 truncate">
-              {part}
+            <span :for={part <- @origin} :if={part not in [nil, ""]} class="min-w-0" title={part}>
+              <span class="truncate">{part}</span>
             </span>
             <span :if={@published_at}>{date(@published_at)}</span>
             <span :if={@duration} class="font-mono">{runtime(@duration)}</span>

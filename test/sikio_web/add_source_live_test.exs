@@ -305,7 +305,10 @@ defmodule SikioWeb.AddSourceLiveTest do
         Map.merge(programme(title), %{channel: "ARD", topic: "Die Sendung mit der Maus"})
       end
 
-      searches([], [], [maus.("Sachgeschichte"), maus.("Lachgeschichte")], fn conn ->
+      # The search answers newest first. The older hit has its own date.
+      older = %{maus.("Lachgeschichte") | timestamp: 1_791_000_000}
+
+      searches([], [], [maus.("Sachgeschichte"), older], fn conn ->
         Plug.Conn.send_resp(conn, 200, mediathek_feed())
       end)
 
@@ -316,7 +319,15 @@ defmodule SikioWeb.AddSourceLiveTest do
       # Without podcasts, the first tab with results opens.
       assert has_element?(view, ~s|#tab-series[aria-selected="true"]|, "1")
       assert has_element?(view, "#series-0", "Die Sendung mit der Maus · ARD")
-      assert has_element?(view, "#series-0", "2")
+      # A series names the hit it was found by. A count of hits would read as its size.
+      assert has_element?(
+               view,
+               ~s|#series-0 [title="Sachgeschichte"] .truncate|,
+               "found: Sachgeschichte"
+             )
+
+      assert has_element?(view, "#series-0", "10 Oct 2026")
+      refute has_element?(view, "#series-0", ~r/\d+ programmes?/)
 
       view |> element(~s|#series-0 [data-action="subscribe"]|) |> render_click()
       confirm_subscribe(view)
