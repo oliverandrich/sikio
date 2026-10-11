@@ -377,21 +377,26 @@ defmodule SikioWeb.LibraryLive do
     {:noreply, socket}
   end
 
-  def handle_event("toggle_mark", _params, %{assigns: %{selected: nil}} = socket),
-    do: {:noreply, socket}
+  def handle_event(toggle, _params, %{assigns: %{selected: nil}} = socket)
+      when toggle in ["toggle_mark", "toggle_star"],
+      do: {:noreply, socket}
 
-  # The status is read from the database, not from `selected`. A second key press can arrive
-  # before the first mark's broadcast updates `selected`.
-  def handle_event("toggle_mark", _params, %{assigns: %{selected: selected}} = socket) do
+  # The entry is read from the database, not from `selected`. A second key press can arrive
+  # before the first change's broadcast updates `selected`.
+  def handle_event(toggle, _params, %{assigns: %{selected: selected}} = socket)
+      when toggle in ["toggle_mark", "toggle_star"] do
     case Library.entry(socket.assigns.current_account, selected.id) do
       nil ->
         {:noreply, put_flash(socket, :error, gettext("This item is no longer in your library."))}
 
       entry ->
-        status = if status(entry) in [:heard, :archived], do: "new", else: "heard"
-        handle_event("mark", %{"id" => entry.id, "status" => status}, socket)
+        toggled(toggle, entry, socket)
     end
   end
+
+  def handle_event("favourite", %{"id" => id, "starred" => starred}, socket)
+      when is_boolean(starred),
+      do: changed(socket, Library.favourite(socket.assigns.current_account, id, starred))
 
   def handle_event("queue", %{"id" => id, "at" => at}, socket) when at in ["first", "last"],
     do:
@@ -420,6 +425,14 @@ defmodule SikioWeb.LibraryLive do
           socket,
           Playback.mark(socket.assigns.current_account, id, String.to_existing_atom(status))
         )
+
+  defp toggled("toggle_mark", entry, socket) do
+    status = if status(entry) in [:heard, :archived], do: "new", else: "heard"
+    handle_event("mark", %{"id" => entry.id, "status" => status}, socket)
+  end
+
+  defp toggled("toggle_star", entry, socket),
+    do: handle_event("favourite", %{"id" => entry.id, "starred" => !entry.favourite}, socket)
 
   # The change triggers a PubSub broadcast. Its handler reloads the list and the sidebar.
   defp changed(socket, result) do
@@ -702,9 +715,10 @@ defmodule SikioWeb.LibraryLive do
                   {count_label(@total)}
                 </span>
                 <div class="ml-auto flex shrink-0 items-center gap-2">
-                  <%!-- Archive all is hidden for an empty list, the queue and the history. --%>
+                  <%!-- Archive all is hidden for an empty list, the queue, the history and the
+                  favourites. --%>
                   <button
-                    :if={@total > 0 and @filters["status"] not in ["queue", "heard"]}
+                    :if={@total > 0 and @filters["status"] not in ["queue", "heard", "favourites"]}
                     id="mark-all"
                     type="button"
                     aria-label={gettext("Archive all")}

@@ -45,6 +45,40 @@ defmodule SikioWeb.LibraryDetailTest do
     assert %{playback: %{status: :heard}} = Library.entry(c.user, c.entry.id)
   end
 
+  # The star sits in the card's head. The row and the favourites list follow it.
+  test "the card stars its item, and the row and the favourites list show it", c do
+    {:ok, empty, _} = live(c.conn, "/favourites")
+    assert render(empty) =~ "No favourites yet."
+
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
+    refute has_element?(view, "#entries-#{c.entry.id} [data-favourite]")
+
+    view |> element("#favourite[aria-pressed=false]") |> render_click()
+    assert [%{favourite: true}] = Library.entries(c.user)
+    assert has_element?(view, "#favourite[aria-pressed=true]")
+    assert has_element?(view, "#entries-#{c.entry.id} [data-favourite]")
+
+    {:ok, list, _} = live(c.conn, "/favourites")
+    assert has_element?(list, "#entries-#{c.entry.id}")
+    assert has_element?(list, "#view-favourites[aria-current]")
+    # A collection, not a list to work through, so nothing archives it whole.
+    refute has_element?(list, "#mark-all")
+
+    view |> element("#favourite") |> render_click()
+    assert [%{favourite: false}] = Library.entries(c.user)
+    assert has_element?(view, "#favourite[aria-pressed=false]")
+    refute has_element?(list, "#entries-#{c.entry.id}")
+  end
+
+  # `s` toggles the selected item's star, as `m` toggles its mark.
+  test "the s key stars the selected item and takes the star off", c do
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
+    render_hook(view, "toggle_star", %{})
+    assert [%{favourite: true}] = Library.entries(c.user)
+    render_hook(view, "toggle_star", %{})
+    assert [%{favourite: false}] = Library.entries(c.user)
+  end
+
   # The card head shows the next action for the current status. A menu holds the rest.
   # New items offer queue and archive. Queued items offer mark heard.
   # Heard and archived items offer queueing again.

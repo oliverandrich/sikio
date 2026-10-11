@@ -11,6 +11,7 @@ test("j and k move, m marks and f searches, other keys do not", () => {
   assert.equal(readerKey(press("k")), "k")
   assert.equal(readerKey(press("m")), "m")
   assert.equal(readerKey(press("f")), "f")
+  assert.equal(readerKey(press("s")), "s")
   assert.equal(readerKey(press("x")), null)
 })
 
@@ -27,6 +28,7 @@ test("keys pressed into a media element are not the library's", () => {
 // A held m would toggle the mark repeatedly, so repeats are ignored. j and k repeat to keep moving.
 test("a held m marks once, a held j keeps moving", () => {
   assert.equal(readerKey(press("m", {repeat: true})), null)
+  assert.equal(readerKey(press("s", {repeat: true})), null)
   assert.equal(readerKey(press("j", {repeat: true})), "j")
 })
 

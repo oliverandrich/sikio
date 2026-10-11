@@ -797,6 +797,117 @@ defmodule Sikio.LibraryTest do
     end
   end
 
+  describe "favourites" do
+    setup ctx do
+      {:ok, subscription} = Library.subscribe(ctx.alice, ctx.preview)
+      {:ok, _} = Library.subscribe(ctx.bob, ctx.preview)
+      [entry] = Library.entries(ctx.alice)
+      %{entry: entry, subscription: subscription}
+    end
+
+    test "a star belongs to the account and forms its own list", ctx do
+      Events.subscribe(ctx.alice)
+      id = ctx.entry.id
+
+      assert {:ok, ^id} = Library.favourite(ctx.alice, id, true)
+      assert {:ok, ^id} = Library.favourite(ctx.alice, id, true)
+      assert_received {:favourite_changed, ^id}
+
+      assert [%{id: ^id, favourite: true}] =
+               Library.entries(ctx.alice, %{"status" => "favourites"})
+
+      assert [%{favourite: false}] = Library.entries(ctx.bob)
+      assert Library.entries(ctx.bob, %{"status" => "favourites"}) == []
+      assert (ctx.alice |> Library.counts() |> Library.tally(%{})).favourites == 1
+      assert Library.listed?(ctx.alice, %{"status" => "favourites"}, id)
+
+      assert {:ok, ^id} = Library.favourite(ctx.alice, id, false)
+      assert Library.entries(ctx.alice, %{"status" => "favourites"}) == []
+      assert [%{favourite: false}] = Library.entries(ctx.alice)
+    end
+
+    test "an entry the account cannot see takes no star", ctx do
+      carol = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+      assert {:error, :not_found} = Library.favourite(carol, ctx.entry.id, true)
+      assert {:error, :not_found} = Library.favourite(ctx.alice, "nonsense", true)
+      assert Library.entries(carol) == []
+    end
+
+    test "a favourite outlasts an unsubscribe", ctx do
+      {:ok, _} = Library.favourite(ctx.alice, ctx.entry.id, true)
+      {:ok, _} = Library.unsubscribe(ctx.alice, ctx.subscription.id)
+
+      assert [%{followed: false, favourite: true}] =
+               Library.entries(ctx.alice, %{"status" => "favourites"})
+    end
+
+    test "marking heard or archiving a list keeps the star", ctx do
+      {:ok, _} = Library.favourite(ctx.alice, ctx.entry.id, true)
+      {:ok, _} = Playback.mark(ctx.alice, ctx.entry.id, :heard)
+      {:ok, _} = Playback.mark(ctx.alice, ctx.entry.id, :new)
+      assert {:ok, 1} = Playback.mark_all(ctx.alice, %{"status" => "inbox"})
+
+      assert [%{favourite: true, playback: %{status: :archived}}] =
+               Library.entries(ctx.alice, %{"status" => "favourites"})
+    end
+
+    # A Short shows where it was chosen, as a saved one does.
+    test "a starred Short shows despite a subscription that hides Shorts", ctx do
+      {:ok, video} = Parser.parse(youtube(), youtube_feed_url())
+      {:ok, _} = Library.subscribe(ctx.alice, video)
+      entry = Enum.find(Library.entries(ctx.alice), &(&1.feed.kind == :youtube))
+      {:ok, _} = Library.favourite(ctx.alice, entry.id, true)
+      Repo.update_all(from(e in Entry, where: e.id == ^entry.id), set: [short: true])
+
+      assert [%{id: id}] = Library.entries(ctx.alice, %{"status" => "favourites"})
+      assert id == entry.id
+    end
+
+    # An entry kept only by its star leaves the library when removed.
+    test "removing an entry kept only by its star takes the star off", ctx do
+      {:ok, _} = Library.favourite(ctx.alice, ctx.entry.id, true)
+      {:ok, _} = Library.unsubscribe(ctx.alice, ctx.subscription.id)
+
+      assert {:ok, _} = Library.remove_entry(ctx.alice, ctx.entry.id)
+      assert Library.entries(ctx.alice) == []
+    end
+
+    # A subscription keeps the entry listed, so removing the saved row leaves the star.
+    test "removing a saved entry of a followed source keeps its star", ctx do
+      external_id = hd(ctx.preview.entries).external_id
+      {:ok, _} = Library.save(ctx.alice, ctx.preview, external_id, :inbox)
+      {:ok, _} = Library.favourite(ctx.alice, ctx.entry.id, true)
+
+      assert {:ok, _} = Library.remove_entry(ctx.alice, ctx.entry.id)
+      assert [%{favourite: true}] = Library.entries(ctx.alice)
+    end
+
+    # A starred entry stays where the account put it, as a saved one does.
+    test "subscribing again leaves a starred entry where it was", ctx do
+      {:ok, _} = Playback.mark(ctx.alice, ctx.entry.id, :archived)
+      {:ok, _} = Library.favourite(ctx.alice, ctx.entry.id, true)
+      {:ok, _} = Library.unsubscribe(ctx.alice, ctx.subscription.id)
+
+      {:ok, _} = Library.subscribe(ctx.alice, ctx.preview, existing: :all, delivery: :queue)
+      assert Playback.queue(ctx.alice) == []
+      assert [%{playback: %{status: :archived}}] = Library.entries(ctx.alice)
+    end
+
+    # Removing a singly saved item leaves the library, so its star goes with it.
+    test "removing a saved entry removes its star", ctx do
+      {:ok, _} = Library.unsubscribe(ctx.alice, ctx.subscription.id)
+      external_id = hd(ctx.preview.entries).external_id
+      {:ok, entry} = Library.save(ctx.alice, ctx.preview, external_id, :inbox)
+      {:ok, _} = Library.favourite(ctx.alice, entry.id, true)
+
+      assert {:ok, _} = Library.remove_entry(ctx.alice, entry.id)
+      assert Library.entries(ctx.alice) == []
+
+      {:ok, _} = Library.save(ctx.alice, ctx.preview, external_id, :inbox)
+      assert [%{favourite: false}] = Library.entries(ctx.alice)
+    end
+  end
+
   describe "counts/1" do
     setup :three_kinds
 
@@ -894,6 +1005,7 @@ defmodule Sikio.LibraryTest do
                  queue: 0,
                  heard: 0,
                  open: 0,
+                 favourites: 0,
                  sources: %{},
                  tags: %{}
                }

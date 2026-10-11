@@ -11,6 +11,15 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Upgrading
+
+- One migration runs on start. It adds the table of favourites.
+
+### Added
+
+- Favourites. A star in an item's detail, or the key `s`, adds it to a list of its own. A
+  favourite stays in the library after its source is unsubscribed.
+
 ### Fixed
 
 - A click on a PeerTube or Mediathek video plays or pauses it. Before playback, a click on its

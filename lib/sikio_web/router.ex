@@ -101,6 +101,8 @@ defmodule SikioWeb.Router do
       live "/queue/:item", LibraryLive, :index
       live "/history", LibraryLive, :index
       live "/history/:item", LibraryLive, :index
+      live "/favourites", LibraryLive, :index
+      live "/favourites/:item", LibraryLive, :index
       # `/new`, `/in-progress` and `/completed` predate the inbox. `LibraryLive` patches them.
       live "/new", LibraryLive, :index
       live "/new/:item", LibraryLive, :index

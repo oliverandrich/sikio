@@ -14,6 +14,7 @@ defmodule Sikio.Library do
   alias Sikio.Feeds
   alias Sikio.Feeds.Entry
   alias Sikio.Library.Events
+  alias Sikio.Library.Favourite
   alias Sikio.Library.SavedEntry
   alias Sikio.Library.Subscription
   alias Sikio.Playback
@@ -29,7 +30,8 @@ defmodule Sikio.Library do
   Returns the id of an entry the account can see, or `nil`.
 
   Writes call this for authorization on every request. They do not trust the request that started
-  the player. The query reads subscriptions and saved entries and selects only the entry id.
+  the player. The query reads subscriptions, saved and starred entries and selects only the entry
+  id.
   """
   def visible_entry_id(%User{id: user_id}, id),
     do:
@@ -128,23 +130,69 @@ defmodule Sikio.Library do
   end
 
   @doc """
-  Takes a singly added entry out of the account's library. Its playback state stays, so a later
-  save finds it again. An entry of a followed source stays listed through the subscription.
-  Returns `{:error, :not_found}` for an entry the account did not save.
+  Takes an entry the account saved singly or starred out of its library. Its playback state stays,
+  so a later save finds it again. Its star goes too, unless the account follows its source,
+  which keeps it listed anyway.
+  Returns `{:error, :not_found}` for an entry the account neither saved nor starred.
   """
   def remove_entry(%User{id: user_id} = account, entry_id) do
-    removed =
-      with_id(entry_id, fn id ->
-        Repo.delete_all(from v in SavedEntry, where: v.user_id == ^user_id and v.entry_id == ^id)
-      end)
-
-    case removed do
-      {1, _} ->
+    case with_id(entry_id, &Repo.transaction(fn -> unsaved(user_id, &1) end)) do
+      {:ok, _} ->
         Events.broadcast(account, {:entry_removed, entry_id})
         {:ok, entry_id}
 
       _none ->
         {:error, :not_found}
+    end
+  end
+
+  defp unsaved(user_id, id) do
+    {saved, _} =
+      Repo.delete_all(from v in SavedEntry, where: v.user_id == ^user_id and v.entry_id == ^id)
+
+    # A followed source keeps the entry listed, so its star stays.
+    followed =
+      from e in Entry,
+        join: s in Subscription,
+        on: s.feed_id == e.feed_id and s.user_id == ^user_id,
+        where: e.id == ^id,
+        select: e.id
+
+    {starred, _} =
+      Repo.delete_all(
+        from v in Favourite,
+          where: v.user_id == ^user_id and v.entry_id == ^id,
+          where: v.entry_id not in subquery(followed)
+      )
+
+    if saved + starred == 0, do: Repo.rollback(:not_found)
+  end
+
+  defp unstar(user_id, id),
+    do: Repo.delete_all(from v in Favourite, where: v.user_id == ^user_id and v.entry_id == ^id)
+
+  @doc """
+  Stars the entry for the account, or takes the star off. A star keeps the entry in the library
+  after its source is unsubscribed. Returns `{:ok, entry_id}`, or `{:error, :not_found}` for an
+  entry the account cannot see. Broadcasts `{:favourite_changed, entry_id}` to the account.
+  """
+  def favourite(%User{id: user_id} = account, entry_id, starred) when is_boolean(starred) do
+    case visible_entry_id(account, entry_id) do
+      nil ->
+        {:error, :not_found}
+
+      id ->
+        if starred do
+          Repo.insert!(%Favourite{user_id: user_id, entry_id: id},
+            on_conflict: :nothing,
+            conflict_target: [:user_id, :entry_id]
+          )
+        else
+          unstar(user_id, id)
+        end
+
+        Events.broadcast(account, {:favourite_changed, id})
+        {:ok, id}
     end
   end
 
@@ -255,20 +303,7 @@ defmodule Sikio.Library do
     # Without entries to take, every present entry is archived again anyway.
     if existing != :none, do: forget_unplayed_archive(user_id, feed_id)
 
-    present =
-      Repo.all(
-        from e in Entry,
-          left_join: v in SavedEntry,
-          on: v.entry_id == e.id and v.user_id == ^user_id,
-          where: e.feed_id == ^feed_id,
-          select: %{
-            id: e.id,
-            short: e.short,
-            at: coalesce(e.published_at, e.inserted_at),
-            title: e.title,
-            saved: not is_nil(v.entry_id)
-          }
-      )
+    present = present_entries(user_id, feed_id)
 
     # A Short is hidden unless the account wants them. Times compare as integers in tuples.
     shown =
@@ -278,10 +313,10 @@ defmodule Sikio.Library do
 
     taken = taken(shown, existing)
 
-    # An entry the account saved on its own stays where it put it.
+    # An entry the account saved or starred stays where it put it.
     taken_ids = MapSet.new(taken, & &1.id)
-    archived = for e <- present, not e.saved, not MapSet.member?(taken_ids, e.id), do: e.id
-    taken = for e <- taken, not e.saved, do: e.id
+    archived = for e <- present, not e.chosen, not MapSet.member?(taken_ids, e.id), do: e.id
+    taken = for e <- taken, not e.chosen, do: e.id
     now = DateTime.utc_now()
 
     if delivery == :queue do
@@ -292,8 +327,27 @@ defmodule Sikio.Library do
     Repo.insert_all(State, delivered(user_id, :skip, archived, now), on_conflict: :nothing)
   end
 
+  # The feed's entries, each with whether the account saved or starred it.
+  defp present_entries(user_id, feed_id) do
+    Repo.all(
+      from e in Entry,
+        left_join: v in SavedEntry,
+        on: v.entry_id == e.id and v.user_id == ^user_id,
+        left_join: f in Favourite,
+        on: f.entry_id == e.id and f.user_id == ^user_id,
+        where: e.feed_id == ^feed_id,
+        select: %{
+          id: e.id,
+          short: e.short,
+          at: coalesce(e.published_at, e.inserted_at),
+          title: e.title,
+          chosen: not is_nil(v.entry_id) or not is_nil(f.entry_id)
+        }
+    )
+  end
+
   # An earlier subscription may have archived entries unplayed. A new one decides afresh about
-  # them. Heard, started and queued entries and saved ones keep their state.
+  # them. Heard, started and queued entries and saved or starred ones keep their state.
   defp forget_unplayed_archive(user_id, feed_id) do
     Repo.delete_all(
       from p in State,
@@ -301,7 +355,7 @@ defmodule Sikio.Library do
         where: is_nil(p.queue_rank),
         where:
           p.entry_id in subquery(from e in Entry, where: e.feed_id == ^feed_id, select: e.id),
-        where: p.entry_id not in subquery(saved_ids(user_id))
+        where: p.entry_id not in subquery(chosen_ids(user_id))
     )
   end
 
@@ -457,12 +511,12 @@ defmodule Sikio.Library do
   """
   def counts(%User{id: user_id}) do
     Repo.all(
-      from [e, s, p] in scoped_entries(user_id),
-        group_by: [e.feed_id, p.status, is_nil(p.queue_rank)],
-        select: {e.feed_id, p.status, is_nil(p.queue_rank), count(e.id)}
+      from [e, s, p, f, v] in scoped_entries(user_id),
+        group_by: [e.feed_id, p.status, is_nil(p.queue_rank), is_nil(v.id)],
+        select: {e.feed_id, p.status, is_nil(p.queue_rank), not is_nil(v.id), count(e.id)}
     )
-    |> Enum.map(fn {feed_id, status, unqueued, count} ->
-      %{feed_id: feed_id, views: views(status, unqueued), count: count}
+    |> Enum.map(fn {feed_id, status, unqueued, starred, count} ->
+      %{feed_id: feed_id, views: views(status, unqueued, starred), count: count}
     end)
   end
 
@@ -470,8 +524,11 @@ defmodule Sikio.Library do
   # The queue shows every queued entry. The inbox shows new entries outside the queue.
   # Heard entries show in the history, queued or not.
   # A source's or tag's unfinished list shows new and in-progress entries, queued or not.
-  # Archived entries show only under "all".
-  defp views(status, unqueued), do: listed_in(status, unqueued) ++ unfinished(status)
+  # Archived entries show only under "all". A starred entry also shows in the favourites.
+  defp views(status, unqueued, starred),
+    do:
+      listed_in(status, unqueued) ++
+        unfinished(status) ++ if(starred, do: [:favourites], else: [])
 
   defp listed_in(:heard, true), do: [:heard]
   defp listed_in(:heard, false), do: [:queue, :heard]
@@ -508,7 +565,7 @@ defmodule Sikio.Library do
     listed = beside.([:status])
 
     # An entry can appear in two lists. Each list counts it, and `:all` counts it once.
-    Map.new([:inbox, :queue, :heard, :open], fn view ->
+    Map.new([:inbox, :queue, :heard, :open, :favourites], fn view ->
       {view, listed |> Enum.filter(&(view in &1.views)) |> Enum.sum_by(& &1.count)}
     end)
     |> Map.put(:all, Enum.sum_by(listed, & &1.count))
@@ -592,7 +649,7 @@ defmodule Sikio.Library do
     status =
       params["status"]
       |> renamed()
-      |> choice(~w(inbox queue heard open))
+      |> choice(~w(inbox queue heard open favourites))
       |> placed(source != "" or tag != "")
 
     %{
@@ -659,27 +716,24 @@ defmodule Sikio.Library do
     filters = normalize_filters(params)
     query = user_id |> entry_query() |> in_place(user_id, filters)
 
-    query =
-      case filters["status"] do
-        "" ->
-          query
-
-        # An entry without a playback row counts as new.
-        "inbox" ->
-          where(query, [e, s, p], (is_nil(p.id) or p.status == :new) and is_nil(p.queue_rank))
-
-        "queue" ->
-          where(query, [e, s, p], not is_nil(p.queue_rank))
-
-        "heard" ->
-          where(query, [e, s, p], p.status == :heard)
-
-        "open" ->
-          where(query, [e, s, p], is_nil(p.id) or p.status in [:new, :in_progress])
-      end
+    query = in_list(query, filters["status"])
 
     query |> matching(filters["q"]) |> on_day(filters)
   end
+
+  defp in_list(query, ""), do: query
+
+  # An entry without a playback row counts as new.
+  defp in_list(query, "inbox"),
+    do: where(query, [e, s, p], (is_nil(p.id) or p.status == :new) and is_nil(p.queue_rank))
+
+  defp in_list(query, "queue"), do: where(query, [e, s, p], not is_nil(p.queue_rank))
+  defp in_list(query, "heard"), do: where(query, [e, s, p], p.status == :heard)
+
+  defp in_list(query, "open"),
+    do: where(query, [e, s, p], is_nil(p.id) or p.status in [:new, :in_progress])
+
+  defp in_list(query, "favourites"), do: where(query, [favourite: v], not is_nil(v.id))
 
   defp on_day(query, %{"day" => ""}), do: query
 
@@ -757,34 +811,43 @@ defmodule Sikio.Library do
     from e in Entry,
       left_join: s in Subscription,
       on: s.feed_id == e.feed_id and s.user_id == ^user_id,
-      where: not is_nil(s.id) or e.id in subquery(saved_ids(user_id))
+      where: not is_nil(s.id) or e.id in subquery(chosen_ids(user_id))
   end
 
-  defp saved_ids(user_id),
-    do: from(v in SavedEntry, where: v.user_id == ^user_id, select: v.entry_id)
+  # The entries the account chose itself: saved singly or starred.
+  defp chosen_ids(user_id) do
+    from v in SavedEntry,
+      where: v.user_id == ^user_id,
+      select: v.entry_id,
+      union_all: ^from(f in Favourite, where: f.user_id == ^user_id, select: f.entry_id)
+  end
 
   # Entries the account's lists show. Shorts show only where the subscription enables them.
-  # A Short saved singly shows, since it was chosen.
+  # A Short saved singly or starred shows, since it was chosen.
   # Hiding applies to lists only, so a player can still save progress on a Short.
   defp listed_entries(user_id) do
     from [e, s] in subscribed_entries(user_id),
-      where: s.shorts or not e.short or e.id in subquery(saved_ids(user_id))
+      where: s.shorts or not e.short or e.id in subquery(chosen_ids(user_id))
   end
 
-  # The left join adds this account's playback row to the shared entry.
+  # The left joins add this account's playback row and star to the shared entry.
   defp scoped_entries(user_id) do
     from [e, s] in listed_entries(user_id),
       left_join: p in State,
       on: p.entry_id == e.id and p.user_id == ^user_id,
-      join: f in assoc(e, :feed)
+      join: f in assoc(e, :feed),
+      left_join: v in Favourite,
+      as: :favourite,
+      on: v.entry_id == e.id and v.user_id == ^user_id
   end
 
   defp entry_query(user_id) do
-    from [e, s, p, f] in scoped_entries(user_id),
+    from [e, s, p, f, v] in scoped_entries(user_id),
       select_merge: %{
         playback: p,
         source_name: coalesce(s.name, f.title),
-        followed: not is_nil(s.id)
+        followed: not is_nil(s.id),
+        favourite: not is_nil(v.id)
       },
       # Preloads from the join above. An unbound `preload: [:feed]` runs a second query for feeds.
       # Every library page and every progress save would pay for that query.

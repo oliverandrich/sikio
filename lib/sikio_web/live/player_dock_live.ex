@@ -124,9 +124,8 @@ defmodule SikioWeb.PlayerDockLive do
   end
 
   def handle_info({:entry_saved, _entry_id}, socket), do: {:noreply, socket}
-
-  # A removed entry may still show through a subscription to its source.
-  def handle_info({:entry_removed, entry_id}, socket) do
+  # A removed entry or a taken-off star may leave the entry visible through its subscription.
+  def handle_info({event, entry_id}, socket) when event in [:entry_removed, :favourite_changed] do
     entry = socket.assigns.entry
 
     if entry && to_string(entry.id) == to_string(entry_id) && gone?(socket, entry),

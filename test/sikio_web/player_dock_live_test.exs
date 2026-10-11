@@ -124,6 +124,25 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, "audio")
   end
 
+  test "a star set elsewhere leaves the player playing", c do
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+    {:ok, _} = Library.favourite(c.user, c.entry.id, true)
+    assert has_element?(dock, "audio")
+  end
+
+  # Without the star and the subscription the item has left the library.
+  test "taking off the last star that kept an item stops it", c do
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    {:ok, _} = Library.favourite(c.user, c.entry.id, true)
+    {:ok, _} = Library.unsubscribe(c.user, c.sub.id)
+    render_hook(dock, "start", %{id: c.entry.id})
+    assert has_element?(dock, "audio")
+
+    {:ok, _} = Library.favourite(c.user, c.entry.id, false)
+    assert has_element?(dock, "#dock-notice", "no longer")
+  end
+
   test "switching to a different episode invalidates the old session", c do
     {:ok, preview} = Parser.parse(podcast("Another show"), "https://other.example.org/rss")
     {:ok, second_sub} = Library.subscribe(c.user, preview)

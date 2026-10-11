@@ -2,12 +2,12 @@
 
 import {elsewhere} from "./player_keys.mjs"
 
-// j and k move the selection, m toggles its mark and f opens the search.
+// j and k move the selection, m toggles its mark, s its star, and f opens the search.
 // Keys with a modifier, in a form control, on a media element or iframe, or in an open dialog are
-// ignored. Repeats of m and f are ignored. Player keys are in assets/js/player_keys.mjs.
+// ignored. Repeats of m, s and f are ignored. Player keys are in assets/js/player_keys.mjs.
 export function readerKey(event) {
   if (elsewhere(event) || ["AUDIO", "VIDEO", "IFRAME"].includes(event.target?.tagName)) return null
-  if (event.key === "m" || event.key === "f") return event.repeat ? null : event.key
+  if (["m", "s", "f"].includes(event.key)) return event.repeat ? null : event.key
   return event.key === "j" || event.key === "k" ? event.key : null
 }
 
@@ -68,6 +68,7 @@ export const ReaderKeys = {
         event.preventDefault()
         this.pushEvent("open_search", {})
       } else if (key === "m") this.pushEvent("toggle_mark", {})
+      else if (key === "s") this.pushEvent("toggle_star", {})
       else if (key) this.pushEvent("move", {key})
     }
     window.addEventListener("keydown", this.onKey)

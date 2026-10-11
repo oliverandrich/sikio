@@ -967,10 +967,12 @@ defmodule SikioWeb.LibraryLiveTest do
         |> Enum.map(&(Floki.attribute(&1, "id") |> hd()))
         |> Enum.reject(&String.ends_with?(&1, "-count"))
 
-      assert order == ["view-inbox", "view-queue", "view-heard", "view-all"]
+      assert order == ["view-inbox", "view-queue", "view-heard", "view-favourites", "view-all"]
       assert has_element?(view, "#view-all[href='/all']")
+      assert has_element?(view, "#view-favourites[href='/favourites']")
       # Every item is in All items, so its count only grows. The sidebar leaves it out.
       refute has_element?(view, "#view-all-count")
+      refute has_element?(view, "#view-favourites-count")
       assert has_element?(view, "#view-inbox[href='/inbox']")
     end
 

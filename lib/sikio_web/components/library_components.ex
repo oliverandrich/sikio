@@ -88,6 +88,9 @@ defmodule SikioWeb.LibraryComponents do
 
   defp nothing(%{"status" => "heard"}), do: {gettext("Nothing heard yet."), nil}
 
+  defp nothing(%{"status" => "favourites"}),
+    do: {gettext("No favourites yet."), gettext("Star an item to keep it here.")}
+
   defp nothing(_filters),
     do: {gettext("No items yet."), gettext("New items arrive as your sources publish them.")}
 
@@ -142,8 +145,17 @@ defmodule SikioWeb.LibraryComponents do
           <.progress :if={@status == :in_progress} entry={@entry} />
         </span>
         <span class="flex min-w-0 grow flex-col gap-1">
-          <span :if={@source_shown} data-source class="truncate text-meta font-semibold text-muted">
-            {source_name(@entry)}
+          <%!-- The star leads the source line, which truncates and so never wraps. Within the
+          source's own list the star stands alone. --%>
+          <span
+            :if={@source_shown or @entry.favourite}
+            class="flex min-w-0 items-center gap-1 text-meta font-semibold text-muted"
+          >
+            <span :if={@entry.favourite} data-favourite title={gettext("Favourite")} class="shrink-0">
+              <Lucideicons.star aria-hidden="true" class="size-3.5 fill-current text-signal" />
+              <span class="sr-only">{gettext("Favourite")}</span>
+            </span>
+            <span :if={@source_shown} data-source class="truncate">{source_name(@entry)}</span>
           </span>
           <span class={[
             "mb-auto line-clamp-2 text-body",
@@ -560,6 +572,21 @@ defmodule SikioWeb.LibraryComponents do
           >
             <:icon><Lucideicons.archive aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
+          <%!-- Icon only, so the labels that fit beside the meta line stay three. --%>
+          <button
+            id="favourite"
+            type="button"
+            phx-click={JS.push("favourite", value: %{id: @entry.id, starred: !@entry.favourite})}
+            aria-pressed={to_string(@entry.favourite)}
+            aria-label={gettext("Favourite")}
+            title={gettext("Favourite")}
+            class="inline-flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink aria-pressed:text-signal"
+          >
+            <Lucideicons.star
+              aria-hidden="true"
+              class={["size-4.5", @entry.favourite && "fill-current"]}
+            />
+          </button>
           <.item_menu id="item-more" label={gettext("More actions")}>
             <.menu_item
               :if={@queued}
@@ -608,7 +635,8 @@ defmodule SikioWeb.LibraryComponents do
               <:icon><Lucideicons.external_link aria-hidden="true" class="size-4" /></:icon>
               {elem(@original, 1)}
             </.menu_item>
-            <%!-- Only a singly saved item leaves the library; a followed one stays with its source. --%>
+            <%!-- Only an item saved singly or kept by its star leaves the library; a followed one stays
+            with its source. --%>
             <.menu_item
               :if={@entry.followed == false}
               id="remove-entry"

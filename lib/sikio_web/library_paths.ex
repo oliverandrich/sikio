@@ -13,7 +13,12 @@ defmodule SikioWeb.LibraryPaths do
 
   # Maps status filters to URL segments. A source's or tag's unfinished list has no segment.
   # No status filter is `all`. Older segments `new`, `in-progress` and `completed` still parse.
-  @statuses %{"inbox" => "inbox", "queue" => "queue", "heard" => "history"}
+  @statuses %{
+    "inbox" => "inbox",
+    "queue" => "queue",
+    "heard" => "history",
+    "favourites" => "favourites"
+  }
   # Filters in the query string rather than the path.
   @query ["day", "q"]
 

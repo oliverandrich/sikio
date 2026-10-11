@@ -170,7 +170,7 @@ defmodule SikioWeb.MediaComponents do
   @doc """
   Returns the library views as `{filter value, count key, label}`.
 
-  The order is inbox, queue, history, then all items.
+  The order is inbox, queue, history, favourites, then all items.
   All items includes archived entries.
   """
   def views do
@@ -178,6 +178,7 @@ defmodule SikioWeb.MediaComponents do
       {"inbox", :inbox, gettext("Inbox")},
       {"queue", :queue, gettext("Queue")},
       {"heard", :heard, gettext("History")},
+      {"favourites", :favourites, gettext("Favourites")},
       {"", :all, gettext("All items")}
     ]
   end
@@ -211,6 +212,7 @@ defmodule SikioWeb.MediaComponents do
     <Lucideicons.inbox :if={@view == :inbox} aria-hidden="true" class={@class} />
     <Lucideicons.list_ordered :if={@view == :queue} aria-hidden="true" class={@class} />
     <Lucideicons.history :if={@view == :heard} aria-hidden="true" class={@class} />
+    <Lucideicons.star :if={@view == :favourites} aria-hidden="true" class={@class} />
     <Lucideicons.library :if={@view == :all} aria-hidden="true" class={@class} />
     """
   end

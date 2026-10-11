@@ -34,7 +34,11 @@ defmodule SikioWeb.LibraryPathsTest do
     assert LibraryPaths.library_path(filters(%{"status" => "inbox"})) == "/inbox"
     assert LibraryPaths.library_path(filters(%{"status" => "queue"})) == "/queue"
     assert LibraryPaths.library_path(filters(%{"status" => "heard"})) == "/history"
+    assert LibraryPaths.library_path(filters(%{"status" => "favourites"})) == "/favourites"
     assert LibraryPaths.library_path(@none) == "/all"
+
+    assert LibraryPaths.read_path("/favourites/12", %{}) ==
+             {filters(%{"status" => "favourites"}), "12"}
   end
 
   # A source path without a status segment opens the source's inbox.

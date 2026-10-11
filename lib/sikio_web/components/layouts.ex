@@ -321,7 +321,7 @@ defmodule SikioWeb.Layouts do
               to={SikioWeb.LibraryPaths.place_path("status", status)}
               patch={@patch}
               active={@patch and SikioWeb.LibraryPaths.place?(@filters, "status", status)}
-              count={if(key in [:heard, :all], do: 0, else: @counts[key])}
+              count={if(key in [:heard, :favourites, :all], do: 0, else: @counts[key])}
             >
               <:mark>
                 <SikioWeb.MediaComponents.view_icon view={key} class="size-4 shrink-0" />
@@ -477,6 +477,7 @@ defmodule SikioWeb.Layouts do
              [
                {["j", "k"], gettext("Next or previous item")},
                {["m"], gettext("Mark as finished, or as new again")},
+               {["s"], gettext("Add to or remove from the favourites")},
                {["f"], gettext("Search")},
                {["Esc"], gettext("Close the search or this overview")},
                {["?"], gettext("This overview")}
