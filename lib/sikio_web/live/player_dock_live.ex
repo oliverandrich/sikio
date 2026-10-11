@@ -479,6 +479,7 @@ defmodule SikioWeb.PlayerDockLive do
             position={@player.position}
             chapters={elem(@chapters, 1)}
             sound={audio_src(@entry, @stream) != nil}
+            fullscreen
           />
           <iframe
             :if={@entry.feed.kind == :youtube}

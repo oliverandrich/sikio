@@ -141,6 +141,15 @@ test("the skips and the speed act on the audio", () => {
   f.cleanup()
 })
 
+// The browser's own controls in fullscreen can change the speed. The button shows it after.
+test("the speed button follows a speed set elsewhere", () => {
+  const f = fixture()
+  f.audio.playbackRate = 2
+  f.audio.dispatchEvent(new Event("ratechange"))
+  assert.equal(f.parts.speed.textContent, "2×")
+  f.cleanup()
+})
+
 test("cleaning up leaves the audio alone", () => {
   const f = fixture()
   f.cleanup()

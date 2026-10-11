@@ -10,6 +10,8 @@
 //   x                fill the screen, for a video
 export function playerKey(event) {
   if (elsewhere(event)) return null
+  // In fullscreen the video shows the browser's controls, which handle its keys themselves.
+  if (event.target?.tagName === "VIDEO" && event.target.controls) return null
 
   const arrow = {ArrowLeft: -1, ArrowRight: 1}[event.key]
   if (arrow && event.shiftKey) return event.repeat ? null : {name: "chapter", direction: arrow}

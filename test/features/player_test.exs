@@ -275,6 +275,38 @@ defmodule SikioWeb.PlayerTest do
     end)
   end
 
+  # The button enlarges the video alone. Sikio's controls stay outside, so the video shows the
+  # browser's own while fullscreen lasts.
+  feature "a video fills the screen with the browser's controls, and leaves it again", context do
+    %{session: session, account: account} = context
+    video = video_with_notes(session, account)
+
+    state = """
+    const video = document.querySelector("#player-panel video")
+    return [document.fullscreenElement === video, video.controls]
+    """
+
+    session
+    |> resize_window(1280, 900)
+    |> open(item_path(video))
+    |> click(css("#start-playback"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] video[poster]|))
+    |> click(css("#player-panel button[data-fullscreen]"))
+    |> then(fn session ->
+      assert {:ok, _} = retry(fn -> fullscreen(session, state, [true, true]) end)
+      execute_script(session, "document.exitFullscreen()")
+      assert {:ok, _} = retry(fn -> fullscreen(session, state, [false, false]) end)
+    end)
+  end
+
+  defp fullscreen(session, script, expected) do
+    execute_script(session, script, &Process.put(:fullscreen, &1))
+
+    if Process.get(:fullscreen) == expected,
+      do: {:ok, expected},
+      else: {:error, Process.get(:fullscreen)}
+  end
+
   describe "from lg, the player's place" do
     setup %{account: account} do
       {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())

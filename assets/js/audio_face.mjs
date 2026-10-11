@@ -177,10 +177,13 @@ export function bindFace(audio, face, strings) {
   // Marks are repositioned only when the duration changes, not on `timeupdate`.
   for (const event of ["loadedmetadata", "durationchange"]) listen(audio, event, () => placeMarks(face, length()))
 
+  // The browser's own controls in fullscreen can change the speed too.
+  const showRate = () => { speed.textContent = `${rate.format(audio.playbackRate)}×` }
   listen(speed, "click", () => {
     audio.playbackRate = nextSpeed(audio.playbackRate)
-    speed.textContent = `${rate.format(audio.playbackRate)}×`
+    showRate()
   })
+  listen(audio, "ratechange", showRate)
 
   state()
   // Before metadata loads, `currentTime` is 0. The server-rendered saved position stays until then.

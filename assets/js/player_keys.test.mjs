@@ -32,6 +32,14 @@ test("only the skips repeat while a key is held", () => {
   assert.equal(playerKey(press("u", {repeat: true})), null)
 })
 
+// In fullscreen a video shows the browser's controls, which take its keys. Sikio's would act
+// twice. A video without controls leaves its keys to the player.
+test("a video with its own controls keeps its keys", () => {
+  assert.equal(playerKey(press("ArrowRight", {target: {tagName: "VIDEO", controls: true}})), null)
+  assert.deepEqual(playerKey(press("ArrowRight", {target: {tagName: "VIDEO", controls: false}})),
+    {name: "skip", by: 30})
+})
+
 // Keys in a field, in an open dialog, or with a browser modifier are not player keys.
 test("a field or a browser shortcut keeps its keys", () => {
   for (const tagName of ["INPUT", "TEXTAREA", "SELECT"]) {

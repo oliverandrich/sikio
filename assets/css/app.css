@@ -265,12 +265,14 @@
 }
 .audio-skip:hover { background: var(--color-ground); }
 .audio-skip span { margin-top: -2px; font-family: var(--font-mono); font-size: 10px; line-height: 1; }
-/* A video's switch to its sound alone. Pressed, it takes the accent colour. */
-.audio-sound {
-  grid-area: sound; justify-self: end; display: flex; align-items: center; justify-content: center;
+/* A video's extras: the switch to its sound alone and fullscreen. Pressed, a switch takes the
+   accent colour. */
+.audio-extras { grid-area: sound; justify-self: end; display: flex; gap: .5rem; }
+.audio-extra {
+  display: flex; align-items: center; justify-content: center;
   width: 2.75rem; height: 2rem; border-radius: 999px; background: var(--color-ground); color: var(--color-ink);
 }
-.audio-sound[aria-pressed="true"] { background: var(--color-accent); color: var(--color-on-accent); }
+.audio-extra[aria-pressed="true"] { background: var(--color-accent); color: var(--color-on-accent); }
 .audio-speed {
   grid-area: speed; justify-self: start; min-width: 4rem; height: 2rem; padding: 0 .75rem;
   border-radius: 999px; background: var(--color-ground); color: var(--color-ink);
@@ -328,7 +330,7 @@
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-play svg { width: 1.375rem; height: 1.375rem; }
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-skip { width: 2.75rem; height: 2.75rem; }
   :is(#player-panel[data-place="pinned"], #player-slot) .audio-speed { margin-left: .25rem; }
-  :is(#player-panel[data-place="pinned"], #player-slot) .audio-face:has(.audio-sound) {
+  :is(#player-panel[data-place="pinned"], #player-slot) .audio-face:has(.audio-extras) {
     grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
     grid-template-areas: "play track back forward speed sound";
   }
@@ -338,7 +340,7 @@
   padding: .875rem 1rem; background: var(--color-ground); border-block: 1px solid var(--color-line);
 }
 :is(#player-panel[data-place="pinned"], #player-slot) .audio-skip:hover { background: var(--color-surface); }
-:is(#player-panel[data-place="pinned"], #player-slot) :is(.audio-speed, .audio-sound:not([aria-pressed="true"])) {
+:is(#player-panel[data-place="pinned"], #player-slot) :is(.audio-speed, .audio-extra:not([aria-pressed="true"])) {
   background: var(--color-surface); box-shadow: 0 0 0 1px var(--color-line);
 }
 /* Phone width: smaller column gap and skip buttons, and a narrower speed button.
@@ -347,6 +349,11 @@
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face { column-gap: .25rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-skip { width: 2.75rem; height: 2.75rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-speed { min-width: 3.25rem; padding: 0 .5rem; }
+}
+/* Up to 28rem the side columns are too narrow for two extras at full size. */
+@container (20rem <= width < 28rem) {
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-extras { gap: .25rem; }
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-extra { width: 2.25rem; }
 }
 /* Very narrow, as the detail beside the list at 1024px: the button row uses space-between. */
 @container (width < 20rem) {
@@ -357,12 +364,17 @@
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-play { width: 3.25rem; height: 3.25rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-skip { width: 2.5rem; height: 2.5rem; }
   :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-speed { min-width: 0; padding: 0 .5rem; }
-  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face:has(.audio-sound) {
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face:has(.audio-extras) {
     grid-template-columns: repeat(5, auto); grid-template-areas: "track track track track track" "speed back play forward sound";
   }
+  /* Two extras take a row of their own, since the button row has no room for both. */
+  :is(#player-panel:not([data-place="compact"]), #player-slot) .audio-face:has(.audio-extras > :nth-child(2)) {
+    grid-template-columns: auto auto auto auto;
+    grid-template-areas: "track track track track" "speed back play forward" "sound sound sound sound";
+  }
 }
-/* Speed and sound buttons are disabled before playback but keep their grid cells. */
-:is(.audio-speed, .audio-sound):disabled { cursor: default; }
+/* Speed and extra buttons are disabled before playback but keep their grid cells. */
+:is(.audio-speed, .audio-extra):disabled { cursor: default; }
 
 /* Compact window: a small play button beside the seek bar; skip and speed are hidden. */
 #player-panel[data-place="compact"] .audio-face {
@@ -372,7 +384,7 @@
   width: 2.25rem; height: 2.25rem; box-shadow: none;
 }
 #player-panel[data-place="compact"] .audio-play svg { width: .875rem; height: .875rem; }
-#player-panel[data-place="compact"] :is(.audio-skip, .audio-speed, .audio-sound) { display: none; }
+#player-panel[data-place="compact"] :is(.audio-skip, .audio-speed, .audio-extras) { display: none; }
 #player-panel[data-place="compact"] .audio-track { gap: .25rem; }
 #player-panel[data-place="compact"] video + .audio-face { margin-top: .5rem; }
 #player-panel[data-place="compact"] .audio-times { font-size: 10px; }

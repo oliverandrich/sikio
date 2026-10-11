@@ -382,6 +382,7 @@ defmodule SikioWeb.LibraryComponents do
       position={cue_position(@entry)}
       chapters={@chapters}
       sound={@entry.audio_url != nil}
+      fullscreen={native_video?(@entry.feed)}
       data-entry-id={@entry.id}
       data-position-of={
         gettext("%{position} of %{duration}", position: "{position}", duration: "{duration}")

@@ -228,6 +228,14 @@ export const MediaPlayer = {
       this.stream()
       const only = this.el.querySelector("[data-audio-only]")
       if (only) this.listen(only, "click", () => this.switchSound(only))
+      this.enlarge = this.el.querySelector("[data-fullscreen]")
+      if (this.enlarge) this.listen(this.enlarge, "click", () => this.fullscreen())
+      // Sikio's controls stay outside fullscreen, so the video shows the browser's own there.
+      if (this.video) {
+        this.listen(document, "fullscreenchange", () => {
+          this.video.controls = document.fullscreenElement === this.video
+        })
+      }
     } else {
       this.mountYouTube()
     }
@@ -337,6 +345,7 @@ export const MediaPlayer = {
       from.after(to)
     }
     button.setAttribute("aria-pressed", String(Boolean(this.sound)))
+    if (this.enlarge) this.enlarge.disabled = Boolean(this.sound)
     this.mountMedia(to)
   },
 
@@ -499,8 +508,9 @@ export const MediaPlayer = {
     if (document.fullscreenElement) return document.exitFullscreen?.()
     // The sound alone plays in an audio element and has no picture to enlarge.
     const target = this.sound ? null : this.video ?? this.el.querySelector("iframe")
-    if (target?.requestFullscreen) target.requestFullscreen()
-    else target?.webkitEnterFullscreen?.()
+    if (target?.requestFullscreen) return target.requestFullscreen()?.catch(() => {})
+    // iOS refuses before the video has its metadata, by throwing.
+    try { target?.webkitEnterFullscreen?.() } catch {}
   },
 
   disconnected() { this.reporter.disconnect() },

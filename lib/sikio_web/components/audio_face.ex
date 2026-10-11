@@ -21,6 +21,7 @@ defmodule SikioWeb.AudioFace do
   attr :cue, :map, default: nil, doc: "the entry, when this is the card's cue"
   attr :chapters, :list, default: [], doc: "the chapters as `%{at: seconds, title: text}`"
   attr :sound, :boolean, default: false, doc: "whether a video offers its audio-only file"
+  attr :fullscreen, :boolean, default: false, doc: "whether the face controls a video element"
   attr :rest, :global
 
   def audio_face(assigns) do
@@ -108,20 +109,34 @@ defmodule SikioWeb.AudioFace do
       >
         1×
       </button>
-      <%!-- Switches a video to its audio-only file; see assets/js/media_player.mjs.
-      Disabled on the cue, like the speed button. --%>
-      <button
-        :if={@sound}
-        type="button"
-        data-audio-only
-        disabled={@cue != nil}
-        aria-pressed="false"
-        aria-label={gettext("Sound only")}
-        title={gettext("Sound only")}
-        class="audio-sound"
-      >
-        <Lucideicons.headphones aria-hidden="true" class="size-5" />
-      </button>
+      <%!-- A video's extras share the last cell. Disabled on the cue, like the speed button. --%>
+      <div :if={@sound or @fullscreen} class="audio-extras">
+        <%!-- Switches a video to its audio-only file; see assets/js/media_player.mjs. --%>
+        <button
+          :if={@sound}
+          type="button"
+          data-audio-only
+          disabled={@cue != nil}
+          aria-pressed="false"
+          aria-label={gettext("Sound only")}
+          title={gettext("Sound only")}
+          class="audio-extra"
+        >
+          <Lucideicons.headphones aria-hidden="true" class="size-5" />
+        </button>
+        <%!-- Enlarges the video element alone; see assets/js/media_player.mjs. --%>
+        <button
+          :if={@fullscreen}
+          type="button"
+          data-fullscreen
+          disabled={@cue != nil}
+          aria-label={gettext("Fullscreen")}
+          title={gettext("Fullscreen")}
+          class="audio-extra"
+        >
+          <Lucideicons.maximize aria-hidden="true" class="size-5" />
+        </button>
+      </div>
     </div>
     """
   end

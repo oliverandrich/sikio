@@ -105,7 +105,11 @@ subscription deletes no shared episodes.
   only the sound keeps playing in the background. The player reports views to the instance, as
   PeerTube's own player does.
 - YouTube: the official embed in its privacy-enhanced mode. The embed loads only after you press
-  play.
+  play. Its own button enlarges it.
+- **Fullscreen** beside the controls of a PeerTube or Mediathek video shows the video alone, with
+  the browser's own controls. They can set speeds Sikio's button does not offer. Leaving
+  fullscreen keeps position, speed and play state. An item that ends in fullscreen leaves it, and
+  the queue plays on.
 - Playback status per account: new, in progress, heard or watched, or archived as unheard. An
   item counts as heard in its last minute. An item under ten minutes counts as heard at 90 % of
   its duration. Every mark can be undone. Marking an item unheard also resets its position.

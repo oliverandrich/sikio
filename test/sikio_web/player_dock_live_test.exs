@@ -430,6 +430,7 @@ defmodule SikioWeb.PlayerDockLiveTest do
            )
 
     assert has_element?(dock, "[data-audio-face]")
+    assert has_element?(dock, ~s(button[data-fullscreen][aria-label="Fullscreen"]))
     # Some broadcasters offer an HLS playlist only. Other browsers than Safari need hls.js then.
     assert has_element?(dock, ~s([phx-hook="MediaPlayer"][data-hls^="/vendor/hls.js/hls-"]))
     refute has_element?(dock, "[data-views], [data-audio-only]")
@@ -441,11 +442,14 @@ defmodule SikioWeb.PlayerDockLiveTest do
     {:ok, dock, _} = live_isolated(conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
     assert has_element?(dock, "[data-audio-face]")
+    # Audio has no picture to enlarge.
+    refute has_element?(dock, "[data-fullscreen]")
 
     video = peertube_entry(user)
     instance_names_files()
     render_hook(dock, "start", %{id: video.id})
     assert has_element?(dock, "[data-audio-face]")
+    assert has_element?(dock, "button[data-fullscreen]")
 
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, _} = Library.subscribe(user, preview)

@@ -117,6 +117,7 @@ defmodule SikioWeb.LibraryDetailTest do
     assert has_element?(view, "#player-slot #video-cue img.aspect-video")
     assert has_element?(view, "#video-cue #audio-cue[phx-hook='AudioCue'] #start-playback")
     assert has_element?(view, "#audio-cue button[data-audio-only][disabled]")
+    assert has_element?(view, "#audio-cue button[data-fullscreen][disabled]")
     refute has_element?(view, "#player-slot video")
 
     {:ok, view, _} = live(c.conn, item_path(Enum.find(entries, &(&1.feed.kind == :youtube))))

@@ -539,9 +539,11 @@ test("a PeerTube video switches to its sound alone and back at the same place", 
   globalThis.document = Object.assign(new EventTarget(), {hidden: false, createElement: () => audio})
   const button = Object.assign(new EventTarget(), {attributes: {},
     setAttribute(name, value) { this.attributes[name] = value }})
+  const enlarge = Object.assign(new EventTarget(), {disabled: false})
   const hook = {...MediaPlayer, el: Object.assign(new EventTarget(), {style: {setProperty() {}},
     dataset: {kind: "peertube", session: "v", position: "0", audioSrc: "https://video.example.org/a.mp4", ...STRINGS},
-    querySelector: selector => ({video, "[data-audio-only]": button, "[data-player-message]": {textContent: ""}}[selector])}),
+    querySelector: selector => ({video, "[data-audio-only]": button, "[data-fullscreen]": enlarge,
+      "[data-player-message]": {textContent: ""}}[selector])}),
     pushEvent: (_event, sample, reply) => {samples.push(sample); reply({saved: true})}}
   try {
     hook.mounted()
@@ -555,6 +557,18 @@ test("a PeerTube video switches to its sound alone and back at the same place", 
     assert.equal(fullscreen, true, "the video fills the screen")
     fullscreen = false
 
+    // The button does the same. In fullscreen the video shows the browser's controls, since
+    // Sikio's stay outside. Leaving fullscreen hides them again.
+    enlarge.dispatchEvent(new Event("click"))
+    assert.equal(fullscreen, true, "the button fills the screen too")
+    fullscreen = false
+    globalThis.document.fullscreenElement = video
+    globalThis.document.dispatchEvent(new Event("fullscreenchange"))
+    assert.equal(video.controls, true)
+    globalThis.document.fullscreenElement = null
+    globalThis.document.dispatchEvent(new Event("fullscreenchange"))
+    assert.equal(video.controls, false)
+
     button.dispatchEvent(new Event("click"))
     assert.equal(video.paused, true)
     assert.equal(video.hidden, true)
@@ -563,6 +577,7 @@ test("a PeerTube video switches to its sound alone and back at the same place", 
     assert.equal(button.attributes["aria-pressed"], "true")
     hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail: {name: "fullscreen"}}))
     assert.equal(fullscreen, false, "the hidden video stays out of fullscreen")
+    assert.equal(enlarge.disabled, true, "the sound alone has no picture to enlarge")
     audio.readyState = 1
     audio.dispatchEvent(new Event("loadedmetadata"))
     assert.equal(audio.currentTime, 200)
@@ -578,6 +593,7 @@ test("a PeerTube video switches to its sound alone and back at the same place", 
     button.dispatchEvent(new Event("click"))
     assert.equal(audio.removed, true)
     assert.equal(video.hidden, false)
+    assert.equal(enlarge.disabled, false, "the picture can fill the screen again")
     assert.equal(video.currentTime, 260)
     assert.equal(video.paused, true, "a paused sound stays paused as video")
     assert.equal(button.attributes["aria-pressed"], "false")
@@ -793,5 +809,18 @@ test("chapters learned later are drawn on the dock's bar", () => {
     assert.equal(bar.appended.length, 2, "the same chapters are drawn once")
   } finally {
     globalThis.document = previousDocument
+  }
+})
+
+// iOS has only webkitEnterFullscreen, which throws before the video has its metadata. A tap then
+// does nothing instead of breaking the player.
+test("an iPhone that refuses fullscreen leaves the player as it was", () => {
+  const previous = globalThis.document
+  globalThis.document = {fullscreenElement: null}
+  const video = {webkitEnterFullscreen() { throw new Error("InvalidStateError") }}
+  try {
+    assert.doesNotThrow(() => MediaPlayer.fullscreen.call({video, sound: null, el: {querySelector() {}}}))
+  } finally {
+    globalThis.document = previous
   }
 })
