@@ -9,6 +9,52 @@ or changed setting, a step to take before or after the update. A release migrate
 as it starts unless `SIKIO_MIGRATE_ON_START=false`; back up the database before every update.
 Its own section becomes the version's release notes.
 
+## [Unreleased]
+
+## [0.5.0] - 2026-10-11
+
+### Upgrading
+
+- Five migrations run on start. They add an entry's audio-only file, a feed's artwork check and
+  the Mediathek as a kind of source. They then key stored Mediathek programmes by broadcaster
+  page and title and merge their copies, and remove jobs of a retired picture worker.
+- The merge of Mediathek copies cannot be rolled back. Back up the database before the update.
+- `MEDIATHEK_URL` optionally names another MediathekViewWeb instance for the Mediathek search.
+  The public instance is the default.
+- The content security policy adds `connect-src https:` and `blob:` media, so hls.js can load
+  PeerTube streams and broadcaster playlists. A proxy that sets its own policy needs the same.
+
+### Added
+
+- The TV Mediathek of the German public broadcasters, searched through MediathekViewWeb. A film
+  is added on its own, a series is subscribed as a source.
+- Programmes show the picture of their broadcaster's page. A series shows its broadcaster's
+  icon where the broadcaster's site offers one.
+- The add page sorts a search into four tabs: podcasts, episodes, TV series and TV videos. Each
+  row offers Add to queue, Add to inbox and Subscribe. A pasted link to one item shows it the
+  same way.
+- Subscribing asks which present episodes to take, the newest, all or none, and where new
+  episodes go.
+- PeerTube videos play in Sikio's own player, with a switch to the audio-only file where the
+  instance offers one.
+- A fullscreen button for PeerTube and Mediathek videos. Fullscreen shows the browser's own
+  controls.
+- The history filters by day from a month calendar.
+- A source's or tag's first list holds its unfinished items, and the sidebar counts them.
+- A podcast without its own artwork takes its cover from Apple Podcasts.
+
+### Changed
+
+- A new subscription brings only the newest episode by default. The others wait in the source
+  under All items.
+- Subscribing again after an unsubscribe decides afresh about episodes archived unplayed.
+
+### Fixed
+
+- The player closes when an ended item has no successor.
+- A PeerTube video asks its instance for the stream on every play, so a moved or re-transcoded
+  video still plays.
+
 ## [0.4.0] - 2026-10-08
 
 ### Upgrading
