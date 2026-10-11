@@ -236,6 +236,22 @@ defmodule SikioWeb.PlayerTest do
     )
   end
 
+  # Without a share sheet, as in some desktop browsers, the share button copies the link.
+  feature "without a share sheet the share button copies the link", context do
+    %{session: session, entry: entry} = context
+
+    session
+    |> open(item_path(entry))
+    # Headless Chrome may refuse the clipboard, so the page records what it would write.
+    |> execute_script("""
+    navigator.share = undefined
+    navigator.clipboard.writeText = async text => { window.copiedText = text }
+    """)
+    |> click(css("#share"))
+    |> assert_has(css("#flash-info", text: "Link copied."))
+    |> execute_script("return window.copiedText", &assert(&1 == entry.page_url))
+  end
+
   # The poster starts the video, as the play button below it does.
   feature "a click on a PeerTube video's poster starts it", context do
     %{session: session, account: account} = context

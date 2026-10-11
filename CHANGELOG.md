@@ -19,6 +19,8 @@ Its own section becomes the version's release notes.
 
 - Favourites. A star in an item's detail, or the key `s`, adds it to a list of its own. A
   favourite stays in the library after its source is unsubscribed.
+- A share button beside the star hands an item's original page to the system's share sheet.
+  Where the browser has none, it copies the link.
 
 ### Fixed
 

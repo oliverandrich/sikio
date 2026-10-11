@@ -572,7 +572,7 @@ defmodule SikioWeb.LibraryComponents do
           >
             <:icon><Lucideicons.archive aria-hidden="true" class="size-4.5" /></:icon>
           </.card_action>
-          <%!-- Icon only, so the labels that fit beside the meta line stay three. --%>
+          <%!-- Star and share are icons only, so the labels that fit beside the meta line stay three. --%>
           <button
             id="favourite"
             type="button"
@@ -586,6 +586,20 @@ defmodule SikioWeb.LibraryComponents do
               aria-hidden="true"
               class={["size-4.5", @entry.favourite && "fill-current"]}
             />
+          </button>
+          <%!-- Shares the public original, since Sikio's own pages need a sign-in. --%>
+          <button
+            :if={@original}
+            id="share"
+            type="button"
+            phx-hook="Share"
+            data-share-url={elem(@original, 0)}
+            data-share-title={@entry.title}
+            aria-label={gettext("Share")}
+            title={gettext("Share")}
+            class="inline-flex size-9 items-center justify-center rounded-full text-muted hover:bg-ground hover:text-ink"
+          >
+            <Lucideicons.share aria-hidden="true" class="size-4.5" />
           </button>
           <.item_menu id="item-more" label={gettext("More actions")}>
             <.menu_item

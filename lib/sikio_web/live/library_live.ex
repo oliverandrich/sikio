@@ -398,6 +398,14 @@ defmodule SikioWeb.LibraryLive do
       when is_boolean(starred),
       do: changed(socket, Library.favourite(socket.assigns.current_account, id, starred))
 
+  # Sent by assets/js/share.mjs where the browser has no share sheet and the link was copied, or
+  # could not be.
+  def handle_event("link_copied", _params, socket),
+    do: {:noreply, put_flash(socket, :info, gettext("Link copied."))}
+
+  def handle_event("link_not_copied", _params, socket),
+    do: {:noreply, put_flash(socket, :error, gettext("The link could not be copied."))}
+
   def handle_event("queue", %{"id" => id, "at" => at}, socket) when at in ["first", "last"],
     do:
       changed(

@@ -33,6 +33,7 @@ import {PlayerDock, rejoinParams} from "./player_dock.mjs"
 import {ReaderKeys} from "./reader_keys.mjs"
 import {DockPlace} from "./dock_place.mjs"
 import {AudioCue} from "./audio_cue.mjs"
+import {Share} from "./share.mjs"
 import {Shortcuts} from "./shortcuts.mjs"
 import {ListHead} from "./list_head.mjs"
 import {PlayingEntry} from "./playing_entry.mjs"
@@ -49,7 +50,7 @@ const liveSocket = new LiveSocket("/live", Socket, {
     time_zone_offset: -new Date().getTimezoneOffset(),
     ...rejoinParams(view),
   }),
-  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue, Shortcuts, ListHead, PlayingEntry, ShrinkTitle, QueueSort},
+  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue, Share, Shortcuts, ListHead, PlayingEntry, ShrinkTitle, QueueSort},
 })
 
 // Show progress bar on live navigation and form submits

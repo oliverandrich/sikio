@@ -206,6 +206,27 @@ defmodule SikioWeb.LibraryDetailTest do
     end
   end
 
+  # The share button hands the original page to the system's share sheet; see assets/js/share.mjs.
+  # Without the sheet the link is copied, and the server confirms it or says it failed.
+  test "the detail shares the original page, and only where there is one", c do
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
+
+    assert has_element?(
+             view,
+             ~s|#item-actions #share[phx-hook="Share"][data-share-url="#{podcast_page()}"]| <>
+               ~s|[data-share-title="One & two"][aria-label="Share"]|
+           )
+
+    render_hook(view, "link_copied", %{})
+    assert render(view) =~ "Link copied."
+    render_hook(view, "link_not_copied", %{})
+    assert render(view) =~ "The link could not be copied."
+
+    Repo.update_all(Sikio.Feeds.Entry, set: [page_url: nil])
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
+    refute has_element?(view, "#share")
+  end
+
   # Entries imported before `page_url` existed have none until the next poll.
   # A YouTube URL is built from the video id. Other kinds show no link rather than a guessed URL.
   test "without a stored page only a YouTube video is still opened", c do
