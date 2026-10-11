@@ -419,6 +419,15 @@ test("a PeerTube video plays in its own element with the audio's controls", () =
     assert.equal(reports[0].url, "https://video.example.org/api/v1/videos/abc/views")
     assert.equal(reports[0].credentials, "omit")
     assert.deepEqual(JSON.parse(reports[0].body).currentTime, 120)
+    // A click on the picture pauses and plays. In fullscreen the browser's controls take it.
+    video.dispatchEvent(new Event("click"))
+    assert.equal(video.paused, true)
+    video.dispatchEvent(new Event("click"))
+    assert.equal(video.paused, false)
+    video.controls = true
+    video.dispatchEvent(new Event("click"))
+    assert.equal(video.paused, false, "the browser's controls handle the click")
+    video.controls = false
     hook.el.dispatchEvent(new CustomEvent("sikio:command", {detail: {name: "skip", by: 30}}))
     assert.equal(video.currentTime, 150)
     video.dispatchEvent(new Event("pause"))

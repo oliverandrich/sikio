@@ -236,6 +236,17 @@ defmodule SikioWeb.PlayerTest do
     )
   end
 
+  # The poster starts the video, as the play button below it does.
+  feature "a click on a PeerTube video's poster starts it", context do
+    %{session: session, account: account} = context
+    video = video_with_notes(session, account)
+
+    session
+    |> open(item_path(video))
+    |> click(css("#video-cue img"))
+    |> assert_has(css(~s|#player-panel[data-place="pinned"] video|))
+  end
+
   # Before play a PeerTube video shows its poster above Sikio's controls.
   # The dock's player then covers both in the same boxes.
   feature "a PeerTube video's card player is covered without a jump", context do

@@ -652,12 +652,13 @@ defmodule SikioWeb.LibraryComponents do
         </button>
         <%!-- An episode, a PeerTube video and a Mediathek film render Sikio's controls inline. No
         media loads before first use; see assets/js/audio_cue.mjs. A video shows its poster above
-        them, as the dock's player does. --%>
+        them, as the dock's player does. A click on the poster starts it; keyboards use Play. --%>
         <div :if={native_video?(@entry.feed)} id="video-cue">
           <img
             src={artwork(@entry)}
             alt=""
-            class="aspect-video w-full rounded-control bg-black object-contain"
+            phx-click={JS.dispatch("sikio:play", detail: %{id: @entry.id})}
+            class="aspect-video w-full cursor-pointer rounded-control bg-black object-contain"
           />
           <.cue entry={@entry} chapters={@chapters} />
         </div>

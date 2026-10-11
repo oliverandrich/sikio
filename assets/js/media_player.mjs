@@ -235,6 +235,8 @@ export const MediaPlayer = {
         this.listen(document, "fullscreenchange", () => {
           this.video.controls = document.fullscreenElement === this.video
         })
+        // Without native controls a click on the picture would do nothing.
+        this.listen(this.video, "click", () => { if (!this.video.controls) this.toggle() })
       }
     } else {
       this.mountYouTube()

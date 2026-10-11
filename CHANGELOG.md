@@ -11,6 +11,11 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- A click on a PeerTube or Mediathek video plays or pauses it. Before playback, a click on its
+  picture starts it.
+
 ## [0.5.0] - 2026-10-11
 
 ### Upgrading

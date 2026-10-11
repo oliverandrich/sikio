@@ -471,7 +471,7 @@ defmodule SikioWeb.PlayerDockLive do
             playsinline
             poster={artwork(@entry)}
             aria-label={@entry.title}
-            class="aspect-video w-full rounded-control bg-black"
+            class="aspect-video w-full cursor-pointer rounded-control bg-black"
           ></video>
           <.audio_face
             :if={native_video?(@entry.feed)}
