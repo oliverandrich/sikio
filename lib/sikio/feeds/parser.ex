@@ -122,12 +122,19 @@ defmodule Sikio.Feeds.Parser do
     }
   end
 
-  # A series without programmes right now is named after its search: `!channel #topic,words`.
-  defp searched(url) do
-    query = URI.decode_query(URI.parse(url).query || "")["query"] || ""
+  @doc """
+  Returns the channels and topics a MediathekViewWeb feed address searches, as written.
 
-    {channels, topics} =
-      query |> String.split(" ", trim: true) |> Enum.split_with(&String.starts_with?(&1, "!"))
+  The search reads `!channel #topic,words`, so a channel comes back as `"!WDR"`.
+  """
+  def mediathek_selector(url) when is_binary(url) do
+    query = URI.decode_query(URI.parse(url).query || "")["query"] || ""
+    query |> String.split(" ", trim: true) |> Enum.split_with(&String.starts_with?(&1, "!"))
+  end
+
+  # A series without programmes right now is named after its search.
+  defp searched(url) do
+    {channels, topics} = mediathek_selector(url)
 
     topic = topics |> Enum.map_join(" ", &String.replace(String.trim_leading(&1, "#"), ",", " "))
     channel = channels |> Enum.map_join(" ", &String.trim_leading(&1, "!"))

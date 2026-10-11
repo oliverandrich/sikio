@@ -1172,6 +1172,35 @@ defmodule SikioWeb.LibraryLiveTest do
     end
   end
 
+  # A TV series names no picture. Its broadcaster's icon stands in, in the sidebar, in the
+  # detail's head and in the subscription list.
+  test "a TV series shows its broadcaster's icon", c do
+    url = "https://mediathekviewweb.de/feed?query=%21WDR+%23Tatort&size=20"
+    {:ok, preview} = Parser.parse(mediathek_feed(), url)
+    {:ok, sub} = Library.subscribe(c.user, preview, existing: :all)
+    [programme] = Library.entries(c.user, %{"source" => to_string(sub.feed_id)})
+    icon = {:ok, {[{:site_icon, "https://www1.wdr.de"}], "/images/kind-video.svg"}}
+
+    reference = fn view, selector ->
+      [src] =
+        view
+        |> element(selector)
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.attribute("img", "src")
+
+      "/pictures/" <> reference = src
+      Pictures.verify(reference)
+    end
+
+    {:ok, view, _} = live(c.conn, item_path(programme))
+    assert reference.(view, "#source-#{sub.feed_id} img") == icon
+    assert reference.(view, "#item-source-mark img") == icon
+
+    {:ok, view, _} = live(c.conn, ~p"/subscriptions")
+    assert reference.(view, "#subscription-#{sub.id} img") == icon
+  end
+
   describe "a row in the list" do
     # Row images are proxied through `/pictures/`.
     # The signed reference lists the episode image, the feed image, then the kind icon.
@@ -1215,7 +1244,10 @@ defmodule SikioWeb.LibraryLiveTest do
 
       assert Pictures.verify(reference) ==
                {:ok,
-                {[{:page, "https://www.ardmediathek.de/video/maus-1"}], "/images/kind-video.svg"}}
+                {[
+                   {:page, "https://www.ardmediathek.de/video/maus-1"},
+                   {:site_icon, "https://www.daserste.de"}
+                 ], "/images/kind-video.svg"}}
     end
 
     test "shows the runtime the publisher stated, and none when there is none", c do

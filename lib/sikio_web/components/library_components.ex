@@ -501,13 +501,10 @@ defmodule SikioWeb.LibraryComponents do
           aria-hidden="true"
           class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent/15 text-meta font-semibold text-accent"
         >
-          <img
-            :if={@entry.feed.icon_url}
-            src={source_picture(@entry.feed)}
-            alt=""
-            class="size-full object-cover"
-          />
-          <span :if={!@entry.feed.icon_url}>{initial(source_name(@entry))}</span>
+          <.with_source_icon :let={icon} source={@entry.feed}>
+            <img :if={icon} src={icon} alt="" class="size-full object-cover" />
+            <span :if={!icon}>{initial(source_name(@entry))}</span>
+          </.with_source_icon>
         </span>
         <div class="flex min-w-0 grow flex-col">
           <p class="truncate text-label font-semibold text-ink">{source_name(@entry)}</p>

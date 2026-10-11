@@ -13,6 +13,7 @@ defmodule Sikio.Pictures do
   Every file path is the configured directory joined with a SHA-256 hash, never a caller's name.
   The file functions below therefore skip Sobelow's traversal check.
   """
+  alias Sikio.Feeds.Broadcasters
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.HTTP
   alias Sikio.Pictures.Pages
@@ -40,8 +41,21 @@ defmodule Sikio.Pictures do
   broadcaster's page names. A search result is cached under the same page, see `fetch/2`.
   """
   def candidates(entry) do
-    Enum.reject(own(entry) ++ [entry.feed.icon_url], &is_nil/1)
+    Enum.reject(own(entry), &is_nil/1) ++ source_icons(entry.feed)
   end
+
+  @doc """
+  Returns the candidates for a source's icon: its own, else for a TV series its broadcaster's.
+
+  A series has no picture of its own, see `Sikio.Feeds.Broadcasters`. An empty list means the
+  source shows its initial.
+  """
+  def source_icons(%{icon_url: url}) when is_binary(url), do: [url]
+
+  def source_icons(%{kind: :mediathek, url: url}),
+    do: for(site <- List.wrap(Broadcasters.site(url)), do: {:site_icon, site})
+
+  def source_icons(_source), do: []
 
   defp own(%{video_id: id}) when is_binary(id),
     do: for(size <- ~w(maxresdefault mqdefault), do: "https://i.ytimg.com/vi/#{id}/#{size}.jpg")
@@ -98,11 +112,12 @@ defmodule Sikio.Pictures do
   end
 
   defp cache_key({:page, page}), do: "page " <> page
+  defp cache_key({:site_icon, site}), do: "icon " <> site
   defp cache_key(url), do: url
 
   # A page that did not answer is asked again after a while, not on every render.
-  defp fetch_into({:page, page}, path) do
-    case Pages.run(fn -> Discovery.page_picture(page) end) do
+  defp fetch_into({_kind, _address} = found, path) do
+    case Pages.run(fn -> locate(found) end) do
       {:ok, url} -> download(url, path)
       {:error, :unavailable} -> missed(path, @busy_retry_after)
       {:error, :not_found} -> missed(path)
@@ -110,6 +125,9 @@ defmodule Sikio.Pictures do
   end
 
   defp fetch_into(url, path), do: download(url, path)
+
+  defp locate({:page, page}), do: Discovery.page_picture(page)
+  defp locate({:site_icon, site}), do: Discovery.site_icon(site)
 
   defp cache_path(key, dir),
     do: Path.join(dir, :crypto.hash(:sha256, key) |> Base.url_encode64(padding: false))
@@ -152,6 +170,8 @@ defmodule Sikio.Pictures do
     nil
   end
 
+  # A stated type must be a raster image. ZDF serves its icon without a type, so a missing type
+  # passes, and `type/1` checks the magic bytes.
   defp claims_raster?(headers) do
     case Map.get(headers, "content-type", []) do
       [type | _] ->
@@ -159,7 +179,7 @@ defmodule Sikio.Pictures do
         String.starts_with?(type, "image/") and not String.contains?(type, "svg")
 
       [] ->
-        false
+        true
     end
   end
 

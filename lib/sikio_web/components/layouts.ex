@@ -391,22 +391,16 @@ defmodule SikioWeb.Layouts do
               }
             >
               <:mark>
-                <img
-                  :if={source.feed.icon_url}
-                  src={
-                    SikioWeb.Pictures.path(
-                      [source.feed.icon_url],
-                      SikioWeb.MediaComponents.kind_mark(source.feed)
-                    )
-                  }
-                  alt=""
-                  loading="lazy"
-                  class="size-5 shrink-0 rounded-full bg-line object-cover"
-                />
-                <.initial
-                  :if={!source.feed.icon_url}
-                  name={SikioWeb.MediaComponents.source_name(source)}
-                />
+                <SikioWeb.MediaComponents.with_source_icon :let={icon} source={source.feed}>
+                  <img
+                    :if={icon}
+                    src={icon}
+                    alt=""
+                    loading="lazy"
+                    class="size-5 shrink-0 rounded-full bg-line object-cover"
+                  />
+                  <.initial :if={!icon} name={SikioWeb.MediaComponents.source_name(source)} />
+                </SikioWeb.MediaComponents.with_source_icon>
               </:mark>
               {SikioWeb.MediaComponents.source_name(source)}
             </.sidebar_link>

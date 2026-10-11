@@ -866,6 +866,59 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  @doc """
+  Returns the icon a website names for home screens: its largest `apple-touch-icon`.
+
+  Without one, its largest PNG icon stands in, else `/apple-touch-icon.png`, where many sites
+  serve one unnamed. Returns `{:error, :unavailable}` when the site did not answer, and
+  `{:error, :not_found}` when it refused or its page could not be read.
+  """
+  def site_icon(url) do
+    case fetched_page(url, max_bytes: 2_000_000) do
+      {:ok, doc, base} ->
+        icon = largest(touch_icons(doc), base) || largest(png_icons(doc), base)
+        {:ok, icon || HTTP.resolve("/apple-touch-icon.png", base)}
+
+      error ->
+        error
+    end
+  end
+
+  defp touch_icons(doc),
+    do: Floki.find(doc, "link[rel='apple-touch-icon'], link[rel='apple-touch-icon-precomposed']")
+
+  # `rel~=icon` matches "icon" and "shortcut icon". The picture proxy takes raster images, not SVG
+  # or ICO.
+  defp png_icons(doc) do
+    Enum.filter(Floki.find(doc, "link[rel~=icon]"), fn link ->
+      path = link |> attr("href") |> URI.parse() |> Map.get(:path)
+      attr(link, "type") == "image/png" or String.ends_with?(String.downcase(path || ""), ".png")
+    end)
+  end
+
+  # The largest icon with an address that resolves. `sizes` reads "180x180"; without it, an icon
+  # counts least.
+  defp largest(links, base) do
+    links
+    |> Enum.flat_map(fn link ->
+      case HTTP.resolve(attr(link, "href"), base) do
+        nil -> []
+        url -> [{icon_size(link), url}]
+      end
+    end)
+    |> Enum.max_by(&elem(&1, 0), fn -> {0, nil} end)
+    |> elem(1)
+  end
+
+  defp attr(link, name), do: link |> Floki.attribute(name) |> List.first("")
+
+  defp icon_size(link) do
+    case Integer.parse(attr(link, "sizes")) do
+      {size, _rest} -> size
+      :error -> 0
+    end
+  end
+
   defp channel_page(url) do
     with {:ok, doc} <- page(url),
          id when is_binary(id) <- channel_id(doc) do
@@ -887,7 +940,10 @@ defmodule Sikio.Feeds.Discovery do
   defp fetched_page(url, opts \\ []) do
     case HTTP.get(url, opts) do
       {:ok, %{status: 200, body: body} = response} ->
-        with {:ok, doc} <- Floki.parse_document(body), do: {:ok, doc, response.url}
+        case Floki.parse_document(body) do
+          {:ok, doc} -> {:ok, doc, response.url}
+          {:error, _reason} -> {:error, :not_found}
+        end
 
       {:ok, %{status: status}} when status in [408, 429] or status >= 500 ->
         {:error, :unavailable}

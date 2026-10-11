@@ -72,6 +72,30 @@ defmodule Sikio.PicturesTest do
     pid
   end
 
+  describe "source_icons/1" do
+    # A TV series has no picture of its own. Its broadcaster's icon stands in.
+    test "a TV series without an icon uses its broadcaster's" do
+      url = "https://mediathekviewweb.de/feed?query=%21WDR+%23Tatort&size=20"
+      series = %Feed{kind: :mediathek, url: url, icon_url: nil}
+
+      assert Pictures.source_icons(series) == [{:site_icon, "https://www1.wdr.de"}]
+
+      assert Pictures.source_icons(%{series | icon_url: "https://img/s.jpg"}) == [
+               "https://img/s.jpg"
+             ]
+
+      assert Pictures.source_icons(%Feed{kind: :podcast, url: url, icon_url: nil}) == []
+
+      # A programme without a picture of its own falls back to it.
+      entry = %Entry{page_url: "https://www.ard.example/v/1", image_url: nil, feed: series}
+
+      assert Pictures.candidates(entry) == [
+               {:page, entry.page_url},
+               {:site_icon, "https://www1.wdr.de"}
+             ]
+    end
+  end
+
   describe "fetch/2" do
     test "a picture is fetched once and then served from the cache", %{tmp_dir: dir} do
       serving(%{"/1.jpg" => {"image/jpeg", jpeg()}})
@@ -172,6 +196,22 @@ defmodule Sikio.PicturesTest do
       assert Enum.map(tasks, &Task.await/1) == List.duplicate(:error, 6)
     end
 
+    # A broadcaster's icon is fetched once and kept under its site.
+    test "a site's icon is found through the site and cached under it", %{tmp_dir: dir} do
+      serving(%{
+        "/" => {"text/html", ~s(<link rel="apple-touch-icon" href="/touch.png">)},
+        "/touch.png" => {"image/png", png()}
+      })
+
+      site = {:site_icon, "https://www1.wdr.example/"}
+      assert {:ok, %{type: "image/png", path: path}} = Pictures.fetch([site], dir)
+      assert_received {:fetched, "/"}
+      assert_received {:fetched, "/touch.png"}
+
+      assert {:ok, %{path: ^path}} = Pictures.fetch([site], dir)
+      refute_received {:fetched, _}
+    end
+
     # A busy broadcaster is asked again after ten minutes, not on every render. Only a final
     # answer waits a day.
     test "a page that did not answer is asked again later", %{tmp_dir: dir} do
@@ -227,6 +267,12 @@ defmodule Sikio.PicturesTest do
       serving(%{"/huge.jpg" => {"image/jpeg", jpeg() <> :binary.copy("x", 2_000_000)}})
 
       assert Pictures.fetch(["https://img.example.org/huge.jpg"], dir) == :error
+    end
+
+    # Some servers send no content type. The magic bytes determine the picture's type.
+    test "a picture without a stated type is taken by its bytes", %{tmp_dir: dir} do
+      Req.Test.stub(Sikio.Feeds.HTTP, &Plug.Conn.send_resp(&1, 200, png()))
+      assert {:ok, %{type: "image/png"}} = Pictures.fetch(["https://img.example.org/icon"], dir)
     end
 
     # A failed URL is not requested again immediately. Otherwise every page listing the item

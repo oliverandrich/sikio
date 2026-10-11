@@ -903,6 +903,54 @@ defmodule Sikio.Feeds.DiscoveryTest do
              {:ok, "https://www.ard.example/new/img.jpg"}
   end
 
+  # A broadcaster's site names its icon for home screens. The largest one wins. A site that
+  # names none often serves one at the conventional address.
+  test "a site's icon is its largest apple-touch-icon" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/" ->
+          Plug.Conn.send_resp(conn, 200, """
+          <link rel="apple-touch-icon" sizes="120x120" href="/small.png">
+          <link rel="apple-touch-icon" sizes="180x180" href="/assets/large.png">
+          <link rel="apple-touch-icon" sizes="512x512" href="">
+          <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+          """)
+
+        "/bare/" ->
+          Plug.Conn.send_resp(conn, 200, "<title>No icon</title>")
+
+        "/png/" ->
+          Plug.Conn.send_resp(conn, 200, """
+          <link rel="shortcut icon" type="image/x-icon" href="/fav.png"/>
+          <link rel="icon" type="image/png" sizes="64x64" href="/icon?size=64"/>
+          <link rel="icon" type="image/svg+xml" href="/fav.svg"/>
+          <link rel="mask-icon" href="/mask.png"/>
+          """)
+
+        "/down/" ->
+          Plug.Conn.send_resp(conn, 503, "")
+
+        "/refused/" ->
+          Plug.Conn.send_resp(conn, 403, "")
+      end
+    end)
+
+    assert Discovery.site_icon("https://www.wdr.example/") ==
+             {:ok, "https://www.wdr.example/assets/large.png"}
+
+    # Without a touch icon, a raster icon the page names stands in. SVG stays out.
+    assert Discovery.site_icon("https://www.alpha.example/png/") ==
+             {:ok, "https://www.alpha.example/icon?size=64"}
+
+    assert Discovery.site_icon("https://www.ndr.example/bare/") ==
+             {:ok, "https://www.ndr.example/apple-touch-icon.png"}
+
+    assert Discovery.site_icon("https://www.ard.example/down/") == {:error, :unavailable}
+
+    # A site that refuses its homepage is not asked for an icon at a guessed address.
+    assert Discovery.site_icon("https://www.ndr.example/refused/") == {:error, :not_found}
+  end
+
   # Apple also finds single episodes. Each names its podcast's feed and its guid there.
   test "Apple's episode search returns episodes with their podcast's feed" do
     Req.Test.stub(HTTP, fn conn ->

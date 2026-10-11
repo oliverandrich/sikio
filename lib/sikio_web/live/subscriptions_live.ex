@@ -8,7 +8,7 @@ defmodule SikioWeb.SubscriptionsLive do
   use SikioWeb, :live_view
 
   import SikioWeb.MediaComponents,
-    only: [initial: 1, refresh_problem: 1, source_label: 1, source_name: 1, source_picture: 1]
+    only: [initial: 1, refresh_problem: 1, source_label: 1, source_name: 1, with_source_icon: 1]
 
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.Hub
@@ -135,13 +135,10 @@ defmodule SikioWeb.SubscriptionsLive do
               aria-hidden="true"
               class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent/15 text-meta font-semibold text-accent"
             >
-              <img
-                :if={subscription.feed.icon_url}
-                src={source_picture(subscription.feed)}
-                alt=""
-                class="size-full object-cover"
-              />
-              <span :if={!subscription.feed.icon_url}>{initial(source_name(subscription))}</span>
+              <.with_source_icon :let={icon} source={subscription.feed}>
+                <img :if={icon} src={icon} alt="" class="size-full object-cover" />
+                <span :if={!icon}>{initial(source_name(subscription))}</span>
+              </.with_source_icon>
             </span>
             <div class="min-w-0 flex-1">
               <%!-- The feed URL follows the name. Both truncate; `title` holds the full URL. --%>

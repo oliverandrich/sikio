@@ -82,9 +82,35 @@ defmodule SikioWeb.MediaComponents do
   def artwork(entry),
     do: SikioWeb.Pictures.path(Sikio.Pictures.candidates(entry), kind_mark(entry))
 
+  @doc """
+  Returns the path of a source's icon for the sidebar and lists, or nil when it shows its initial.
+
+  A TV series without an icon shows its broadcaster's; see `Sikio.Pictures.source_icons/1`.
+  """
+  def source_icon(source) do
+    case Sikio.Pictures.source_icons(source) do
+      [] -> nil
+      candidates -> SikioWeb.Pictures.path(candidates, kind_mark(source))
+    end
+  end
+
+  @doc """
+  Renders the inner block with the source's icon path, or nil when it shows its initial.
+
+  The path is computed once for the block, which both the picture and the initial read.
+  """
+  attr :source, :map, required: true
+  slot :inner_block, required: true
+
+  def with_source_icon(assigns) do
+    ~H"""
+    {render_slot(@inner_block, source_icon(@source))}
+    """
+  end
+
   @doc "Returns the path of a source's artwork, or of its kind's placeholder."
   def source_picture(source),
-    do: SikioWeb.Pictures.path(List.wrap(Map.get(source, :icon_url)), kind_mark(source))
+    do: SikioWeb.Pictures.path(Sikio.Pictures.source_icons(source), kind_mark(source))
 
   @doc """
   Returns the path of the preview picture the first of `pages` names, or the Mediathek's

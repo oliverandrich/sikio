@@ -23,9 +23,11 @@ guessed URL fails, the page offers a search for the same input. You can:
   programme's topic on its channel. Sikio plays the broadcaster's HD file in its own player.
   Versions with audio description, plain language or sign language and trailers are left out.
   A programme disappears when the broadcaster removes it from its media library. A saved or
-  subscribed programme shows the picture its broadcaster's page names. MediathekViewWeb lists
-  some programmes twice, once blocked outside Germany, Austria and Switzerland. Sikio keeps one
-  per broadcaster page, the open copy where there is one.
+  subscribed programme shows the picture its broadcaster's page names. A series, and a programme
+  without such a picture, shows its broadcaster's icon where the broadcaster's site offers one.
+  While the icon cannot be fetched, the video mark stands in. MediathekViewWeb lists some
+  programmes twice, once blocked outside Germany, Austria and Switzerland. Sikio keeps one copy
+  of each programme, the open one where there is one.
 
 A search shows its results in four tabs: **Podcasts**, **Episodes**, **Series** and
 **Programmes**. Each tab shows its count. Episodes come from Apple Podcasts and are read from
