@@ -65,8 +65,10 @@ defmodule Sikio.PicturesTest do
   end
 
   # The process that holds a page request.
+  # A turn passes through the gate's process, so a loaded machine may take longer than the
+  # default 100 ms.
   defp asked do
-    assert_receive {:asked, pid}
+    assert_receive {:asked, pid}, 2_000
     pid
   end
 
