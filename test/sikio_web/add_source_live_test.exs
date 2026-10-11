@@ -668,25 +668,30 @@ defmodule SikioWeb.AddSourceLiveTest do
       render_async(view)
     end
 
-    # A video link offers the video alone beside its channel, to the queue or the inbox.
+    # A video link shows the video as a search shows a hit: one row that adds it to the queue or
+    # the inbox, or subscribes to its channel. The channel needs no row of its own.
     test "a video link adds only the video, to the queue", %{conn: conn, user: user} do
       stub_video()
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, "https://youtu.be/abcdefghijk")
 
       assert has_element?(view, "#single-item", "A good video")
+      assert has_element?(view, "#single-item", "Good Channel")
       # The video's own thumbnail comes first, the channel's picture after it.
       assert {:ok,
               {["https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg" | _],
                "/images/kind-video.svg"}} =
                picture(view, "#single-item img")
 
-      assert {:ok, {[_channel], "/images/kind-video.svg"}} = picture(view, "#source-0 img")
-      assert has_element?(view, "#single-item img.aspect-video")
-      assert has_element?(view, "#single-item #add-to-inbox")
-      assert has_element?(view, "#source-0", "Good Channel")
+      assert has_element?(
+               view,
+               ~s|#single-item [data-action="subscribe"]|,
+               "Subscribe to Good Channel"
+             )
 
-      result = view |> element("#add-to-queue") |> render_click()
+      refute has_element?(view, "#source-0")
+
+      result = view |> element(~s|#single-item [data-action="queue"]|) |> render_click()
       assert {:error, {:live_redirect, %{to: to}}} = result
       [entry] = Library.entries(user)
       assert to == "/queue/#{entry.id}-a-good-video"
@@ -699,7 +704,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, "https://youtu.be/abcdefghijk")
 
-      result = view |> element("#add-to-inbox") |> render_click()
+      result = view |> element(~s|#single-item [data-action="inbox"]|) |> render_click()
       assert {:error, {:live_redirect, %{to: "/inbox/" <> _}}} = result
       assert Playback.queue(user) == []
       assert [_] = Library.entries(user, %{"status" => "inbox"})
@@ -710,14 +715,14 @@ defmodule SikioWeb.AddSourceLiveTest do
       stub_video()
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, "https://youtu.be/abcdefghijk")
-      view |> element("#add-to-queue") |> render_click()
+      view |> element(~s|#single-item [data-action="queue"]|) |> render_click()
       [entry] = Library.entries(user)
       {:ok, _} = Playback.mark(user, entry.id, :heard)
       {:ok, _} = Library.remove_entry(user, entry.id)
 
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, "https://youtu.be/abcdefghijk")
-      result = view |> element("#add-to-inbox") |> render_click()
+      result = view |> element(~s|#single-item [data-action="inbox"]|) |> render_click()
       assert {:error, {:live_redirect, %{to: "/history/" <> _}}} = result
       {:ok, _view, html} = follow_redirect(result, conn)
       assert html =~ "Saved A good video."
@@ -732,6 +737,63 @@ defmodule SikioWeb.AddSourceLiveTest do
 
       assert has_element?(view, ~s|#add-q[value="#{url}"]|)
       assert has_element?(view, "#single-item", "A good video")
+    end
+
+    # The row subscribes to the item's source after the dialog, as a search row does.
+    test "a video link subscribes to its channel from the row", %{conn: conn, user: user} do
+      stub_video()
+      {:ok, view, _} = live(conn, ~p"/add")
+      find(view, "https://youtu.be/abcdefghijk")
+
+      view |> element(~s|#single-item [data-action="subscribe"]|) |> render_click()
+      assert has_element?(view, "#subscribe-confirm", "Good Channel")
+      confirm_subscribe(view)
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{kind: :youtube}}] = Library.subscriptions(user)
+    end
+
+    # A click from a row the page already cleared names no item. It subscribes nothing.
+    test "a subscribe for an item that is gone does nothing", %{conn: conn, user: user} do
+      {:ok, view, _} = live(conn, ~p"/add")
+      render_hook(view, "subscribe", %{"list" => "item", "key" => "item"})
+      refute has_element?(view, "#subscribe-confirm")
+      assert Library.subscriptions(user) == []
+    end
+
+    # An episode's page leads to its podcast's feed. Its notes show as plain text in the row.
+    test "a podcast episode link shows the episode as a row", %{conn: conn} do
+      feed = feed_url()
+
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/episodes/1" ->
+            Plug.Conn.send_resp(
+              conn,
+              200,
+              ~s(<link rel="alternate" type="application/rss+xml" href="#{feed}">)
+            )
+
+          _ ->
+            Plug.Conn.send_resp(conn, 200, podcast())
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      find(view, podcast_page())
+
+      assert has_element?(view, "#single-item", "One & two")
+      assert has_element?(view, "#single-item", "Small Hours")
+      assert has_element?(view, "#single-item [data-description]", "Notes with a link.")
+      refute render(element(view, "#single-item")) =~ "&lt;p&gt;"
+
+      assert has_element?(
+               view,
+               ~s|#single-item [data-action="subscribe"]|,
+               "Subscribe to Small Hours"
+             )
+
+      refute has_element?(view, "#source-0")
+      refute has_element?(view, "#no-results")
     end
 
     test "a feed link offers no single item", %{conn: conn} do

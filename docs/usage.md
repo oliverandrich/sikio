@@ -50,11 +50,11 @@ A podcast whose feed carries no artwork takes its cover from Apple Podcasts, if 
 same feed. Its episodes show that cover when their own picture is missing, unreachable or
 larger than 2 MB.
 
-A link to one YouTube video, PeerTube video or podcast episode also offers that item alone.
-That saves the item without a subscription, to the queue by default or to the inbox. A saved
-item stays when you unsubscribe from its source. **Remove from library** in the item's menu
-deletes it. `/add?url=` followed by an encoded link fills in the field and starts the lookup,
-for bookmarklets and share sheets.
+A link to one YouTube video, PeerTube video or podcast episode shows that item as a search
+row. It adds the item to the queue or the inbox without a subscription, or subscribes to its
+channel or podcast. A saved item stays when you unsubscribe from its source. **Remove from
+library** in the item's menu deletes it. `/add?url=` followed by an encoded link fills in the
+field and starts the lookup, for bookmarklets and share sheets.
 
 **Subscriptions** opens from the pencil beside its heading, or from **Manage** in the library on
 a phone. There you can:

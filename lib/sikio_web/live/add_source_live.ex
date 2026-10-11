@@ -133,6 +133,14 @@ defmodule SikioWeb.AddSourceLive do
 
   def handle_event("save_episode", _params, socket), do: {:noreply, socket}
 
+  # A pasted link's item subscribes to its source's feed, fetched afresh. The item's preview can
+  # hold an older video added for the link, which the feed itself does not list.
+  def handle_event("subscribe", %{"list" => "item"}, %{assigns: %{item: %{} = item}} = socket),
+    do: {:noreply, ask(socket, "single-item", item.preview.title, {:discover, item.preview.url})}
+
+  # A click from a row the page already cleared.
+  def handle_event("subscribe", %{"list" => "item"}, socket), do: {:noreply, socket}
+
   def handle_event("subscribe", %{"list" => list, "key" => key}, socket)
       when list in ~w(episodes series programmes) do
     {name, prefix, url, title, fetch} = @subscribable[list]
@@ -261,7 +269,7 @@ defmodule SikioWeb.AddSourceLive do
     {:noreply,
      socket
      |> assign(busy: false, searched: true, candidates: Map.new(sources, &{&1.id, &1}))
-     |> stream(:sources, sources, reset: true)
+     |> show_sources(sources)
      |> choose_tab()}
   end
 
@@ -464,8 +472,37 @@ defmodule SikioWeb.AddSourceLive do
   # The single item card for one video, episode or programme in `preview`.
   defp show_item(socket, %{preview: preview, external_id: id}) do
     entry = Enum.find(preview.entries, &(&1.external_id == id))
-    assign(socket, item: %{preview: preview, external_id: id, entry: entry})
+
+    socket
+    |> assign(item: %{preview: preview, external_id: id, entry: entry})
+    |> without_item_source()
   end
+
+  # A link's item takes its source's row away. A search streams its sources as they are.
+  defp show_sources(%{assigns: %{item: nil}} = socket, sources),
+    do: stream(socket, :sources, sources, reset: true)
+
+  defp show_sources(socket, _sources), do: without_item_source(socket)
+
+  # The item's row subscribes to its source, so the source needs no row of its own. The sources
+  # stream once from what remains: a reset after an insert in one render keeps the insert.
+  defp without_item_source(socket) do
+    url = get_in(socket.assigns, [:item, :preview, :url])
+
+    candidates =
+      Map.reject(socket.assigns.candidates, fn {_id, source} -> url && source[:url] == url end)
+
+    socket |> assign(candidates: candidates) |> show_rows()
+  end
+
+  # A search row shows plain text. The parser gives HTML notes a plain excerpt.
+  defp item_description(%{excerpt: excerpt}) when is_binary(excerpt) and excerpt != "",
+    do: excerpt
+
+  defp item_description(%{description: notes, description_format: :text}) when is_binary(notes),
+    do: notes
+
+  defp item_description(_entry), do: nil
 
   # Saving into the inbox keeps an earlier playback state, and an enqueue can fail. The page
   # opens the list that holds the entry afterwards.
@@ -659,38 +696,24 @@ defmodule SikioWeb.AddSourceLive do
             {gettext("Search for it instead")}
           </button>
         </div>
-        <section
-          :if={@item}
-          id="single-item"
-          aria-labelledby="single-item-title"
-          class="mt-6 rounded-xl bg-surface px-4 py-3 ring-1 ring-line"
-        >
-          <div class="flex items-start gap-3">
-            <img
-              src={artwork(Map.put(@item.entry, :feed, @item.preview))}
-              alt=""
-              class={[
-                "shrink-0 rounded-md bg-line object-cover",
-                if(@item.preview.kind == :podcast, do: "size-14", else: "aspect-video w-24")
-              ]}
-            />
-            <div class="min-w-0">
-              <p class="text-meta font-semibold text-muted">{gettext("Add this item alone")}</p>
-              <h3 id="single-item-title" class="mt-0.5 text-body font-semibold">
-                {@item.entry.title}
-              </h3>
-              <p class="text-meta text-muted">{@item.preview.title}</p>
-            </div>
-          </div>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <.button id="add-to-queue" phx-click="save_item" phx-value-at="queue">
-              {gettext("Add to queue")}
-            </.button>
-            <.button id="add-to-inbox" phx-click="save_item" phx-value-at="inbox">
-              {gettext("Add to inbox")}
-            </.button>
-          </div>
-        </section>
+        <%!-- A link to one video or episode shows it as a search shows a hit. --%>
+        <div :if={@item} class={list_class()}>
+          <.item_row
+            id="single-item"
+            list="item"
+            key="item"
+            title={@item.entry.title}
+            origin={[@item.preview.title]}
+            published_at={@item.entry.published_at}
+            duration={@item.entry.duration}
+            description={item_description(@item.entry)}
+            picture={artwork(Map.put(@item.entry, :feed, @item.preview))}
+            more={@more == "single-item"}
+            save="save_item"
+            subscribe_label={gettext("Subscribe to %{title}", title: @item.preview.title)}
+            subscribing={@subscribing}
+          />
+        </div>
         <%!-- A search shows its two sources as tabs. Each tab reports its count, loading and
         errors. The panels stay in the DOM, because a stream loses its rows when its container
         leaves it. --%>
@@ -739,7 +762,7 @@ defmodule SikioWeb.AddSourceLive do
             {gettext("Searching Apple Podcasts…")}
           </p>
           <p
-            :if={@searched and map_size(@candidates) == 0 and is_nil(@error)}
+            :if={@searched and map_size(@candidates) == 0 and is_nil(@error) and is_nil(@item)}
             id="no-results"
             class="mt-3 text-muted"
           >
@@ -1033,7 +1056,7 @@ defmodule SikioWeb.AddSourceLive do
   # One episode or programme with its actions in view. A long description shows two lines until
   # “more” is pressed.
   attr :id, :string, required: true
-  attr :list, :string, required: true, doc: "the results' name in `@subscribable`"
+  attr :list, :string, required: true, doc: "the results' name in `@subscribable`, or `item`"
   attr :key, :string, required: true
   attr :title, :string, required: true
   attr :origin, :list, required: true
