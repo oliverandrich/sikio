@@ -36,6 +36,40 @@ defmodule Sikio.PicturesTest do
     end
   end
 
+  describe "candidates/1, Mediathek" do
+    # MediathekViewWeb names no picture. The broadcaster's page does, under the same cache key
+    # as in a search, so a programme seen there and then saved costs one fetch.
+    test "a programme without a picture tries its broadcaster's page" do
+      feed = %Feed{kind: :mediathek, icon_url: nil}
+      page = "https://www.ardmediathek.de/video/yang-1"
+
+      assert Pictures.candidates(%Entry{page_url: page, image_url: nil, feed: feed}) ==
+               [{:page, page}]
+
+      # A picture stored earlier comes first.
+      assert Pictures.candidates(%Entry{
+               page_url: page,
+               image_url: "https://img/1.jpg",
+               feed: feed
+             }) ==
+               ["https://img/1.jpg"]
+
+      # Other kinds keep their own picture alone.
+      assert Pictures.candidates(%Entry{
+               page_url: page,
+               image_url: nil,
+               feed: %Feed{kind: :podcast}
+             }) ==
+               []
+    end
+  end
+
+  # The process that holds a page request.
+  defp asked do
+    assert_receive {:asked, pid}
+    pid
+  end
+
   describe "fetch/2" do
     test "a picture is fetched once and then served from the cache", %{tmp_dir: dir} do
       serving(%{"/1.jpg" => {"image/jpeg", jpeg()}})
@@ -78,11 +112,81 @@ defmodule Sikio.PicturesTest do
       refute_received {:fetched, _}
     end
 
-    # A busy broadcaster may answer the next request. Only a final answer waits a day.
-    test "a page that did not answer is asked again", %{tmp_dir: dir} do
+    # A programme seen in a search and then saved shares the cache file, in either order.
+    test "a saved programme's picture is the one its search result fetched", %{tmp_dir: dir} do
+      serving(%{
+        "/video/1" => {"text/html", ~s(<meta property="og:image" content="/img/1.jpg">)},
+        "/img/1.jpg" => {"image/jpeg", jpeg()}
+      })
+
+      page = "https://www.ard.example/video/1"
+      entry = %Entry{page_url: page, image_url: nil, feed: %Feed{kind: :mediathek}}
+
+      assert {:ok, %{path: path}} = Pictures.fetch([{:page, page}], dir)
+      assert_received {:fetched, "/video/1"}
+      assert_received {:fetched, "/img/1.jpg"}
+
+      assert {:ok, %{path: ^path}} = Pictures.fetch(Pictures.candidates(entry), dir)
+      refute_received {:fetched, _}
+
+      # Saved first, searched later.
+      other = %{entry | page_url: "https://www.ard.example/video/2"}
+
+      serving(%{
+        "/video/2" => {"text/html", ~s(<meta property="og:image" content="/img/1.jpg">)},
+        "/img/1.jpg" => {"image/jpeg", jpeg()}
+      })
+
+      assert {:ok, %{path: saved}} = Pictures.fetch(Pictures.candidates(other), dir)
+      assert_received {:fetched, "/video/2"}
+      assert {:ok, %{path: ^saved}} = Pictures.fetch([{:page, other.page_url}], dir)
+      refute_received {:fetched, "/video/2"}
+    end
+
+    # A list of new programmes asks their pages a few at a time, so no broadcaster sees a burst.
+    test "at most four pages are fetched at once", %{tmp_dir: dir} do
+      test = self()
+
+      Req.Test.stub(Sikio.Feeds.HTTP, fn conn ->
+        send(test, {:asked, self()})
+        receive do: (:answer -> Plug.Conn.send_resp(conn, 200, "<title>No picture</title>"))
+      end)
+
+      tasks =
+        for n <- 1..6,
+            do: Task.async(fn -> Pictures.fetch([{:page, "https://ard.example/v/#{n}"}], dir) end)
+
+      asked = for _ <- 1..4, do: asked()
+
+      # The other two wait at the gate, and no page beyond four was asked.
+      Stream.repeatedly(fn -> :sys.get_state(Sikio.Pictures.Pages).waiting end)
+      |> Enum.find(&(:queue.len(&1) == 2))
+
+      refute_received {:asked, _}
+
+      Enum.each(asked, &send(&1, :answer))
+      later = for _ <- 1..2, do: asked()
+      Enum.each(later, &send(&1, :answer))
+      assert Enum.map(tasks, &Task.await/1) == List.duplicate(:error, 6)
+    end
+
+    # A busy broadcaster is asked again after ten minutes, not on every render. Only a final
+    # answer waits a day.
+    test "a page that did not answer is asked again later", %{tmp_dir: dir} do
       Req.Test.stub(Sikio.Feeds.HTTP, &Plug.Conn.send_resp(&1, 503, ""))
       page = {:page, "https://www.ard.example/video/busy"}
       assert Pictures.fetch([page], dir) == :error
+
+      serving(%{})
+      assert Pictures.fetch([page], dir) == :error
+      refute_received {:fetched, _}
+
+      # Ten minutes later, the marker's time has come.
+      for marker <- Path.wildcard(Path.join(dir, "*.failed")) do
+        %{mtime: next} = File.stat!(marker, time: :posix)
+        assert (next - System.os_time(:second)) in 595..600
+        File.touch!(marker, next - 601)
+      end
 
       serving(%{
         "/video/busy" => {"text/html", ~s(<meta property="og:image" content="/1.jpg">)},

@@ -34,6 +34,7 @@ defmodule Sikio.Application do
        skip: !Application.get_env(:sikio, :migrate_on_start, false)},
       {DNSCluster, query: Application.get_env(:sikio, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Sikio.PubSub},
+      Sikio.Pictures.Pages,
       {Oban, oban()},
       # Start to serve requests, typically the last entry
       SikioWeb.Endpoint

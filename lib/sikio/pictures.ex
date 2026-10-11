@@ -15,12 +15,15 @@ defmodule Sikio.Pictures do
   """
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.HTTP
+  alias Sikio.Pictures.Pages
 
   @max_bytes 2_000_000
 
   # A failed candidate is retried after one day: a picture that failed, or a page that names none.
   # Otherwise every page listing the item would refetch it on each render.
   @retry_after 86_400
+  # A page that did not answer is asked again after ten minutes.
+  @busy_retry_after 600
 
   # Matches a cached picture, a failure marker or an unfinished write. Pruning removes nothing
   # else from the directory.
@@ -32,18 +35,21 @@ defmodule Sikio.Pictures do
   YouTube serves every thumbnail size under the video id. The feed links the letterboxed 4:3
   size, so the widescreen sizes are used instead. `maxresdefault` comes first, but not every
   video has it.
+
+  MediathekViewWeb names no picture, so a Mediathek programme without one tries the picture its
+  broadcaster's page names. A search result is cached under the same page, see `fetch/2`.
   """
   def candidates(entry) do
-    own =
-      if entry.video_id do
-        for size <- ~w(maxresdefault mqdefault),
-            do: "https://i.ytimg.com/vi/#{entry.video_id}/#{size}.jpg"
-      else
-        [entry.image_url]
-      end
-
-    Enum.reject(own ++ [entry.feed.icon_url], &is_nil/1)
+    Enum.reject(own(entry) ++ [entry.feed.icon_url], &is_nil/1)
   end
+
+  defp own(%{video_id: id}) when is_binary(id),
+    do: for(size <- ~w(maxresdefault mqdefault), do: "https://i.ytimg.com/vi/#{id}/#{size}.jpg")
+
+  defp own(%{image_url: nil, page_url: page, feed: %{kind: :mediathek}}) when is_binary(page),
+    do: [{:page, page}]
+
+  defp own(entry), do: [entry.image_url]
 
   @doc """
   Returns the first candidate that yields a picture, from the cache or freshly fetched.
@@ -94,11 +100,11 @@ defmodule Sikio.Pictures do
   defp cache_key({:page, page}), do: "page " <> page
   defp cache_key(url), do: url
 
-  # A page that did not answer is asked again on the next request.
+  # A page that did not answer is asked again after a while, not on every render.
   defp fetch_into({:page, page}, path) do
-    case Discovery.page_picture(page) do
+    case Pages.run(fn -> Discovery.page_picture(page) end) do
       {:ok, url} -> download(url, path)
-      {:error, :unavailable} -> nil
+      {:error, :unavailable} -> missed(path, @busy_retry_after)
       {:error, :not_found} -> missed(path)
     end
   end
@@ -123,7 +129,7 @@ defmodule Sikio.Pictures do
 
   defp failed_recently?(path) do
     case File.stat(path <> ".failed", time: :posix) do
-      {:ok, %{mtime: mtime}} -> System.os_time(:second) - mtime < @retry_after
+      {:ok, %{mtime: until}} -> System.os_time(:second) < until
       _ -> false
     end
   end
@@ -140,8 +146,9 @@ defmodule Sikio.Pictures do
     end
   end
 
-  defp missed(path) do
-    write(path <> ".failed", "")
+  # The marker's modification time is the time of the next attempt.
+  defp missed(path, retry_after \\ @retry_after) do
+    File.touch(path <> ".failed", System.os_time(:second) + retry_after)
     nil
   end
 

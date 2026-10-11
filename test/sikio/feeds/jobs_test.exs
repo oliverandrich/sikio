@@ -11,11 +11,9 @@ defmodule Sikio.Feeds.JobsTest do
   alias Sikio.Accounts.User
   alias Sikio.Feeds
   alias Sikio.Feeds.Artwork
-  alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.HTTP
-  alias Sikio.Feeds.PagePicture
   alias Sikio.Feeds.Parser
   alias Sikio.Feeds.Refresh
   alias Sikio.Feeds.Scheduler
@@ -52,87 +50,20 @@ defmodule Sikio.Feeds.JobsTest do
     assert_received :library_changed, "sidebar and list show the new artwork"
   end
 
-  # MediathekViewWeb names no picture, the broadcaster's page does. Each new programme asks
-  # once. A refresh keeps the picture and asks nothing again.
-  test "a new Mediathek programme takes its picture from the broadcaster's page", ctx do
-    refute_enqueued(worker: PagePicture)
-
+  # A picture a programme stored earlier stays through a refresh, which names none.
+  test "a refresh keeps a Mediathek programme's stored picture", ctx do
     url = "https://mediathekviewweb.de/feed?query=%21ard+%23Maus&size=20"
     {:ok, preview} = Parser.parse(mediathek_feed(), url)
-    [first | _] = preview.entries
-
-    second = %{
-      first
-      | external_id: "maus-2=",
-        page_url: "https://www.ardmediathek.de/video/maus-2"
-    }
-
-    preview = %{preview | entries: [first, second]}
     {:ok, %{feed_id: feed_id}} = Library.subscribe(ctx.user, preview)
-    ids = Repo.all(from e in Entry, where: e.feed_id == ^feed_id, order_by: e.id, select: e.id)
+    [entry] = Repo.all(from e in Entry, where: e.feed_id == ^feed_id)
 
-    # One job for all new programmes keeps the feeds queue free for refreshes.
-    assert [%{args: %{"feed_id" => ^feed_id, "entry_ids" => ^ids}, priority: 5}] =
-             all_enqueued(worker: PagePicture)
+    Repo.update_all(from(e in Entry, where: e.id == ^entry.id),
+      set: [image_url: "https://img/1.jpg"]
+    )
 
-    Req.Test.stub(HTTP, fn conn ->
-      Plug.Conn.send_resp(
-        conn,
-        200,
-        ~s(<meta property="og:image" content="https://img.example/maus.jpg">)
-      )
-    end)
-
-    Events.subscribe_updates(ctx.user)
-    assert :ok = perform_job(PagePicture, %{feed_id: feed_id, entry_ids: ids})
-
-    assert Repo.all(from e in Entry, where: e.id in ^ids, select: e.image_url) ==
-             ["https://img.example/maus.jpg", "https://img.example/maus.jpg"]
-
-    assert_received :library_changed, "lists show the pictures at once"
-    refute_received :library_changed, "one change for all pictures"
-    entry = Repo.get(Entry, hd(ids))
-
-    Repo.delete_all(Oban.Job)
     Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 200, mediathek_feed()))
     assert {:ok, _} = Feeds.refresh(feed_id)
-    assert Repo.get(Entry, entry.id).image_url == "https://img.example/maus.jpg"
-    refute_enqueued(worker: PagePicture)
-  end
-
-  # A film saved on its own asks for its picture as a subscribed one does.
-  test "a Mediathek film saved alone asks for its picture", ctx do
-    programme = %{
-      id: "film-1",
-      title: "Spur",
-      channel: "WDR",
-      topic: "Tatort",
-      description: nil,
-      published_at: ~U[2026-10-10 18:15:00Z],
-      duration: 5322,
-      media_url: "https://wdr.example/v.mp4",
-      page_url: "https://www.ardmediathek.de/video/spur"
-    }
-
-    %{preview: preview, external_id: id} = Discovery.mediathek_item(programme)
-    {:ok, entry} = Library.save(ctx.user, preview, id, :inbox)
-    assert_enqueued(worker: PagePicture, args: %{feed_id: entry.feed_id, entry_ids: [entry.id]})
-  end
-
-  # A page without a picture leaves the placeholder. An unreachable page is asked again by Oban.
-  test "a broadcaster's page without a picture leaves the entry as it was", ctx do
-    {:ok, preview} = Parser.parse(mediathek_feed(), "https://mediathekviewweb.de/feed?query=x")
-    {:ok, %{feed_id: feed_id}} = Library.subscribe(ctx.user, preview)
-    [entry | _] = Repo.all(from e in Entry, where: e.feed_id == ^feed_id, order_by: e.id)
-
-    Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 200, "<title>No picture</title>"))
-    assert :ok = perform_job(PagePicture, %{feed_id: feed_id, entry_ids: [entry.id]})
-    assert Repo.get(Entry, entry.id).image_url == nil
-
-    Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 503, ""))
-
-    assert {:error, :unavailable} =
-             perform_job(PagePicture, %{feed_id: feed_id, entry_ids: [entry.id]})
+    assert Repo.get(Entry, entry.id).image_url == "https://img/1.jpg"
   end
 
   test "schedules one refresh per active feed, whoever subscribed to it", ctx do

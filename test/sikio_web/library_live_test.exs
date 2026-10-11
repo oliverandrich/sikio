@@ -1193,6 +1193,31 @@ defmodule SikioWeb.LibraryLiveTest do
                  "/images/kind-audio.svg"}}
     end
 
+    # MediathekViewWeb names no picture. A stored programme asks its broadcaster's page.
+    test "a Mediathek programme shows the picture of its broadcaster's page", c do
+      url = "https://mediathekviewweb.de/feed?query=%21ard+%23Maus"
+      {:ok, preview} = Parser.parse(mediathek_feed(), url)
+      {:ok, _} = Library.subscribe(c.user, preview)
+
+      programme =
+        Enum.find(Library.entries(c.user, %{"status" => ""}), &(&1.feed.kind == :mediathek))
+
+      {:ok, view, _} = live(c.conn, ~p"/all")
+
+      [src] =
+        view
+        |> element("#entries-#{programme.id} img")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.attribute("img", "src")
+
+      assert "/pictures/" <> reference = src
+
+      assert Pictures.verify(reference) ==
+               {:ok,
+                {[{:page, "https://www.ardmediathek.de/video/maus-1"}], "/images/kind-video.svg"}}
+    end
+
     test "shows the runtime the publisher stated, and none when there is none", c do
       {:ok, preview} = Parser.parse(thin_podcast(), feed_url())
       {:ok, _} = Library.subscribe(c.user, preview)
