@@ -219,6 +219,124 @@ defmodule Sikio.Feeds.Discovery do
 
   defp safe_url(url), do: HTTP.resolve(url, @mediathek_public)
 
+  @peertube_index_public "https://search.joinpeertube.org"
+
+  @doc """
+  Searches a PeerTube index for channels, at most 20.
+
+  The index answers PeerTube's search API across instances. `base` is the index; see
+  `peertube_search_url/0`.
+  """
+  def peertube_channel_search(term, base \\ peertube_search_url()) when is_binary(term),
+    do: peertube_search(term, base, "video-channels", %{}, &peertube_channel(&1, base))
+
+  @doc """
+  Searches a PeerTube index for videos, at most 20. Sensitive and live videos are left out.
+  """
+  def peertube_video_search(term, base \\ peertube_search_url()) when is_binary(term),
+    do:
+      peertube_search(
+        term,
+        base,
+        "videos",
+        %{nsfw: false, isLive: false},
+        &peertube_video(&1, base)
+      )
+
+  @doc """
+  Resolves a video from `peertube_video_search/2` into an item, as `item/1` does for its link.
+
+  The index names only PeerTube videos, so the instance is asked no NodeInfo.
+  """
+  def peertube_video_item(url) do
+    with {:ok, uri} <- HTTP.normalize(url),
+         id when is_binary(id) <- watched_id(uri) do
+      instance_video(origin(uri), id)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc "Returns the PeerTube index, `PEERTUBE_SEARCH_URL` or Sepia Search."
+  def peertube_search_url,
+    do: Application.get_env(:sikio, :peertube_search_url, @peertube_index_public)
+
+  defp peertube_search(term, base, kind, filters, result) do
+    with {:ok, term} <- search_term(term),
+         query = URI.encode_query(Map.merge(filters, %{search: term, count: 20})),
+         {:ok, %{"data" => hits}} when is_list(hits) <-
+           json("#{base}/api/v1/search/#{kind}?#{query}") do
+      {:ok, hits |> Enum.flat_map(result) |> Enum.uniq_by(& &1.url) |> Enum.take(20)}
+    else
+      {:error, :invalid_search} -> {:error, :invalid_search}
+      _ -> {:error, :peertube_unavailable}
+    end
+  end
+
+  defp peertube_channel(%{"url" => url, "displayName" => title} = hit, base)
+       when is_binary(title) do
+    case HTTP.resolve(url, base) do
+      nil ->
+        []
+
+      url ->
+        [
+          %{
+            url: url,
+            title: String.slice(title, 0, 512),
+            host: if(is_binary(hit["host"]), do: hit["host"], else: ""),
+            videos_count: if(is_integer(hit["videosCount"]), do: hit["videosCount"]),
+            icon_url: HTTP.resolve(avatar(hit["avatars"]), url)
+          }
+        ]
+    end
+  end
+
+  defp peertube_channel(_hit, _base), do: []
+
+  # The smallest avatar that fills a 48 px row at twice the pixel density, else the largest.
+  defp avatar(avatars) when is_list(avatars) do
+    # Older instances name the file `url`, or only its `path` on the instance.
+    sized =
+      for %{"width" => width} = avatar <- avatars,
+          is_integer(width),
+          url = avatar["fileUrl"] || avatar["url"] || avatar["path"],
+          do: {width, url}
+
+    case Enum.filter(sized, fn {width, _url} -> width >= 96 end) do
+      [] -> sized |> Enum.max_by(&elem(&1, 0), fn -> {0, nil} end) |> elem(1)
+      fitting -> fitting |> Enum.min_by(&elem(&1, 0)) |> elem(1)
+    end
+  end
+
+  defp avatar(_avatars), do: nil
+
+  # A row subscribes to the video's channel, so a video without one is left out.
+  defp peertube_video(
+         %{"url" => url, "name" => title, "channel" => %{"displayName" => channel} = owner} = hit,
+         base
+       )
+       when is_binary(title) and is_binary(channel) do
+    with url when is_binary(url) <- HTTP.resolve(url, base),
+         channel_url when is_binary(channel_url) <- HTTP.resolve(owner["url"], url) do
+      [
+        %{
+          url: url,
+          title: String.slice(title, 0, 512),
+          channel: String.slice(channel, 0, 512),
+          channel_url: channel_url,
+          published_at: iso_date(hit["publishedAt"]),
+          duration: if(is_integer(hit["duration"]), do: hit["duration"]),
+          icon_url: HTTP.resolve(hit["thumbnailUrl"], url)
+        }
+      ]
+    else
+      _ -> []
+    end
+  end
+
+  defp peertube_video(_hit, _base), do: []
+
   @doc """
   Searches Apple's directory for single podcast episodes.
 

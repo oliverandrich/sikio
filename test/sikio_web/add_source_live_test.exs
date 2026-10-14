@@ -2,7 +2,7 @@
 
 defmodule SikioWeb.AddSourceLiveTest do
   @moduledoc """
-  Tests for the add page. Input is a feed URL or an Apple Podcasts search term.
+  Tests for the add page. Input is a feed URL or a search term.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -34,8 +34,8 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, html} = live(conn, ~p"/add")
     assert has_element?(view, "#add-form input[name=q]")
     assert has_element?(view, "#add-hint", "PeerTube")
-    # The hint states that other input searches Apple Podcasts and the Mediathek.
-    assert has_element?(view, "#add-hint", "search Apple Podcasts and the Mediathek")
+    # The hint states that other input searches Apple Podcasts, the Mediathek and PeerTube.
+    assert has_element?(view, "#add-hint", "search Apple Podcasts, the Mediathek and PeerTube")
     assert has_element?(view, ~s|#add-q[aria-describedby="add-hint"]|)
     refute has_element?(view, "#discover-form")
     refute has_element?(view, "#search-form")
@@ -474,6 +474,210 @@ defmodule SikioWeb.AddSourceLiveTest do
     test "a pasted link asks no Mediathek", %{conn: conn} do
       Req.Test.stub(HTTP, fn conn ->
         refute conn.request_path == "/api/query"
+        Plug.Conn.send_resp(conn, 200, podcast())
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: feed_url()}) |> render_submit()
+      render_async(view)
+      refute has_element?(view, "#search-tabs")
+    end
+  end
+
+  describe "PeerTube" do
+    # A channel from the index, named uniquely so no concurrent test subscribes to the same feed.
+    defp channel_hit do
+      n = Sikio.DataCase.unique()
+
+      %{
+        url: "https://tube#{n}.example.org/video-channels/linux",
+        displayName: "Linux #{n}",
+        host: "tube#{n}.example.org",
+        videosCount: 12,
+        avatars: [%{width: 120, fileUrl: "https://tube#{n}.example.org/avatars/120.png"}]
+      }
+    end
+
+    # The index answers channels and videos. Apple and the Mediathek find nothing.
+    defp peertube_searches(channels, videos, extra \\ fn _conn -> nil end) do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/api/v1/search/video-channels" -> Req.Test.json(conn, %{data: channels})
+          "/api/v1/search/videos" -> Req.Test.json(conn, %{data: videos})
+          "/search" -> Req.Test.json(conn, %{results: []})
+          "/api/query" -> Req.Test.json(conn, %{result: %{results: []}})
+          _ -> extra.(conn)
+        end
+      end)
+    end
+
+    # A channel row shows its instance and subscribes through the channel's address.
+    test "a channel from the index is subscribed from its row", %{conn: conn, user: user} do
+      hit = channel_hit()
+
+      peertube_searches([hit], [], fn conn ->
+        assert conn.request_path == "/video-channels/linux"
+        Plug.Conn.send_resp(conn, 200, peertube())
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "linux"}) |> render_submit()
+      render_async(view)
+
+      # Without other results, the first tab with results opens.
+      assert has_element?(view, ~s|#tab-channels[aria-selected="true"]|, "PeerTube channels")
+      assert has_element?(view, "#tab-channels", "1")
+      assert has_element?(view, "#channel-0", hit.displayName)
+      assert has_element?(view, "#channel-0", hit.host)
+
+      [src] =
+        view
+        |> element("#channel-0 img")
+        |> render()
+        |> then(&Regex.run(~r|src="/pictures/([^"]+)"|, &1, capture: :all_but_first))
+
+      assert {:ok, {[avatar], _fallback}} = Pictures.verify(src)
+      assert avatar == "https://#{hit.host}/avatars/120.png"
+
+      view |> element("#channel-0 [data-action=subscribe]") |> render_click()
+      confirm_subscribe(view)
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{kind: :peertube}}] = Library.subscriptions(user)
+    end
+
+    # Each search reports on its own. The podcasts stay when the index fails.
+    test "an unreachable index leaves the podcasts", %{conn: conn} do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/search" ->
+            Req.Test.json(conn, %{
+              results: [%{collectionName: "Small Hours", feedUrl: feed_url()}]
+            })
+
+          _ ->
+            Plug.Conn.send_resp(conn, 503, "")
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "linux"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, "#source-0", "Small Hours")
+      assert has_element?(view, "#channels-error", "PeerTube")
+      refute has_element?(view, "#discovery-error")
+    end
+
+    test "a forged channel key subscribes to nothing", %{conn: conn, user: user} do
+      peertube_searches([channel_hit()], [])
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "linux"}) |> render_submit()
+      render_async(view)
+
+      render_click(view, "subscribe", %{"list" => "channels", "key" => "99"})
+      refute has_element?(view, "#subscribe-form")
+      assert Library.subscriptions(user) == []
+    end
+
+    # A video from the index on its own instance, named uniquely like `channel_hit/0`.
+    defp video_hit do
+      n = Sikio.DataCase.unique()
+
+      %{
+        url: "https://tube#{n}.example.org/videos/watch/f00d-#{n}",
+        name: "A talk #{n}",
+        duration: 754,
+        publishedAt: "2026-09-05T08:00:48.437Z",
+        thumbnailUrl: "https://tube#{n}.example.org/thumbnails/#{n}.jpg",
+        channel: %{url: "https://tube#{n}.example.org/video-channels/linux", displayName: "Linux"}
+      }
+    end
+
+    # The video's instance: the video API and the channel feed. The index names PeerTube videos
+    # only, so NodeInfo is not asked. `video` answers the video API.
+    defp instance(hit, video) do
+      %URI{path: "/videos/watch/" <> id} = URI.parse(hit.url)
+
+      fn conn ->
+        case conn.request_path do
+          "/.well-known/nodeinfo" ->
+            flunk("asked NodeInfo")
+
+          "/api/v1/videos/" <> ^id ->
+            video.(conn)
+
+          _feed_or_channel ->
+            Plug.Conn.send_resp(conn, 200, peertube())
+        end
+      end
+    end
+
+    defp found(hit),
+      do: &Req.Test.json(&1, %{name: hit.name, shortUUID: "sh0rt", channel: %{id: 7}})
+
+    # A video row shows its channel and goes to the queue without a subscription.
+    test "a video from the index goes to the queue", %{conn: conn, user: user} do
+      hit = video_hit()
+      peertube_searches([], [hit], instance(hit, found(hit)))
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "linux"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, "#tab-videos", "PeerTube videos")
+      assert has_element?(view, "#tab-videos", "1")
+      view |> element("#tab-videos") |> render_click()
+      assert has_element?(view, "#video-0", hit.name)
+      assert has_element?(view, "#video-0", "Linux")
+
+      view |> element(~s|#video-0 [data-action="queue"]|) |> render_click()
+      assert {"/queue/" <> _, _flash} = assert_redirect(view)
+      assert [id] = Playback.queue(user)
+      assert %{feed: %{kind: :peertube}} = Library.entry(user, id)
+      assert Library.subscriptions(user) == []
+    end
+
+    test "a video's channel is subscribed from its row", %{conn: conn, user: user} do
+      hit = video_hit()
+      peertube_searches([], [hit], instance(hit, found(hit)))
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "linux"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, ~s|#video-0 [data-action="subscribe"]|, "Subscribe to Linux")
+      view |> element(~s|#video-0 [data-action="subscribe"]|) |> render_click()
+      confirm_subscribe(view)
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{kind: :peertube}}] = Library.subscriptions(user)
+    end
+
+    # The index can hold a video its instance has deleted since, or an instance that is down.
+    test "a video its instance does not serve says so on its row", %{conn: conn, user: user} do
+      hit = video_hit()
+      peertube_searches([], [hit], instance(hit, &Plug.Conn.send_resp(&1, 404, "")))
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "linux"}) |> render_submit()
+      render_async(view)
+
+      view |> element(~s|#video-0 [data-action="inbox"]|) |> render_click()
+      render_async(view)
+
+      assert has_element?(
+               view,
+               "#video-0 [role=alert]",
+               "could not be read from its PeerTube instance"
+             )
+
+      assert Library.entries(user) == []
+    end
+
+    # A pasted link is no search, so the index is not asked.
+    test "a pasted link asks no index", %{conn: conn} do
+      Req.Test.stub(HTTP, fn conn ->
+        refute String.starts_with?(conn.request_path, "/api/v1/search")
         Plug.Conn.send_resp(conn, 200, podcast())
       end)
 

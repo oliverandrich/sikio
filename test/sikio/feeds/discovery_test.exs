@@ -848,6 +848,160 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
   end
 
+  describe "PeerTube search" do
+    @index "https://index.example"
+
+    defp channel_hit(name, extra \\ %{}) do
+      Map.merge(
+        %{
+          url: "https://tube.example/video-channels/#{name}",
+          displayName: "Channel #{name}",
+          host: "tube.example",
+          videosCount: 12,
+          avatars: [
+            %{width: 48, fileUrl: "https://tube.example/lazy-static/avatars/48.png"},
+            %{width: 120, fileUrl: "https://tube.example/lazy-static/avatars/120.png"},
+            %{width: 600, fileUrl: "https://tube.example/lazy-static/avatars/600.png"}
+          ]
+        },
+        extra
+      )
+    end
+
+    defp video_hit(name, extra \\ %{}) do
+      Map.merge(
+        %{
+          url: "https://tube.example/videos/watch/uuid-#{name}",
+          name: "Video #{name}",
+          duration: 754,
+          publishedAt: "2026-09-05T08:00:48.437Z",
+          thumbnailUrl: "https://tube.example/lazy-static/thumbnails/#{name}.jpg",
+          channel: %{
+            url: "https://tube.example/video-channels/linux",
+            displayName: "Linux"
+          }
+        },
+        extra
+      )
+    end
+
+    test "finds channels in the index with a picture for a 48 px row" do
+      Req.Test.stub(HTTP, fn conn ->
+        assert Plug.Conn.get_req_header(conn, "host") == ["index.example"]
+        assert conn.request_path == "/api/v1/search/video-channels"
+        assert %{"search" => "linux", "count" => "20"} = URI.decode_query(conn.query_string)
+
+        Req.Test.json(conn, %{
+          total: 3,
+          data: [
+            channel_hit("linux"),
+            channel_hit("small", %{
+              avatars: [%{width: 48, fileUrl: "https://tube.example/lazy-static/avatars/s.png"}]
+            }),
+            channel_hit("bare", %{avatars: []}),
+            # Older instances name the file `url`, or only its `path` on the instance.
+            channel_hit("older", %{
+              avatars: [%{width: 120, url: "https://tube.example/lazy-static/avatars/o.png"}]
+            }),
+            channel_hit("oldest", %{avatars: [%{width: 120, path: "/lazy-static/avatars/p.png"}]}),
+            # A relative address belongs to the index. A malformed field leaves its hit standing.
+            channel_hit("relative", %{url: "/video-channels/relative", host: %{name: "odd"}}),
+            # A hit without a usable address is left out.
+            channel_hit("broken", %{url: "ftp://tube.example/c/broken"})
+          ]
+        })
+      end)
+
+      assert {:ok, [linux, small, bare, older, oldest, relative]} =
+               Discovery.peertube_channel_search(" linux ", @index)
+
+      assert linux == %{
+               url: "https://tube.example/video-channels/linux",
+               title: "Channel linux",
+               host: "tube.example",
+               videos_count: 12,
+               icon_url: "https://tube.example/lazy-static/avatars/120.png"
+             }
+
+      assert small.icon_url == "https://tube.example/lazy-static/avatars/s.png"
+      assert bare.icon_url == nil
+      assert older.icon_url == "https://tube.example/lazy-static/avatars/o.png"
+      assert oldest.icon_url == "https://tube.example/lazy-static/avatars/p.png"
+      assert %{url: "https://index.example/video-channels/relative", host: ""} = relative
+    end
+
+    test "finds videos in the index, leaving out sensitive and live ones" do
+      Req.Test.stub(HTTP, fn conn ->
+        assert conn.request_path == "/api/v1/search/videos"
+
+        assert %{"search" => "linux", "count" => "20", "nsfw" => "false", "isLive" => "false"} =
+                 URI.decode_query(conn.query_string)
+
+        Req.Test.json(conn, %{
+          total: 2,
+          data: [
+            video_hit("a"),
+            video_hit("b", %{duration: nil, publishedAt: "yesterday", thumbnailUrl: nil}),
+            video_hit("broken", %{url: nil}),
+            # A video without a channel to subscribe to is left out.
+            video_hit("orphan", %{channel: %{displayName: "Orphan"}}),
+            video_hit("nameless", %{channel: %{url: "https://tube.example/c/x", displayName: []}})
+          ]
+        })
+      end)
+
+      assert {:ok, [a, b]} = Discovery.peertube_video_search("linux", @index)
+
+      assert a == %{
+               url: "https://tube.example/videos/watch/uuid-a",
+               title: "Video a",
+               channel: "Linux",
+               channel_url: "https://tube.example/video-channels/linux",
+               published_at: ~U[2026-09-05 08:00:48.437Z],
+               duration: 754,
+               icon_url: "https://tube.example/lazy-static/thumbnails/a.jpg"
+             }
+
+      assert %{duration: nil, published_at: nil, icon_url: nil} = b
+    end
+
+    # The index names PeerTube videos, so saving one asks the instance no NodeInfo.
+    test "a video from the index is read from its instance" do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/api/v1/videos/uuid-a" ->
+            Req.Test.json(conn, %{name: "Video a", shortUUID: "sh0rt", channel: %{id: 7}})
+
+          "/feeds/videos.xml" ->
+            Plug.Conn.send_resp(conn, 200, peertube())
+
+          path ->
+            flunk("asked #{path}")
+        end
+      end)
+
+      assert {:ok, %{preview: %{kind: :peertube}, external_id: "https://tube.example/w/sh0rt"}} =
+               Discovery.peertube_video_item("https://tube.example/videos/watch/uuid-a")
+
+      assert Discovery.peertube_video_item("https://tube.example/c/linux") == {:error, :not_found}
+    end
+
+    test "an unreachable index says so, and a term too short is not sent" do
+      Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 503, ""))
+
+      assert Discovery.peertube_channel_search("linux", @index) ==
+               {:error, :peertube_unavailable}
+
+      assert Discovery.peertube_video_search("linux", @index) == {:error, :peertube_unavailable}
+
+      Req.Test.stub(HTTP, &Req.Test.json(&1, %{error: "unexpected"}))
+      assert Discovery.peertube_video_search("linux", @index) == {:error, :peertube_unavailable}
+
+      assert Discovery.peertube_channel_search(" x ", @index) == {:error, :invalid_search}
+      assert Discovery.peertube_video_search(" x ", @index) == {:error, :invalid_search}
+    end
+  end
+
   # A broadcaster's page names its preview picture. KiKA writes `name` where others write
   # `property`. A relative address resolves against the page.
   test "a page's picture comes from its og:image" do

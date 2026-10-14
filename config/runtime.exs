@@ -74,6 +74,28 @@ case "MEDIATHEK_URL" |> System.get_env("") |> String.trim() |> String.trim_trail
     end
 end
 
+# The PeerTube index the PeerTube search asks. Sepia Search is the default.
+# See docs/operations.md.
+# Sikio fetches only from the default HTTPS port, without credentials in the address.
+case "PEERTUBE_SEARCH_URL" |> System.get_env("") |> String.trim() |> String.trim_trailing("/") do
+  "" ->
+    :ok
+
+  url ->
+    case URI.new(url) do
+      {:ok,
+       %URI{scheme: "https", host: host, port: 443, userinfo: nil, query: nil, fragment: nil}}
+      when is_binary(host) and host != "" ->
+        config :sikio, :peertube_search_url, url
+
+      _ ->
+        raise """
+        environment variable PEERTUBE_SEARCH_URL is not an https URL on the default port: #{inspect(url)}
+        For example: PEERTUBE_SEARCH_URL=https://search.joinpeertube.org
+        """
+    end
+end
+
 # How often a feed is asked, in minutes. The scheduler looks every five minutes, so that is the
 # shortest interval it can keep. See docs/operations.md.
 case "FEED_POLL_MINUTES" |> System.get_env("") |> String.trim() do

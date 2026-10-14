@@ -14,6 +14,9 @@ Its own section becomes the version's release notes.
 ### Upgrading
 
 - One migration runs on start. It adds the table of favourites.
+- The search on Add asks a PeerTube index. Search terms go from the server to Sepia Search,
+  run by Framasoft. `PEERTUBE_SEARCH_URL` names another index with the same API, such as a
+  self-hosted one or a PeerTube instance.
 
 ### Added
 
@@ -21,6 +24,8 @@ Its own section becomes the version's release notes.
   favourite stays in the library after its source is unsubscribed.
 - A share button beside the star hands an item's original page to the system's share sheet.
   Where the browser has none, it copies the link.
+- The search on Add finds PeerTube channels and videos across instances, in two more tabs. A
+  channel is subscribed through its feed. A video goes to the queue or the inbox on its own.
 
 ### Fixed
 

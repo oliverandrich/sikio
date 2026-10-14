@@ -21,6 +21,8 @@ media libraries. You choose what enters your lists and mark what you have watche
   libraries (ARD, ZDF, arte, 3sat and more) for series and films. An episode or film goes to the
   queue or the inbox on its own, and its show can be subscribed from the same row. The media
   library search is powered by [MediathekViewWeb](https://mediathekviewweb.de).
+- Searches PeerTube for channels and videos across instances, through
+  [Sepia Search](https://search.joinpeertube.org) or another index the operator names.
 - Imports and exports subscriptions as OPML.
 - Keeps an inbox of new items, a queue in your own order, and a history of heard items.
   With **Play on**, the queue plays the next item when one ends.

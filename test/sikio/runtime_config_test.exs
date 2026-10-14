@@ -63,6 +63,32 @@ defmodule Sikio.RuntimeConfigTest do
     end
   end
 
+  describe "PEERTUBE_SEARCH_URL" do
+    defp index(value),
+      do: :test |> read(%{"PEERTUBE_SEARCH_URL" => value}) |> sikio(:peertube_search_url)
+
+    test "an https address names the index, without its trailing slash" do
+      assert index(" https://search.example/ ") == "https://search.example"
+    end
+
+    test "an unset variable leaves Sepia Search as the index" do
+      assert index("") == nil
+    end
+
+    test "anything but an https address on the default port stops the boot" do
+      for value <- [
+            "http://search.example",
+            "https://search.example:8443",
+            "https://user:pw@search.example",
+            "https://search.example?q=1",
+            "https://search.example#top",
+            "search.example"
+          ] do
+        assert_raise RuntimeError, ~r/PEERTUBE_SEARCH_URL/, fn -> index(value) end
+      end
+    end
+  end
+
   describe "FEED_POLL_MINUTES" do
     defp interval(value),
       do: :test |> read(%{"FEED_POLL_MINUTES" => value}) |> sikio(:feed_poll_minutes)

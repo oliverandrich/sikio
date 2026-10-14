@@ -2,12 +2,13 @@
 
 defmodule SikioWeb.AddSourceLive do
   @moduledoc """
-  Adds a source from a pasted link or a search in Apple Podcasts and the Mediathek.
+  Adds a source from a pasted link or a search in Apple Podcasts, the Mediathek and PeerTube.
 
   A pasted link shows a preview with its title and item count first.
   Subscribing asks which present items to take and where later ones go. A search result's feed
   is fetched after the answer.
   A search also asks MediathekViewWeb. A programme from it is saved on its own, as an item.
+  A search also asks a PeerTube index for channels and videos. A video is saved as its link is.
   Discovery runs in `start_async/3`. Candidates stay in assigns under generated ids.
   A forged id therefore selects nothing.
 
@@ -26,7 +27,28 @@ defmodule SikioWeb.AddSourceLive do
   alias SikioWeb.LibraryPaths
   alias SikioWeb.SubscriptionSettings
 
-  @tabs ~w(podcasts episodes series programmes)
+  # Each tab with the assign that holds its results, in the order `choose_tab/1` tries them.
+  @results [
+    podcasts: :candidates,
+    episodes: :episodes,
+    series: :series,
+    programmes: :programmes,
+    channels: :channels,
+    videos: :videos
+  ]
+
+  @tabs Enum.map(@results, fn {tab, _results} -> to_string(tab) end)
+
+  # Each search besides Apple's podcast search with the assign that holds its state.
+  @states %{
+    episodes: :episodes_state,
+    programmes: :programmes_state,
+    channels: :channels_state,
+    videos: :videos_state
+  }
+
+  # The rows that fetch their item before saving it, by the event that saves one.
+  @fetched %{"save_episode" => :episodes, "save_video" => :videos}
 
   # Each list's rows subscribe to a source: its row id prefix, the fields with its address and
   # name, and the `Discovery` function that fetches it. A capture here would be a compile-time
@@ -34,7 +56,9 @@ defmodule SikioWeb.AddSourceLive do
   @subscribable %{
     "episodes" => {:episodes, "episode-", :feed_url, :podcast, :discover},
     "series" => {:series, "series-", :series_url, :title, :mediathek_series},
-    "programmes" => {:programmes, "programme-", :series_url, :series_title, :mediathek_series}
+    "programmes" => {:programmes, "programme-", :series_url, :series_title, :mediathek_series},
+    "channels" => {:channels, "channel-", :url, :title, :discover},
+    "videos" => {:videos, "video-", :channel_url, :channel, :discover}
   }
 
   @existing ~w(newest all none)
@@ -47,10 +71,12 @@ defmodule SikioWeb.AddSourceLive do
     {:sources, :candidates, :id},
     {:episodes, :episodes, :key},
     {:series, :series, :key},
-    {:programmes, :programmes, :key}
+    {:programmes, :programmes, :key},
+    {:channels, :channels, :key},
+    {:videos, :videos, :key}
   ]
 
-  @lookups [:subscribe, :item, :programmes, :episodes, :episode_item]
+  @lookups [:subscribe, :item, :programmes, :episodes, :fetched_item, :channels, :videos]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -66,6 +92,8 @@ defmodule SikioWeb.AddSourceLive do
      |> stream_configure(:programmes, dom_id: &"programme-#{&1.key}")
      |> stream_configure(:episodes, dom_id: &"episode-#{&1.key}")
      |> stream_configure(:series, dom_id: &"series-#{&1.key}")
+     |> stream_configure(:channels, dom_id: &"channel-#{&1.key}")
+     |> stream_configure(:videos, dom_id: &"video-#{&1.key}")
      |> without_results()}
   end
 
@@ -109,29 +137,19 @@ defmodule SikioWeb.AddSourceLive do
     end
   end
 
-  # An episode is saved from its podcast's feed, which is fetched first.
-  def handle_event(
-        "save_episode",
-        %{"key" => key, "at" => at},
-        %{assigns: %{saving: nil}} = socket
-      )
-      when at in ["queue", "inbox"] do
-    case socket.assigns.episodes[key] do
-      nil ->
-        {:noreply, socket}
+  # An episode is saved from its podcast's feed, a video from its instance. Each is fetched first.
+  def handle_event(event, %{"key" => key, "at" => at}, %{assigns: %{saving: nil}} = socket)
+      when is_map_key(@fetched, event) and at in ["queue", "inbox"] do
+    list = @fetched[event]
 
-      episode ->
-        row = "episode-" <> key
-
-        {:noreply,
-         socket
-         |> assign(saving: row, row_errors: Map.delete(socket.assigns.row_errors, row))
-         |> show_rows()
-         |> start_async(:episode_item, fn -> {at, Discovery.episode_item(episode)} end)}
+    case socket.assigns[list][key] do
+      nil -> {:noreply, socket}
+      found -> {:noreply, fetch_item(socket, list, key, at, found)}
     end
   end
 
-  def handle_event("save_episode", _params, socket), do: {:noreply, socket}
+  def handle_event(event, _params, socket) when is_map_key(@fetched, event),
+    do: {:noreply, socket}
 
   # A pasted link's item subscribes to its source's feed, fetched afresh. The item's preview can
   # hold an older video added for the link, which the feed itself does not list.
@@ -142,7 +160,7 @@ defmodule SikioWeb.AddSourceLive do
   def handle_event("subscribe", %{"list" => "item"}, socket), do: {:noreply, socket}
 
   def handle_event("subscribe", %{"list" => list, "key" => key}, socket)
-      when list in ~w(episodes series programmes) do
+      when is_map_key(@subscribable, list) do
     {name, prefix, url, title, fetch} = @subscribable[list]
 
     case socket.assigns[name][key] do
@@ -245,6 +263,29 @@ defmodule SikioWeb.AddSourceLive do
 
   defp ask(socket, _row, _title, _source), do: socket
 
+  # An item whose feed is fetched before it is saved. The row shows the wait and any failure.
+  # The message for a missing item is translated here, in the view's process and locale.
+  defp fetch_item(socket, list, key, at, found) do
+    {row, gone, fetch} = fetching(list, key, found)
+
+    socket
+    |> assign(saving: row, row_errors: Map.delete(socket.assigns.row_errors, row))
+    |> show_rows()
+    |> start_async(:fetched_item, fn -> {at, gone, fetch.()} end)
+  end
+
+  # A feed without the episode is final. A video's instance may only be down at the moment.
+  defp fetching(:episodes, key, episode),
+    do:
+      {"episode-" <> key, gettext("This episode is no longer in its podcast's feed."),
+       fn -> Discovery.episode_item(episode) end}
+
+  defp fetching(:videos, key, video),
+    do:
+      {"video-" <> key,
+       gettext("This video could not be read from its PeerTube instance. Try again later."),
+       fn -> Discovery.peertube_video_item(video.url) end}
+
   defp lookup(socket, q) do
     socket = assign(socket, form: to_form(%{"q" => q}))
 
@@ -289,36 +330,37 @@ defmodule SikioWeb.AddSourceLive do
      |> choose_tab()}
   end
 
-  def handle_async(:episodes, {:ok, {:ok, found}}, socket) do
+  def handle_async(source, {:ok, {:ok, found}}, socket)
+      when source in [:episodes, :channels, :videos] do
     found = keyed(found, :key)
 
     {:noreply,
      socket
-     |> assign(episodes: Map.new(found, &{&1.key, &1}), episodes_state: :done)
-     |> stream(:episodes, found, reset: true)
+     |> assign([{source, Map.new(found, &{&1.key, &1})}, {@states[source], :done}])
+     |> stream(source, found, reset: true)
      |> choose_tab()}
   end
 
   # The podcast search reports an invalid term. The other searches stay silent about it.
   def handle_async(source, {:ok, {:error, :invalid_search}}, socket)
-      when source in [:programmes, :episodes],
-      do: {:noreply, assign(socket, [{state_of(source), nil}])}
+      when is_map_key(@states, source),
+      do: {:noreply, assign(socket, @states[source], nil)}
 
-  def handle_async(source, _failed, socket) when source in [:programmes, :episodes],
-    do: {:noreply, socket |> assign([{state_of(source), :failed}]) |> choose_tab()}
+  def handle_async(source, _failed, socket) when is_map_key(@states, source),
+    do: {:noreply, socket |> assign(@states[source], :failed) |> choose_tab()}
 
-  def handle_async(:episode_item, {:ok, {at, {:ok, item}}}, socket),
+  def handle_async(:fetched_item, {:ok, {at, _gone, {:ok, item}}}, socket),
     do: socket |> assign(saving: nil) |> save_item(item, at)
 
   # A cleared page has no row left to report on.
-  def handle_async(:episode_item, _failed, %{assigns: %{saving: nil}} = socket),
+  def handle_async(:fetched_item, _failed, %{assigns: %{saving: nil}} = socket),
     do: {:noreply, socket}
 
-  def handle_async(:episode_item, {:ok, {_at, {:error, :not_found}}}, socket),
-    do: episode_failed(socket, gettext("This episode is no longer in its podcast's feed."))
+  def handle_async(:fetched_item, {:ok, {_at, gone, {:error, :not_found}}}, socket),
+    do: fetch_failed(socket, gone)
 
-  def handle_async(:episode_item, _failed, socket),
-    do: episode_failed(socket, message(:unavailable))
+  def handle_async(:fetched_item, _failed, socket),
+    do: fetch_failed(socket, message(:unavailable))
 
   # Only a link to one video or episode yields an item. Its preview holds the entry.
   def handle_async(:item, {:ok, {:ok, %{preview: _, external_id: _} = item}}, socket),
@@ -340,7 +382,7 @@ defmodule SikioWeb.AddSourceLive do
   defp failed(socket, reason),
     do: {:noreply, socket |> assign(busy: false, error: message(reason)) |> choose_tab()}
 
-  defp episode_failed(socket, error) do
+  defp fetch_failed(socket, error) do
     errors = Map.put(socket.assigns.row_errors, socket.assigns.saving, error)
     {:noreply, socket |> assign(saving: nil, row_errors: errors) |> show_rows()}
   end
@@ -353,9 +395,6 @@ defmodule SikioWeb.AddSourceLive do
      |> assign(subscribing: nil, row_errors: errors)
      |> show_rows()}
   end
-
-  defp state_of(:programmes), do: :programmes_state
-  defp state_of(:episodes), do: :episodes_state
 
   # A programme names the source its series is subscribed as.
   defp with_series(programme) do
@@ -388,13 +427,10 @@ defmodule SikioWeb.AddSourceLive do
   defp choose_tab(%{assigns: %{tab_picked: true}} = socket), do: socket
 
   defp choose_tab(socket) do
-    %{candidates: podcasts, episodes: episodes, series: series, programmes: programmes} =
-      socket.assigns
-
-    found = [podcasts: podcasts, episodes: episodes, series: series, programmes: programmes]
-
     tab =
-      Enum.find_value(found, :podcasts, fn {tab, results} -> map_size(results) > 0 && tab end)
+      Enum.find_value(@results, :podcasts, fn {tab, results} ->
+        map_size(socket.assigns[results]) > 0 && tab
+      end)
 
     assign(socket, tab: tab)
   end
@@ -418,10 +454,17 @@ defmodule SikioWeb.AddSourceLive do
   defp search(socket, term) do
     socket
     |> searching(:search)
-    |> assign(programmes_state: :searching, episodes_state: :searching)
+    |> assign(
+      programmes_state: :searching,
+      episodes_state: :searching,
+      channels_state: :searching,
+      videos_state: :searching
+    )
     |> start_async(:sources, fn -> Discovery.search(term) end)
     |> start_async(:episodes, fn -> Discovery.episode_search(term) end)
     |> start_async(:programmes, fn -> Discovery.mediathek_search(term) end)
+    |> start_async(:channels, fn -> Discovery.peertube_channel_search(term) end)
+    |> start_async(:videos, fn -> Discovery.peertube_video_search(term) end)
   end
 
   # A new lookup cancels a pending subscribe task.
@@ -451,6 +494,10 @@ defmodule SikioWeb.AddSourceLive do
       episodes: %{},
       episodes_state: nil,
       series: %{},
+      channels: %{},
+      channels_state: nil,
+      videos: %{},
+      videos_state: nil,
       saving: nil,
       more: nil,
       tab: :podcasts,
@@ -460,6 +507,8 @@ defmodule SikioWeb.AddSourceLive do
     |> stream(:programmes, [], reset: true)
     |> stream(:episodes, [], reset: true)
     |> stream(:series, [], reset: true)
+    |> stream(:channels, [], reset: true)
+    |> stream(:videos, [], reset: true)
   end
 
   # Gives each result a key in list order. A row's button names the key, not the result.
@@ -664,7 +713,7 @@ defmodule SikioWeb.AddSourceLive do
           </fieldset>
           <p id="add-hint" class="mt-2 text-center text-meta leading-relaxed text-muted">
             {gettext(
-              "Paste a link to a podcast, a YouTube or PeerTube channel or video, or search Apple Podcasts and the Mediathek."
+              "Paste a link to a podcast, a YouTube or PeerTube channel or video, or search Apple Podcasts, the Mediathek and PeerTube."
             )}
           </p>
         </.form>
@@ -747,6 +796,18 @@ defmodule SikioWeb.AddSourceLive do
             selected={@tab == :programmes}
             label={gettext("Programmes")}
             count={if @programmes_state == :searching, do: "…", else: map_size(@programmes)}
+          />
+          <.search_tab
+            tab="channels"
+            selected={@tab == :channels}
+            label={gettext("PeerTube channels")}
+            count={if @channels_state == :searching, do: "…", else: map_size(@channels)}
+          />
+          <.search_tab
+            tab="videos"
+            selected={@tab == :videos}
+            label={gettext("PeerTube videos")}
+            count={if @videos_state == :searching, do: "…", else: map_size(@videos)}
           />
         </div>
         <div
@@ -916,6 +977,88 @@ defmodule SikioWeb.AddSourceLive do
               more={@more == dom_id}
               save="save_programme"
               subscribe_label={gettext("Subscribe to %{title}", title: programme.series_title)}
+              subscribing={@subscribing}
+              error={@row_errors[dom_id]}
+            />
+          </div>
+        </div>
+        <div
+          id="panel-channels"
+          role="tabpanel"
+          aria-labelledby="tab-channels"
+          class={[@tab != :channels && "hidden"]}
+        >
+          <p class="mt-3 text-meta text-muted">
+            {gettext(
+              "Channels on PeerTube instances, via a search index across instances. Subscriptions use the channel's own feed."
+            )}
+          </p>
+          <.search_state
+            id="channels"
+            state={@channels_state}
+            count={map_size(@channels)}
+            searching={gettext("Searching PeerTube…")}
+            empty={gettext("No channels found on PeerTube.")}
+            failed={gettext("The PeerTube search is unavailable right now. Try again later.")}
+          />
+          <div id="channels" phx-update="stream" class={list_class()}>
+            <.source_row
+              :for={{dom_id, channel} <- @streams.channels}
+              id={dom_id}
+              picture={source_picture(%{kind: :peertube, icon_url: channel.icon_url})}
+              title={channel.title}
+              action={
+                %{
+                  "phx-click" => "subscribe",
+                  "phx-value-list" => "channels",
+                  "phx-value-key" => channel.key
+                }
+              }
+              disabled={@subscribing != nil}
+              subscribing={@subscribing == dom_id}
+              error={@row_errors[dom_id]}
+            >
+              <span>{channel.host}</span>
+              <span :if={channel.videos_count}>
+                {ngettext("1 video", "%{count} videos", channel.videos_count)}
+              </span>
+            </.source_row>
+          </div>
+        </div>
+        <div
+          id="panel-videos"
+          role="tabpanel"
+          aria-labelledby="tab-videos"
+          class={[@tab != :videos && "hidden"]}
+        >
+          <p class="mt-3 text-meta text-muted">
+            {gettext(
+              "Videos on PeerTube instances, via a search index across instances. A video is added on its own."
+            )}
+          </p>
+          <.search_state
+            id="videos"
+            state={@videos_state}
+            count={map_size(@videos)}
+            searching={gettext("Searching PeerTube…")}
+            empty={gettext("No videos found on PeerTube.")}
+            failed={gettext("The PeerTube search is unavailable right now. Try again later.")}
+          />
+          <div id="videos" phx-update="stream" class={list_class()}>
+            <.item_row
+              :for={{dom_id, video} <- @streams.videos}
+              id={dom_id}
+              list="videos"
+              key={video.key}
+              title={video.title}
+              origin={[video.channel]}
+              published_at={video.published_at}
+              duration={video.duration}
+              picture={source_picture(%{kind: :peertube, icon_url: video.icon_url})}
+              more={@more == dom_id}
+              save="save_video"
+              saving={@saving == dom_id}
+              subscribe_label={gettext("Subscribe to %{title}", title: video.channel)}
               subscribing={@subscribing}
               error={@row_errors[dom_id]}
             />
