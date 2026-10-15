@@ -34,8 +34,14 @@ defmodule Sikio.Feeds.HTTP do
     {0xF0000000, 4}
   ]
 
+  @doc """
+  Fetches `url`, following up to four redirects.
+
+  `timeout:` bounds the whole lookup in milliseconds: resolving, connecting, every redirect and
+  every address tried. Without it, each request has the transport's own timeouts.
+  """
   def get(url, opts \\ []) do
-    follow(url, opts, 4)
+    follow(url, with_deadline(opts), 4)
   end
 
   @doc """
@@ -52,11 +58,12 @@ defmodule Sikio.Feeds.HTTP do
   defp send_body(url, body, type, opts) do
     opts =
       opts
+      |> with_deadline()
       |> Keyword.merge(method: "POST", body: body)
       |> Keyword.update(:headers, [{"content-type", type}], &[{"content-type", type} | &1])
 
     with {:ok, uri} <- normalize(url),
-         {:ok, addresses} <- addresses(uri.host) do
+         {:ok, addresses} <- addresses(uri.host, opts) do
       request(uri, addresses, opts)
     end
   rescue
@@ -129,7 +136,7 @@ defmodule Sikio.Feeds.HTTP do
 
   defp follow(url, opts, remaining) do
     with {:ok, uri} <- normalize(url),
-         {:ok, addresses} <- addresses(uri.host),
+         {:ok, addresses} <- addresses(uri.host, opts),
          {:ok, response} <- request(uri, addresses, opts) do
       received(response, uri, opts, remaining)
     end
@@ -151,11 +158,27 @@ defmodule Sikio.Feeds.HTTP do
     {:ok, Map.put(response, :url, URI.to_string(uri))}
   end
 
-  defp addresses(host) do
+  # The deadline is `System.monotonic_time(:millisecond)` at which every hop and address gives up.
+  defp with_deadline(opts) do
+    case Keyword.pop(opts, :timeout) do
+      {nil, opts} -> opts
+      {ms, opts} -> Keyword.put(opts, :deadline, System.monotonic_time(:millisecond) + ms)
+    end
+  end
+
+  defp left(opts) do
+    case opts[:deadline] do
+      nil -> :infinity
+      deadline -> deadline - System.monotonic_time(:millisecond)
+    end
+  end
+
+  defp addresses(host, opts) do
     result =
-      case :inet.parse_address(String.to_charlist(host)) do
-        {:ok, ip} -> {:ok, [ip]}
-        _ -> Application.get_env(:sikio, :feed_resolver, &resolve/1).(host)
+      case {:inet.parse_address(String.to_charlist(host)), left(opts)} do
+        {{:ok, ip}, _left} -> {:ok, [ip]}
+        {_name, left} when is_integer(left) and left <= 0 -> {:error, :timeout}
+        {_name, left} -> resolver().(host, min(left, 2_000))
       end
 
     case result do
@@ -171,14 +194,22 @@ defmodule Sikio.Feeds.HTTP do
     end
   end
 
+  # The test resolver takes only the host.
+  defp resolver do
+    case Application.get_env(:sikio, :feed_resolver) do
+      nil -> &lookup/2
+      stub -> fn host, _wait -> stub.(host) end
+    end
+  end
+
   # Both families are queried concurrently, so a missing record type costs one timeout, not two.
   # IPv4 addresses come first, and the request tries them in this order.
-  defp resolve(host) do
+  defp lookup(host, wait) do
     name = String.to_charlist(host)
 
     addresses =
       [:inet, :inet6]
-      |> Task.async_stream(&:inet.getaddrs(name, &1, 2_000), timeout: :infinity)
+      |> Task.async_stream(&:inet.getaddrs(name, &1, wait), timeout: :infinity)
       |> Enum.flat_map(fn
         {:ok, {:ok, ips}} -> ips
         _ -> []
@@ -208,7 +239,13 @@ defmodule Sikio.Feeds.HTTP do
       ] ++ Keyword.get(opts, :headers, [])
 
     with {:ok, response} <-
-           Transport.fetch(uri, address, headers, max_bytes, Keyword.take(opts, [:method, :body])) do
+           Transport.fetch(
+             uri,
+             address,
+             headers,
+             max_bytes,
+             Keyword.take(opts, [:method, :body, :deadline])
+           ) do
       check_response(response, max_bytes)
     end
   end

@@ -973,9 +973,9 @@ defmodule Sikio.Feeds.Discovery do
   Returns `{:error, :not_found}` for a page without one or a page that is gone, and
   `{:error, :unavailable}` when the server did not answer.
   """
-  def page_picture(url) do
-    # The picture sits in the page's head. A broadcaster's page is a few hundred KB.
-    with {:ok, doc, base} <- fetched_page(url, max_bytes: 2_000_000),
+  def page_picture(url, opts \\ []) do
+    # The picture sits in the page's head.
+    with {:ok, doc, base} <- head_page(url, opts),
          picture when is_binary(picture) <- picture(doc, base) do
       {:ok, picture}
     else
@@ -991,8 +991,8 @@ defmodule Sikio.Feeds.Discovery do
   serve one unnamed. Returns `{:error, :unavailable}` when the site did not answer, and
   `{:error, :not_found}` when it refused or its page could not be read.
   """
-  def site_icon(url) do
-    case fetched_page(url, max_bytes: 2_000_000) do
+  def site_icon(url, opts \\ []) do
+    case head_page(url, opts) do
       {:ok, doc, base} ->
         icon = largest(touch_icons(doc), base) || largest(png_icons(doc), base)
         {:ok, icon || HTTP.resolve("/apple-touch-icon.png", base)}
@@ -1055,6 +1055,10 @@ defmodule Sikio.Feeds.Discovery do
 
   # Returns the parsed page and the address it came from after redirects.
   # A timeout, 408, 429 or 5xx may pass, so it is `:unavailable`. Every other failure is final.
+  # A page read for what its head names. A broadcaster's page is a few hundred KB.
+  defp head_page(url, opts),
+    do: fetched_page(url, [max_bytes: 2_000_000] ++ Keyword.take(opts, [:timeout]))
+
   defp fetched_page(url, opts \\ []) do
     case HTTP.get(url, opts) do
       {:ok, %{status: 200, body: body} = response} ->

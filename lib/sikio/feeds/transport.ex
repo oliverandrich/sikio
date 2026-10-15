@@ -38,6 +38,10 @@ defmodule Sikio.Feeds.Transport do
   authority, to verify certificates in a real TLS handshake.
 
   `method:` and `body:` send a request other than a GET, such as a form POST.
+
+  `deadline:` is the `System.monotonic_time(:millisecond)` by which the connection and the whole
+  response must be done. It shortens the connect and response timeouts, never lengthens them. A
+  plug keeps it too.
   """
   def fetch(uri, address, headers, limit, opts \\ []) do
     case Keyword.get(opts, :plug, Application.get_env(:sikio, :feed_http_plug)) do
@@ -56,7 +60,7 @@ defmodule Sikio.Feeds.Transport do
       mode: :passive,
       protocols: [:http1],
       transport_opts:
-        [timeout: @connect_timeout, inet6: tuple_size(address) == 8] ++
+        [timeout: connect_timeout(opts), inet6: tuple_size(address) == 8] ++
           Keyword.take(opts, [:cacerts])
     ]
 
@@ -80,18 +84,48 @@ defmodule Sikio.Feeds.Transport do
   # The conn targets the pinned address and carries the real request headers. A stub can assert
   # on pinning without a socket.
   #
-  # Nothing is rescued here. A raising stub usually means a test forgot to register one.
-  # Rescuing would turn that into a plausible server failure, and the test would pass wrongly.
+  # A raising stub usually means a test forgot to register one. It raises in the caller, so it
+  # never passes for a plausible server failure.
   defp through(plug, uri, headers, opts) do
     {module, options} = if is_tuple(plug), do: plug, else: {plug, []}
 
-    opts
-    |> Keyword.get(:method, "GET")
-    |> Plug.Test.conn(URI.to_string(uri), Keyword.get(opts, :body))
-    |> put_headers(headers)
-    |> module.call(module.init(options))
-    |> answered()
+    # The plug runs in a task, so it keeps the deadline a socket would. A raise, throw or exit in
+    # it happens again in the caller, unchanged.
+    task =
+      Task.async(fn ->
+        try do
+          {:answered,
+           opts
+           |> Keyword.get(:method, "GET")
+           |> Plug.Test.conn(URI.to_string(uri), Keyword.get(opts, :body))
+           |> put_headers(headers)
+           |> module.call(module.init(options))
+           |> answered()}
+        catch
+          kind, reason -> {:failed, kind, reason, __STACKTRACE__}
+        end
+      end)
+
+    case Task.yield(task, max(response_deadline(opts) - now(), 0)) ||
+           Task.shutdown(task, :brutal_kill) do
+      {:ok, {:answered, result}} -> result
+      {:ok, {:failed, kind, reason, stacktrace}} -> :erlang.raise(kind, reason, stacktrace)
+      {:exit, reason} -> exit(reason)
+      nil -> {:error, :unavailable}
+    end
   end
+
+  defp now, do: System.monotonic_time(:millisecond)
+
+  defp connect_timeout(opts) do
+    case opts[:deadline] do
+      nil -> @connect_timeout
+      deadline -> deadline |> Kernel.-(now()) |> min(@connect_timeout) |> max(0)
+    end
+  end
+
+  defp response_deadline(opts),
+    do: min(now() + @response_timeout, Keyword.get(opts, :deadline, :infinity))
 
   # Appended to `req_headers` directly, because `put_req_header/3` rejects `host`.
   # The plug receives the request as sent, and `host` carries the original hostname for pinning.
@@ -118,7 +152,7 @@ defmodule Sikio.Feeds.Transport do
 
     case Mint.HTTP.request(conn, method, path(uri), headers, Keyword.get(opts, :body)) do
       {:ok, conn, ref} ->
-        deadline = System.monotonic_time(:millisecond) + @response_timeout
+        deadline = response_deadline(opts)
         {conn, result} = receive_response(conn, ref, limit, deadline, blank())
         Mint.HTTP.close(conn)
         result

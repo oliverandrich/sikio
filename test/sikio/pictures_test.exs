@@ -212,6 +212,44 @@ defmodule Sikio.PicturesTest do
       refute_received {:fetched, _}
     end
 
+    # A hanging broadcaster page holds one of the four page turns. It gives up after the page
+    # timeout, so the row shows its fallback and other pictures get their turn.
+    test "a page that does not answer in time yields the fallback", %{tmp_dir: dir} do
+      test = self()
+
+      Req.Test.stub(Sikio.Feeds.HTTP, fn conn ->
+        send(test, {:fetched, conn.request_path})
+
+        case conn.request_path do
+          "/video/hanging" ->
+            receive do: (:never -> conn)
+
+          "/fallback.jpg" ->
+            conn
+            |> Plug.Conn.put_resp_content_type("image/jpeg", nil)
+            |> Plug.Conn.send_resp(200, jpeg())
+        end
+      end)
+
+      candidates = [
+        {:page, "https://www.ard.example/video/hanging"},
+        "https://img.example.org/fallback.jpg"
+      ]
+
+      {elapsed, result} =
+        :timer.tc(fn -> Pictures.fetch(candidates, dir, page_timeout: 100) end, :millisecond)
+
+      assert {:ok, %{type: "image/jpeg"}} = result
+      assert elapsed < 2_000
+      assert_received {:fetched, "/video/hanging"}
+      assert_received {:fetched, "/fallback.jpg"}
+
+      # The page is asked again in ten minutes, as a page that answered with an error.
+      [marker] = Path.wildcard(Path.join(dir, "*.failed"))
+      %{mtime: next} = File.stat!(marker, time: :posix)
+      assert (next - System.os_time(:second)) in 595..600
+    end
+
     # A busy broadcaster is asked again after ten minutes, not on every render. Only a final
     # answer waits a day.
     test "a page that did not answer is asked again later", %{tmp_dir: dir} do

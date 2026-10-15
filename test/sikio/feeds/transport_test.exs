@@ -54,7 +54,7 @@ defmodule Sikio.Feeds.TransportTest do
       {127, 0, 0, 1},
       headers,
       limit,
-      [plug: nil] ++ Keyword.take(opts, [:cacerts])
+      [plug: nil] ++ Keyword.take(opts, [:cacerts, :deadline])
     )
   end
 
@@ -124,6 +124,24 @@ defmodule Sikio.Feeds.TransportTest do
     {port, cacerts} = answering_tls("feeds.example.org")
 
     assert {:ok, %{status: 204}} = fetch(port, cacerts: cacerts)
+  end
+
+  # A page lookup waits a few seconds, not the full response timeout, for a peer that accepts the
+  # connection and then says nothing.
+  test "a silent peer ends at the given deadline" do
+    {:ok, listener} = :gen_tcp.listen(0, @listen)
+    {:ok, port} = :inet.port(listener)
+
+    spawn_link(fn ->
+      {:ok, socket} = :gen_tcp.accept(listener, 5_000)
+      {:ok, _request} = :gen_tcp.recv(socket, 0, 5_000)
+      receive do: (:never -> :gen_tcp.close(socket))
+    end)
+
+    deadline = System.monotonic_time(:millisecond) + 200
+    {elapsed, result} = :timer.tc(fn -> fetch(port, deadline: deadline) end, :millisecond)
+    assert result == {:error, :unavailable}
+    assert elapsed < 2_000
   end
 
   # A refused connection concerns this address only, so the caller may try the host's next one.

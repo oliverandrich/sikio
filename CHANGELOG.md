@@ -39,6 +39,9 @@ Its own section becomes the version's release notes.
   this lowers the server's memory use.
 - Lists and the sidebar load only what they show. Show notes, search text and a feed's fetch
   details stay in the database until an item opens, so every open tab keeps less memory.
+- A broadcaster page that does not answer holds a picture lookup on Add for at most five seconds,
+  redirects included, instead of fifteen. The row then shows its fallback picture, and the page
+  is asked again ten minutes later.
 
 ### Security
 

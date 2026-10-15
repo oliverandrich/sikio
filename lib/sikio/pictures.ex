@@ -25,6 +25,9 @@ defmodule Sikio.Pictures do
   @retry_after 86_400
   # A page that did not answer is asked again after ten minutes.
   @busy_retry_after 600
+  # A page lookup holds one of four turns shared by every request. A hanging broadcaster page
+  # would hold it for the full response timeout and stall every picture behind it.
+  @page_timeout 5_000
 
   # Matches a cached picture, a failure marker or an unfinished write. Pruning removes nothing
   # else from the directory.
@@ -73,8 +76,9 @@ defmodule Sikio.Pictures do
   unreadable or invalid cache file is fetched again, unless the candidate failed within the last
   day.
   """
-  def fetch(candidates, dir \\ cache_dir()) do
-    Enum.find_value(candidates, :error, &picture(&1, dir))
+  def fetch(candidates, dir \\ cache_dir(), opts \\ []) do
+    page_timeout = Keyword.get(opts, :page_timeout, @page_timeout)
+    Enum.find_value(candidates, :error, &picture(&1, dir, page_timeout))
   end
 
   @doc """
@@ -102,12 +106,12 @@ defmodule Sikio.Pictures do
 
   # `{:page, url}` names a web page whose preview picture is fetched, as for a search result. The
   # picture is cached under the page, so a cached one needs no request to the page.
-  defp picture(candidate, dir) do
+  defp picture(candidate, dir, page_timeout) do
     path = cache_path(cache_key(candidate), dir)
 
     case served(path) do
       {:ok, picture} -> {:ok, picture}
-      :error -> unless failed_recently?(path), do: fetch_into(candidate, path)
+      :error -> unless failed_recently?(path), do: fetch_into(candidate, path, page_timeout)
     end
   end
 
@@ -116,18 +120,18 @@ defmodule Sikio.Pictures do
   defp cache_key(url), do: url
 
   # A page that did not answer is asked again after a while, not on every render.
-  defp fetch_into({_kind, _address} = found, path) do
-    case Pages.run(fn -> locate(found) end) do
+  defp fetch_into({_kind, _address} = found, path, page_timeout) do
+    case Pages.run(fn -> locate(found, timeout: page_timeout) end) do
       {:ok, url} -> download(url, path)
       {:error, :unavailable} -> missed(path, @busy_retry_after)
       {:error, :not_found} -> missed(path)
     end
   end
 
-  defp fetch_into(url, path), do: download(url, path)
+  defp fetch_into(url, path, _page_timeout), do: download(url, path)
 
-  defp locate({:page, page}), do: Discovery.page_picture(page)
-  defp locate({:site_icon, site}), do: Discovery.site_icon(site)
+  defp locate({:page, page}, opts), do: Discovery.page_picture(page, opts)
+  defp locate({:site_icon, site}, opts), do: Discovery.site_icon(site, opts)
 
   defp cache_path(key, dir),
     do: Path.join(dir, :crypto.hash(:sha256, key) |> Base.url_encode64(padding: false))

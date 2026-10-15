@@ -32,6 +32,41 @@ defmodule Sikio.Feeds.HTTPTest do
     assert {:error, :unavailable} = HTTP.get("https://two-addresses.example.org/rss")
   end
 
+  # The stub stands for the peer, so it keeps the deadline a real socket would.
+  test "a stub that does not answer ends at the given timeout" do
+    Req.Test.stub(HTTP, fn conn -> receive do: (:never -> conn) end)
+
+    {elapsed, result} =
+      :timer.tc(fn -> HTTP.get("https://feeds.example.org/rss", timeout: 100) end, :millisecond)
+
+    assert result == {:error, :unavailable}
+    assert elapsed < 2_000
+  end
+
+  # The timeout bounds the whole lookup. A redirect does not start a fresh one.
+  test "redirects share one timeout" do
+    Req.Test.stub(HTTP, fn conn ->
+      # Each hop is slow but within the timeout on its own.
+      Process.sleep(150)
+
+      case conn.request_path do
+        "/a" ->
+          conn |> Plug.Conn.put_resp_header("location", "/b") |> Plug.Conn.send_resp(302, "")
+
+        "/b" ->
+          Plug.Conn.send_resp(conn, 200, "late")
+      end
+    end)
+
+    assert {:error, :unavailable} = HTTP.get("https://feeds.example.org/a", timeout: 250)
+  end
+
+  # A stub that exits stands for a test mistake, so the caller exits with the same reason.
+  test "a stub's exit reaches the caller unchanged" do
+    Req.Test.stub(HTTP, fn _conn -> exit(:stub_gave_up) end)
+    assert catch_exit(HTTP.get("https://feeds.example.org/rss")) == :stub_gave_up
+  end
+
   # A timeout costs the whole connect timeout. Trying every address would multiply it.
   test "gives up after a timeout instead of trying the next address" do
     Req.Test.stub(HTTP, fn conn ->
