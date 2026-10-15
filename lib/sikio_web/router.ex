@@ -91,7 +91,8 @@ defmodule SikioWeb.Router do
         {Ithibati.Web.Gate, {:require_account, to: "/login"}},
         {SikioWeb.Locale, :set},
         SikioWeb.Sidebar,
-        SikioWeb.LibraryEvents
+        SikioWeb.LibraryEvents,
+        {SikioWeb.TransportGarbage, :collect}
       ] do
       # Library places, each with an optional item; see `SikioWeb.LibraryPaths.library_path/3`.
       live "/", LibraryLive, :index

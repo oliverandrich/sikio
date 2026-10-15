@@ -35,6 +35,8 @@ Its own section becomes the version's release notes.
   them, a page on another source or tag keeps its list, and list reloads wait for a free
   database connection instead of crashing the page.
 - A feed host whose first address refuses the connection is reached through its next address.
+- An open page's connection no longer keeps the memory of its first render. With many open tabs
+  this lowers the server's memory use.
 
 ## [0.5.0] - 2026-10-11
 

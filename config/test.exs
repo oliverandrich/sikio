@@ -42,6 +42,10 @@ else
     pool_size: System.schedulers_online() * 2
 end
 
+# LiveViewTest's client stands in for the WebSocket process and has no clause for
+# `:garbage_collect`. `SikioWeb.TransportGarbage`'s own test covers what it sends.
+config :sikio, collect_transport_garbage: false
+
 # Serve the assets `mix assets.build` wrote, never a compressed copy a release left behind.
 config :sikio, gzip_static: false
 
