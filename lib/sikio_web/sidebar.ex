@@ -16,9 +16,10 @@ defmodule SikioWeb.Sidebar do
   def on_mount(:default, _params, _session, socket), do: {:cont, refresh(socket)}
 
   @doc "Reloads the counts, sources and tags into the `:sidebar` assign."
-  def refresh(socket) do
-    account = socket.assigns.current_account
+  def refresh(socket), do: assign(socket, :sidebar, load(socket.assigns.current_account))
 
+  @doc "Returns the account's counts, sources and tags."
+  def load(account) do
     sources =
       account
       |> Library.subscriptions()
@@ -31,12 +32,12 @@ defmodule SikioWeb.Sidebar do
       Map.new(sources, &{&1.feed_id, MediaComponents.source_name(&1)})
       |> Map.merge(Map.new(tags, &{{:tag, &1.id}, &1.name}))
 
-    assign(socket, :sidebar, %{
+    %{
       counts: Library.counts(account),
       sources: sources,
       tags: tags,
       tag_feeds: Tags.feeds(account),
       titles: titles
-    })
+    }
   end
 end

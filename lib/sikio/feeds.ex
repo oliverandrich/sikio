@@ -31,6 +31,10 @@ defmodule Sikio.Feeds do
   defp replaced_feed_fields(attrs),
     do: Enum.filter([:icon_url, :page_url], &is_binary(attrs[&1])) ++ @feed_fields
 
+  @doc "Returns the id of the feed that holds the entry, or `nil` for an unknown entry."
+  def feed_id_of(entry_id) when is_integer(entry_id),
+    do: Repo.one(from e in Entry, where: e.id == ^entry_id, select: e.feed_id)
+
   @doc "Base poll interval in minutes. Defaults to 60; `FEED_POLL_MINUTES` overrides it."
   def poll_minutes, do: Application.get_env(:sikio, :feed_poll_minutes, 60)
 

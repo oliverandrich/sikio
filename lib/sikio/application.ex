@@ -35,6 +35,9 @@ defmodule Sikio.Application do
       {DNSCluster, query: Application.get_env(:sikio, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Sikio.PubSub},
       Sikio.Pictures.Pages,
+      {Registry, keys: :unique, name: SikioWeb.Sidebar.Shared},
+      {DynamicSupervisor, name: SikioWeb.Sidebar.Supervisor},
+      SikioWeb.ReloadGate,
       {Oban, oban()},
       # Start to serve requests, typically the last entry
       SikioWeb.Endpoint

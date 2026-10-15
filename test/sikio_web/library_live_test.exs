@@ -873,6 +873,20 @@ defmodule SikioWeb.LibraryLiveTest do
       assert has_element?(view, "#view-inbox-count", inbox_count(c))
     end
 
+    # A page on one source rereads only for changes to that source. The counts follow every change.
+    test "a status change in another source leaves a source's list unread", c do
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+      unseen = sneak_in(c)
+      video = Enum.find(Library.entries(c.user), &(&1.feed.kind != :podcast))
+
+      {:ok, _} = Playback.mark(c.user, video.id, :heard)
+      assert has_element?(view, "#view-inbox-count", inbox_count(c))
+      refute has_element?(view, "#entries article", unseen)
+
+      {:ok, _} = Playback.mark(c.user, c.audio.id, :heard)
+      assert has_element?(view, "#entries article", unseen)
+    end
+
     test "a status change rereads the list and the counts", c do
       {:ok, view, _} = live(c.conn, ~p"/all")
       unseen = sneak_in(c)

@@ -27,6 +27,7 @@ defmodule SikioWeb.LibraryLive do
   alias SikioWeb.LibraryPaths
   alias SikioWeb.MarkAll
   alias SikioWeb.Notes
+  alias SikioWeb.ReloadGate
   alias SikioWeb.SubscriptionSettings
   alias SikioWeb.TagSettings
 
@@ -460,22 +461,26 @@ defmodule SikioWeb.LibraryLive do
   `:playback_progressed` updates the matching entry in place.
   Any other event may change which items the list contains.
   It reloads the list and the selected entry. A selected entry that left the library closes.
+  A source or tag page skips the reload when the event reaches none of its feeds.
   """
   # Progress cannot move an item between lists. Filters use status, source, tag and search text.
   # Only the matching entry gets the new position; nothing is reloaded.
-  def handle_library_event({:playback_progressed, state}, socket) do
+  def handle_library_event({:playback_progressed, state}, _reach, socket) do
     {:noreply,
      socket
      |> update(:entries, fn entries -> Enum.map(entries, &progressed(&1, state)) end)
      |> update(:selected, &(&1 && progressed(&1, state)))}
   end
 
-  def handle_library_event(_event, %{assigns: %{selected: nil}} = socket),
-    do: {:noreply, reload(socket)}
+  def handle_library_event(_event, reach, socket) do
+    if reaches?(socket.assigns, reach),
+      do: ReloadGate.run(fn -> reselected(reload(socket)) end),
+      else: {:noreply, recounted(socket)}
+  end
 
-  def handle_library_event(_event, socket) do
-    socket = reload(socket)
+  defp reselected(%{assigns: %{selected: nil}} = socket), do: {:noreply, socket}
 
+  defp reselected(socket) do
     case select(socket, socket.assigns.selected.id) do
       {:ok, socket} ->
         {:noreply, socket}
@@ -484,6 +489,25 @@ defmodule SikioWeb.LibraryLive do
         {:noreply, push_patch(socket, to: address(socket, socket.assigns.filters))}
     end
   end
+
+  # A source or tag page lists only the items of its feeds. Any other page may list any item.
+  defp reaches?(_assigns, :all), do: true
+
+  defp reaches?(%{filters: filters, sidebar: sidebar}, feeds) do
+    case place_feeds(filters, sidebar) do
+      :all -> true
+      shown -> Enum.any?(feeds, &(&1 in shown))
+    end
+  end
+
+  # The feeds a source or tag page lists, or `:all` for a page by status or search.
+  defp place_feeds(%{"source" => source}, _sidebar) when source != "",
+    do: [String.to_integer(source)]
+
+  defp place_feeds(%{"tag" => tag}, sidebar) when tag != "",
+    do: Map.get(sidebar.tag_feeds, String.to_integer(tag), [])
+
+  defp place_feeds(_filters, _sidebar), do: :all
 
   # A state older than the shown one is ignored, so a late message cannot undo a mark.
   defp progressed(entry, state) do
@@ -577,31 +601,46 @@ defmodule SikioWeb.LibraryLive do
 
   # Without a search or a day the total comes from the sidebar counts.
   # Both of those run a count query.
-  defp total(socket, %{"q" => "", "day" => ""} = filters),
-    do:
-      socket.assigns.sidebar.counts
-      |> Library.tally(filters, socket.assigns.sidebar.tag_feeds)
-      |> Library.total(filters)
+  defp counted?(filters), do: filters["q"] == "" and filters["day"] == ""
 
-  defp total(socket, filters), do: Library.count(socket.assigns.current_account, filters)
+  defp total(socket, filters) do
+    if counted?(filters),
+      do:
+        socket.assigns.sidebar.counts
+        |> Library.tally(filters, socket.assigns.sidebar.tag_feeds)
+        |> Library.total(filters),
+      else: Library.count(socket.assigns.current_account, filters)
+  end
 
   # Rereads the rows with the counts and the heading around them.
   defp reload(socket) do
-    filters = socket.assigns.filters
-    # Sidebar and chips show unfiltered counts per place. The heading shows `total` for the list.
-    counts = Library.tally(socket.assigns.sidebar.counts, %{}, socket.assigns.sidebar.tag_feeds)
-
     socket
     |> Rows.reread()
-    |> assign(
+    |> summarized()
+    |> assign(:total, total(socket, socket.assigns.filters))
+    |> with_heard_days()
+  end
+
+  # The list is unchanged, so a total from a count query stands. A total from the counts follows.
+  defp recounted(socket) do
+    filters = socket.assigns.filters
+
+    if counted?(filters),
+      do: socket |> summarized() |> assign(:total, total(socket, filters)),
+      else: summarized(socket)
+  end
+
+  # Sidebar and chips show unfiltered counts per place. The heading shows `total` for the list.
+  defp summarized(socket) do
+    %{filters: filters, sidebar: sidebar} = socket.assigns
+
+    assign(socket,
       # A new library follows nothing and holds no saved entry, so the sidebar counts no rows.
-      empty?: socket.assigns.sidebar.sources == [] and socket.assigns.sidebar.counts == [],
-      counts: counts,
-      total: total(socket, filters),
-      heading: heading(filters, socket.assigns.sidebar),
+      empty?: sidebar.sources == [] and sidebar.counts == [],
+      counts: Library.tally(sidebar.counts, %{}, sidebar.tag_feeds),
+      heading: heading(filters, sidebar),
       filtered?: place_of(filters) != filters
     )
-    |> with_heard_days()
   end
 
   # Only the history has a calendar. A day opens it on the day's month, at most the current one.
@@ -978,15 +1017,12 @@ defmodule SikioWeb.LibraryLive do
   end
 
   # Returns `video?/1` for each source of the shown source or tag.
-  defp place_videos(%{"source" => source}, sidebar) when source != "",
-    do: for(s <- sidebar.sources, to_string(s.feed_id) == source, do: video?(s))
-
-  defp place_videos(%{"tag" => tag}, sidebar) when tag != "" do
-    feeds = Map.get(sidebar.tag_feeds, String.to_integer(tag), [])
-    for s <- sidebar.sources, s.feed_id in feeds, do: video?(s)
+  defp place_videos(filters, sidebar) do
+    case place_feeds(filters, sidebar) do
+      :all -> []
+      feeds -> for s <- sidebar.sources, s.feed_id in feeds, do: video?(s)
+    end
   end
-
-  defp place_videos(_filters, _sidebar), do: []
 
   # Returns the filters of the place: without the status for a source or tag, else unchanged.
   defp place_of(%{"source" => source} = filters) when source != "",

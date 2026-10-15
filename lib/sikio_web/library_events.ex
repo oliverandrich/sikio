@@ -5,21 +5,27 @@ defmodule SikioWeb.LibraryEvents do
   Library PubSub events for member pages, as an `on_mount` hook of the `:members` live_session.
 
   It subscribes to the account's library events and refreshes the sidebar on them.
+  The sidebar comes from `SikioWeb.Sidebar.Shared`, which loads it once for all the account's pages.
   New episodes arrive in bursts, from an import or a poll of many feeds.
   The first `:library_changed` refreshes at once and opens a one-second window.
   Further ones inside the window cause one refresh when it closes.
   That refresh opens the next window.
 
-  A LiveView that needs the events implements this behaviour's `handle_library_event/2`.
+  A LiveView that needs the events implements this behaviour's `handle_library_event/3`.
+  It gets the event, the feeds it reaches as a list of ids or `:all`, and the socket.
   It returns the same tuples as `handle_info/2`. The view's own `handle_info/2` does not get them.
   """
+  import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4, connected?: 1, put_private: 3]
 
   alias Sikio.Library.Events
-  alias SikioWeb.Sidebar
+  alias SikioWeb.Sidebar.Shared
 
-  @callback handle_library_event(message :: term(), Phoenix.LiveView.Socket.t()) ::
-              {:noreply, Phoenix.LiveView.Socket.t()}
+  @callback handle_library_event(
+              message :: term(),
+              reach :: [integer()] | :all,
+              Phoenix.LiveView.Socket.t()
+            ) :: {:noreply, Phoenix.LiveView.Socket.t()}
 
   @window_ms 1000
 
@@ -37,7 +43,7 @@ defmodule SikioWeb.LibraryEvents do
 
   # The window state lives in `socket.private`, because an assign change would trigger a render.
   defp follow(:library_changed, %{private: %{library_window: :closed}} = socket),
-    do: {:halt, socket |> Sidebar.refresh() |> passed_on(:library_changed) |> open_window()}
+    do: {:halt, socket |> shared(:library_changed) |> open_window()}
 
   defp follow(:library_changed, socket),
     do: {:halt, put_private(socket, :library_window, :pending)}
@@ -50,7 +56,7 @@ defmodule SikioWeb.LibraryEvents do
 
   defp follow(message, socket) do
     if library_event?(message),
-      do: {:halt, socket |> refresh_for(message) |> passed_on(message)},
+      do: {:halt, shared(socket, message)},
       else: {:cont, socket}
   end
 
@@ -61,8 +67,15 @@ defmodule SikioWeb.LibraryEvents do
 
   # Counts depend on statuses only. The player saves progress every few seconds without a status
   # change, so `:playback_progressed` skips the refresh.
-  defp refresh_for(socket, {:playback_progressed, _state}), do: socket
-  defp refresh_for(socket, _message), do: Sidebar.refresh(socket)
+  defp shared(socket, {:playback_progressed, _state} = message),
+    do: passed_on(socket, message, :all)
+
+  defp shared(socket, message) do
+    {sidebar, reach} =
+      Shared.fetch(socket.assigns.current_account, System.monotonic_time(), message)
+
+    socket |> assign(:sidebar, sidebar) |> passed_on(message, reach)
+  end
 
   defp library_event?({:playback_progressed, _state}), do: true
   defp library_event?({:playback_changed, _state}), do: true
@@ -75,9 +88,9 @@ defmodule SikioWeb.LibraryEvents do
   defp library_event?({:favourite_changed, _entry_id}), do: true
   defp library_event?(_message), do: false
 
-  defp passed_on(socket, message) do
-    if function_exported?(socket.view, :handle_library_event, 2) do
-      {:noreply, socket} = socket.view.handle_library_event(message, socket)
+  defp passed_on(socket, message, reach) do
+    if function_exported?(socket.view, :handle_library_event, 3) do
+      {:noreply, socket} = socket.view.handle_library_event(message, reach, socket)
       socket
     else
       socket

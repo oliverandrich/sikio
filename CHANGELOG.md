@@ -31,6 +31,9 @@ Its own section becomes the version's release notes.
 
 - A click on a PeerTube or Mediathek video plays or pauses it. Before playback, a click on its
   picture starts it.
+- Many open tabs of one account survive a library change. The sidebar loads once for all of
+  them, a page on another source or tag keeps its list, and list reloads wait for a free
+  database connection instead of crashing the page.
 
 ## [0.5.0] - 2026-10-11
 
