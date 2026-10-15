@@ -13,6 +13,7 @@ defmodule Sikio.Library do
   alias Sikio.Accounts.User
   alias Sikio.Feeds
   alias Sikio.Feeds.Entry
+  alias Sikio.Feeds.Feed
   alias Sikio.Library.Events
   alias Sikio.Library.Favourite
   alias Sikio.Library.SavedEntry
@@ -22,9 +23,18 @@ defmodule Sikio.Library do
   alias Sikio.Repo
   alias Sikio.Tags
 
+  # The feed fields pages read. Fetch bookkeeping such as the ETag and the check times stays out.
+  @shown_feed_fields [:id, :kind, :title, :url, :page_url, :icon_url, :last_error]
+
   @doc "Returns the entry with this id if the account can see it, otherwise `nil`."
-  def entry(%User{id: user_id}, id),
-    do: with_id(id, &Repo.one(from e in entry_query(user_id), where: e.id == ^&1))
+  def entry(%User{id: user_id}, id) do
+    query =
+      user_id
+      |> scoped_entries()
+      |> entry_row(Entry.__schema__(:fields), Feed.__schema__(:fields))
+
+    with_id(id, &Repo.one(from e in query, where: e.id == ^&1))
+  end
 
   @doc """
   Returns the id of an entry the account can see, or `nil`.
@@ -376,7 +386,7 @@ defmodule Sikio.Library do
       from s in Subscription,
         where: s.user_id == ^user_id,
         order_by: [desc: s.inserted_at, desc: s.id],
-        preload: [:feed]
+        preload: [feed: ^from(f in Feed, select: struct(f, ^@shown_feed_fields))]
     )
   end
 
@@ -391,7 +401,7 @@ defmodule Sikio.Library do
   """
   def entries(%User{id: user_id}, filters \\ %{}, opts \\ []) do
     by = sorted_by(filters)
-    query = filtered_entries(user_id, filters)
+    query = user_id |> filtered_entries(filters) |> entry_row(listed_fields(), @shown_feed_fields)
     limit = Keyword.get(opts, :limit, 100)
 
     order =
@@ -583,8 +593,6 @@ defmodule Sikio.Library do
     with_id(id, fn id ->
       user_id
       |> filtered_entries(filters)
-      |> exclude(:preload)
-      |> exclude(:select)
       |> where([e], e.id == ^id)
       |> Repo.exists?()
     end) || false
@@ -597,8 +605,6 @@ defmodule Sikio.Library do
   def listed_ids(%User{id: user_id}, filters) do
     user_id
     |> filtered_entries(filters)
-    |> exclude(:preload)
-    |> exclude(:select)
     |> select([e], e.id)
   end
 
@@ -606,8 +612,6 @@ defmodule Sikio.Library do
   def count(%User{id: user_id}, filters) do
     user_id
     |> filtered_entries(filters)
-    |> exclude(:preload)
-    |> exclude(:select)
     |> select([e], count(e.id))
     |> Repo.one()
   end
@@ -714,7 +718,7 @@ defmodule Sikio.Library do
 
   defp filtered_entries(user_id, params) do
     filters = normalize_filters(params)
-    query = user_id |> entry_query() |> in_place(user_id, filters)
+    query = user_id |> scoped_entries() |> in_place(user_id, filters)
 
     query = in_list(query, filters["status"])
 
@@ -762,8 +766,6 @@ defmodule Sikio.Library do
     user_id
     |> filtered_entries(filters)
     |> heard_between(local_midnight(first, offset), local_midnight(next, offset))
-    |> exclude(:preload)
-    |> exclude(:select)
     |> select([e, s, p], p.completed_at)
     |> Repo.all()
     |> Enum.frequencies_by(&(&1 |> DateTime.add(offset, :minute) |> DateTime.to_date()))
@@ -841,17 +843,24 @@ defmodule Sikio.Library do
       on: v.entry_id == e.id and v.user_id == ^user_id
   end
 
-  defp entry_query(user_id) do
-    from [e, s, p, f, v] in scoped_entries(user_id),
-      select_merge: %{
+  # Every open page keeps its rows, so a row carries only what a list shows. Notes, search text
+  # and chapters stay out; `entry/2` reads them for the detail.
+  defp listed_fields,
+    do:
+      Entry.__schema__(:fields) --
+        [:description, :search_text, :chapters, :chapters_url, :inserted_at, :updated_at]
+
+  # Selects the entry with the account's playback, star and source name. The feed comes from the
+  # join above; an unbound `preload: [:feed]` would cost every page and progress save a query.
+  defp entry_row(query, entry_fields, feed_fields) do
+    select(query, [e, s, p, f, v], %{
+      struct(e, ^entry_fields)
+      | feed: struct(f, ^feed_fields),
         playback: p,
         source_name: coalesce(s.name, f.title),
         followed: not is_nil(s.id),
         favourite: not is_nil(v.id)
-      },
-      # Preloads from the join above. An unbound `preload: [:feed]` runs a second query for feeds.
-      # Every library page and every progress save would pay for that query.
-      preload: [feed: f]
+    })
   end
 
   def pause(account, id, paused) when is_boolean(paused) do

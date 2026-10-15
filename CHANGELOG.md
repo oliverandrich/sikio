@@ -37,6 +37,8 @@ Its own section becomes the version's release notes.
 - A feed host whose first address refuses the connection is reached through its next address.
 - An open page's connection no longer keeps the memory of its first render. With many open tabs
   this lowers the server's memory use.
+- Lists and the sidebar load only what they show. Show notes, search text and a feed's fetch
+  details stay in the database until an item opens, so every open tab keeps less memory.
 
 ## [0.5.0] - 2026-10-11
 

@@ -33,6 +33,27 @@ defmodule Sikio.LibraryTest do
     assert Library.entries(ctx.bob) == []
   end
 
+  # Every open page keeps its rows and sidebar. They carry what the pages show, not the notes,
+  # the search text or the feed's fetch bookkeeping. The detail reads the whole entry.
+  test "lists and sources leave out what no list shows", ctx do
+    {:ok, _} = Library.subscribe(ctx.alice, ctx.preview)
+    [listed] = Library.entries(ctx.alice)
+    full = Library.entry(ctx.alice, listed.id)
+    assert full.description && full.search_text && full.feed.inserted_at
+
+    assert %{description: nil, search_text: nil, inserted_at: nil} = listed
+    assert listed.title == full.title and listed.excerpt == full.excerpt
+    assert listed.playback == full.playback and listed.source_name == full.source_name
+    assert %{inserted_at: nil, updated_at: nil, etag: nil} = listed.feed
+
+    assert Map.take(listed.feed, [:id, :kind, :title, :url, :page_url, :icon_url]) ==
+             Map.take(full.feed, [:id, :kind, :title, :url, :page_url, :icon_url])
+
+    [source] = Library.subscriptions(ctx.alice)
+    assert %{inserted_at: nil, updated_at: nil} = source.feed
+    assert source.feed.title == full.feed.title and source.feed.url == full.feed.url
+  end
+
   # The mini player uses `listed?/3` to check whether the current list contains the playing entry.
   test "says whether a list holds an entry, for the account alone", ctx do
     {:ok, _} = Library.subscribe(ctx.alice, ctx.preview)
