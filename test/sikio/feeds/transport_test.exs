@@ -126,6 +126,15 @@ defmodule Sikio.Feeds.TransportTest do
     assert {:ok, %{status: 204}} = fetch(port, cacerts: cacerts)
   end
 
+  # A refused connection concerns this address only, so the caller may try the host's next one.
+  test "a closed port is unreachable" do
+    {:ok, listener} = :gen_tcp.listen(0, @listen)
+    {:ok, port} = :inet.port(listener)
+    :gen_tcp.close(listener)
+
+    assert {:error, :unreachable} = fetch(port)
+  end
+
   test "a certificate for another name is refused" do
     {port, cacerts} = answering_tls("other.example.org")
 

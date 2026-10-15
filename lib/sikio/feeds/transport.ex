@@ -17,6 +17,9 @@ defmodule Sikio.Feeds.Transport do
   Only HTTP/1 is used. A feed is one document, so HTTP/2 flow control gains nothing here.
   """
   @connect_timeout 5_000
+  # Connect failures that concern the address alone and fail fast. A timeout can cost the full
+  # connect timeout per address and may come from a stalled TLS handshake, so it stays.
+  @unreachable [:econnrefused, :ehostunreach, :enetunreach]
   @read_timeout 10_000
   @response_timeout 15_000
 
@@ -58,8 +61,14 @@ defmodule Sikio.Feeds.Transport do
     ]
 
     case Mint.HTTP.connect(scheme, pinned(uri, address).host, uri.port, options) do
-      {:ok, conn} -> request(conn, uri, headers, limit, opts)
-      {:error, _reason} -> {:error, :unavailable}
+      {:ok, conn} ->
+        request(conn, uri, headers, limit, opts)
+
+      {:error, %Mint.TransportError{reason: reason}} when reason in @unreachable ->
+        {:error, :unreachable}
+
+      {:error, _reason} ->
+        {:error, :unavailable}
     end
   rescue
     # Connecting can raise, for example when the host has no system trust store. The caller then
@@ -91,8 +100,13 @@ defmodule Sikio.Feeds.Transport do
     %{conn | req_headers: conn.req_headers ++ sent}
   end
 
+  # `Req.Test.transport_error/2` stands for a connect failure and is classified like a real one.
   # A plug that returns the conn without a response has no status. It is not an empty body.
   # Reading a body from it would raise, and the error would be reported as `:unsafe_url`.
+  defp answered(%{private: %{req_test_exception: %{reason: reason}}}) when reason in @unreachable,
+    do: {:error, :unreachable}
+
+  defp answered(%{private: %{req_test_exception: _}}), do: {:error, :unavailable}
   defp answered(%{status: nil}), do: {:error, :unavailable}
 
   defp answered(conn) do

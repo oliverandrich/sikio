@@ -34,6 +34,7 @@ Its own section becomes the version's release notes.
 - Many open tabs of one account survive a library change. The sidebar loads once for all of
   them, a page on another source or tag keeps its list, and list reloads wait for a free
   database connection instead of crashing the page.
+- A feed host whose first address refuses the connection is reached through its next address.
 
 ## [0.5.0] - 2026-10-11
 

@@ -56,8 +56,8 @@ defmodule Sikio.Feeds.HTTP do
       |> Keyword.update(:headers, [{"content-type", type}], &[{"content-type", type} | &1])
 
     with {:ok, uri} <- normalize(url),
-         {:ok, address} <- address(uri.host) do
-      request(uri, address, opts)
+         {:ok, addresses} <- addresses(uri.host) do
+      request(uri, addresses, opts)
     end
   rescue
     _error in [ArgumentError, URI.Error] -> {:error, :unsafe_url}
@@ -129,8 +129,8 @@ defmodule Sikio.Feeds.HTTP do
 
   defp follow(url, opts, remaining) do
     with {:ok, uri} <- normalize(url),
-         {:ok, address} <- address(uri.host),
-         {:ok, response} <- request(uri, address, opts) do
+         {:ok, addresses} <- addresses(uri.host),
+         {:ok, response} <- request(uri, addresses, opts) do
       received(response, uri, opts, remaining)
     end
   rescue
@@ -151,7 +151,7 @@ defmodule Sikio.Feeds.HTTP do
     {:ok, Map.put(response, :url, URI.to_string(uri))}
   end
 
-  defp address(host) do
+  defp addresses(host) do
     result =
       case :inet.parse_address(String.to_charlist(host)) do
         {:ok, ip} -> {:ok, [ip]}
@@ -161,8 +161,10 @@ defmodule Sikio.Feeds.HTTP do
     case result do
       # Every resolved address must be public, not only the one used. A mix of public and private
       # addresses is a DNS rebinding pattern.
-      {:ok, [first | _] = addresses} ->
-        if Enum.all?(addresses, &public_address?/1), do: {:ok, first}, else: {:error, :unsafe_url}
+      {:ok, [_ | _] = addresses} ->
+        if Enum.all?(addresses, &public_address?/1),
+          do: {:ok, addresses},
+          else: {:error, :unsafe_url}
 
       _ ->
         {:error, :unavailable}
@@ -170,7 +172,7 @@ defmodule Sikio.Feeds.HTTP do
   end
 
   # Both families are queried concurrently, so a missing record type costs one timeout, not two.
-  # IPv4 addresses come first, and the request uses the first address.
+  # IPv4 addresses come first, and the request tries them in this order.
   defp resolve(host) do
     name = String.to_charlist(host)
 
@@ -185,7 +187,17 @@ defmodule Sikio.Feeds.HTTP do
     {:ok, addresses}
   end
 
-  defp request(uri, address, opts) do
+  # Only an address that refuses the connection passes the request on. Nothing was sent to it, so
+  # a form is not posted twice.
+  defp request(uri, [address | rest], opts) do
+    case request_at(uri, address, opts) do
+      {:error, :unreachable} when rest != [] -> request(uri, rest, opts)
+      {:error, :unreachable} -> {:error, :unavailable}
+      result -> result
+    end
+  end
+
+  defp request_at(uri, address, opts) do
     max_bytes = Keyword.get(opts, :max_bytes, 8_000_000)
 
     headers =

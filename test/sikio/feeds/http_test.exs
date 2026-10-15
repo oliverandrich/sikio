@@ -17,6 +17,33 @@ defmodule Sikio.Feeds.HTTPTest do
              HTTP.get("https://feeds.example.org/rss")
   end
 
+  # A host may list an address that refuses connections. The next checked address serves it.
+  test "tries the next address when one refuses the connection" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.host do
+        "93.184.216.35" -> Req.Test.transport_error(conn, :econnrefused)
+        "93.184.216.34" -> Plug.Conn.send_resp(conn, 200, "second")
+      end
+    end)
+
+    assert {:ok, %{body: "second"}} = HTTP.get("https://two-addresses.example.org/rss")
+
+    Req.Test.stub(HTTP, &Req.Test.transport_error(&1, :econnrefused))
+    assert {:error, :unavailable} = HTTP.get("https://two-addresses.example.org/rss")
+  end
+
+  # A timeout costs the whole connect timeout. Trying every address would multiply it.
+  test "gives up after a timeout instead of trying the next address" do
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.host do
+        "93.184.216.35" -> Req.Test.transport_error(conn, :timeout)
+        "93.184.216.34" -> Plug.Conn.send_resp(conn, 200, "second")
+      end
+    end)
+
+    assert {:error, :unavailable} = HTTP.get("https://two-addresses.example.org/rss")
+  end
+
   # A hub subscription is a form POST to a checked address.
   # It follows no redirect, which would resend the form elsewhere.
   test "posts a form to the checked address and follows no redirect" do

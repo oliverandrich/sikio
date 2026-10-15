@@ -123,7 +123,11 @@ defmodule Sikio.FeedFixtures do
     end
   end
 
-  @doc "Test resolver. Maps every host to one address, so no test reaches DNS."
+  @doc """
+  Test resolver. Maps every host to one address, so no test reaches DNS.
+  `two-addresses.example.org` has a second address, which comes first.
+  """
+  def resolve("two-addresses.example.org"), do: {:ok, [{93, 184, 216, 35}, {93, 184, 216, 34}]}
   def resolve(_host), do: {:ok, [{93, 184, 216, 34}]}
 
   @doc "The episode page URL in the podcast fixture."
