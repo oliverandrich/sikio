@@ -42,6 +42,8 @@ Its own section becomes the version's release notes.
 - A broadcaster page that does not answer holds a picture lookup on Add for at most five seconds,
   redirects included, instead of fifteen. The row then shows its fallback picture, and the page
   is asked again ten minutes later.
+- Search results on Add have element ids of their own. They shared some with the sidebar, so the
+  page could update the wrong element.
 
 ### Security
 

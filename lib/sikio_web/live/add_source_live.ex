@@ -88,7 +88,7 @@ defmodule SikioWeb.AddSourceLive do
        mode: nil,
        busy: false
      )
-     |> stream_configure(:sources, dom_id: &"source-#{&1.id}")
+     |> stream_configure(:sources, dom_id: &"found-#{&1.id}")
      |> stream_configure(:programmes, dom_id: &"programme-#{&1.key}")
      |> stream_configure(:episodes, dom_id: &"episode-#{&1.key}")
      |> stream_configure(:series, dom_id: &"series-#{&1.key}")

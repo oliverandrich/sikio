@@ -64,13 +64,13 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, _} = live(conn, ~p"/add")
     view |> form("#add-form", %{q: feed_url()}) |> render_submit()
     render_async(view)
-    assert has_element?(view, "#source-0", "Small Hours")
+    assert has_element?(view, "#found-0", "Small Hours")
     # The feed's artwork, through Sikio's picture proxy.
     src = Pictures.path(["https://img.example.org/show.jpg"], ~p"/images/kind-audio.svg")
-    assert has_element?(view, ~s|#source-0 img[src="#{src}"]|)
+    assert has_element?(view, ~s|#found-0 img[src="#{src}"]|)
     assert Library.subscriptions(user) == []
 
-    view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> element("#found-0 button", "Subscribe") |> render_click()
     result = confirm_subscribe(view)
     assert {:error, {:live_redirect, %{to: to}}} = result
 
@@ -90,7 +90,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       {:ok, view, _} = live(conn, ~p"/add")
       view |> form("#add-form", %{q: url}) |> render_submit()
       render_async(view)
-      view |> element("#source-0 button", "Subscribe") |> render_click()
+      view |> element("#found-0 button", "Subscribe") |> render_click()
       confirm_subscribe(view)
     end
 
@@ -104,6 +104,39 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     {:ok, _source, html} = follow_redirect(result, conn)
     assert html =~ "Subscribed to Late Night."
+  end
+
+  # The sidebar names a followed source `source-<feed id>`. Search results need ids of their own,
+  # or LiveView finds two elements under one id and patches the wrong one.
+  test "search results and the sidebar never share an element id", %{conn: conn, user: user} do
+    feed =
+      Repo.insert!(%Sikio.Feeds.Feed{id: 1, url: feed_url(), title: "Followed", kind: :podcast})
+
+    Repo.insert!(%Sikio.Library.Subscription{user_id: user.id, feed_id: feed.id})
+
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/search" ->
+          Req.Test.json(conn, %{
+            results: [
+              %{collectionName: "Small Hours", artistName: "Ada", feedUrl: feed_url()},
+              %{collectionName: "Other Show", artistName: "Bo", feedUrl: feed_url()}
+            ]
+          })
+
+        _other ->
+          Plug.Conn.send_resp(conn, 404, "")
+      end
+    end)
+
+    {:ok, view, _} = live(conn, ~p"/add")
+    view |> form("#add-form", %{q: "small hours"}) |> render_submit()
+    render_async(view)
+    assert has_element?(view, "#panel-podcasts", "Other Show")
+    assert has_element?(view, "#sidebar a", "Followed")
+
+    ids = view |> render() |> Floki.parse_document!() |> Floki.attribute("[id]", "id")
+    assert ids -- Enum.uniq(ids) == []
   end
 
   # A search result subscribes without a preview step. Other results stay while the feed loads.
@@ -140,22 +173,22 @@ defmodule SikioWeb.AddSourceLiveTest do
     render_async(view)
     assert has_element?(view, ~s|#tab-podcasts[aria-selected="true"]|, "2")
     assert has_element?(view, "#panel-podcasts", "Apple Podcasts")
-    assert has_element?(view, "#source-0", "Ada")
+    assert has_element?(view, "#found-0", "Ada")
     src = Pictures.path(["https://img.example/small-hours.jpg"], ~p"/images/kind-audio.svg")
-    assert has_element?(view, ~s|#source-0 img[src="#{src}"]|)
+    assert has_element?(view, ~s|#found-0 img[src="#{src}"]|)
     # A result without a cover shows the placeholder.
     assert has_element?(
              view,
-             ~s|#source-1 img[src="#{Pictures.path([], ~p"/images/kind-audio.svg")}"]|
+             ~s|#found-1 img[src="#{Pictures.path([], ~p"/images/kind-audio.svg")}"]|
            )
 
-    refute has_element?(view, "#source-0 button", "Preview")
+    refute has_element?(view, "#found-0 button", "Preview")
 
-    view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> element("#found-0 button", "Subscribe") |> render_click()
     confirm_subscribe(view)
     assert_receive {:fetching, fetcher}
-    assert has_element?(view, "#source-0 button[disabled]", "Subscribing")
-    assert has_element?(view, "#source-1", "Other Show")
+    assert has_element?(view, "#found-0 button[disabled]", "Subscribing")
+    assert has_element?(view, "#found-1", "Other Show")
     send(fetcher, :answer)
 
     assert {"/feeds/" <> _, _flash} = assert_redirect(view)
@@ -170,7 +203,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     view |> form("#add-form", %{q: feed_url()}) |> render_submit()
     render_async(view)
 
-    view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> element("#found-0 button", "Subscribe") |> render_click()
     assert has_element?(view, "#subscribe-confirm", "Small Hours")
     assert has_element?(view, ~s|#subscribe-form [name="existing"][value="newest"][checked]|)
     assert has_element?(view, ~s|#subscribe-form [name="delivery"][value="inbox"][checked]|)
@@ -179,7 +212,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     refute has_element?(view, "#subscribe-confirm")
     assert Library.subscriptions(user) == []
 
-    view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> element("#found-0 button", "Subscribe") |> render_click()
     result = confirm_subscribe(view, %{existing: "all", delivery: "queue"})
     assert {:error, {:live_redirect, %{to: "/feeds/" <> _}}} = result
     assert [%{delivery: :queue}] = Library.subscriptions(user)
@@ -193,7 +226,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     view |> form("#add-form", %{q: feed_url()}) |> render_submit()
     render_async(view)
 
-    view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> element("#found-0 button", "Subscribe") |> render_click()
     view |> form("#subscribe-form", %{delivery: "skip"}) |> render_change()
     refute has_element?(view, ~s|#subscribe-form [name="existing"]|)
   end
@@ -465,7 +498,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "tatort"}) |> render_submit()
       render_async(view)
 
-      assert has_element?(view, "#source-0", "Small Hours")
+      assert has_element?(view, "#found-0", "Small Hours")
       assert has_element?(view, "#programmes-error", "Mediathek")
       refute has_element?(view, "#discovery-error")
     end
@@ -563,7 +596,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "linux"}) |> render_submit()
       render_async(view)
 
-      assert has_element?(view, "#source-0", "Small Hours")
+      assert has_element?(view, "#found-0", "Small Hours")
       assert has_element?(view, "#channels-error", "PeerTube")
       refute has_element?(view, "#discovery-error")
     end
@@ -700,10 +733,10 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     view |> form("#add-form", %{q: "small hours"}) |> render_submit()
     render_async(view)
-    assert has_element?(view, "#source-0")
+    assert has_element?(view, "#found-0")
 
     view |> element("#clear-search") |> render_click()
-    refute has_element?(view, "#source-0")
+    refute has_element?(view, "#found-0")
     refute has_element?(view, "#search-tabs")
     assert has_element?(view, ~s|#add-q[value=""]|)
     refute has_element?(view, "#clear-search")
@@ -732,7 +765,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, _} = live(conn, ~p"/add")
     view |> form("#add-form", %{q: "small hours"}) |> render_submit()
     render_async(view)
-    view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> element("#found-0 button", "Subscribe") |> render_click()
     confirm_subscribe(view)
     assert_receive {:fetching, fetcher}
 
@@ -741,7 +774,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     render_async(view)
 
     assert Library.subscriptions(user) == []
-    assert has_element?(view, "#source-0 button:not([disabled])", "Subscribe")
+    assert has_element?(view, "#found-0 button:not([disabled])", "Subscribe")
   end
 
   # A failed feed fetch shows an alert in its row. Other rows keep an enabled Subscribe button.
@@ -764,12 +797,12 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, _} = live(conn, ~p"/add")
     view |> form("#add-form", %{q: "gone"}) |> render_submit()
     render_async(view)
-    view |> element("#source-0 button", "Subscribe") |> render_click()
+    view |> element("#found-0 button", "Subscribe") |> render_click()
     confirm_subscribe(view)
     render_async(view)
 
-    assert has_element?(view, "#source-0 [role=alert]")
-    assert has_element?(view, "#source-1 button:not([disabled])", "Subscribe")
+    assert has_element?(view, "#found-0 [role=alert]")
+    assert has_element?(view, "#found-1 button:not([disabled])", "Subscribe")
     assert Library.subscriptions(user) == []
   end
 
@@ -893,7 +926,7 @@ defmodule SikioWeb.AddSourceLiveTest do
                "Subscribe to Good Channel"
              )
 
-      refute has_element?(view, "#source-0")
+      refute has_element?(view, "#found-0")
 
       result = view |> element(~s|#single-item [data-action="queue"]|) |> render_click()
       assert {:error, {:live_redirect, %{to: to}}} = result
@@ -996,7 +1029,7 @@ defmodule SikioWeb.AddSourceLiveTest do
                "Subscribe to Small Hours"
              )
 
-      refute has_element?(view, "#source-0")
+      refute has_element?(view, "#found-0")
       refute has_element?(view, "#no-results")
     end
 
@@ -1005,7 +1038,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       {:ok, view, _} = live(conn, ~p"/add")
       find(view, feed_url())
 
-      assert has_element?(view, "#source-0", "Small Hours")
+      assert has_element?(view, "#found-0", "Small Hours")
       refute has_element?(view, "#single-item")
     end
   end
