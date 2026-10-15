@@ -40,6 +40,12 @@ Its own section becomes the version's release notes.
 - Lists and the sidebar load only what they show. Show notes, search text and a feed's fetch
   details stay in the database until an item opens, so every open tab keeps less memory.
 
+### Security
+
+- Bandit 1.13.0 fixes EEF-CVE-2026-105659, where an HTTP/2 client could hold stream processes
+  open, and EEF-CVE-2026-105660, where a request could set the host and port the app sees.
+- Decimal 3.2.0 fixes EEF-CVE-2026-97853, an unbounded allocation in `Decimal.round/3`.
+
 ## [0.5.0] - 2026-10-11
 
 ### Upgrading
