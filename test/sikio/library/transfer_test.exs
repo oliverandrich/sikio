@@ -429,7 +429,8 @@ defmodule Sikio.Library.TransferTest do
 
       assert {:ok, _job} = Transfer.start(bob, json)
       assert {:error, :already_running} = Transfer.start(bob, json)
-      assert [job] = all_enqueued(worker: TransferImport)
+      # Its own queue keeps a long import from holding a slot that polling needs.
+      assert [job] = all_enqueued(worker: TransferImport, queue: :imports)
 
       Events.subscribe_imports(bob)
       assert :ok = perform_job(TransferImport, job.args)

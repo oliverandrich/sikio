@@ -314,7 +314,8 @@ response. A `304` response has no `<ttl>`. The lengthened interval is capped at 
 it ends. Each next check gets a random delay of up to a tenth of its interval, at most ten
 minutes. Feeds imported together therefore do not stay synchronized. The scheduler runs every
 five minutes. The `maintenance` queue runs `Sikio.AuthCleanup` every 15 minutes. It deletes
-expired sessions, expired challenges and unaccepted invitations that have expired.
+expired sessions, expired challenges and unaccepted invitations that have expired. The `imports`
+queue runs one library import at a time, so an import holds no slot of the `feeds` queue.
 
 ### YouTube channels by WebSub
 

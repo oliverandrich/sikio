@@ -36,7 +36,7 @@ config :sikio, :database, database
 # delay expiring a session.
 config :sikio, Oban,
   repo: Sikio.Repo,
-  queues: [feeds: 3, maintenance: 1],
+  queues: [feeds: 3, maintenance: 1, imports: 1],
   cron: [
     crontab: [
       # Each run asks only the feeds whose interval has passed.

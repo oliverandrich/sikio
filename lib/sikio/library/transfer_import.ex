@@ -8,9 +8,10 @@ defmodule Sikio.Library.TransferImport do
   The import page receives the result through `Sikio.Library.Events.imported/2`.
   One attempt suffices: a second run of the same file changes nothing the first one applied.
   """
-  # One import per account waits or runs at a time.
+  # One import per account waits or runs at a time. An import holds its slot for minutes, so it
+  # has a queue of its own and leaves `feeds` to polling.
   use Oban.Worker,
-    queue: :feeds,
+    queue: :imports,
     max_attempts: 1,
     unique: [period: :infinity, keys: [:user_id], states: [:available, :scheduled, :executing]]
 
