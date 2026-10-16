@@ -11,6 +11,8 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-17
+
 ### Added
 
 - `bin/convert-to-sqlite` and `bin/convert-to-postgres` move an instance between the two
