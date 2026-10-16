@@ -8,10 +8,10 @@ defmodule Sikio.Library.OPML do
   on this instance, because OPML files go to other applications.
   `Sikio.Library.Transfer` carries the whole library to another Sikio instance.
   """
-  alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Library.OPML.Handler
+  alias Sikio.Library.Sources
   alias Sikio.Tags
 
   def parse(xml) when is_binary(xml) and byte_size(xml) > 1_000_000,
@@ -83,56 +83,6 @@ defmodule Sikio.Library.OPML do
   An existing subscription is otherwise unchanged, including paused polling and progress.
   A failed fetch does not stop the remaining sources.
   """
-  def import_sources(account, sources) when length(sources) <= 50 do
-    known = account |> Library.subscriptions() |> Map.new(&{&1.feed.url, &1.id})
-
-    {results, _} =
-      sources
-      |> fetched(known)
-      |> Enum.map_reduce(known, fn {:ok, {source, fetched}}, known ->
-        {result, known} =
-          if Map.has_key?(known, source.url),
-            do: {Map.put(source, :status, :existing), known},
-            else: import_source(account, source, fetched, known)
-
-        if id = known[source.url], do: Tags.add(account, id, Map.get(source, :tags, []))
-        {result, known}
-      end)
-
-    results
-  end
-
-  # Fetches up to five sources concurrently. A slow server delays only its own source.
-  # No host receives more than five concurrent requests from one import.
-  # The ordered stream keeps the file's order and holds only a few fetched feeds in memory.
-  defp fetched(sources, known) do
-    Task.async_stream(
-      sources,
-      fn source ->
-        if Map.has_key?(known, source.url),
-          do: {source, :known},
-          else: {source, Discovery.fetch(source.url)}
-      end,
-      max_concurrency: 5,
-      timeout: :infinity
-    )
-  end
-
-  # Both the URL from the file and the feed's stored URL map to the subscription.
-  # A list with an alias and the canonical URL imports the feed once.
-  defp import_source(account, source, fetched, known) do
-    with {:ok, preview} <- fetched,
-         {:ok, subscription} <- Library.subscribe(account, preview) do
-      status = if subscription.id in Map.values(known), do: :existing, else: :imported
-      result = Map.put(source, :status, status)
-
-      {result,
-       known
-       |> Map.put(source.url, subscription.id)
-       |> Map.put(subscription.feed.url, subscription.id)}
-    else
-      {:error, reason} -> {Map.merge(source, %{status: :failed, reason: reason}), known}
-      _ -> {Map.merge(source, %{status: :failed, reason: :unavailable}), known}
-    end
-  end
+  def import_sources(account, sources) when length(sources) <= 50,
+    do: Sources.subscribe(account, sources)
 end

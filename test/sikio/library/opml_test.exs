@@ -169,4 +169,21 @@ defmodule Sikio.Library.OPMLTest do
 
     assert Library.subscriptions(user) == []
   end
+
+  # A fetch that raises runs in a task linked to the import.
+  test "a source whose fetch crashes fails alone" do
+    user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+
+    Req.Test.stub(HTTP, fn conn ->
+      if conn.request_path == "/crash",
+        do: raise("parser fault"),
+        else: Plug.Conn.send_resp(conn, 200, podcast())
+    end)
+
+    crash = feed_url("crash")
+    sources = [%{title: "Crash", url: crash}, %{title: "Fine", url: feed_url()}]
+
+    assert [%{status: :failed, reason: :unavailable}, %{status: :imported}] =
+             OPML.import_sources(user, sources)
+  end
 end

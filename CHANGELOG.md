@@ -22,6 +22,8 @@ Its own section becomes the version's release notes.
 
 ### Fixed
 
+- An OPML import goes on when fetching one of its feeds crashes. That feed is listed as failed;
+  the import used to stop there.
 - The player keeps playing when the database is briefly unreachable. A lost progress save no
   longer reloads the page, and the next one records the position.
 

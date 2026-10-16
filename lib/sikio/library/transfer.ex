@@ -20,6 +20,7 @@ defmodule Sikio.Library.Transfer do
   alias Sikio.Library
   alias Sikio.Library.Favourite
   alias Sikio.Library.SavedEntry
+  alias Sikio.Library.Sources
   alias Sikio.Library.Subscription
   alias Sikio.Library.TransferImport
   alias Sikio.Playback
@@ -182,28 +183,45 @@ defmodule Sikio.Library.Transfer do
   Other entries the feed no longer holds count as missing.
   """
   def restore(%User{} = account, document) do
-    known = Map.new(Library.subscriptions(account), &{&1.feed.url, &1})
-    fetched = fetch(urls(document, known))
-    {subscribed, fresh, summary} = subscribe_all(account, document.subscriptions, known, fetched)
-    followed = known |> Map.new(fn {url, s} -> {url, s.feed_id} end) |> Map.merge(subscribed)
-    feed_ids = Map.merge(store_chosen(document.entries, followed, fetched), followed)
+    results = Sources.subscribe(account, document.subscriptions, existing: :none)
+    {subscribed, fresh} = subscribed(results)
+
+    # Both lists hold the account's followed feeds under their stored address and its aliases.
+    followed =
+      account
+      |> Library.subscriptions()
+      |> Map.new(&{&1.feed.url, &1.feed_id})
+      |> Map.merge(subscribed)
+
+    feed_ids = Map.merge(store_chosen(document.entries, followed), followed)
     {found, missing} = resolve(document.entries, feed_ids, fresh)
     written = write(account, found, MapSet.new(Map.values(followed)))
     restore_preferences(account, document.preferences)
 
     %{
-      subscriptions: summary,
+      subscriptions: summary(results),
       entries: %{restored: written, kept: length(found) - written, missing: missing}
     }
   end
 
-  # The document's new sources, and the sources of starred or saved entries nobody follows here.
-  defp urls(document, known) do
-    listed = Map.new(document.subscriptions, &{&1.url, true})
+  # Returns `%{url => feed_id}` and the ids of feeds this call subscribed to.
+  defp subscribed(results) do
+    for %{subscription: subscription} = result <- results, reduce: {%{}, MapSet.new()} do
+      {urls, fresh} ->
+        id = subscription.feed_id
+        urls = urls |> Map.put(result.url, id) |> Map.put(subscription.feed.url, id)
+        {urls, if(result.status == :imported, do: MapSet.put(fresh, id), else: fresh)}
+    end
+  end
 
-    (Enum.map(document.subscriptions, & &1.url) ++ chosen_sources(document.entries, listed))
-    |> Enum.uniq()
-    |> Enum.reject(&Map.has_key?(known, &1))
+  defp summary(results) do
+    counts = Enum.frequencies_by(results, & &1.status)
+
+    %{
+      imported: Map.get(counts, :imported, 0),
+      existing: Map.get(counts, :existing, 0),
+      failed: for(%{status: :failed, url: url} <- results, do: url)
+    }
   end
 
   # The sources of starred or saved entries outside `followed`, a map keyed by feed URL.
@@ -215,92 +233,13 @@ defmodule Sikio.Library.Transfer do
         do: entry.feed_url
   end
 
-  # Fetches up to five sources concurrently, as the OPML import does.
-  # A source whose fetch crashed counts as unavailable, like one whose server is down.
-  defp fetch(urls) do
-    urls
-    |> Task.async_stream(&Discovery.fetch/1, max_concurrency: 5, timeout: :infinity)
-    |> Enum.zip_with(urls, fn
-      {:ok, result}, url -> {url, result}
-      {:exit, _reason}, url -> {url, {:error, :unavailable}}
-    end)
-    |> Map.new()
-  end
-
-  # Returns `%{url => feed_id}`, the ids of feeds this call subscribed to, and the summary.
-  defp subscribe_all(account, subscriptions, known, fetched) do
-    ids = MapSet.new(Map.values(known), & &1.id)
-    initial = {%{}, MapSet.new(), %{imported: 0, existing: 0, failed: []}}
-
-    {subscribed, fresh, summary} =
-      Enum.reduce(subscriptions, initial, fn source, acc ->
-        tally(
-          acc,
-          source,
-          subscribe_one(account, source, known[source.url], fetched[source.url], ids)
-        )
-      end)
-
-    {subscribed, fresh, Map.update!(summary, :failed, &Enum.reverse/1)}
-  end
-
-  # Both the URL in the file and the feed's stored URL map to the subscription, as in OPML.
-  defp tally({subscribed, fresh, summary}, source, {status, subscription}) do
-    id = subscription.feed_id
-    fresh = if status == :imported, do: MapSet.put(fresh, id), else: fresh
-
-    {subscribed |> Map.put(source.url, id) |> Map.put(subscription.feed.url, id), fresh,
-     Map.update!(summary, status, &(&1 + 1))}
-  end
-
-  defp tally({subscribed, fresh, summary}, source, :error),
-    do: {subscribed, fresh, Map.update!(summary, :failed, &[source.url | &1])}
-
-  defp subscribe_one(account, source, %Subscription{} = subscription, _fetched, _ids),
-    do: keep(account, subscription, source)
-
-  # The document's address may lead to a feed the account follows under its final address.
-  # Subscribing then returns that subscription, which keeps its settings.
-  defp subscribe_one(account, source, nil, {:ok, preview}, ids) do
-    case Library.subscribe(account, preview, existing: :none, delivery: source.delivery) do
-      {:ok, subscription} ->
-        if MapSet.member?(ids, subscription.id),
-          do: keep(account, subscription, source),
-          else: configure(account, subscription, source)
-
-      _error ->
-        :error
-    end
-  end
-
-  defp subscribe_one(_account, _source, nil, _failed, _ids), do: :error
-
-  # An existing subscription keeps its settings and gains the document's tags.
-  defp keep(account, subscription, source) do
-    if source.tags != [], do: Tags.add(account, subscription.id, source.tags)
-    {:existing, subscription}
-  end
-
-  defp configure(account, subscription, source) do
-    settings = %{name: source.name, delivery: source.delivery, shorts: source.shorts}
-
-    with {:ok, _} <- Library.configure(account, subscription.id, settings, source.tags),
-         {:ok, _} <- paused(account, subscription, source.paused) do
-      {:imported, subscription}
-    else
-      _error -> :error
-    end
-  end
-
-  defp paused(account, subscription, true), do: Library.pause(account, subscription.id, true)
-  defp paused(_account, subscription, false), do: {:ok, subscription}
-
   # Stores the sources of starred or saved entries nobody follows here, as saving one does.
-  defp store_chosen(entries, followed, fetched) do
+  defp store_chosen(entries, followed) do
     entries
     |> chosen_sources(followed)
-    |> Enum.flat_map(fn url ->
-      with {:ok, preview} <- fetched[url],
+    |> Sources.fetch_all()
+    |> Enum.flat_map(fn {url, fetched} ->
+      with {:ok, preview} <- fetched,
            {:ok, feed} <- Feeds.store(preview, &Library.deliver/2) do
         [{url, feed.id}]
       else
