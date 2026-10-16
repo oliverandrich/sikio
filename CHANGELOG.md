@@ -11,6 +11,11 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- The player keeps playing when the database is briefly unreachable. A lost progress save no
+  longer reloads the page, and the next one records the position.
+
 ## [0.6.0] - 2026-10-16
 
 ### Upgrading

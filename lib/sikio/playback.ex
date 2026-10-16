@@ -196,6 +196,10 @@ defmodule Sikio.Playback do
     with {:ok, sample} <- sample(attrs) do
       broadcast(account, Repo.transaction(fn -> save_sample(account, id, session, sample) end))
     end
+  rescue
+    # A player sends samples every few seconds, and the next one replaces a lost one.
+    # So an unavailable database must not end the caller.
+    DBConnection.ConnectionError -> {:error, :unavailable}
   end
 
   defp save_sample(account, id, session, sample) do

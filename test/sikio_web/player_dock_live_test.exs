@@ -81,6 +81,35 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert Library.entry(c.user, c.entry.id).playback.position == 41
   end
 
+  # A lost sample costs nothing, since the next one carries a higher sequence.
+  test "a progress save the database drops keeps the player running", c do
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+    session = Library.entry(c.user, c.entry.id).playback.session_id
+    test = self()
+
+    # The held transaction occupies the sandbox's connection.
+    # The dock's save waits in its queue and receives a queue timeout.
+    holder =
+      Task.async(fn ->
+        Repo.transaction(fn ->
+          send(test, :holding)
+          receive do: (:release -> :ok)
+        end)
+      end)
+
+    assert_receive :holding
+    render_hook(dock, "progress", sample(session, 1, 41))
+    assert_reply(dock, %{saved: false})
+    send(holder.pid, :release)
+    Task.await(holder)
+
+    assert has_element?(dock, "audio")
+    render_hook(dock, "progress", sample(session, 2, 42))
+    assert_reply(dock, %{saved: true})
+    assert Library.entry(c.user, c.entry.id).playback.position == 42
+  end
+
   test "manual status changes and removed subscriptions stop the player immediately", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})
