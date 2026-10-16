@@ -263,6 +263,45 @@ bin/sikio eval 'Sikio.Release.rollback(Sikio.Repo, 20260918000000)'
 ```
 
 
+## Switch databases
+
+`bin/convert-to-sqlite` and `bin/convert-to-postgres` copy every row of the configured database
+into a new one. The configured database is only read. The copy runs in one transaction.
+
+Stop Sikio and back up the database first. Rows written during the copy would be missing. Use
+the release that last ran the instance. Both databases must be at its migration version.
+
+From PostgreSQL to SQLite, keep the PostgreSQL configuration and name a new file:
+
+```sh
+bin/convert-to-sqlite /var/lib/sikio/sikio.db
+```
+
+The file must not exist. A conversion that stops removes it. Then set `SIKIO_DATABASE=sqlite`
+and `DATABASE_PATH` to the file, remove `DATABASE_URL` and start Sikio.
+
+From SQLite to PostgreSQL, create an empty database and its owner as for a new installation.
+Keep the SQLite configuration and name the target in `TARGET_DATABASE_URL`:
+
+```sh
+read -rs TARGET_DATABASE_URL    # ecto://sikio:PASSWORD@localhost/sikio
+export TARGET_DATABASE_URL
+bin/convert-to-postgres
+```
+
+`read -s` keeps the password out of the shell history and the terminal. The command takes the
+URL from the environment, not from its arguments, so the process list does not show it. The
+command refuses a target that holds tables. It migrates the target before the copy.
+`ECTO_IPV6` applies to the target as well. Then set `SIKIO_DATABASE=postgres` and
+`DATABASE_URL`, and start Sikio.
+
+Accounts, passkeys, recovery codes and sessions move with the libraries, so members stay signed
+in. Queued background jobs and unfinished sign-ins are not copied. The scheduler queues new
+jobs. The picture cache stays in `PICTURE_CACHE_DIR`. A refused conversion prints its reason and
+exits with status 1. [Run Sikio with Docker](install/docker.md#switch-between-sqlite-and-postgresql)
+shows both commands in a container.
+
+
 ## Background work
 
 Oban runs on the application database, so no separate message broker is needed. The `feeds`

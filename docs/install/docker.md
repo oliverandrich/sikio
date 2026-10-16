@@ -209,3 +209,38 @@ Caddy connects from its address on the `caddy` network. That address changes whe
 container is recreated, so `TRUSTED_PROXIES` lists the whole subnet. The volume holds only the
 picture cache. Sikio downloads missing pictures again. Database backups are the administrator's
 responsibility. Issue the setup code as in step 5.
+
+## Switch between SQLite and PostgreSQL
+
+[Operations](../operations.md#switch-databases) describes the conversion. In a container, run
+the command in a one-off container of the `sikio` service while the server is stopped. Back up
+first.
+
+From SQLite to PostgreSQL, add the database service as in
+[Its own database container](#its-own-database-container), but leave the `sikio` service on
+SQLite. Then convert:
+
+```sh
+docker compose stop sikio
+docker compose up -d --wait db
+read -rs TARGET_DATABASE_URL    # ecto://sikio:PASSWORD@db/sikio
+export TARGET_DATABASE_URL
+docker compose run --rm -e TARGET_DATABASE_URL sikio /app/bin/convert-to-postgres
+```
+
+`-e TARGET_DATABASE_URL` without a value passes the variable from the shell, so the password
+stays off the command line.
+
+Then add `SIKIO_DATABASE` and `DATABASE_URL` to the
+`sikio` service and run `docker compose up -d`.
+
+From PostgreSQL to SQLite, convert into a new file in the volume:
+
+```sh
+docker compose stop sikio
+docker compose run --rm sikio /app/bin/convert-to-sqlite /data/sikio.db
+```
+
+The image sets `DATABASE_PATH=/data/sikio.db`. If an older file exists there, move it away
+first. The command never writes over a file. Then remove `SIKIO_DATABASE` and `DATABASE_URL`
+from the `sikio` service and run `docker compose up -d`.

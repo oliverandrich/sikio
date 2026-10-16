@@ -1,0 +1,12 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+set -eu
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: $0 TARGET_PATH" >&2
+  exit 64
+fi
+
+export TARGET_DATABASE_PATH="$1"
+cd -P -- "$(dirname -- "$0")"
+exec ./sikio eval "Sikio.Release.convert_to_sqlite!()"

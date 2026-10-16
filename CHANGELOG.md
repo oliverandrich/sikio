@@ -11,6 +11,12 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Added
+
+- `bin/convert-to-sqlite` and `bin/convert-to-postgres` move an instance between the two
+  databases. Members stay signed in. [Operations](docs/operations.md#switch-databases) and the
+  Docker guide describe the steps.
+
 ### Fixed
 
 - The player keeps playing when the database is briefly unreachable. A lost progress save no

@@ -6,9 +6,10 @@
 # The features test the interface, which behaves alike on both databases, so they run on SQLite.
 # Queries, locks and migrations differ between the databases and are tested on both.
 # `mix test --include feature` also runs the features on PostgreSQL.
+# Tests tagged `:postgres` need both databases and run in the PostgreSQL pass alone.
 # Logs are captured and shown only for failing tests.
 if Application.fetch_env!(:sikio, :database) == :sqlite,
-  do: ExUnit.start(max_cases: 1, capture_log: true),
+  do: ExUnit.start(max_cases: 1, capture_log: true, exclude: [:postgres]),
   else: ExUnit.start(exclude: [:feature], capture_log: true)
 
 Ecto.Adapters.SQL.Sandbox.mode(Sikio.Repo, :manual)

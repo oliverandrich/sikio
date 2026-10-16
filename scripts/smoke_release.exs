@@ -40,9 +40,60 @@ defmodule Sikio.ReleaseSmoke do
       Smoke.with_database(source, env, fn -> check_by_hand(release, env) end)
     end)
 
+    # This pass alone has a PostgreSQL server, and the conversion needs both databases.
+    convert? = Smoke.database() == "postgres"
+    if convert?, do: convert(release, source <> "_converted")
+
     IO.puts(
-      "#{Smoke.database()}: migration on start, repeat migration and migration by hand passed."
+      "#{Smoke.database()}: migration on start, repeat migration, migration by hand" <>
+        if(convert?, do: " and conversion both ways", else: "") <>
+        " passed."
     )
+  end
+
+  # An operator who switches databases: PostgreSQL to SQLite, then back into a new database.
+  defp convert(release, source) do
+    Support.temporary(fn directory ->
+      pictures = Path.join(directory, "pictures")
+      File.mkdir!(pictures)
+      env = source |> Smoke.database_env(directory) |> Map.put("PICTURE_CACHE_DIR", pictures)
+      Smoke.with_database(source, env, fn -> check_conversion(release, env, directory) end)
+    end)
+  end
+
+  # The setup code is a row to carry across. Each converted database serves the landing page.
+  defp check_conversion(release, env, directory) do
+    Smoke.run([Path.join(release, "migrate")], env)
+    Smoke.run([Path.join(release, "setup-code")], env)
+    path = Path.join(directory, "converted.db")
+    lite = Map.merge(env, %{"SIKIO_DATABASE" => "sqlite", "DATABASE_PATH" => path})
+
+    Smoke.run([Path.join(release, "convert-to-sqlite"), path], env)
+    count = "SELECT count(*) FROM ithibati_setup_codes"
+    assert Smoke.run(["sqlite3", path, count], lite) == "1"
+    serves(release, lite, "release after conversion to SQLite")
+
+    back = env["PGDATABASE"] <> "_back"
+
+    postgres =
+      back
+      |> Smoke.database_env(directory)
+      |> Map.put("PICTURE_CACHE_DIR", env["PICTURE_CACHE_DIR"])
+
+    Smoke.with_database(back, postgres, fn ->
+      lite = Map.put(lite, "TARGET_DATABASE_URL", postgres["DATABASE_URL"])
+      Smoke.run([Path.join(release, "convert-to-postgres")], lite)
+      assert Smoke.run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-Atc", count], postgres) == "1"
+      serves(release, postgres, "release after conversion back to PostgreSQL")
+    end)
+  end
+
+  defp serves(release, env, description) do
+    env = Map.put(env, "PORT", Smoke.free_port())
+
+    Smoke.with_server(Path.join(release, "server"), env, fn ->
+      assert Smoke.await_landing("127.0.0.1", env["PORT"], description) =~ "Sikio"
+    end)
   end
 
   # The server starts on an empty database and migrates it itself; bin/migrate afterwards finds
