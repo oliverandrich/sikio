@@ -11,6 +11,8 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-16
+
 ### Upgrading
 
 - One migration runs on start. It adds the table of favourites.
