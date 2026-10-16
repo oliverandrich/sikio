@@ -112,6 +112,11 @@ defmodule SikioWeb.SubscriptionsLive do
           {gettext("Export OPML")}
           <Lucideicons.download aria-hidden="true" class="size-4" />
         </.link>
+        <.link
+          id="library-transfer-link"
+          navigate={~p"/subscriptions/library"}
+          class="inline-flex min-h-11 items-center text-link"
+        >{gettext("Move your library")}</.link>
       </div>
       <section class="mt-8">
         <p

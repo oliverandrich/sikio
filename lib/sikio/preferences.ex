@@ -19,6 +19,10 @@ defmodule Sikio.Preferences do
   def locale(%User{id: user_id}),
     do: Repo.one(from p in Preference, where: p.user_id == ^user_id, select: p.locale)
 
+  @doc "Whether the account has saved any preference."
+  def stored?(%User{id: user_id}),
+    do: Repo.exists?(from p in Preference, where: p.user_id == ^user_id)
+
   @doc "Returns the account's preferences, or the defaults for an account without a row."
   def get(%User{id: user_id}),
     do: Repo.get_by(Preference, user_id: user_id) || %Preference{user_id: user_id}

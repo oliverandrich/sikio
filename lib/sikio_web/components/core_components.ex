@@ -660,4 +660,8 @@ defmodule SikioWeb.CoreComponents do
   def field_class,
     do:
       "block w-full rounded-control border border-edge bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-accent focus:outline-2 focus:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+
+  @doc "Formats an upload's size. Uploads stay within a few megabytes, so whole kilobytes suffice."
+  def file_size(bytes) when bytes < 1000, do: "#{bytes} B"
+  def file_size(bytes), do: "#{round(bytes / 1000)} KB"
 end

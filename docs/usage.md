@@ -72,6 +72,13 @@ a phone. There you can:
   Existing subscriptions stay unchanged, and failures are listed per source. **Add** also links
   to the import. The export contains sources only, without playback positions or polling
   settings. Format: [OPML 2.0](https://2005.opml.org/spec2.html).
+- Move the library to another Sikio under **Move your library**. The export is one JSON file
+  with sources, tags, queue, history, favourites, saved items and settings. It holds no
+  passkeys, recovery codes or sessions. The import runs in the background and fetches every
+  source again. It adds to the library and changes nothing already there. Settings apply only
+  when none are stored. An episode no longer in its feed is looked up through its page when it
+  was queued, started, starred or saved. Other such episodes are left out and counted. An
+  import takes up to 5 MB, 500 sources and 20,000 episodes.
 
 New episodes arrive by polling. Oban polls each active source at most once an hour by default.
 Requests are conditional HTTP requests, and failed refreshes have bounded retries. The next poll

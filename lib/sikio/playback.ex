@@ -91,6 +91,77 @@ defmodule Sikio.Playback do
     end)
   end
 
+  @doc """
+  Writes imported states for the account in one transaction.
+
+  Each row names `entry_id`, `status`, `position`, `duration`, `completed_at` and `queue`.
+  A row with `replace: true` overwrites the account's state for its entry. Other rows apply only
+  to entries without a state. Rows with a `queue` number join the end of the queue in that order.
+  Returns `{:ok, count}` with the number of states written.
+  The caller checks that each entry is visible to the account.
+  """
+  def restore(%User{id: user_id}, rows) do
+    Repo.transaction(fn ->
+      Library.lock_queue(user_id)
+      {replaced, others} = Enum.split_with(rows, & &1.replace)
+
+      replaced
+      |> Enum.map(& &1.entry_id)
+      |> Enum.chunk_every(500)
+      |> Enum.each(
+        &Repo.delete_all(from p in State, where: p.user_id == ^user_id and p.entry_id in ^&1)
+      )
+
+      held = held(user_id, Enum.map(others, & &1.entry_id))
+      written = replaced ++ Enum.reject(others, &MapSet.member?(held, &1.entry_id))
+      insert_states(user_id, written)
+      length(written)
+    end)
+  end
+
+  defp held(user_id, entry_ids) do
+    entry_ids
+    |> Enum.chunk_every(500)
+    |> Enum.flat_map(fn chunk ->
+      Repo.all(
+        from p in State, where: p.user_id == ^user_id and p.entry_id in ^chunk, select: p.entry_id
+      )
+    end)
+    |> MapSet.new()
+  end
+
+  # Queued rows join the end of the queue in the order of their `queue` numbers.
+  defp insert_states(user_id, rows) do
+    last = rank(user_id, :last)
+    now = DateTime.utc_now()
+
+    ranks =
+      rows
+      |> Enum.filter(& &1.queue)
+      |> Enum.sort_by(& &1.queue)
+      |> Enum.with_index()
+      |> Map.new(fn {row, index} -> {row.entry_id, last + index} end)
+
+    rows
+    |> Enum.map(fn row ->
+      %{
+        user_id: user_id,
+        entry_id: row.entry_id,
+        status: row.status,
+        position: row.position || 0.0,
+        duration: row.duration,
+        completed_at: row.completed_at,
+        queue_rank: ranks[row.entry_id],
+        sequence: 0,
+        inserted_at: now,
+        updated_at: now
+      }
+    end)
+    # Batches stay below SQLite's limit of bound parameters per statement.
+    |> Enum.chunk_every(500)
+    |> Enum.each(&Repo.insert_all(State, &1, on_conflict: :nothing))
+  end
+
   @doc "Adds the entry to the queue, at the head or at the end."
   def enqueue(%User{id: user_id} = account, id, at) when at in [:first, :last],
     do: reorder(account, id, fn _state -> [queue_rank: rank(user_id, at)] end)

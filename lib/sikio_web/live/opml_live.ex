@@ -272,8 +272,4 @@ defmodule SikioWeb.OPMLLive do
     </Layouts.member>
     """
   end
-
-  # Uploads are capped at 1 MB, so whole kilobytes are precise enough.
-  defp file_size(bytes) when bytes < 1000, do: "#{bytes} B"
-  defp file_size(bytes), do: "#{round(bytes / 1000)} KB"
 end

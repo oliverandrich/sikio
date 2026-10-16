@@ -543,7 +543,7 @@ msgstr "%{count} aktuelle Einträge verfügbar"
 msgid "%{imported} imported · %{existing} already subscribed · %{failed} failed"
 msgstr "%{imported} importiert · %{existing} bereits abonniert · %{failed} fehlgeschlagen"
 
-#: lib/sikio_web/live/subscriptions_live.ex:162
+#: lib/sikio_web/live/subscriptions_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr "Aktiv"
@@ -583,6 +583,7 @@ msgstr "Wähle eine OPML-Datei kleiner als 1 MB."
 msgid "Choose one OPML file and wait for its upload to finish."
 msgstr "Wähle eine OPML-Datei und warte, bis der Upload fertig ist."
 
+#: lib/sikio_web/live/library_transfer_live.ex:85
 #: lib/sikio_web/live/opml_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "Choose one file at a time."
@@ -691,7 +692,7 @@ msgstr "Verwende eine öffentliche http- oder https-URL. Lokale und private Adre
 msgid "Podcast"
 msgstr "Podcast"
 
-#: lib/sikio_web/live/subscriptions_live.ex:162
+#: lib/sikio_web/live/subscriptions_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "Polling paused"
 msgstr "Abfrage pausiert"
@@ -706,6 +707,7 @@ msgstr "Quellen ansehen"
 msgid "Ready to check"
 msgstr "Bereit zur Prüfung"
 
+#: lib/sikio_web/live/library_transfer_live.ex:155
 #: lib/sikio_web/live/opml_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Remove file"
@@ -727,7 +729,7 @@ msgstr "Abonnieren"
 msgid "Subscribed to %{title}."
 msgstr "%{title} abonniert."
 
-#: lib/sikio_web/live/library_live.ex:561
+#: lib/sikio_web/live/library_live.ex:585
 #: lib/sikio_web/live/subscriptions_live.ex:33
 #: lib/sikio_web/live/subscriptions_live.ex:55
 #, elixir-autogen, elixir-format
@@ -735,6 +737,7 @@ msgid "Subscription not found."
 msgstr "Abo nicht gefunden."
 
 #: lib/sikio_web/components/layouts.ex:364
+#: lib/sikio_web/live/library_transfer_live.ex:98
 #: lib/sikio_web/live/opml_live.ex:156
 #: lib/sikio_web/live/places_live.ex:61
 #: lib/sikio_web/live/subscriptions_live.ex:24
@@ -760,8 +763,8 @@ msgstr "Diese Seite oder dieser Feed ist zu groß für den Import. Versuche eine
 
 #: lib/sikio_web/live/subscription_settings.ex:249
 #: lib/sikio_web/live/subscription_settings.ex:257
-#: lib/sikio_web/live/subscriptions_live.ex:221
-#: lib/sikio_web/live/subscriptions_live.ex:222
+#: lib/sikio_web/live/subscriptions_live.ex:226
+#: lib/sikio_web/live/subscriptions_live.ex:227
 #, elixir-autogen, elixir-format
 msgid "Unsubscribe"
 msgstr "Abo entfernen"
@@ -771,6 +774,7 @@ msgstr "Abo entfernen"
 msgid "Up to 50 unique feeds and 1 MB per file. Folders are flattened. Existing subscriptions stay unchanged. OPML transfers sources, not playback history or polling settings."
 msgstr "Bis zu 50 eindeutige Feeds und 1 MB pro Datei. Ordner werden aufgelöst. Bestehende Abos bleiben unverändert. OPML überträgt Quellen, keine Abspielstände und keine Abfrageeinstellungen."
 
+#: lib/sikio_web/live/library_transfer_live.ex:87
 #: lib/sikio_web/live/opml_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "Upload failed. Please try again."
@@ -786,7 +790,7 @@ msgstr "YouTube"
 msgid "YouTube did not reveal this channel. Try its channel URL; private or unavailable videos cannot be resolved."
 msgstr "YouTube hat diesen Kanal nicht preisgegeben. Versuche die Kanal-URL; private oder nicht verfügbare Videos lassen sich nicht auflösen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:122
+#: lib/sikio_web/live/subscriptions_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "Your collection starts with one good source."
 msgstr "Deine Sammlung beginnt mit einer guten Quelle."
@@ -796,6 +800,7 @@ msgstr "Deine Sammlung beginnt mit einer guten Quelle."
 msgid "Your subscriptions"
 msgstr "Deine Abos"
 
+#: lib/sikio_web/live/library_transfer_live.ex:104
 #: lib/sikio_web/live/opml_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "← Your subscriptions"
@@ -815,7 +820,7 @@ msgstr "Quelle hinzufügen"
 msgid "Close player"
 msgstr "Player schließen"
 
-#: lib/sikio_web/live/library_live.ex:908
+#: lib/sikio_web/live/library_live.ex:947
 #, elixir-autogen, elixir-format
 msgid "Find your first source →"
 msgstr "Finde deine erste Quelle →"
@@ -828,8 +833,8 @@ msgstr "Angefangen"
 #: lib/sikio_web/components/layouts.ex:433
 #: lib/sikio_web/components/layouts.ex:476
 #: lib/sikio_web/live/add_source_live.ex:663
-#: lib/sikio_web/live/library_live.ex:185
-#: lib/sikio_web/live/library_live.ex:496
+#: lib/sikio_web/live/library_live.ex:186
+#: lib/sikio_web/live/library_live.ex:520
 #: lib/sikio_web/live/places_live.ex:17
 #: lib/sikio_web/live/places_live.ex:35
 #: lib/sikio_web/live/places_live.ex:37
@@ -875,7 +880,7 @@ msgstr "Neu"
 msgid "Now playing"
 msgstr "Läuft gerade"
 
-#: lib/sikio_web/live/library_live.ex:903
+#: lib/sikio_web/live/library_live.ex:942
 #, elixir-autogen, elixir-format
 msgid "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
 msgstr "Füge einen YouTube-Kanal, ein Video oder eine Podcast-Webseite ein. Oder finde deinen nächsten Hörtipp in Apple Podcasts."
@@ -892,14 +897,14 @@ msgstr "Abspielen"
 msgid "Play again"
 msgstr "Erneut abspielen"
 
-#: lib/sikio_web/live/library_live.ex:901
+#: lib/sikio_web/live/library_live.ex:940
 #, elixir-autogen, elixir-format
 msgid "Space for something good."
 msgstr "Platz für etwas Gutes."
 
-#: lib/sikio_web/live/library_live.ex:232
-#: lib/sikio_web/live/library_live.ex:390
-#: lib/sikio_web/live/library_live.ex:452
+#: lib/sikio_web/live/library_live.ex:233
+#: lib/sikio_web/live/library_live.ex:391
+#: lib/sikio_web/live/library_live.ex:453
 #: lib/sikio_web/live/player_dock_live.ex:132
 #: lib/sikio_web/live/player_dock_live.ex:188
 #, elixir-autogen, elixir-format
@@ -911,7 +916,7 @@ msgstr "Dieser Eintrag ist nicht mehr in deiner Mediathek."
 msgid "This source is no longer in your library."
 msgstr "Diese Quelle ist nicht mehr in deiner Mediathek."
 
-#: lib/sikio_web/live/library_live.ex:657
+#: lib/sikio_web/live/library_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "Unavailable source"
 msgstr "Nicht verfügbare Quelle"
@@ -1170,7 +1175,7 @@ msgstr "Alle Einträge"
 msgid "Views"
 msgstr "Ansichten"
 
-#: lib/sikio_web/live/library_live.ex:662
+#: lib/sikio_web/live/library_live.ex:701
 #, elixir-autogen, elixir-format
 msgid "%{count} item"
 msgid_plural "%{count} items"
@@ -1187,7 +1192,7 @@ msgstr "Fortschritt"
 msgid "Open on YouTube"
 msgstr "Auf YouTube öffnen"
 
-#: lib/sikio_web/live/library_live.ex:933
+#: lib/sikio_web/live/library_live.ex:972
 #, elixir-autogen, elixir-format
 msgid "Selected item"
 msgstr "Ausgewählter Eintrag"
@@ -1298,7 +1303,7 @@ msgstr "Der Feed ist größer, als Sikio liest."
 msgid "The server could not be reached. Sikio will try again."
 msgstr "Der Server war nicht erreichbar. Sikio versucht es erneut."
 
-#: lib/sikio_web/live/subscriptions_live.ex:172
+#: lib/sikio_web/live/subscriptions_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Imported items are safe."
 msgstr "Bereits geladene Einträge bleiben erhalten."
@@ -1308,26 +1313,26 @@ msgstr "Bereits geladene Einträge bleiben erhalten."
 msgid "The address no longer exists on its server."
 msgstr "Die Adresse gibt es auf ihrem Server nicht mehr."
 
-#: lib/sikio_web/live/library_live.ex:870
+#: lib/sikio_web/live/library_live.ex:909
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/sikio_web/live/library_live.ex:877
+#: lib/sikio_web/live/library_live.ex:916
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "Status"
 
 #: lib/sikio_web/components/layouts.ex:437
 #: lib/sikio_web/components/layouts.ex:481
-#: lib/sikio_web/live/library_live.ex:639
-#: lib/sikio_web/live/library_live.ex:805
+#: lib/sikio_web/live/library_live.ex:678
+#: lib/sikio_web/live/library_live.ex:844
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr "Suchen"
 
-#: lib/sikio_web/live/library_live.ex:841
-#: lib/sikio_web/live/library_live.ex:842
+#: lib/sikio_web/live/library_live.ex:880
+#: lib/sikio_web/live/library_live.ex:881
 #, elixir-autogen, elixir-format
 msgid "Search in %{place}"
 msgstr "In %{place} suchen"
@@ -1579,7 +1584,7 @@ msgstr "Aktuelle Folge im Player einschließen"
 msgid "Tags"
 msgstr "Tags"
 
-#: lib/sikio_web/live/library_live.ex:649
+#: lib/sikio_web/live/library_live.ex:688
 #, elixir-autogen, elixir-format
 msgid "Unavailable tag"
 msgstr "Nicht verfügbarer Tag"
@@ -1609,8 +1614,8 @@ msgstr "Ein anderer Tag heißt schon so."
 msgid "Delete %{name}?"
 msgstr "%{name} löschen?"
 
-#: lib/sikio_web/live/library_live.ex:754
-#: lib/sikio_web/live/library_live.ex:755
+#: lib/sikio_web/live/library_live.ex:793
+#: lib/sikio_web/live/library_live.ex:794
 #: lib/sikio_web/live/tag_settings.ex:112
 #, elixir-autogen, elixir-format
 msgid "Delete tag"
@@ -1632,8 +1637,8 @@ msgstr "Umbenennen"
 msgid "Rename %{name}"
 msgstr "%{name} umbenennen"
 
-#: lib/sikio_web/live/library_live.ex:743
-#: lib/sikio_web/live/library_live.ex:744
+#: lib/sikio_web/live/library_live.ex:782
+#: lib/sikio_web/live/library_live.ex:783
 #, elixir-autogen, elixir-format
 msgid "Rename tag"
 msgstr "Tag umbenennen"
@@ -1694,8 +1699,8 @@ msgstr[1] "%{count} Einträge in dieser Liste werden archiviert. Sie erscheinen 
 msgid "Archive"
 msgstr "Archivieren"
 
-#: lib/sikio_web/live/library_live.ex:732
-#: lib/sikio_web/live/library_live.ex:733
+#: lib/sikio_web/live/library_live.ex:771
+#: lib/sikio_web/live/library_live.ex:772
 #, elixir-autogen, elixir-format
 msgid "Archive all"
 msgstr "Alle archivieren"
@@ -1710,7 +1715,7 @@ msgstr "Alles hier archivieren?"
 msgid "Archived"
 msgstr "Archiviert"
 
-#: lib/sikio_web/live/library_live.ex:350
+#: lib/sikio_web/live/library_live.ex:351
 #, elixir-autogen, elixir-format
 msgid "Nothing here is left to archive."
 msgstr "Hier gibt es nichts mehr abzulegen."
@@ -1801,10 +1806,10 @@ msgstr "am Ende der Queue"
 msgid "The inbox"
 msgstr "in der Inbox"
 
-#: lib/sikio_web/live/library_live.ex:767
-#: lib/sikio_web/live/library_live.ex:768
-#: lib/sikio_web/live/subscriptions_live.ex:198
-#: lib/sikio_web/live/subscriptions_live.ex:199
+#: lib/sikio_web/live/library_live.ex:806
+#: lib/sikio_web/live/library_live.ex:807
+#: lib/sikio_web/live/subscriptions_live.ex:203
+#: lib/sikio_web/live/subscriptions_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Edit subscription"
 msgstr "Abo bearbeiten"
@@ -1888,10 +1893,10 @@ msgstr "Ans Ende der Queue"
 msgid "To the inbox"
 msgstr "In die Inbox"
 
-#: lib/sikio_web/live/library_live.ex:780
-#: lib/sikio_web/live/library_live.ex:781
-#: lib/sikio_web/live/subscriptions_live.ex:210
-#: lib/sikio_web/live/subscriptions_live.ex:211
+#: lib/sikio_web/live/library_live.ex:819
+#: lib/sikio_web/live/library_live.ex:820
+#: lib/sikio_web/live/subscriptions_live.ex:215
+#: lib/sikio_web/live/subscriptions_live.ex:216
 #, elixir-autogen, elixir-format
 msgid "Open website"
 msgstr "Website öffnen"
@@ -1943,24 +1948,25 @@ msgstr "Suche zurücksetzen"
 msgid "Choose an OPML file"
 msgstr "OPML-Datei wählen"
 
+#: lib/sikio_web/live/library_transfer_live.ex:140
 #: lib/sikio_web/live/opml_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "or drop it here"
 msgstr "oder hierher ziehen"
 
-#: lib/sikio_web/live/subscriptions_live.ex:274
+#: lib/sikio_web/live/subscriptions_live.ex:279
 #, elixir-autogen, elixir-format
 msgid "A shared feed may still update for other subscribers while your polling is paused."
 msgstr "Ein gemeinsamer Feed kann für andere weiter aktualisiert werden, während deine Abfrage pausiert."
 
-#: lib/sikio_web/live/subscriptions_live.ex:281
+#: lib/sikio_web/live/subscriptions_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "Active sources refresh at most every hour, less often when they rarely publish."
 msgid_plural "Active sources refresh at most every %{count} hours, less often when they rarely publish."
 msgstr[0] "Aktive Quellen werden höchstens jede Stunde aktualisiert, seltener, wenn sie selten veröffentlichen."
 msgstr[1] "Aktive Quellen werden höchstens alle %{count} Stunden aktualisiert, seltener, wenn sie selten veröffentlichen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:289
+#: lib/sikio_web/live/subscriptions_live.ex:294
 #, elixir-autogen, elixir-format
 msgid "Active sources refresh at most every minute, less often when they rarely publish."
 msgid_plural "Active sources refresh at most every %{count} minutes, less often when they rarely publish."
@@ -2038,27 +2044,27 @@ msgid_plural "%{count} left"
 msgstr[0] "1 übrig"
 msgstr[1] "%{count} übrig"
 
-#: lib/sikio_web/live/subscriptions_live.ex:250
+#: lib/sikio_web/live/subscriptions_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Google's hub announces new videos as they appear."
 msgstr "Der Hub von Google meldet neue Videos, sobald sie erscheinen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:253
+#: lib/sikio_web/live/subscriptions_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "Live"
 msgstr "Live"
 
-#: lib/sikio_web/live/subscriptions_live.ex:260
+#: lib/sikio_web/live/subscriptions_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "Polling"
 msgstr "Abfrage"
 
-#: lib/sikio_web/live/subscriptions_live.ex:258
+#: lib/sikio_web/live/subscriptions_live.ex:263
 #, elixir-autogen, elixir-format
 msgid "Sikio asks for new videos at intervals."
 msgstr "Sikio fragt in Abständen nach neuen Videos."
 
-#: lib/sikio_web/live/subscriptions_live.ex:273
+#: lib/sikio_web/live/subscriptions_live.ex:278
 #, elixir-autogen, elixir-format
 msgid "Live channels are also checked once a day."
 msgstr "Live-Kanäle werden zusätzlich einmal am Tag abgefragt."
@@ -2100,8 +2106,8 @@ msgstr[1] "%{day}, %{count} Einträge"
 msgid "%{month} %{day}"
 msgstr "%{day}. %{month}"
 
-#: lib/sikio_web/live/library_live.ex:792
-#: lib/sikio_web/live/library_live.ex:793
+#: lib/sikio_web/live/library_live.ex:831
+#: lib/sikio_web/live/library_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Calendar"
 msgstr "Kalender"
@@ -2367,7 +2373,7 @@ msgstr "Noch keine Favoriten."
 msgid "Star an item to keep it here."
 msgstr "Markiere einen Eintrag mit dem Stern, um ihn hier zu sammeln."
 
-#: lib/sikio_web/live/library_live.ex:404
+#: lib/sikio_web/live/library_live.ex:405
 #, elixir-autogen, elixir-format
 msgid "Link copied."
 msgstr "Link kopiert."
@@ -2378,7 +2384,7 @@ msgstr "Link kopiert."
 msgid "Share"
 msgstr "Teilen"
 
-#: lib/sikio_web/live/library_live.ex:407
+#: lib/sikio_web/live/library_live.ex:408
 #, elixir-autogen, elixir-format
 msgid "The link could not be copied."
 msgstr "Der Link konnte nicht kopiert werden."
@@ -2441,3 +2447,100 @@ msgstr "Videos auf PeerTube-Instanzen, über einen Suchindex für viele Instanze
 #, elixir-autogen, elixir-format
 msgid "This video could not be read from its PeerTube instance. Try again later."
 msgstr "Dieses Video ließ sich nicht von seiner PeerTube-Instanz lesen. Versuche es später erneut."
+
+#: lib/sikio_web/live/library_transfer_live.ex:200
+#, elixir-autogen, elixir-format
+msgid "%{imported} sources imported · %{existing} already followed · %{failed} failed"
+msgstr "%{imported} Quellen importiert · %{existing} bereits abonniert · %{failed} fehlgeschlagen"
+
+#: lib/sikio_web/live/library_transfer_live.ex:72
+#, elixir-autogen, elixir-format
+msgid "An import is already running. Its result appears here when it finishes."
+msgstr "Ein Import läuft bereits. Sein Ergebnis erscheint hier, sobald er fertig ist."
+
+#: lib/sikio_web/live/library_transfer_live.ex:86
+#, elixir-autogen, elixir-format
+msgid "Choose a .json file."
+msgstr "Wähle eine .json-Datei."
+
+#: lib/sikio_web/live/library_transfer_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Choose a file smaller than 5 MB."
+msgstr "Wähle eine Datei kleiner als 5 MB."
+
+#: lib/sikio_web/live/library_transfer_live.ex:139
+#, elixir-autogen, elixir-format
+msgid "Choose an exported library"
+msgstr "Exportierte Mediathek wählen"
+
+#: lib/sikio_web/live/library_transfer_live.ex:45
+#, elixir-autogen, elixir-format
+msgid "Choose one file and wait for its upload."
+msgstr "Wähle eine Datei und warte, bis der Upload fertig ist."
+
+#: lib/sikio_web/live/library_transfer_live.ex:121
+#, elixir-autogen, elixir-format
+msgid "Export my library"
+msgstr "Meine Mediathek exportieren"
+
+#: lib/sikio_web/live/library_transfer_live.ex:110
+#, elixir-autogen, elixir-format
+msgid "Export your sources, tags, queue, history, favourites and settings, and import them on another Sikio."
+msgstr "Exportiere Quellen, Tags, Queue, Verlauf, Favoriten und Einstellungen und importiere sie in ein anderes Sikio."
+
+#: lib/sikio_web/live/library_transfer_live.ex:84
+#, elixir-autogen, elixir-format
+msgid "File exceeds 5 MB."
+msgstr "Die Datei ist größer als 5 MB."
+
+#: lib/sikio_web/live/library_transfer_live.ex:171
+#, elixir-autogen, elixir-format
+msgid "Import library"
+msgstr "Mediathek importieren"
+
+#: lib/sikio_web/live/library_transfer_live.ex:189
+#, elixir-autogen, elixir-format
+msgid "Import started. Sikio fetches your sources now. You can leave this page; the result appears here while it is open."
+msgstr "Import gestartet. Sikio lädt jetzt deine Quellen. Du kannst die Seite verlassen; solange sie offen ist, erscheint hier das Ergebnis."
+
+#: lib/sikio_web/live/library_transfer_live.ex:22
+#: lib/sikio_web/live/library_transfer_live.ex:97
+#: lib/sikio_web/live/subscriptions_live.ex:119
+#, elixir-autogen, elixir-format
+msgid "Move your library"
+msgstr "Mediathek umziehen"
+
+#: lib/sikio_web/live/library_transfer_live.ex:166
+#, elixir-autogen, elixir-format
+msgid "Sikio fetches every source again. Your current library stays: the import adds to it and changes nothing you already have. Episodes no longer in their feed come back when queued, started, starred or saved."
+msgstr "Sikio lädt jede Quelle neu. Deine Mediathek bleibt: Der Import ergänzt sie und ändert nichts, was du schon hast. Folgen, die nicht mehr im Feed stehen, kommen zurück, wenn sie in der Queue, angefangen, mit Stern markiert oder gespeichert waren."
+
+#: lib/sikio_web/live/library_transfer_live.ex:107
+#, elixir-autogen, elixir-format
+msgid "Take your library along."
+msgstr "Nimm deine Mediathek mit."
+
+#: lib/sikio_web/live/library_transfer_live.ex:80
+#, elixir-autogen, elixir-format
+msgid "This file lists more than 20,000 episodes, more than one import handles."
+msgstr "Diese Datei enthält mehr als 20.000 Folgen, mehr als ein Import verarbeitet."
+
+#: lib/sikio_web/live/library_transfer_live.ex:77
+#, elixir-autogen, elixir-format
+msgid "This file lists more than 500 sources, more than one import handles."
+msgstr "Diese Datei enthält mehr als 500 Quellen, mehr als ein Import verarbeitet."
+
+#: lib/sikio_web/live/library_transfer_live.ex:82
+#, elixir-autogen, elixir-format
+msgid "This is not a library exported from Sikio."
+msgstr "Das ist keine aus Sikio exportierte Mediathek."
+
+#: lib/sikio_web/live/library_transfer_live.ex:207
+#, elixir-autogen, elixir-format
+msgid "%{restored} episodes restored · %{kept} kept as they were · %{missing} not found"
+msgstr "%{restored} Folgen übernommen · %{kept} unverändert gelassen · %{missing} nicht gefunden"
+
+#: lib/sikio_web/live/library_transfer_live.ex:59
+#, elixir-autogen, elixir-format
+msgid "The import stopped. What it added so far stays; importing the file again adds the rest."
+msgstr "Der Import wurde abgebrochen. Was er schon übernommen hat, bleibt; ein erneuter Import der Datei ergänzt den Rest."

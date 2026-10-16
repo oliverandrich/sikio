@@ -6,6 +6,7 @@ defmodule Sikio.Library.OPML do
 
   An export contains sources and their tags only. Progress, paused polling and subscribers stay
   on this instance, because OPML files go to other applications.
+  `Sikio.Library.Transfer` carries the whole library to another Sikio instance.
   """
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Parser

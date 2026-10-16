@@ -16,6 +16,9 @@ Its own section becomes the version's release notes.
 - `bin/convert-to-sqlite` and `bin/convert-to-postgres` move an instance between the two
   databases. Members stay signed in. [Operations](docs/operations.md#switch-databases) and the
   Docker guide describe the steps.
+- **Move your library** on the subscriptions page exports a member's library as JSON and imports
+  one from another Sikio. The import adds sources, tags, queue, history, favourites, saved items
+  and settings in the background and keeps what the library already holds.
 
 ### Fixed
 

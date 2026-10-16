@@ -125,6 +125,7 @@ defmodule SikioWeb.Router do
       live "/add", AddSourceLive
       live "/subscriptions", SubscriptionsLive
       live "/subscriptions/import", OPMLLive
+      live "/subscriptions/library", LibraryTransferLive
       live "/account/verify", VerifyIdentityLive
       live "/account/settings", SettingsLive
       live "/account/passkeys", AccountSecurityLive, :passkeys
@@ -135,6 +136,7 @@ defmodule SikioWeb.Router do
     post "/setup/code", SetupController, :create
 
     get "/subscriptions.opml", OPMLController, :export
+    get "/library.json", LibraryTransferController, :export
     get "/recovery-codes", SessionController, :recovery_codes
     delete "/session", SessionController, :sign_out
   end
