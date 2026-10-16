@@ -63,7 +63,7 @@ defmodule Sikio.MixProject do
       {:html_sanitize_ex, "~> 1.4"},
       {:saxy, "~> 1.6"},
       {:mix_audit, "~> 2.1.5", only: [:dev, :test], runtime: false},
-      {:sobelow, "~> 0.15.0", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.16.0", only: [:dev, :test], runtime: false},
       {:excellent_migrations, "~> 0.1.10", only: [:dev, :test], runtime: false},
       {:jump_credo_checks, "~> 0.5.0", only: [:dev, :test], runtime: false},
       {:ex_slop, "~> 0.4.4", only: [:dev, :test], runtime: false},
