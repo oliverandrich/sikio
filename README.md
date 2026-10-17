@@ -23,6 +23,7 @@ media libraries. You choose what enters your lists and mark what you have watche
   library search is powered by [MediathekViewWeb](https://mediathekviewweb.de).
 - Searches PeerTube for channels and videos across instances, through
   [Sepia Search](https://search.joinpeertube.org) or another index the operator names.
+- Searches YouTube for channels and videos without an API key, from YouTube's results page.
 - Imports and exports subscriptions as OPML.
 - Keeps an inbox of new items, a queue in your own order, and a history of heard items.
   With **Play on**, the queue plays the next item when one ends.

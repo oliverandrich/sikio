@@ -443,10 +443,13 @@ defmodule Sikio.Feeds.Parser do
     end
   end
 
-  # `itunes:duration` is SS, MM:SS or HH:MM:SS. The value is untrusted and the column is a
-  # 4-byte integer. Values outside one second to one week return nil instead of raising.
+  @doc """
+  Returns the seconds of an SS, MM:SS or HH:MM:SS duration, as `itunes:duration` writes it.
 
-  defp duration(value) do
+  The value is untrusted and the column is a 4-byte integer. Values outside one second to one
+  week return nil instead of raising.
+  """
+  def duration(value) do
     parts = String.split(value, ":")
 
     with true <- length(parts) in 1..3 and Enum.all?(parts, &(&1 =~ ~r/\A\d+\z/)),

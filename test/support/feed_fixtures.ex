@@ -236,4 +236,85 @@ defmodule Sikio.FeedFixtures do
     </feed>
     """
   end
+
+  @doc """
+  YouTube's results page with `hits` in `ytInitialData`, nested as the page nests them.
+
+  Each hit is a map such as `youtube_channel_hit/2` or `youtube_video_hit/2` returns.
+  """
+  def youtube_results(hits) do
+    data = %{
+      contents: %{
+        twoColumnSearchResultsRenderer: %{
+          primaryContents: %{
+            sectionListRenderer: %{contents: [%{itemSectionRenderer: %{contents: hits}}]}
+          }
+        }
+      }
+    }
+
+    """
+    <html><head><title>YouTube</title></head><body>
+    <script>var ytInitialData = #{Jason.encode!(data)};</script>
+    </body></html>
+    """
+  end
+
+  # The page writes avatar addresses without a scheme and puts the subscriber count in
+  # `videoCountText`.
+  def youtube_channel_hit(name, attrs \\ %{}) do
+    %{
+      channelRenderer:
+        Map.merge(
+          %{
+            channelId: "UC" <> String.pad_trailing(name, 22, "x"),
+            title: %{simpleText: "Channel " <> name},
+            thumbnail: %{
+              thumbnails: [
+                %{url: "//yt3.ggpht.com/#{name}=s88", width: 88, height: 88},
+                %{url: "//yt3.ggpht.com/#{name}=s176", width: 176, height: 176}
+              ]
+            },
+            videoCountText: %{simpleText: "2.3M subscribers"},
+            subscriberCountText: %{simpleText: "@" <> name}
+          },
+          attrs
+        )
+    }
+  end
+
+  # A live or upcoming video has no `lengthText`.
+  def youtube_video_hit(name, attrs \\ %{}) do
+    %{
+      videoRenderer:
+        Map.merge(
+          %{
+            videoId: String.pad_trailing(name, 11, "x"),
+            title: %{runs: [%{text: "Video " <> name}]},
+            lengthText: %{simpleText: "15:37"},
+            publishedTimeText: %{simpleText: "17 hours ago"},
+            ownerText: %{
+              runs: [
+                %{
+                  text: "Good Channel",
+                  navigationEndpoint: %{
+                    browseEndpoint: %{
+                      browseId: "UCabcdefghijklmnopqrstuv",
+                      canonicalBaseUrl: "/@good"
+                    }
+                  }
+                }
+              ]
+            },
+            thumbnail: %{
+              thumbnails: [
+                %{url: "https://i.ytimg.com/vi/#{name}/hq720.jpg?a=1", width: 360, height: 202},
+                %{url: "https://i.ytimg.com/vi/#{name}/hq720.jpg?a=2", width: 720, height: 404}
+              ]
+            }
+          },
+          attrs
+        )
+    }
+  end
 end

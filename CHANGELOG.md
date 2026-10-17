@@ -16,6 +16,8 @@ Its own section becomes the version's release notes.
 - The subscriptions page refreshes one source or all active sources on request. A row shows the
   refresh until it finishes, then its result. A source checked within the last minute is not
   asked again.
+- The add page searches YouTube for channels and videos, in two tabs beside PeerTube's. It reads
+  YouTube's results page and needs no API key.
 
 ## [0.7.0] - 2026-10-17
 

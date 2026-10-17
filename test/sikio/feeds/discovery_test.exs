@@ -1002,6 +1002,143 @@ defmodule Sikio.Feeds.DiscoveryTest do
     end
   end
 
+  describe "YouTube search" do
+    test "finds channels on YouTube's results page, as their feeds" do
+      Req.Test.stub(HTTP, fn conn ->
+        assert Plug.Conn.get_req_header(conn, "host") == ["www.youtube.com"]
+        assert conn.request_path == "/results"
+
+        assert %{"search_query" => "good news", "sp" => "EgIQAg=="} =
+                 URI.decode_query(conn.query_string)
+
+        Plug.Conn.send_resp(
+          conn,
+          200,
+          youtube_results([
+            youtube_channel_hit("good"),
+            youtube_channel_hit("bare", %{thumbnail: %{thumbnails: []}}),
+            # A hit without an id or a title is left out.
+            youtube_channel_hit("broken", %{channelId: nil}),
+            youtube_channel_hit("nameless", %{title: %{}}),
+            # The page may repeat a channel.
+            youtube_channel_hit("good")
+          ])
+        )
+      end)
+
+      assert {:ok, [good, bare]} = Discovery.youtube_channel_search(" good news ")
+
+      assert good == %{
+               url:
+                 "https://www.youtube.com/feeds/videos.xml?channel_id=UCgoodxxxxxxxxxxxxxxxxxx",
+               title: "Channel good",
+               icon_url: "https://yt3.ggpht.com/good=s176"
+             }
+
+      assert bare.icon_url == nil
+    end
+
+    test "finds videos on YouTube's results page, leaving out live ones" do
+      Req.Test.stub(HTTP, fn conn ->
+        assert %{"search_query" => "good", "sp" => "EgIQAQ=="} =
+                 URI.decode_query(conn.query_string)
+
+        Plug.Conn.send_resp(
+          conn,
+          200,
+          youtube_results([
+            youtube_video_hit("a"),
+            youtube_video_hit("b", %{lengthText: %{simpleText: "1:02:03"}, thumbnail: %{}}),
+            youtube_video_hit("live", %{lengthText: nil}),
+            # A video without a channel to subscribe to is left out.
+            youtube_video_hit("orphan", %{ownerText: %{runs: [%{text: "Nobody"}]}}),
+            youtube_video_hit("broken", %{videoId: 42})
+          ])
+        )
+      end)
+
+      assert {:ok, [a, b]} = Discovery.youtube_video_search("good")
+
+      assert a == %{
+               url: "https://www.youtube.com/watch?v=axxxxxxxxxx",
+               title: "Video a",
+               channel: "Good Channel",
+               channel_url:
+                 "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv",
+               duration: 937,
+               icon_url: "https://i.ytimg.com/vi/a/hq720.jpg?a=1"
+             }
+
+      assert %{duration: 3723, icon_url: nil} = b
+    end
+
+    # The page is untrusted input. An odd hit is left out without failing the others.
+    test "a hit with a malformed id or field is left out" do
+      Req.Test.stub(HTTP, fn conn ->
+        hits =
+          case URI.decode_query(conn.query_string)["sp"] do
+            "EgIQAg==" ->
+              [
+                youtube_channel_hit("good"),
+                youtube_channel_hit("forged", %{channelId: "UCx&playlist_id=UUSHx"})
+              ]
+
+            _videos ->
+              [
+                youtube_video_hit("a"),
+                youtube_video_hit("forged", %{videoId: "abc/def&x=1"}),
+                youtube_video_hit("odd", %{lengthText: %{simpleText: 42}}),
+                youtube_video_hit("long", %{lengthText: %{simpleText: "99:99:99:99"}})
+              ]
+          end
+
+        Plug.Conn.send_resp(conn, 200, youtube_results(hits))
+      end)
+
+      assert {:ok, [%{title: "Channel good"}]} = Discovery.youtube_channel_search("good")
+
+      assert {:ok, [%{title: "Video a"}, %{title: "Video long", duration: nil}]} =
+               Discovery.youtube_video_search("good")
+    end
+
+    # A shelf of other videos, such as "People also watched", is no search result.
+    test "videos in a shelf between the results are left out" do
+      shelf = %{
+        shelfRenderer: %{
+          content: %{verticalListRenderer: %{items: [youtube_video_hit("shelved")]}}
+        }
+      }
+
+      Req.Test.stub(HTTP, fn conn ->
+        Plug.Conn.send_resp(conn, 200, youtube_results([youtube_video_hit("a"), shelf]))
+      end)
+
+      assert {:ok, [%{title: "Video a"}]} = Discovery.youtube_video_search("good")
+    end
+
+    # A consent page, a bot check or changed markup carries no results to read.
+    test "a page without results data says YouTube is unavailable" do
+      Req.Test.stub(
+        HTTP,
+        &Plug.Conn.send_resp(&1, 200, "<html><body>Before you continue</body></html>")
+      )
+
+      assert Discovery.youtube_channel_search("good") == {:error, :youtube_unavailable}
+
+      Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 429, ""))
+      assert Discovery.youtube_video_search("good") == {:error, :youtube_unavailable}
+
+      assert Discovery.youtube_channel_search(" x ") == {:error, :invalid_search}
+      assert Discovery.youtube_video_search(" x ") == {:error, :invalid_search}
+    end
+
+    # The page found nothing. That is an empty list, not an outage.
+    test "a page without hits finds nothing" do
+      Req.Test.stub(HTTP, &Plug.Conn.send_resp(&1, 200, youtube_results([])))
+      assert Discovery.youtube_channel_search("good") == {:ok, []}
+    end
+  end
+
   # A broadcaster's page names its preview picture. KiKA writes `name` where others write
   # `property`. A relative address resolves against the page.
   test "a page's picture comes from its og:image" do

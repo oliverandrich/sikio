@@ -34,8 +34,14 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, html} = live(conn, ~p"/add")
     assert has_element?(view, "#add-form input[name=q]")
     assert has_element?(view, "#add-hint", "PeerTube")
-    # The hint states that other input searches Apple Podcasts, the Mediathek and PeerTube.
-    assert has_element?(view, "#add-hint", "search Apple Podcasts, the Mediathek and PeerTube")
+
+    # The hint states that other input searches Apple Podcasts, the Mediathek, PeerTube and YouTube.
+    assert has_element?(
+             view,
+             "#add-hint",
+             "search Apple Podcasts, the Mediathek, PeerTube and YouTube"
+           )
+
     assert has_element?(view, ~s|#add-q[aria-describedby="add-hint"]|)
     refute has_element?(view, "#discover-form")
     refute has_element?(view, "#search-form")
@@ -539,6 +545,7 @@ defmodule SikioWeb.AddSourceLiveTest do
           "/api/v1/search/videos" -> Req.Test.json(conn, %{data: videos})
           "/search" -> Req.Test.json(conn, %{results: []})
           "/api/query" -> Req.Test.json(conn, %{result: %{results: []}})
+          "/results" -> Plug.Conn.send_resp(conn, 200, youtube_results([]))
           _ -> extra.(conn)
         end
       end)
@@ -866,6 +873,136 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     assert has_element?(view, "#discovery-error")
     refute has_element?(view, "#search-instead")
+  end
+
+  describe "YouTube search" do
+    # YouTube's results page answers channels and videos. Every other search finds nothing.
+    defp youtube_searches(channels, videos, extra) do
+      Req.Test.stub(HTTP, fn conn ->
+        case {conn.request_path, URI.decode_query(conn.query_string)} do
+          {"/results", %{"sp" => "EgIQAg=="}} ->
+            Plug.Conn.send_resp(conn, 200, youtube_results(channels))
+
+          {"/results", _videos} ->
+            Plug.Conn.send_resp(conn, 200, youtube_results(videos))
+
+          {"/search", _} ->
+            Req.Test.json(conn, %{results: []})
+
+          {"/api/query", _} ->
+            Req.Test.json(conn, %{result: %{results: []}})
+
+          {"/api/v1/search/" <> _, _} ->
+            Req.Test.json(conn, %{data: []})
+
+          _ ->
+            extra.(conn)
+        end
+      end)
+    end
+
+    # The channel's feed and page. The channel id is unique, so no concurrent test shares it.
+    defp youtube_channel(conn) do
+      case conn.request_path do
+        "/feeds/videos.xml" -> Plug.Conn.send_resp(conn, 200, youtube())
+        "/channel/" <> _ -> Plug.Conn.send_resp(conn, 200, channel_page())
+      end
+    end
+
+    defp unique_channel_id,
+      do: URI.decode_query(URI.parse(youtube_feed_url()).query)["channel_id"]
+
+    test "a channel from YouTube is subscribed from its row", %{conn: conn, user: user} do
+      hit = youtube_channel_hit("good", %{channelId: unique_channel_id()})
+      youtube_searches([hit], [], &youtube_channel/1)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "good"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(
+               view,
+               ~s|#tab-youtube_channels[aria-selected="true"]|,
+               "YouTube channels"
+             )
+
+      assert has_element?(view, "#youtube-channel-0", "Channel good")
+      assert has_element?(view, "#youtube-channel-0", "youtube.com")
+
+      assert {:ok, {["https://yt3.ggpht.com/good=s176"], _fallback}} =
+               picture(view, "#youtube-channel-0 img")
+
+      view |> element("#youtube-channel-0 [data-action=subscribe]") |> render_click()
+      confirm_subscribe(view)
+      assert {"/feeds/" <> _, _flash} = assert_redirect(view)
+      assert [%{feed: %{kind: :youtube}}] = Library.subscriptions(user)
+    end
+
+    # The video is saved as its pasted link would be, without a subscription.
+    test "a video from YouTube goes to the queue", %{conn: conn, user: user} do
+      channel = unique_channel_id()
+
+      owner = %{
+        runs: [
+          %{text: "Good Channel", navigationEndpoint: %{browseEndpoint: %{browseId: channel}}}
+        ]
+      }
+
+      youtube_searches([], [youtube_video_hit("abcdefghijk", %{ownerText: owner})], fn conn ->
+        case conn.request_path do
+          "/oembed" ->
+            Req.Test.json(conn, %{
+              title: "A good video",
+              author_url: "https://www.youtube.com/channel/" <> channel
+            })
+
+          _ ->
+            youtube_channel(conn)
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "good"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, "#tab-youtube_videos", "YouTube videos")
+      view |> element("#tab-youtube_videos") |> render_click()
+      assert has_element?(view, "#youtube-video-0", "Video abcdefghijk")
+      assert has_element?(view, "#youtube-video-0", "Good Channel")
+
+      view |> element(~s|#youtube-video-0 [data-action="queue"]|) |> render_click()
+      assert {"/queue/" <> _, _flash} = assert_redirect(view)
+      assert [id] = Playback.queue(user)
+      assert %{feed: %{kind: :youtube}} = Library.entry(user, id)
+      assert Library.subscriptions(user) == []
+    end
+
+    # A consent page or a bot check carries no results. Pasting a link still works.
+    test "an unreadable results page points to pasting a link", %{conn: conn} do
+      Req.Test.stub(HTTP, fn conn ->
+        case conn.request_path do
+          "/search" ->
+            Req.Test.json(conn, %{
+              results: [%{collectionName: "Small Hours", feedUrl: feed_url()}]
+            })
+
+          "/results" ->
+            Plug.Conn.send_resp(conn, 200, "<html><body>Before you continue</body></html>")
+
+          _ ->
+            Plug.Conn.send_resp(conn, 503, "")
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "good"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, "#found-0", "Small Hours")
+      assert has_element?(view, "#youtube-channels-error", "paste the channel's link")
+      assert has_element?(view, "#youtube-videos-error", "paste the video's link")
+      refute has_element?(view, "#discovery-error")
+    end
   end
 
   describe "a single item" do

@@ -221,6 +221,10 @@ defmodule Sikio.Feeds.Discovery do
 
   @peertube_index_public "https://search.joinpeertube.org"
 
+  # The results page's filters for channels and for videos.
+  @youtube_channels "EgIQAg=="
+  @youtube_videos "EgIQAQ=="
+
   @doc """
   Searches a PeerTube index for channels, at most 20.
 
@@ -257,9 +261,111 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  @doc """
+  Searches YouTube for channels, at most 20, as the feeds a subscription polls.
+
+  YouTube offers no search without an API key, so this reads its results page. A consent page,
+  a bot check or changed markup returns `{:error, :youtube_unavailable}`.
+  """
+  def youtube_channel_search(term) when is_binary(term),
+    do: youtube_search(term, "channelRenderer", @youtube_channels, &youtube_channel/1)
+
+  @doc """
+  Searches YouTube for videos, at most 20, as `youtube_channel_search/1` does. Live and upcoming
+  videos are left out.
+  """
+  def youtube_video_search(term) when is_binary(term),
+    do: youtube_search(term, "videoRenderer", @youtube_videos, &youtube_video/1)
+
   @doc "Returns the PeerTube index, `PEERTUBE_SEARCH_URL` or Sepia Search."
   def peertube_search_url,
     do: Application.get_env(:sikio, :peertube_search_url, @peertube_index_public)
+
+  defp youtube_search(term, renderer, filter, result) do
+    with {:ok, term} <- search_term(term),
+         query = URI.encode_query(%{search_query: term, sp: filter}),
+         {:ok, doc} <- page("https://www.youtube.com/results?" <> query),
+         %{} = data <- initial_data(doc) do
+      hits = data |> results(renderer) |> Enum.flat_map(result)
+      {:ok, hits |> Enum.uniq_by(& &1.url) |> Enum.take(20)}
+    else
+      {:error, :invalid_search} -> {:error, :invalid_search}
+      _ -> {:error, :youtube_unavailable}
+    end
+  end
+
+  # The hits listed directly in the result sections, in page order. Shelves such as "People also
+  # watched" nest their renderers deeper and are left out.
+  defp results(data, renderer) do
+    sections =
+      get_in(data, [
+        "contents",
+        "twoColumnSearchResultsRenderer",
+        "primaryContents",
+        "sectionListRenderer",
+        "contents"
+      ])
+
+    for %{"itemSectionRenderer" => %{"contents" => items}} when is_list(items) <-
+          List.wrap(sections),
+        %{^renderer => %{} = hit} <- items,
+        do: hit
+  end
+
+  # `videoCountText` holds the subscriber count, so a hit names no video count.
+  defp youtube_channel(%{"channelId" => id, "title" => %{"simpleText" => title}} = hit)
+       when is_binary(id) and is_binary(title) do
+    if Regex.match?(@channel, id) do
+      [
+        %{
+          url: channel_feed_url(id),
+          title: String.slice(title, 0, 512),
+          icon_url: youtube_thumbnail(hit)
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  defp youtube_channel(_hit), do: []
+
+  # The page dates a video relative to now, in the server's language, so a hit has no date.
+  # A row subscribes to the video's channel, so a video without one is left out.
+  defp youtube_video(
+         %{
+           "videoId" => id,
+           "title" => %{"runs" => [%{"text" => title} | _]},
+           "lengthText" => %{"simpleText" => length},
+           "ownerText" => %{"runs" => [%{"text" => channel} = owner | _]}
+         } = hit
+       )
+       when is_binary(id) and is_binary(title) and is_binary(length) and is_binary(channel) do
+    channel_id = get_in(owner, ["navigationEndpoint", "browseEndpoint", "browseId"])
+
+    if Regex.match?(@video, id) and is_binary(channel_id) and Regex.match?(@channel, channel_id) do
+      [
+        %{
+          url: "https://www.youtube.com/watch?v=" <> id,
+          title: String.slice(title, 0, 512),
+          channel: String.slice(channel, 0, 512),
+          channel_url: channel_feed_url(channel_id),
+          duration: Parser.duration(length),
+          icon_url: youtube_thumbnail(hit)
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  defp youtube_video(_hit), do: []
+
+  # Picked as a PeerTube avatar is. Channel avatars come without a scheme.
+  defp youtube_thumbnail(%{"thumbnail" => %{"thumbnails" => thumbnails}}),
+    do: thumbnails |> avatar() |> HTTP.resolve("https://www.youtube.com")
+
+  defp youtube_thumbnail(_hit), do: nil
 
   defp peertube_search(term, base, kind, filters, result) do
     with {:ok, term} <- search_term(term),
@@ -941,9 +1047,11 @@ defmodule Sikio.Feeds.Discovery do
   # second page fetch.
   defp channel_feed(id), do: channel_feed(id, :unread)
 
+  defp channel_feed_url(id), do: "https://www.youtube.com/feeds/videos.xml?channel_id=" <> id
+
   defp channel_feed(id, found) when is_binary(id) do
     if Regex.match?(@channel, id) do
-      case fetch("https://www.youtube.com/feeds/videos.xml?channel_id=" <> id) do
+      case fetch(channel_feed_url(id)) do
         {:ok, feed} -> {:ok, [%{feed | icon_url: resolve_picture(id, found)}]}
         other -> other
       end
@@ -1100,6 +1208,14 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   defp metadata_id(doc) do
+    case initial_data(doc) do
+      %{} = data -> get_in(data, ["metadata", "channelMetadataRenderer", "externalId"])
+      nil -> nil
+    end
+  end
+
+  # The data a YouTube page renders from, from its `ytInitialData` script, or nil.
+  defp initial_data(doc) do
     doc
     |> Floki.find("script")
     |> Enum.find_value(fn script ->
@@ -1108,8 +1224,8 @@ defmodule Sikio.Feeds.Discovery do
                ~r/(?:var\s+)?ytInitialData\s*=\s*(\{.*\});?\s*\z/s,
                Floki.text(script, js: true)
              ),
-           {:ok, data} <- Jason.decode(encoded) do
-        get_in(data, ["metadata", "channelMetadataRenderer", "externalId"])
+           {:ok, %{} = data} <- Jason.decode(encoded) do
+        data
       else
         _ -> nil
       end

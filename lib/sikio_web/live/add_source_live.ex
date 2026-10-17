@@ -2,13 +2,15 @@
 
 defmodule SikioWeb.AddSourceLive do
   @moduledoc """
-  Adds a source from a pasted link or a search in Apple Podcasts, the Mediathek and PeerTube.
+  Adds a source from a pasted link or a search in Apple Podcasts, the Mediathek, PeerTube and
+  YouTube.
 
   A pasted link shows a preview with its title and item count first.
   Subscribing asks which present items to take and where later ones go. A search result's feed
   is fetched after the answer.
   A search also asks MediathekViewWeb. A programme from it is saved on its own, as an item.
   A search also asks a PeerTube index for channels and videos. A video is saved as its link is.
+  A search also reads YouTube's results page for channels and videos, saved the same way.
   Discovery runs in `start_async/3`. Candidates stay in assigns under generated ids.
   A forged id therefore selects nothing.
 
@@ -34,7 +36,9 @@ defmodule SikioWeb.AddSourceLive do
     series: :series,
     programmes: :programmes,
     channels: :channels,
-    videos: :videos
+    videos: :videos,
+    youtube_channels: :youtube_channels,
+    youtube_videos: :youtube_videos
   ]
 
   @tabs Enum.map(@results, fn {tab, _results} -> to_string(tab) end)
@@ -44,11 +48,17 @@ defmodule SikioWeb.AddSourceLive do
     episodes: :episodes_state,
     programmes: :programmes_state,
     channels: :channels_state,
-    videos: :videos_state
+    videos: :videos_state,
+    youtube_channels: :youtube_channels_state,
+    youtube_videos: :youtube_videos_state
   }
 
   # The rows that fetch their item before saving it, by the event that saves one.
-  @fetched %{"save_episode" => :episodes, "save_video" => :videos}
+  @fetched %{
+    "save_episode" => :episodes,
+    "save_video" => :videos,
+    "save_youtube_video" => :youtube_videos
+  }
 
   # Each list's rows subscribe to a source: its row id prefix, the fields with its address and
   # name, and the `Discovery` function that fetches it. A capture here would be a compile-time
@@ -58,7 +68,9 @@ defmodule SikioWeb.AddSourceLive do
     "series" => {:series, "series-", :series_url, :title, :mediathek_series},
     "programmes" => {:programmes, "programme-", :series_url, :series_title, :mediathek_series},
     "channels" => {:channels, "channel-", :url, :title, :discover},
-    "videos" => {:videos, "video-", :channel_url, :channel, :discover}
+    "videos" => {:videos, "video-", :channel_url, :channel, :discover},
+    "youtube_channels" => {:youtube_channels, "youtube-channel-", :url, :title, :discover},
+    "youtube_videos" => {:youtube_videos, "youtube-video-", :channel_url, :channel, :discover}
   }
 
   @existing ~w(newest all none)
@@ -73,10 +85,22 @@ defmodule SikioWeb.AddSourceLive do
     {:series, :series, :key},
     {:programmes, :programmes, :key},
     {:channels, :channels, :key},
-    {:videos, :videos, :key}
+    {:videos, :videos, :key},
+    {:youtube_channels, :youtube_channels, :key},
+    {:youtube_videos, :youtube_videos, :key}
   ]
 
-  @lookups [:subscribe, :item, :programmes, :episodes, :fetched_item, :channels, :videos]
+  @lookups [
+    :subscribe,
+    :item,
+    :programmes,
+    :episodes,
+    :fetched_item,
+    :channels,
+    :videos,
+    :youtube_channels,
+    :youtube_videos
+  ]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -94,6 +118,8 @@ defmodule SikioWeb.AddSourceLive do
      |> stream_configure(:series, dom_id: &"series-#{&1.key}")
      |> stream_configure(:channels, dom_id: &"channel-#{&1.key}")
      |> stream_configure(:videos, dom_id: &"video-#{&1.key}")
+     |> stream_configure(:youtube_channels, dom_id: &"youtube-channel-#{&1.key}")
+     |> stream_configure(:youtube_videos, dom_id: &"youtube-video-#{&1.key}")
      |> without_results()}
   end
 
@@ -286,6 +312,13 @@ defmodule SikioWeb.AddSourceLive do
        gettext("This video could not be read from its PeerTube instance. Try again later."),
        fn -> Discovery.peertube_video_item(video.url) end}
 
+  # The video is read as its pasted link would be.
+  defp fetching(:youtube_videos, key, video),
+    do:
+      {"youtube-video-" <> key,
+       gettext("This video could not be read from YouTube. Try again later."),
+       fn -> Discovery.item(video.url) end}
+
   defp lookup(socket, q) do
     socket = assign(socket, form: to_form(%{"q" => q}))
 
@@ -331,7 +364,7 @@ defmodule SikioWeb.AddSourceLive do
   end
 
   def handle_async(source, {:ok, {:ok, found}}, socket)
-      when source in [:episodes, :channels, :videos] do
+      when is_map_key(@states, source) do
     found = keyed(found, :key)
 
     {:noreply,
@@ -458,13 +491,17 @@ defmodule SikioWeb.AddSourceLive do
       programmes_state: :searching,
       episodes_state: :searching,
       channels_state: :searching,
-      videos_state: :searching
+      videos_state: :searching,
+      youtube_channels_state: :searching,
+      youtube_videos_state: :searching
     )
     |> start_async(:sources, fn -> Discovery.search(term) end)
     |> start_async(:episodes, fn -> Discovery.episode_search(term) end)
     |> start_async(:programmes, fn -> Discovery.mediathek_search(term) end)
     |> start_async(:channels, fn -> Discovery.peertube_channel_search(term) end)
     |> start_async(:videos, fn -> Discovery.peertube_video_search(term) end)
+    |> start_async(:youtube_channels, fn -> Discovery.youtube_channel_search(term) end)
+    |> start_async(:youtube_videos, fn -> Discovery.youtube_video_search(term) end)
   end
 
   # A new lookup cancels a pending subscribe task.
@@ -498,6 +535,10 @@ defmodule SikioWeb.AddSourceLive do
       channels_state: nil,
       videos: %{},
       videos_state: nil,
+      youtube_channels: %{},
+      youtube_channels_state: nil,
+      youtube_videos: %{},
+      youtube_videos_state: nil,
       saving: nil,
       more: nil,
       tab: :podcasts,
@@ -509,6 +550,8 @@ defmodule SikioWeb.AddSourceLive do
     |> stream(:series, [], reset: true)
     |> stream(:channels, [], reset: true)
     |> stream(:videos, [], reset: true)
+    |> stream(:youtube_channels, [], reset: true)
+    |> stream(:youtube_videos, [], reset: true)
   end
 
   # Gives each result a key in list order. A row's button names the key, not the result.
@@ -713,7 +756,7 @@ defmodule SikioWeb.AddSourceLive do
           </fieldset>
           <p id="add-hint" class="mt-2 text-center text-meta leading-relaxed text-muted">
             {gettext(
-              "Paste a link to a podcast, a YouTube or PeerTube channel or video, or search Apple Podcasts, the Mediathek and PeerTube."
+              "Paste a link to a podcast, a YouTube or PeerTube channel or video, or search Apple Podcasts, the Mediathek, PeerTube and YouTube."
             )}
           </p>
         </.form>
@@ -808,6 +851,22 @@ defmodule SikioWeb.AddSourceLive do
             selected={@tab == :videos}
             label={gettext("PeerTube videos")}
             count={if @videos_state == :searching, do: "…", else: map_size(@videos)}
+          />
+          <.search_tab
+            tab="youtube_channels"
+            selected={@tab == :youtube_channels}
+            label={gettext("YouTube channels")}
+            count={
+              if @youtube_channels_state == :searching,
+                do: "…",
+                else: map_size(@youtube_channels)
+            }
+          />
+          <.search_tab
+            tab="youtube_videos"
+            selected={@tab == :youtube_videos}
+            label={gettext("YouTube videos")}
+            count={if @youtube_videos_state == :searching, do: "…", else: map_size(@youtube_videos)}
           />
         </div>
         <div
@@ -1057,6 +1116,90 @@ defmodule SikioWeb.AddSourceLive do
               picture={source_picture(%{kind: :peertube, icon_url: video.icon_url})}
               more={@more == dom_id}
               save="save_video"
+              saving={@saving == dom_id}
+              subscribe_label={gettext("Subscribe to %{title}", title: video.channel)}
+              subscribing={@subscribing}
+              error={@row_errors[dom_id]}
+            />
+          </div>
+        </div>
+        <div
+          id="panel-youtube_channels"
+          role="tabpanel"
+          aria-labelledby="tab-youtube_channels"
+          class={[@tab != :youtube_channels && "hidden"]}
+        >
+          <p class="mt-3 text-meta text-muted">
+            {gettext(
+              "Channels on YouTube, from its results page. Subscriptions use the channel's own feed."
+            )}
+          </p>
+          <.search_state
+            id="youtube-channels"
+            state={@youtube_channels_state}
+            count={map_size(@youtube_channels)}
+            searching={gettext("Searching YouTube…")}
+            empty={gettext("No channels found on YouTube.")}
+            failed={
+              gettext(
+                "YouTube's results could not be read right now. Try again later, or paste the channel's link."
+              )
+            }
+          />
+          <div id="youtube-channels" phx-update="stream" class={list_class()}>
+            <.source_row
+              :for={{dom_id, channel} <- @streams.youtube_channels}
+              id={dom_id}
+              picture={source_picture(%{kind: :youtube, icon_url: channel.icon_url})}
+              title={channel.title}
+              action={
+                %{
+                  "phx-click" => "subscribe",
+                  "phx-value-list" => "youtube_channels",
+                  "phx-value-key" => channel.key
+                }
+              }
+              disabled={@subscribing != nil}
+              subscribing={@subscribing == dom_id}
+              error={@row_errors[dom_id]}
+            >
+              <span>youtube.com</span>
+            </.source_row>
+          </div>
+        </div>
+        <div
+          id="panel-youtube_videos"
+          role="tabpanel"
+          aria-labelledby="tab-youtube_videos"
+          class={[@tab != :youtube_videos && "hidden"]}
+        >
+          <p class="mt-3 text-meta text-muted">
+            {gettext("Videos on YouTube, from its results page. A video is added on its own.")}
+          </p>
+          <.search_state
+            id="youtube-videos"
+            state={@youtube_videos_state}
+            count={map_size(@youtube_videos)}
+            searching={gettext("Searching YouTube…")}
+            empty={gettext("No videos found on YouTube.")}
+            failed={
+              gettext(
+                "YouTube's results could not be read right now. Try again later, or paste the video's link."
+              )
+            }
+          />
+          <div id="youtube-videos" phx-update="stream" class={list_class()}>
+            <.item_row
+              :for={{dom_id, video} <- @streams.youtube_videos}
+              id={dom_id}
+              list="youtube_videos"
+              key={video.key}
+              title={video.title}
+              origin={[video.channel]}
+              duration={video.duration}
+              picture={source_picture(%{kind: :youtube, icon_url: video.icon_url})}
+              more={@more == dom_id}
+              save="save_youtube_video"
               saving={@saving == dom_id}
               subscribe_label={gettext("Subscribe to %{title}", title: video.channel)}
               subscribing={@subscribing}

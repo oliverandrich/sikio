@@ -8,8 +8,8 @@ have usernames and invitation links are shared by hand. In email mode, links are
 
 **Add** is the button below the wordmark, or the plus button on a phone. Its input field
 accepts a URL or a search term. Input with `://`, or a single word with a dot such as
-`radiolab.org`, is treated as a URL. Other input searches Apple Podcasts, the Mediathek and
-PeerTube. If a guessed URL fails, the page offers a search for the same input. You can:
+`radiolab.org`, is treated as a URL. Other input searches Apple Podcasts, the Mediathek,
+PeerTube and YouTube. If a guessed URL fails, the page offers a search for the same input. You can:
 
 - Paste a YouTube channel URL, handle, video URL, Shorts URL or live URL. Sikio resolves the
   channel and shows a preview of its feed before you subscribe.
@@ -32,15 +32,22 @@ PeerTube. If a guessed URL fails, the page offers a search for the same input. Y
   PeerTube index, by default [Sepia Search](https://search.joinpeertube.org). The index covers
   the instances it has registered. Sensitive and live videos are left out. The operator can
   choose another index; see [Operations](operations.md).
+- Find YouTube channels and videos by name. Sikio reads YouTube's results page and needs no API
+  key. The request comes from the server, so YouTube sees the search term and the server's
+  address, not your browser. Live and upcoming videos are left out. YouTube may answer with a
+  consent page or a bot check, and the tab then says so. Pasting a channel or video link still
+  works.
 
-A search shows its results in six tabs: **Podcasts**, **Episodes**, **Series**,
-**Programmes**, **PeerTube channels** and **PeerTube videos**. Each tab shows its count. Episodes come from Apple Podcasts and are read from
-their podcast's feed. A row in **Episodes**, **Programmes** or **PeerTube videos** adds its item to the queue
-or the inbox, without a subscription. The same row subscribes to its podcast, series or
-channel. A PeerTube video is read from its instance, as a pasted video link is. A long
-description shows two lines until **more** is pressed. Rows in **Series** and **Programmes** show
-the picture of the broadcaster's page once they come into view. Sikio fetches it and caches it,
-so the browser never contacts the broadcaster.
+A search shows its results in eight tabs: **Podcasts**, **Episodes**, **Series**,
+**Programmes**, **PeerTube channels**, **PeerTube videos**, **YouTube channels** and **YouTube
+videos**. Each tab shows its count. Episodes come from Apple Podcasts and are read from their
+podcast's feed. A row in **Episodes**, **Programmes**, **PeerTube videos** or **YouTube videos**
+adds its item to the queue or the inbox, without a subscription. The same row subscribes to its
+podcast, series or channel. A PeerTube video is read from its instance, a YouTube video from
+YouTube, each as a pasted video link is. A long description shows two lines until **more** is
+pressed. Rows in **Series** and **Programmes** show the picture of the broadcaster's page once
+they come into view. Sikio fetches it and caches it, so the browser never contacts the
+broadcaster.
 
 **Subscribe** first asks two questions. **Episodes so far** takes only the newest, all of them
 oldest first, or none. Episodes of one date are ordered by title. **New episodes go to** sets the
