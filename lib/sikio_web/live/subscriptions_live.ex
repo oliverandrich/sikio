@@ -2,7 +2,7 @@
 
 defmodule SikioWeb.SubscriptionsLive do
   @moduledoc """
-  Lists the account's subscriptions with pause, resume, edit and unsubscribe actions.
+  Lists the account's subscriptions with refresh, pause, resume, edit and unsubscribe actions.
   Links to OPML import and export. `SikioWeb.AddSourceLive` adds a source.
   """
   use SikioWeb, :live_view
@@ -12,6 +12,7 @@ defmodule SikioWeb.SubscriptionsLive do
 
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.Hub
+  alias Sikio.Feeds.Refresh
   alias Sikio.Library
   alias SikioWeb.LibraryPaths
   alias SikioWeb.Sidebar
@@ -21,7 +22,8 @@ defmodule SikioWeb.SubscriptionsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(page_title: gettext("Subscriptions"))
+     # Feed ids whose queued refresh has not reported yet. A reload forgets them.
+     |> assign(page_title: gettext("Subscriptions"), refreshing: MapSet.new())
      |> stream_configure(:subscriptions, dom_id: &"subscription-#{&1.id}")
      |> load_subscriptions()}
   end
@@ -31,6 +33,31 @@ defmodule SikioWeb.SubscriptionsLive do
     case Library.pause(socket.assigns.current_account, id, paused == "true") do
       {:ok, _} -> {:noreply, load_subscriptions(socket)}
       _ -> {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}
+    end
+  end
+
+  def handle_event("refresh", %{"id" => id}, socket) do
+    case Library.refresh(socket.assigns.current_account, id) do
+      {:ok, feed_id} ->
+        {:noreply, socket |> await_checks([feed_id]) |> load_subscriptions()}
+
+      {:error, :recent} ->
+        {:noreply,
+         put_flash(socket, :info, gettext("This source was checked less than a minute ago."))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}
+    end
+  end
+
+  def handle_event("refresh_all", _params, socket) do
+    case Library.refresh_all(socket.assigns.current_account) do
+      [] ->
+        message = gettext("Every active source was checked less than a minute ago.")
+        {:noreply, put_flash(socket, :info, message)}
+
+      feed_ids ->
+        {:noreply, socket |> await_checks(feed_ids) |> load_subscriptions()}
     end
   end
 
@@ -51,6 +78,17 @@ defmodule SikioWeb.SubscriptionsLive do
   end
 
   @impl true
+  # Arrives only for feeds this page queued, see `await_checks/2`. Only that row changes.
+  def handle_info({:feed_checked, feed_id}, socket) do
+    Refresh.unsubscribe(feed_id)
+    socket = update(socket, :refreshing, &MapSet.delete(&1, feed_id))
+
+    case Library.subscription_to(socket.assigns.current_account, feed_id) do
+      nil -> {:noreply, load_subscriptions(socket)}
+      subscription -> {:noreply, stream_insert(socket, :subscriptions, subscription)}
+    end
+  end
+
   def handle_info({SubscriptionSettings, :not_found}, socket),
     do: {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}
 
@@ -64,6 +102,7 @@ defmodule SikioWeb.SubscriptionsLive do
     socket
     |> assign(
       subscription_count: length(subscriptions),
+      any_active: Enum.any?(subscriptions, &(!&1.paused)),
       live: Hub.live(Enum.map(subscriptions, & &1.feed_id))
     )
     |> stream(:subscriptions, subscriptions, reset: true)
@@ -75,6 +114,13 @@ defmodule SikioWeb.SubscriptionsLive do
       "flex size-11 items-center justify-center rounded-full text-muted hover:bg-ground focus-visible:outline-2 focus-visible:outline-accent sm:size-9",
       hover
     ]
+
+  # Follows each feed's refresh topic once, so a second click delivers one result, not two.
+  defp await_checks(socket, feed_ids) do
+    new = Enum.reject(feed_ids, &MapSet.member?(socket.assigns.refreshing, &1))
+    Enum.each(new, &Refresh.subscribe/1)
+    update(socket, :refreshing, &MapSet.union(&1, MapSet.new(new)))
+  end
 
   defp polling_label(%{paused: true}), do: gettext("Resume polling")
   defp polling_label(_subscription), do: gettext("Pause polling")
@@ -117,6 +163,16 @@ defmodule SikioWeb.SubscriptionsLive do
           navigate={~p"/subscriptions/library"}
           class="inline-flex min-h-11 items-center text-link"
         >{gettext("Move your library")}</.link>
+        <button
+          :if={@any_active}
+          id="refresh-all-subscriptions"
+          type="button"
+          phx-click="refresh_all"
+          class="inline-flex min-h-11 items-center gap-1 text-link"
+        >
+          {gettext("Refresh all")}
+          <Lucideicons.rotate_cw aria-hidden="true" class="size-4" />
+        </button>
       </div>
       <section class="mt-8">
         <p
@@ -179,6 +235,11 @@ defmodule SikioWeb.SubscriptionsLive do
             </div>
             <%!-- Below `sm` the actions wrap to a row under the text, aligned with the name. --%>
             <div class="-ml-2.5 flex w-full shrink-0 items-center gap-1 pl-12 sm:ml-0 sm:w-auto sm:pl-0">
+              <.refresh_button
+                :if={!subscription.paused}
+                subscription={subscription}
+                refreshing={MapSet.member?(@refreshing, subscription.feed_id)}
+              />
               <button
                 type="button"
                 phx-click="pause"
@@ -241,6 +302,38 @@ defmodule SikioWeb.SubscriptionsLive do
         <.polling_interval minutes={Sikio.Feeds.poll_minutes()} live={MapSet.size(@live) > 0} />
       </section>
     </Layouts.member>
+    """
+  end
+
+  attr :subscription, :map, required: true
+  attr :refreshing, :boolean, required: true
+
+  # Stays disabled while the queued refresh has not reported.
+  defp refresh_button(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :label,
+        if(assigns.refreshing, do: gettext("Refreshing"), else: gettext("Refresh now"))
+      )
+
+    ~H"""
+    <button
+      id={"refresh-subscription-#{@subscription.id}"}
+      type="button"
+      phx-click="refresh"
+      phx-value-id={@subscription.id}
+      disabled={@refreshing}
+      data-refreshing={@refreshing}
+      aria-label={@label}
+      title={@label}
+      class={[row_action(), "disabled:cursor-progress"]}
+    >
+      <Lucideicons.rotate_cw
+        aria-hidden="true"
+        class={["size-4", @refreshing && "motion-safe:animate-spin"]}
+      />
+    </button>
     """
   end
 

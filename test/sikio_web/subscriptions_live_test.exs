@@ -3,6 +3,7 @@
 defmodule SikioWeb.SubscriptionsLiveTest do
   @moduledoc false
   use SikioWeb.ConnCase, async: true
+  use Oban.Testing, repo: Sikio.Repo
 
   import Ecto.Query, only: [from: 2]
   import Phoenix.LiveViewTest
@@ -11,8 +12,10 @@ defmodule SikioWeb.SubscriptionsLiveTest do
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
   alias Sikio.Feeds.Feed
+  alias Sikio.Feeds.HTTP
   alias Sikio.Feeds.Hub
   alias Sikio.Feeds.Parser
+  alias Sikio.Feeds.Refresh
   alias Sikio.Library
   alias Sikio.Repo
 
@@ -218,5 +221,83 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     view |> element("#confirm-unsubscribe") |> render_click()
     assert Library.subscriptions(user) == []
     assert has_element?(view, "#subscriptions-empty")
+  end
+
+  # The row stays busy until the job reports, then shows the job's result without a reload.
+  test "a row refreshes its source and shows the result", %{conn: conn, user: user} do
+    subscription = subscribed(user)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    button = "#refresh-subscription-#{subscription.id}"
+
+    view |> element(button) |> render_click()
+    assert_enqueued(worker: Refresh, args: %{feed_id: subscription.feed_id})
+    assert has_element?(view, "#{button}[data-refreshing][disabled]")
+
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 503, "try later") end)
+    perform_job(Refresh, %{feed_id: subscription.feed_id})
+
+    refute has_element?(view, "#{button}[data-refreshing]")
+    assert has_element?(view, "#subscription-#{subscription.id}", "could not be reached")
+  end
+
+  # A feed checked within the last minute is not asked again.
+  test "a row refreshing a source checked just now says so", %{conn: conn, user: user} do
+    subscription = subscribed(user, checked_ago: 0)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#refresh-subscription-#{subscription.id}") |> render_click()
+    refute_enqueued(worker: Refresh)
+    refute has_element?(view, "#refresh-subscription-#{subscription.id}[data-refreshing]")
+    assert render(view) =~ "This source was checked less than a minute ago."
+  end
+
+  test "a paused row offers no refresh", %{conn: conn, user: user} do
+    subscription = subscribed(user)
+    {:ok, _} = Library.pause(user, subscription.id, true)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    refute has_element?(view, "#refresh-subscription-#{subscription.id}")
+  end
+
+  test "refresh all queues every active source", %{conn: conn, user: user} do
+    first = subscribed(user)
+    paused = subscribed(user)
+    {:ok, _} = Library.pause(user, paused.id, true)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#refresh-all-subscriptions") |> render_click()
+    assert [%{args: %{"feed_id" => feed_id}}] = all_enqueued(worker: Refresh)
+    assert feed_id == first.feed_id
+    assert has_element?(view, "#refresh-subscription-#{first.id}[data-refreshing]")
+  end
+
+  test "refresh all is absent while every subscription is paused", %{conn: conn, user: user} do
+    subscription = subscribed(user)
+    {:ok, _} = Library.pause(user, subscription.id, true)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    refute has_element?(view, "#refresh-all-subscriptions")
+  end
+
+  test "refresh all says when every active source was checked just now", %{conn: conn, user: user} do
+    subscribed(user, checked_ago: 0)
+    subscribed(user, checked_ago: 0)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#refresh-all-subscriptions") |> render_click()
+    refute_enqueued(worker: Refresh)
+    assert render(view) =~ "Every active source was checked less than a minute ago."
+  end
+
+  defp subscribed(user, opts \\ [checked_ago: 120]) do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    at = DateTime.add(DateTime.utc_now(), -opts[:checked_ago], :second)
+
+    Repo.update_all(from(f in Feed, where: f.id == ^subscription.feed_id),
+      set: [last_checked_at: at]
+    )
+
+    subscription
   end
 end

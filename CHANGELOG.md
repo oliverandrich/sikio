@@ -11,6 +11,12 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Added
+
+- The subscriptions page refreshes one source or all active sources on request. A row shows the
+  refresh until it finishes, then its result. A source checked within the last minute is not
+  asked again.
+
 ## [0.7.0] - 2026-10-17
 
 ### Added

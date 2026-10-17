@@ -390,6 +390,15 @@ defmodule Sikio.Library do
     )
   end
 
+  @doc "Returns the account's subscription to the feed, shaped as in `subscriptions/1`, or nil."
+  def subscription_to(%User{id: user_id}, feed_id) do
+    Repo.one(
+      from s in Subscription,
+        where: s.user_id == ^user_id and s.feed_id == ^feed_id,
+        preload: [feed: ^from(f in Feed, select: struct(f, ^@shown_feed_fields))]
+    )
+  end
+
   @doc """
   Returns the account's entries matching `filters`, in the order `sorted_by/1` names.
   The queue sorts by rank. Other lists sort newest first, undated last.
@@ -921,6 +930,49 @@ defmodule Sikio.Library do
 
   def active_feed?(id),
     do: Repo.exists?(from s in Subscription, where: s.feed_id == ^id and not s.paused)
+
+  @doc """
+  Queues a refresh of the feed behind the account's unpaused subscription.
+
+  Returns `{:ok, feed_id}` and ignores `next_check_at`.
+  Returns `{:error, :recent}` for a feed checked within the last minute.
+  Returns `{:error, :not_found}` for a foreign, paused or unknown subscription.
+  """
+  def refresh(%User{id: user_id}, id) do
+    with {feed_id, checked_at} <-
+           with_id(id, &Repo.one(where(refreshable(user_id), [s], s.id == ^&1))),
+         false <- recent?(checked_at) do
+      Feeds.Refresh.queue_now(feed_id)
+      {:ok, feed_id}
+    else
+      nil -> {:error, :not_found}
+      true -> {:error, :recent}
+    end
+  end
+
+  @doc """
+  Queues a refresh of every feed behind the account's unpaused subscriptions.
+
+  Skips feeds checked within the last minute. Returns the queued feed ids.
+  """
+  def refresh_all(%User{id: user_id}) do
+    for {feed_id, checked_at} <- Repo.all(refreshable(user_id)), not recent?(checked_at) do
+      Feeds.Refresh.queue_now(feed_id)
+      feed_id
+    end
+  end
+
+  defp refreshable(user_id) do
+    from s in Subscription,
+      join: f in assoc(s, :feed),
+      where: s.user_id == ^user_id and not s.paused,
+      order_by: s.feed_id,
+      select: {s.feed_id, f.last_checked_at}
+  end
+
+  # A manual refresh reaches a shared feed's server, so one per minute at most.
+  defp recent?(nil), do: false
+  defp recent?(checked_at), do: DateTime.diff(DateTime.utc_now(), checked_at) < 60
 
   # `lock?` locks the row for the rest of the transaction.
   defp owned(%User{id: user_id}, id, lock? \\ false) do
