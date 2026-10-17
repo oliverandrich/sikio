@@ -71,6 +71,32 @@ defmodule SikioWeb.InvitationListingTest do
     refute Ithibati.Identity.Invitations.fetch(token)
   end
 
+  # The link is long and copied by hand otherwise. The status line is the hook's, so a patch
+  # must not reset it. It sits outside the link's box, so the two are not nested live regions.
+  test "a new link has a copy button beside it" do
+    {:ok, view, _html} = live(signed_in(member()), ~p"/invitations")
+
+    view |> form("#invitation-form", %{"note" => "grace"}) |> render_submit()
+
+    assert has_element?(view, "#invitation-link-text", "/invite#")
+
+    assert has_element?(
+             view,
+             ~s(button[phx-hook=CopyText][data-copy-text^="http"][data-copy-status^=copy-link-status])
+           )
+
+    assert has_element?(view, ~s([id^=copy-link-status][role=status][phx-update=ignore]))
+    refute has_element?(view, ~s([role=status] [id^=copy-link-status]))
+
+    # An icon button: the name is for screen readers and the tooltip, not a second label.
+    assert has_element?(
+             view,
+             ~s(#copy-invitation-link[aria-label="Copy link"][title="Copy link"] svg)
+           )
+
+    refute has_element?(view, "#copy-invitation-link", "Copy link")
+  end
+
   # The row stores only the token digest, so the displayed link is the only copy of the token.
   # Withdrawing another invitation must keep the displayed link.
   test "taking one back leaves a link that belongs to another invitation standing" do

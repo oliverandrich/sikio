@@ -224,11 +224,39 @@ defmodule SikioWeb.InvitationsLive do
         role="status"
         class="rounded-control border p-4 border-line bg-selection text-ink mt-4"
       >
-        <span>
-          {gettext("Your invitation is ready. Send this link to your guest:")}
-          <code class="block mt-2 break-all">{@link}</code>
-        </span>
+        <span>{gettext("Your invitation is ready. Send this link to your guest:")}</span>
+        <div class="mt-2 flex items-start gap-2">
+          <code id="invitation-link-text" class="min-w-0 flex-1 break-all py-1.5">{@link}</code>
+          <button
+            type="button"
+            id="copy-invitation-link"
+            phx-hook="CopyText"
+            data-copy-text={@link}
+            data-copy-status={"copy-link-status-#{@link_id}"}
+            data-copy-success={gettext("Link copied.")}
+            data-copy-error={gettext("Copying was blocked. Select the link and copy it yourself.")}
+            aria-label={gettext("Copy link")}
+            title={gettext("Copy link")}
+            class="group inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-control border border-edge bg-surface text-muted hover:bg-ground hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <Lucideicons.copy aria-hidden="true" class="size-4 group-data-copied:hidden" />
+            <Lucideicons.check
+              aria-hidden="true"
+              class="hidden size-4 text-signal-strong group-data-copied:block"
+            />
+          </button>
+        </div>
       </div>
+
+      <%!-- Outside the box, which is a live region of its own. One per link, so a new link
+        starts without the last one's sentence. --%>
+      <span
+        :if={@link}
+        id={"copy-link-status-#{@link_id}"}
+        role="status"
+        phx-update="ignore"
+        class="mt-2 block min-h-5 text-label text-muted"
+      ></span>
 
       <h2 class="mt-10 text-lg font-semibold">{gettext("Outstanding invitations")}</h2>
 

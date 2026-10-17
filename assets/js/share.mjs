@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import {copyText} from "./copy_text.mjs"
+
 // Shares an item's original page through the system's share sheet. Without one, or when the
 // browser refuses it with NotAllowedError, the address goes to the clipboard and `copied` runs.
 // Closing the sheet throws AbortError and a second click on an open sheet InvalidStateError.
 // Both leave the sheet's outcome alone. Any other failure, or no clipboard outside a secure
 // context, runs `failed`.
 export async function share(link, {navigator = globalThis.navigator, copied, failed}) {
-  try {
-    if (navigator?.share) {
-      try {
-        return await navigator.share(link)
-      } catch (error) {
-        if (settled.has(error?.name)) return
-        if (error?.name !== "NotAllowedError") return failed()
-      }
+  if (navigator?.share) {
+    try {
+      return await navigator.share(link)
+    } catch (error) {
+      if (settled.has(error?.name)) return
+      if (error?.name !== "NotAllowedError") return failed()
     }
-    if (!navigator?.clipboard) return failed()
-    await navigator.clipboard.writeText(link.url)
-  } catch {
-    return failed()
   }
+  // `copyText` answers false rather than throwing.
+  if (!(await copyText(link.url, navigator))) return failed()
   copied()
 }
 
