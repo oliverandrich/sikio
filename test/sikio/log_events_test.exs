@@ -117,7 +117,7 @@ defmodule Sikio.LogEventsTest do
 
     log =
       logged(fn ->
-        view |> form("#invitation-form", %{"username" => "someone_else"}) |> render_submit()
+        view |> form("#invitation-form", %{"note" => "someone_else"}) |> render_submit()
       end)
 
     assert log =~ "info invitation made account_id=#{account.id}"

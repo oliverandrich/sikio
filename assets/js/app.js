@@ -40,6 +40,12 @@ import {PlayingEntry} from "./playing_entry.mjs"
 import {ShrinkTitle} from "./shrink_title.mjs"
 import {QueueSort} from "./queue_sort.mjs"
 import {openAway} from "./external_links.mjs"
+import {InvitationLink, captureInvitationToken, reloadOnOtherLink} from "./invitation_link.mjs"
+
+// LiveSocket keeps the page's URL from its construction and sends it with the join, so an
+// invitation token leaves the address before that.
+captureInvitationToken()
+reloadOnOtherLink()
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
@@ -50,7 +56,7 @@ const liveSocket = new LiveSocket("/live", Socket, {
     time_zone_offset: -new Date().getTimezoneOffset(),
     ...rejoinParams(view),
   }),
-  hooks: {...colocatedHooks, ...ithibatiHooks, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue, Share, Shortcuts, ListHead, PlayingEntry, ShrinkTitle, QueueSort},
+  hooks: {...colocatedHooks, ...ithibatiHooks, InvitationLink, MediaPlayer, PlayerDock, ReaderKeys, DockPlace, AudioCue, Share, Shortcuts, ListHead, PlayingEntry, ShrinkTitle, QueueSort},
 })
 
 // Show progress bar on live navigation and form submits

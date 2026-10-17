@@ -6,6 +6,8 @@ defmodule SikioWeb.InvitationLinkTest do
   """
   use SikioWeb.ConnCase, async: true
 
+  import Phoenix.LiveViewTest
+
   alias Sikio.Accounts.User
   alias Sikio.Invitations
   alias Sikio.Repo
@@ -14,22 +16,25 @@ defmodule SikioWeb.InvitationLinkTest do
   # Distinct pages would reveal which guessed tokens once existed.
   test "a spent link and an invented one are answered exactly alike", %{conn: conn} do
     member = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
-    {:ok, invitation} = Invitations.open(member, %{"username" => unique_username()})
+    {:ok, invitation} = Invitations.open(member, %{"note" => unique_username()})
     invitation |> Ecto.Changeset.change(accepted_at: DateTime.utc_now()) |> Repo.update!()
 
-    spent = main_text(conn, "/invite/#{invitation.token}")
-    invented = main_text(conn, "/invite/a-token-nobody-ever-held")
+    spent = main_text(conn, invitation.token)
+    invented = main_text(conn, "a-token-nobody-ever-held")
 
     # Compares the full text, because any difference reveals the token's state.
     assert spent == invented
     assert spent =~ "has been used already, or it has expired"
   end
 
-  defp main_text(conn, path) do
-    conn
-    |> get(path)
-    |> html_response(200)
-    |> LazyHTML.from_document()
+  # The hook pushes the fragment's token once the page has joined.
+  defp main_text(conn, token) do
+    {:ok, view, _html} = live(conn, ~p"/invite")
+
+    view
+    |> element("#invitation-link")
+    |> render_hook("invitation-token", %{"token" => token})
+    |> LazyHTML.from_fragment()
     |> LazyHTML.query("main")
     |> LazyHTML.text()
   end

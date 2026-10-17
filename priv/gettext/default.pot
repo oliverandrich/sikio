@@ -16,7 +16,8 @@ msgstr ""
 msgid "A username is letters, digits and underscores, up to thirty characters."
 msgstr ""
 
-#: lib/sikio_web/live/invite_live.ex:71
+#: lib/sikio_web/live/invite_live.ex:128
+#: lib/sikio_web/live/invite_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "Accept with a passkey"
 msgstr ""
@@ -37,11 +38,6 @@ msgstr ""
 msgid "Back to passkey sign-in"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:172
-#, elixir-autogen, elixir-format
-msgid "Choose a username for your guest, then send them their personal invitation link."
-msgstr ""
-
 #: lib/sikio_web/live/sign_in_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Choose your username and create a passkey to set up your account."
@@ -57,7 +53,7 @@ msgstr ""
 msgid "Copying was blocked. Select the codes above and copy them manually."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:204
+#: lib/sikio_web/live/invitations_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Create a link"
 msgstr ""
@@ -77,7 +73,7 @@ msgstr ""
 msgid "I've saved my codes. Continue"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:169
+#: lib/sikio_web/live/invitations_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Invite somebody"
 msgstr ""
@@ -87,7 +83,7 @@ msgstr ""
 msgid "Keep these somewhere safe. Each code lets you sign in once if you lose access to your passkey."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:192
+#: lib/sikio_web/live/invite_live.ex:148
 #: lib/sikio_web/live/sign_in_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Letters, digits and underscores, up to thirty"
@@ -106,11 +102,6 @@ msgstr ""
 #: lib/sikio_web/ceremony_messages.ex:63
 #, elixir-autogen, elixir-format
 msgid "No passkey is registered here yet."
-msgstr ""
-
-#: lib/sikio_web/ceremony_messages.ex:60
-#, elixir-autogen, elixir-format
-msgid "Pick a username to claim this instance."
 msgstr ""
 
 #: lib/sikio_web/live/sign_in_live.ex:163
@@ -149,7 +140,7 @@ msgstr ""
 msgid "Sign out"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:165
+#: lib/sikio_web/live/invitations_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Signed in as %{username}."
 msgstr ""
@@ -189,7 +180,7 @@ msgstr ""
 msgid "That did not check out. Start again."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:144
+#: lib/sikio_web/live/invitations_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "That invitation could not be written."
 msgstr ""
@@ -234,7 +225,7 @@ msgstr ""
 msgid "That username is taken."
 msgstr ""
 
-#: lib/sikio_web/live/invite_live.ex:45
+#: lib/sikio_web/live/invite_live.ex:98
 #, elixir-autogen, elixir-format
 msgid "The account will be called %{username}."
 msgstr ""
@@ -244,17 +235,12 @@ msgstr ""
 msgid "The passkey prompt was dismissed."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:189
-#, elixir-autogen, elixir-format
-msgid "Their username"
-msgstr ""
-
 #: lib/sikio_web/ceremony_messages.ex:38
 #, elixir-autogen, elixir-format
 msgid "This instance is invitation-only."
 msgstr ""
 
-#: lib/sikio_web/live/invite_live.ex:58
+#: lib/sikio_web/live/invite_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "This invitation has been used already, or it has expired. Ask for a new link."
 msgstr ""
@@ -269,14 +255,10 @@ msgstr ""
 msgid "Use a recovery code"
 msgstr ""
 
+#: lib/sikio_web/live/invite_live.ex:144
 #: lib/sikio_web/live/sign_in_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Username"
-msgstr ""
-
-#: lib/sikio_web/live/invitations_live.ex:149
-#, elixir-autogen, elixir-format
-msgid "Username %{message}."
 msgstr ""
 
 #: lib/sikio_web/components/layouts.ex:655
@@ -304,12 +286,12 @@ msgstr ""
 msgid "Your browser stopped partway through."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:221
+#: lib/sikio_web/live/invitations_live.ex:227
 #, elixir-autogen, elixir-format
 msgid "Your invitation is ready. Send this link to your guest:"
 msgstr ""
 
-#: lib/sikio_web/live/invite_live.ex:42
+#: lib/sikio_web/live/invite_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "You’re invited"
 msgstr ""
@@ -319,6 +301,7 @@ msgstr ""
 msgid "close"
 msgstr ""
 
+#: lib/sikio_web/live/invite_live.ex:149
 #: lib/sikio_web/live/sign_in_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "your_username"
@@ -517,8 +500,8 @@ msgstr ""
 msgid "Use a recovery code instead"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:159
-#: lib/sikio_web/live/invitations_live.ex:163
+#: lib/sikio_web/live/invitations_live.ex:167
+#: lib/sikio_web/live/invitations_live.ex:171
 #: lib/sikio_web/live/settings_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "Invitations"
@@ -636,7 +619,7 @@ msgstr ""
 msgid "Import %{count} sources"
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1246
+#: lib/sikio_web/live/add_source_live.ex:1245
 #: lib/sikio_web/live/opml_live.ex:155
 #: lib/sikio_web/live/subscriptions_live.ex:152
 #, elixir-autogen, elixir-format
@@ -725,8 +708,8 @@ msgstr ""
 msgid "Resume"
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1215
-#: lib/sikio_web/live/add_source_live.ex:1316
+#: lib/sikio_web/live/add_source_live.ex:1214
+#: lib/sikio_web/live/add_source_live.ex:1315
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
 msgstr ""
@@ -1040,14 +1023,10 @@ msgstr ""
 msgid "Too many attempts. Try again in %{seconds} seconds."
 msgstr ""
 
+#: lib/sikio_web/live/invite_live.ex:156
 #: lib/sikio_web/live/sign_in_live.ex:150
 #, elixir-autogen, elixir-format
 msgid "Email address"
-msgstr ""
-
-#: lib/sikio_web/ceremony_messages.ex:59
-#, elixir-autogen, elixir-format
-msgid "Enter the address that will claim this instance."
 msgstr ""
 
 #: lib/sikio_web/live/sign_in_live.ex:190
@@ -1055,7 +1034,7 @@ msgstr ""
 msgid "Enter your email address and create a passkey to set up your account."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:176
+#: lib/sikio_web/live/invitations_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "Enter your guest's email address. Their invitation link is sent there."
 msgstr ""
@@ -1080,17 +1059,17 @@ msgstr ""
 msgid "That is not an email address."
 msgstr ""
 
-#: lib/sikio_web/live/invite_live.ex:48
+#: lib/sikio_web/live/invite_live.ex:101
 #, elixir-autogen, elixir-format
 msgid "The account will belong to %{address}."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:137
+#: lib/sikio_web/live/invitations_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "The invitation could not be sent. Pass the link on yourself."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:200
+#: lib/sikio_web/live/invitations_live.ex:198
 #, elixir-autogen, elixir-format
 msgid "Their email address"
 msgstr ""
@@ -1100,72 +1079,72 @@ msgstr ""
 msgid "Your invitation to Sikio"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:148
+#: lib/sikio_web/live/invitations_live.ex:155
 #, elixir-autogen, elixir-format
 msgid "Email address %{message}."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:126
+#: lib/sikio_web/live/invitations_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "Too many invitations. Try again in an hour."
 msgid_plural "Too many invitations. Try again in %{count} hours."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/sikio_web/live/invitations_live.ex:118
+#: lib/sikio_web/live/invitations_live.ex:122
 #, elixir-autogen, elixir-format
 msgid "Too many invitations. Try again in a minute."
 msgid_plural "Too many invitations. Try again in %{count} minutes."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/sikio_web/live/invitations_live.ex:233
+#: lib/sikio_web/live/invitations_live.ex:239
 #, elixir-autogen, elixir-format
 msgid "Anybody here can take one back. Until it is accepted, this is the only say over who joins."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:248
-#: lib/sikio_web/live/invitations_live.ex:250
+#: lib/sikio_web/live/invitations_live.ex:257
+#: lib/sikio_web/live/invitations_live.ex:259
 #, elixir-autogen, elixir-format
 msgid "Invited by %{username}"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:255
+#: lib/sikio_web/live/invitations_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "Made %{date}"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:229
+#: lib/sikio_web/live/invitations_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "Nothing is waiting to be accepted."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:226
+#: lib/sikio_web/live/invitations_live.ex:232
 #, elixir-autogen, elixir-format
 msgid "Outstanding invitations"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:259
+#: lib/sikio_web/live/invitations_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "Runs out %{date}"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:268
+#: lib/sikio_web/live/invitations_live.ex:277
 #, elixir-autogen, elixir-format
 msgid "Take it back"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:66
+#: lib/sikio_web/live/invitations_live.ex:68
 #, elixir-autogen, elixir-format
 msgid "That invitation is no longer there."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:250
+#: lib/sikio_web/live/invitations_live.ex:259
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:82
+#: lib/sikio_web/live/invitations_live.ex:84
 #, elixir-autogen, elixir-format
 msgid "That invitation is not waiting any more. Somebody accepted it, or took it back first."
 msgstr ""
@@ -1791,7 +1770,7 @@ msgstr ""
 msgid "Move %{title} in the queue"
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1237
+#: lib/sikio_web/live/add_source_live.ex:1236
 #: lib/sikio_web/live/subscription_settings.ex:194
 #, elixir-autogen, elixir-format
 msgid "New episodes go to"
@@ -1841,7 +1820,7 @@ msgid "Remove from the queue"
 msgstr ""
 
 #: lib/sikio_web/components/library_components.ex:232
-#: lib/sikio_web/live/add_source_live.ex:1415
+#: lib/sikio_web/live/add_source_live.ex:1414
 #, elixir-autogen, elixir-format
 msgid "Add to queue"
 msgstr ""
@@ -1874,7 +1853,7 @@ msgid_plural "%{count} sources"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/sikio_web/live/add_source_live.ex:1244
+#: lib/sikio_web/live/add_source_live.ex:1243
 #, elixir-autogen, elixir-format
 msgid "Coming from another app?"
 msgstr ""
@@ -1937,8 +1916,8 @@ msgstr ""
 msgid "A link or a show's name"
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1316
-#: lib/sikio_web/live/add_source_live.ex:1433
+#: lib/sikio_web/live/add_source_live.ex:1315
+#: lib/sikio_web/live/add_source_live.ex:1432
 #, elixir-autogen, elixir-format
 msgid "Subscribing…"
 msgstr ""
@@ -1996,7 +1975,7 @@ msgstr ""
 
 #: lib/sikio_web/components/layouts.ex:271
 #: lib/sikio_web/live/account_security_live.ex:57
-#: lib/sikio_web/live/invitations_live.ex:160
+#: lib/sikio_web/live/invitations_live.ex:168
 #: lib/sikio_web/live/settings_live.ex:85
 #: lib/sikio_web/live/settings_live.ex:88
 #, elixir-autogen, elixir-format
@@ -2213,7 +2192,7 @@ msgid "No programmes found in the Mediathek."
 msgstr ""
 
 #: lib/sikio_web/components/media_components.ex:153
-#: lib/sikio_web/live/add_source_live.ex:1404
+#: lib/sikio_web/live/add_source_live.ex:1403
 #, elixir-autogen, elixir-format
 msgid "Open in the Mediathek"
 msgstr ""
@@ -2230,7 +2209,7 @@ msgstr ""
 msgid "The Mediathek search is unavailable right now. Try again later."
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1424
+#: lib/sikio_web/live/add_source_live.ex:1423
 #, elixir-autogen, elixir-format
 msgid "Add to inbox"
 msgstr ""
@@ -2296,12 +2275,12 @@ msgstr ""
 msgid "Single episodes via Apple Podcasts. An episode is added on its own."
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1395
+#: lib/sikio_web/live/add_source_live.ex:1394
 #, elixir-autogen, elixir-format
 msgid "less"
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1395
+#: lib/sikio_web/live/add_source_live.ex:1394
 #, elixir-autogen, elixir-format
 msgid "more"
 msgstr ""
@@ -2311,22 +2290,22 @@ msgstr ""
 msgid "This episode is no longer in its podcast's feed."
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1230
+#: lib/sikio_web/live/add_source_live.ex:1229
 #, elixir-autogen, elixir-format
 msgid "All, oldest first"
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1227
+#: lib/sikio_web/live/add_source_live.ex:1226
 #, elixir-autogen, elixir-format
 msgid "Episodes so far"
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1231
+#: lib/sikio_web/live/add_source_live.ex:1230
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
 
-#: lib/sikio_web/live/add_source_live.ex:1229
+#: lib/sikio_web/live/add_source_live.ex:1228
 #, elixir-autogen, elixir-format
 msgid "Only the newest"
 msgstr ""
@@ -2335,8 +2314,8 @@ msgstr ""
 #: lib/sikio_web/live/add_source_live.ex:954
 #: lib/sikio_web/live/add_source_live.ex:1038
 #: lib/sikio_web/live/add_source_live.ex:1120
-#: lib/sikio_web/live/add_source_live.ex:1205
-#: lib/sikio_web/live/add_source_live.ex:1214
+#: lib/sikio_web/live/add_source_live.ex:1204
+#: lib/sikio_web/live/add_source_live.ex:1213
 #, elixir-autogen, elixir-format
 msgid "Subscribe to %{title}"
 msgstr ""
@@ -2626,4 +2605,54 @@ msgstr ""
 #: lib/sikio_web/live/add_source_live.ex:1186
 #, elixir-autogen, elixir-format
 msgid "YouTube's results could not be read right now. Try again later, or paste the video's link."
+msgstr ""
+
+#: lib/sikio_web/live/invite_live.ex:138
+#, elixir-autogen, elixir-format
+msgid "Choose your username, then create a passkey."
+msgstr ""
+
+#: lib/sikio_web/ceremony_messages.ex:59
+#, elixir-autogen, elixir-format
+msgid "Enter an email address."
+msgstr ""
+
+#: lib/sikio_web/live/invitations_live.ex:206
+#, elixir-autogen, elixir-format
+msgid "Grace, from the meetup"
+msgstr ""
+
+#: lib/sikio_web/live/invitations_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "Note %{message}."
+msgstr ""
+
+#: lib/sikio_web/live/invitations_live.ex:205
+#, elixir-autogen, elixir-format
+msgid "Note (optional)"
+msgstr ""
+
+#: lib/sikio_web/live/invitations_live.ex:180
+#, elixir-autogen, elixir-format
+msgid "Note whom the link is for, then send it to them. They choose their own username."
+msgstr ""
+
+#: lib/sikio_web/live/invite_live.ex:93
+#, elixir-autogen, elixir-format
+msgid "Opening your invitation…"
+msgstr ""
+
+#: lib/sikio_web/ceremony_messages.ex:60
+#, elixir-autogen, elixir-format
+msgid "Pick a username."
+msgstr ""
+
+#: lib/sikio_web/live/invitations_live.ex:205
+#, elixir-autogen, elixir-format
+msgid "Who is it for?"
+msgstr ""
+
+#: lib/sikio_web/live/invite_live.ex:116
+#, elixir-autogen, elixir-format
+msgid "Open the link from your invitation to accept it."
 msgstr ""

@@ -22,7 +22,7 @@ defmodule Sikio.InvitationsTest do
     test "records who made the invitation" do
       ada = member("ada")
 
-      {:ok, invitation} = Invitations.open(ada, %{"username" => "grace"})
+      {:ok, invitation} = Invitations.open(ada, %{"note" => "grace"})
 
       assert invitation.invited_by_id == ada.id
     end
@@ -34,35 +34,42 @@ defmodule Sikio.InvitationsTest do
       someone_else = member("bob")
 
       {:ok, invitation} =
-        Invitations.open(ada, %{"username" => "grace", "invited_by_id" => someone_else.id})
+        Invitations.open(ada, %{"note" => "grace", "invited_by_id" => someone_else.id})
 
       assert invitation.invited_by_id == ada.id
     end
 
-    test "refuses a name that is not one, and writes nothing" do
-      assert {:error, changeset} = Invitations.open(member(), %{"username" => "not a name"})
-      refute changeset.valid?
-      assert Repo.aggregate(Invitation, :count) == 0
+    # Named, the invitee chooses the name, so the note is the only thing that tells it apart.
+    test "makes an open invitation with a note, and none without one" do
+      assert {:ok, invitation} =
+               Invitations.open(member(), %{"note" => "Grace", "username" => "grace"})
+
+      assert invitation.username == nil
+      assert invitation.note == "Grace"
+
+      assert {:error, changeset} = Invitations.open(member(), %{"note" => " "})
+      assert %{note: ["can't be blank"]} = errors_on(changeset)
+      assert Repo.aggregate(Invitation, :count) == 1
     end
   end
 
   describe "pending/0" do
     test "brings the inviter with it, and says nothing for a row that has none" do
       ada = member("ada")
-      {:ok, _with} = Invitations.open(ada, %{"username" => "grace"})
+      {:ok, _with} = Invitations.open(ada, %{"note" => "grace"})
 
       %Invitation{}
       |> Invitation.changeset(%{"username" => "alan"})
       |> Repo.insert!()
 
-      by_name = Map.new(Invitations.pending(), &{&1.username, &1.invited_by})
+      by_name = Map.new(Invitations.pending(), &{&1.note || &1.username, &1.invited_by})
 
       assert %{username: "ada"} = by_name["grace"]
       assert by_name["alan"] == nil
     end
 
     test "leaves out an invitation that was accepted" do
-      {:ok, invitation} = Invitations.open(member(), %{"username" => "grace"})
+      {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
 
       invitation
       |> Ecto.Changeset.change(accepted_at: DateTime.utc_now())
@@ -72,7 +79,7 @@ defmodule Sikio.InvitationsTest do
     end
 
     test "leaves out one that has run out" do
-      {:ok, invitation} = Invitations.open(member(), %{"username" => "grace"})
+      {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
 
       invitation
       |> Ecto.Changeset.change(expires_at: DateTime.add(DateTime.utc_now(), -1, :second))
@@ -84,7 +91,7 @@ defmodule Sikio.InvitationsTest do
 
   describe "withdraw/1" do
     test "takes one back, and the link stops working at once" do
-      {:ok, invitation} = Invitations.open(member(), %{"username" => "grace"})
+      {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
       token = invitation.token
 
       assert {:ok, _withdrawn} = Invitations.withdraw(invitation)
@@ -96,7 +103,7 @@ defmodule Sikio.InvitationsTest do
     # Ithibati rechecks acceptance inside the delete.
     # This prevents withdrawing an invitation during a concurrent redemption.
     test "refuses one that has already been accepted" do
-      {:ok, invitation} = Invitations.open(member(), %{"username" => "grace"})
+      {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
 
       accepted =
         invitation |> Ecto.Changeset.change(accepted_at: DateTime.utc_now()) |> Repo.update!()

@@ -47,32 +47,32 @@ defmodule SikioWeb.InvitationDeliveryTest do
     TestConfig.put_env(:sikio, :mail_from, {"Sikio", "sikio@example.org"})
   end
 
-  defp invite(conn, identifier) do
+  defp invite(conn, fields) do
     {:ok, view, _html} = live(conn, ~p"/invitations")
 
-    view |> form("#invitation-form", %{"username" => identifier}) |> render_submit()
+    view |> form("#invitation-form", fields) |> render_submit()
 
     view
   end
 
   test "a named guest is given a link and nothing is sent", %{conn: conn} do
-    view = invite(conn, "grace_hopper")
+    view = invite(conn, %{"note" => "Grace"})
 
-    assert render(view) =~ "/invite/"
+    assert render(view) =~ "/invite#"
     refute_email_sent()
   end
 
   test "an addressed guest is sent the link, and still shown it", %{conn: conn} do
     addressing()
 
-    view = invite(conn, "grace@example.org")
+    view = invite(conn, %{"username" => "grace@example.org"})
     html = render(view)
 
-    assert html =~ "/invite/"
+    assert html =~ "/invite#"
 
     assert_email_sent(fn email ->
       assert {_name, "grace@example.org"} = hd(email.to)
-      assert email.text_body =~ "/invite/"
+      assert email.text_body =~ "/invite#"
     end)
   end
 
@@ -82,10 +82,10 @@ defmodule SikioWeb.InvitationDeliveryTest do
     addressing()
     TestConfig.put_env(:sikio, Sikio.Mailer, adapter: FailingAdapter)
 
-    view = invite(conn, "grace@example.org")
+    view = invite(conn, %{"username" => "grace@example.org"})
     html = render(view)
 
-    assert html =~ "/invite/"
+    assert html =~ "/invite#"
     assert html =~ "could not be sent"
   end
 
@@ -96,10 +96,10 @@ defmodule SikioWeb.InvitationDeliveryTest do
     addressing()
     TestConfig.put_env(:sikio, Sikio.Mailer, adapter: RaisingAdapter)
 
-    view = invite(conn, "grace@example.org")
+    view = invite(conn, %{"username" => "grace@example.org"})
     html = render(view)
 
-    assert html =~ "/invite/"
+    assert html =~ "/invite#"
     assert html =~ "could not be sent"
   end
 

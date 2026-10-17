@@ -203,7 +203,11 @@ An account identifier is either a username or an email address. Choose the mode 
 first account registers.
 
 The default is a username. An invitation is a link that the inviter shares by any means. Sikio
-sends no email, and no mail settings are needed.
+sends no email, and no mail settings are needed. The inviter writes a note that says whom the link
+is for. The invitee chooses the username when accepting it.
+
+An invitation link is `/invite#TOKEN`. The token sits after `#`, which no request sends, so no
+access log records it. Links in the older form `/invite/TOKEN` no longer open anything.
 
 `ACCOUNT_IDENTITY=email` makes the identifier an email address. Sikio then sends the invitation
 to that address. Receiving the link confirms that the invitee controls the address. This mode

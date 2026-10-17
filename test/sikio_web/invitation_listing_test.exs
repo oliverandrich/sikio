@@ -24,7 +24,7 @@ defmodule SikioWeb.InvitationListingTest do
 
   test "the page lists what is outstanding, for whom and by whom" do
     ada = member("ada")
-    {:ok, _invitation} = Invitations.open(ada, %{"username" => "grace"})
+    {:ok, _invitation} = Invitations.open(ada, %{"note" => "grace"})
 
     {:ok, _view, html} = live(signed_in(ada), ~p"/invitations")
 
@@ -46,7 +46,7 @@ defmodule SikioWeb.InvitationListingTest do
   # Checks element ids, because the form placeholder "grace_hopper" contains the name "grace".
   # A page-wide text search would always match.
   test "an accepted invitation is not listed" do
-    {:ok, invitation} = Invitations.open(member(), %{"username" => "grace"})
+    {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
     invitation |> Ecto.Changeset.change(accepted_at: DateTime.utc_now()) |> Repo.update!()
 
     {:ok, view, _html} = live(signed_in(member()), ~p"/invitations")
@@ -56,7 +56,7 @@ defmodule SikioWeb.InvitationListingTest do
   end
 
   test "any member can withdraw one, and the link stops working at once" do
-    {:ok, invitation} = Invitations.open(member("ada"), %{"username" => "grace"})
+    {:ok, invitation} = Invitations.open(member("ada"), %{"note" => "grace"})
     token = invitation.token
 
     {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
@@ -74,19 +74,19 @@ defmodule SikioWeb.InvitationListingTest do
   # The row stores only the token digest, so the displayed link is the only copy of the token.
   # Withdrawing another invitation must keep the displayed link.
   test "taking one back leaves a link that belongs to another invitation standing" do
-    {:ok, old} = Invitations.open(member("ada"), %{"username" => "alan"})
+    {:ok, old} = Invitations.open(member("ada"), %{"note" => "alan"})
 
     {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
 
-    view |> form("#invitation-form", %{"username" => "grace"}) |> render_submit()
-    assert render(view) =~ "/invite/"
+    view |> form("#invitation-form", %{"note" => "grace"}) |> render_submit()
+    assert render(view) =~ "/invite#"
 
     html =
       view
       |> element(~s(#invitation-#{old.id} button[phx-click="withdraw"]))
       |> render_click()
 
-    assert html =~ "/invite/"
+    assert html =~ "/invite#"
     refute has_element?(view, "#invitation-#{old.id}")
   end
 
@@ -94,8 +94,8 @@ defmodule SikioWeb.InvitationListingTest do
   test "taking back the one the link belongs to takes the link with it" do
     {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
 
-    view |> form("#invitation-form", %{"username" => "grace"}) |> render_submit()
-    assert render(view) =~ "/invite/"
+    view |> form("#invitation-form", %{"note" => "grace"}) |> render_submit()
+    assert render(view) =~ "/invite#"
 
     mine = Repo.one(Invitation)
 
@@ -104,7 +104,7 @@ defmodule SikioWeb.InvitationListingTest do
       |> element(~s(#invitation-#{mine.id} button[phx-click="withdraw"]))
       |> render_click()
 
-    refute html =~ "/invite/"
+    refute html =~ "/invite#"
   end
 
   # The id is client input and may not be numeric. `Repo.get/2` raises on an uncastable id.
@@ -118,7 +118,7 @@ defmodule SikioWeb.InvitationListingTest do
   # An invitation can be accepted between render and click. Ithibati then treats it as gone.
   # The page renders a message instead of raising, and the row remains.
   test "withdrawing one that was accepted in the meantime says so and keeps it" do
-    {:ok, invitation} = Invitations.open(member("ada"), %{"username" => "grace"})
+    {:ok, invitation} = Invitations.open(member("ada"), %{"note" => "grace"})
 
     {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
 

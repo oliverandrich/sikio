@@ -35,31 +35,31 @@ defmodule SikioWeb.InvitationLimitTest do
 
   defp inviting(conn, name) do
     {:ok, view, _html} = live(conn, ~p"/invitations")
-    view |> form("#invitation-form", %{"username" => name}) |> render_submit()
+    view |> form("#invitation-form", %{"note" => name}) |> render_submit()
 
     view
   end
 
   test "a budget is spent, and then it is spent", %{conn: conn} do
-    assert inviting(conn, unique_username()) |> render() =~ "/invite/"
-    assert inviting(conn, unique_username()) |> render() =~ "/invite/"
+    assert inviting(conn, unique_username()) |> render() =~ "/invite#"
+    assert inviting(conn, unique_username()) |> render() =~ "/invite#"
 
     refused = unique_username()
     assert inviting(conn, refused) |> render() =~ "Too many invitations"
 
-    refute Repo.get_by(Invitation, username: refused)
+    refute Repo.get_by(Invitation, note: refused)
   end
 
   # Failed attempts count against the budget.
   # Otherwise invalid submissions would be free and the limit would not bound attempts.
   test "an attempt that fails for another reason still costs", %{conn: conn} do
-    inviting(conn, "not a username at all")
+    inviting(conn, " ")
     inviting(conn, unique_username())
 
     wanted = unique_username()
     assert inviting(conn, wanted) |> render() =~ "Too many invitations"
 
-    refute Repo.get_by(Invitation, username: wanted)
+    refute Repo.get_by(Invitation, note: wanted)
   end
 
   test "another member has their own", %{conn: conn, other: other} do
@@ -69,7 +69,7 @@ defmodule SikioWeb.InvitationLimitTest do
 
     theirs = signed_in(other)
 
-    assert inviting(theirs, unique_username()) |> render() =~ "/invite/"
+    assert inviting(theirs, unique_username()) |> render() =~ "/invite#"
   end
 
   # The link on the page is the only copy of its token.
@@ -77,14 +77,14 @@ defmodule SikioWeb.InvitationLimitTest do
   test "a refusal leaves the link that is already on screen", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/invitations")
 
-    view |> form("#invitation-form", %{"username" => unique_username()}) |> render_submit()
-    view |> form("#invitation-form", %{"username" => unique_username()}) |> render_submit()
-    view |> form("#invitation-form", %{"username" => unique_username()}) |> render_submit()
+    view |> form("#invitation-form", %{"note" => unique_username()}) |> render_submit()
+    view |> form("#invitation-form", %{"note" => unique_username()}) |> render_submit()
+    view |> form("#invitation-form", %{"note" => unique_username()}) |> render_submit()
 
     html = render(view)
 
     assert html =~ "Too many invitations"
-    assert html =~ "/invite/"
+    assert html =~ "/invite#"
   end
 
   test "and says so in German", %{conn: conn} do

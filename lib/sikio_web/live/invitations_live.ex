@@ -24,6 +24,7 @@ defmodule SikioWeb.InvitationsLive do
     socket =
       assign(socket,
         username: "",
+        note: "",
         link: nil,
         # The id of the invitation whose link is shown. The row stores only a token digest.
         # Withdrawing a different invitation keeps the link; the id is the only way to match it.
@@ -38,18 +39,19 @@ defmodule SikioWeb.InvitationsLive do
   defp listed(socket), do: assign(socket, pending: Invitations.pending())
 
   @impl true
-  def handle_event("validate", %{"username" => username}, socket) do
-    {:noreply, assign(socket, username: username, error: nil)}
+  def handle_event("validate", params, socket) do
+    {:noreply,
+     assign(socket, username: params["username"] || "", note: params["note"] || "", error: nil)}
   end
 
   # The rate limit runs before the changeset, so invalid attempts also count.
   # Otherwise invalid submissions would not consume the budget.
-  def handle_event("invite", %{"username" => username}, socket) do
+  def handle_event("invite", params, socket) do
     {limit, seconds} = AuthRateLimiter.budget(:invite)
     key = AuthRateLimit.key(socket.assigns.current_account, :invite)
 
     case AuthRateLimiter.check(key, limit, seconds) do
-      :ok -> create(socket, username)
+      :ok -> create(socket, Map.take(params, ["username", "note"]))
       {:error, retry_after} -> {:noreply, assign(socket, error: too_many(retry_after))}
     end
   end
@@ -86,16 +88,17 @@ defmodule SikioWeb.InvitationsLive do
     end
   end
 
-  defp create(socket, username) do
+  defp create(socket, attrs) do
     socket.assigns.current_account
-    |> Invitations.open(%{"username" => username})
+    |> Invitations.open(attrs)
     |> case do
       # The plaintext token exists only in this return value. The row stores its SHA-256 digest.
       # The virtual `token` field is nil on any later read, so the link is shown now.
       {:ok, invitation} ->
         # Logs the inviter's id, never the invitee's username or address.
         Logger.info("invitation made", account_id: socket.assigns.current_account.id)
-        link = url(~p"/invite/#{invitation.token}")
+        # The token goes after `#`, which no request sends.
+        link = url(~p"/invite") <> "#" <> invitation.token
 
         {:noreply,
          socket
@@ -104,11 +107,12 @@ defmodule SikioWeb.InvitationsLive do
            link: link,
            link_id: invitation.id,
            username: "",
+           note: "",
            error: undelivered(invitation, link)
          )}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, error: changeset_message(changeset, socket.assigns.email?))}
+        {:noreply, assign(socket, error: changeset_message(changeset))}
     end
   end
 
@@ -138,15 +142,20 @@ defmodule SikioWeb.InvitationsLive do
     end
   end
 
-  defp changeset_message(changeset, email?) do
-    case changeset.errors do
-      [{:username, error} | _rest] -> refusal(CoreComponents.translate_error(error), email?)
-      _other -> gettext("That invitation could not be written.")
+  # A username error comes only from email mode; named mode writes no username. The address
+  # comes first, because the note is optional there.
+  defp changeset_message(changeset) do
+    case {changeset.errors[:username], changeset.errors[:note]} do
+      {nil, nil} ->
+        gettext("That invitation could not be written.")
+
+      {nil, error} ->
+        gettext("Note %{message}.", message: CoreComponents.translate_error(error))
+
+      {error, _} ->
+        gettext("Email address %{message}.", message: CoreComponents.translate_error(error))
     end
   end
-
-  defp refusal(message, true), do: gettext("Email address %{message}.", message: message)
-  defp refusal(message, false), do: gettext("Username %{message}.", message: message)
 
   @impl true
   def render(assigns) do
@@ -169,7 +178,7 @@ defmodule SikioWeb.InvitationsLive do
       <h2 class="mt-8 text-lg font-semibold">{gettext("Invite somebody")}</h2>
 
       <p :if={not @email?} class="mt-2 text-label opacity-70">
-        {gettext("Choose a username for your guest, then send them their personal invitation link.")}
+        {gettext("Note whom the link is for, then send it to them. They choose their own username.")}
       </p>
 
       <p :if={@email?} class="mt-2 text-label opacity-70">
@@ -183,16 +192,6 @@ defmodule SikioWeb.InvitationsLive do
         class="mt-4 max-w-sm"
       >
         <.input
-          :if={not @email?}
-          name="username"
-          value={@username}
-          label={gettext("Their username")}
-          required
-          pattern={Layouts.username_pattern()}
-          title={gettext("Letters, digits and underscores, up to thirty")}
-          placeholder="grace_hopper"
-        />
-        <.input
           :if={@email?}
           type="email"
           name="username"
@@ -200,6 +199,14 @@ defmodule SikioWeb.InvitationsLive do
           label={gettext("Their email address")}
           required
           placeholder="grace@example.org"
+        />
+        <.input
+          name="note"
+          value={@note}
+          label={if @email?, do: gettext("Note (optional)"), else: gettext("Who is it for?")}
+          placeholder={gettext("Grace, from the meetup")}
+          maxlength="500"
+          required={not @email?}
         />
         <.button variant="primary">{gettext("Create a link")}</.button>
       </form>
@@ -241,7 +248,10 @@ defmodule SikioWeb.InvitationsLive do
           id={"invitation-#{invitation.id}"}
           class="flex flex-wrap items-center gap-x-4 gap-y-1 py-3"
         >
-          <span class="font-medium">{invitation.username}</span>
+          <span class="font-medium">{invitation.note || invitation.username}</span>
+          <span :if={invitation.note && invitation.username} class="text-label opacity-70">
+            {invitation.username}
+          </span>
 
           <span class="text-label opacity-70">
             <%= if invitation.invited_by do %>

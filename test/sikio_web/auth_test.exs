@@ -38,6 +38,12 @@ defmodule SikioWeb.AuthTest do
     |> Repo.insert!()
   end
 
+  defp invite_open do
+    %Invitation{}
+    |> Invitation.changeset(%{"note" => "Grace, from the meetup"}, addressed: false)
+    |> Repo.insert!()
+  end
+
   describe "the first account" do
     test "arrives without an invitation, and claims the instance doing it" do
       assert {:ok, "first_one"} = Auth.registration_subject(conn(), %{"username" => "first_one"})
@@ -100,6 +106,54 @@ defmodule SikioWeb.AuthTest do
 
       assert {:error, :invitation_unknown} =
                Auth.register(conn(), key_attrs(), "invitee", %{"token" => ctx.invitation.token})
+    end
+  end
+
+  # The invitee chooses the name. It is checked before the challenge, so a refusal costs no passkey.
+  describe "an open invitation" do
+    setup do
+      claim_instance("first_one")
+
+      %{invitation: invite_open()}
+    end
+
+    test "opens a registration for the name the invitee chose", ctx do
+      name = unique_username()
+
+      assert {:ok, ^name} =
+               Auth.registration_subject(conn(), %{
+                 "token" => ctx.invitation.token,
+                 "username" => "  " <> String.upcase(name) <> " "
+               })
+    end
+
+    test "refuses a name the schema refuses, or none at all", ctx do
+      assert {:error, :invalid_username} =
+               Auth.registration_subject(conn(), %{
+                 "token" => ctx.invitation.token,
+                 "username" => "Not A Name!"
+               })
+
+      assert {:error, :username_required} =
+               Auth.registration_subject(conn(), %{"token" => ctx.invitation.token})
+    end
+
+    test "refuses a name somebody already has", ctx do
+      assert {:error, :username_taken} =
+               Auth.registration_subject(conn(), %{
+                 "token" => ctx.invitation.token,
+                 "username" => "first_one"
+               })
+    end
+
+    test "creates the account under the chosen name and is spent", ctx do
+      name = unique_username()
+
+      assert {:ok, _conn} =
+               Auth.register(conn(), key_attrs(), name, %{"token" => ctx.invitation.token})
+
+      assert Repo.get_by(User, username: name)
+      assert Repo.get!(Invitation, ctx.invitation.id).accepted_at
     end
   end
 

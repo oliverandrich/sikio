@@ -56,8 +56,8 @@ defmodule SikioWeb.CeremonyMessages do
 
   defp sentence("username_required") do
     if Identity.email?(),
-      do: gettext("Enter the address that will claim this instance."),
-      else: gettext("Pick a username to claim this instance.")
+      do: gettext("Enter an email address."),
+      else: gettext("Pick a username.")
   end
 
   defp sentence("no_credentials"), do: gettext("No passkey is registered here yet.")

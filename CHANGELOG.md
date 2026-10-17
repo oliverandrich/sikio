@@ -18,6 +18,21 @@ Its own section becomes the version's release notes.
   asked again.
 - The add page searches YouTube for channels and videos, in two tabs beside PeerTube's. It reads
   YouTube's results page and needs no API key.
+- An invitation in username mode carries a note for the members who manage invitations. The
+  invitee chooses the username on accepting it, checked for format and for an existing account
+  before the passkey dialog.
+
+### Changed
+
+- An invitation link is `/invite#TOKEN`. The token sits after `#`, which no request sends.
+- Sikio requires Ithibati 0.8.1.
+
+### Upgrading
+
+- A migration moves the invitations table to Ithibati's schema version 5. On SQLite it rebuilds
+  the table.
+- Links in the older form `/invite/TOKEN` stop working. Withdraw pending invitations and issue new
+  ones after the update.
 
 ## [0.7.0] - 2026-10-17
 

@@ -83,7 +83,7 @@ defmodule SikioWeb.Router do
       live "/login", SignInLive, :login
       live "/recover", SignInLive, :recover
       live "/setup", SignInLive, :setup
-      live "/invite/:token", InviteLive
+      live "/invite", InviteLive
     end
 
     live_session :members,

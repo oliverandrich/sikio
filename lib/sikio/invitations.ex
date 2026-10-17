@@ -18,6 +18,7 @@ defmodule Sikio.Invitations do
   alias Ithibati.Identity.Invitations
   alias Sikio.Accounts.Invitation
   alias Sikio.Accounts.User
+  alias Sikio.Identity
   alias Sikio.Repo
 
   @doc """
@@ -28,10 +29,13 @@ defmodule Sikio.Invitations do
 
   Only the returned struct carries the plaintext token. The row stores its digest. A struct
   loaded later has no token.
+
+  Addressed, the invitation binds the address it is sent to. Named, it is open: the invitee
+  chooses the username.
   """
   def open(%User{} = inviter, attrs) do
     %Invitation{}
-    |> Invitation.changeset(attrs)
+    |> Invitation.changeset(attrs, addressed: Identity.email?())
     |> Changeset.put_change(:invited_by_id, inviter.id)
     |> Repo.insert()
   end

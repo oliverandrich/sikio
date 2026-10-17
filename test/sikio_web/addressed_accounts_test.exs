@@ -47,23 +47,31 @@ defmodule SikioWeb.AddressedAccountsTest do
   test "the invitation refusal names the field once" do
     addressing()
 
-    assert refusal_for("not-an-address") =~ "Email address must look like grace@example.org."
+    # The address comes first: the note is optional here.
+    blank = refusal_for(%{"username" => "", "note" => ""})
+    assert blank =~ "Email address can&#39;t be blank."
+    refute blank =~ "Note can"
+
+    assert refusal_for(%{"username" => "not-an-address"}) =~
+             "Email address must look like grace@example.org."
 
     TestConfig.put_env(:sikio, :account_identity, :username)
 
-    assert refusal_for("not a name") =~
-             "Username must be 1-30 lowercase letters, numbers or underscores."
+    # Named, the form asks only for a note; the invitee chooses the name.
+    assert refusal_for(%{"note" => " "}) =~ "Note can&#39;t be blank."
   end
 
-  defp refusal_for(value) do
+  defp refusal_for(fields) do
     # The inviter's username must be valid in the current mode.
-    inviter = if Identity.email?(), do: "ada@example.org", else: "ada"
+    inviter =
+      if Identity.email?(), do: unique_username() <> "@example.org", else: unique_username()
+
     account = Repo.insert!(User.changeset(%User{}, %{username: inviter}))
     conn = build_conn() |> Plug.Test.init_test_session(%{}) |> Gate.log_in(account)
 
     {:ok, view, _html} = live(conn, ~p"/invitations")
 
-    view |> form("#invitation-form", %{"username" => value}) |> render_submit()
+    view |> form("#invitation-form", fields) |> render_submit()
   end
 
   # Ithibati's error codes name `username` in both modes. `CeremonyMessages` words them per mode.
@@ -86,9 +94,12 @@ defmodule SikioWeb.AddressedAccountsTest do
 
   test "and one about arriving without any" do
     assert CeremonyMessages.message("username_required", nil) =~ "username"
+    # The claim and an open invitation both ask for a name, so the sentence names neither.
+    refute CeremonyMessages.message("username_required", nil) =~ "claim"
 
     addressing()
 
     assert CeremonyMessages.message("username_required", nil) =~ "address"
+    refute CeremonyMessages.message("username_required", nil) =~ "claim"
   end
 end

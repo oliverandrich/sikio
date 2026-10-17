@@ -11,6 +11,7 @@ defmodule SikioWeb.Auth do
   """
   @behaviour Ithibati.Web.Handler
 
+  import Ecto.Query, only: [from: 2]
   import Phoenix.Controller, only: [json: 2]
   import Plug.Conn, only: [get_session: 2, put_session: 3]
 
@@ -41,14 +42,14 @@ defmodule SikioWeb.Auth do
   def registration_subject(conn, params) do
     if Instance.needs_setup?(),
       do: claiming(conn, params),
-      else: invited(params["token"])
+      else: invited(params)
   end
 
   # Checks the setup authorization before a first-account ceremony starts.
   # The check runs here as well as on the page, because a request can reach the endpoint directly.
   defp claiming(conn, params) do
     if claim_open?(setup_authorization(conn)),
-      do: first_account(params),
+      do: approved_name(params),
       else: {:error, :setup_authorization_required}
   end
 
@@ -64,22 +65,34 @@ defmodule SikioWeb.Auth do
   # The proof carries an expiry; `Instance.authorized?/1` checks it.
   defp setup_authorization(conn), do: get_session(conn, :setup_authorization)
 
-  # The username comes from the invitation, not from the request.
-  # `Invitations.accept/2` also rejects a mismatched username inside the transaction.
-  defp invited(token) when is_binary(token) do
+  # An addressed invitation names the account, so the request's name is not read.
+  # An open invitation takes the invitee's name. A taken name is refused before the challenge.
+  # The unique index decides when two people choose one name at once.
+  defp invited(%{"token" => token} = params) when is_binary(token) do
     case Invitations.fetch(token) do
-      nil -> {:error, :invitation_unknown}
-      invitation -> {:ok, invitation.username}
+      nil ->
+        {:error, :invitation_unknown}
+
+      invitation ->
+        if Invitations.open?(invitation), do: unclaimed(params), else: {:ok, invitation.username}
     end
   end
 
   defp invited(_missing), do: {:error, :invitation_required}
 
+  defp unclaimed(params) do
+    with {:ok, username} <- approved_name(params) do
+      if Repo.exists?(from u in User, where: u.username == ^username),
+        do: {:error, :username_taken},
+        else: {:ok, username}
+    end
+  end
+
   # Validates the username before a challenge is issued.
   # A later refusal would leave an authenticator credential for an account that never exists.
   # The changeset validates the format, so no second pattern exists.
   # Returns the normalized username, so the passkey dialog shows the stored value.
-  defp first_account(%{"username" => username}) do
+  defp approved_name(%{"username" => username}) do
     %User{}
     |> User.changeset(%{"username" => username})
     |> Ecto.Changeset.apply_action(:insert)
@@ -89,7 +102,7 @@ defmodule SikioWeb.Auth do
     end
   end
 
-  defp first_account(_params), do: {:error, :username_required}
+  defp approved_name(_params), do: {:error, :username_required}
 
   @impl true
   def register(conn, key_attrs, %User{id: id} = account, params) do
@@ -144,19 +157,25 @@ defmodule SikioWeb.Auth do
   end
 
   # The invitation is fetched again, because the challenge carries only the username.
-  # A token for a different username is refused here.
-  # `accept/2` checks again inside the transaction, which closes the race.
-  defp accept_invitation(%{username: username} = invitation, username, key_attrs) do
-    Multi.new()
-    |> Multi.insert(:account, User.changeset(%User{}, Invitations.account_attrs(invitation)))
-    |> Invitations.accept(invitation)
-    |> Grant.with_key_and_codes(key_attrs)
-  end
+  # An addressed invitation must name that username; `accept/3` checks it again in the transaction.
+  # An open invitation names nobody, so the account takes the name approved with the challenge.
+  defp accept_invitation(%{username: nil} = invitation, username, key_attrs),
+    do: accepted(invitation, %{"username" => username}, key_attrs)
+
+  defp accept_invitation(%{username: username} = invitation, username, key_attrs),
+    do: accepted(invitation, Invitations.account_attrs(invitation), key_attrs)
 
   # Accepted, expired, unknown and mismatched invitations return the same error.
   # The response does not reveal whether a token ever existed.
   defp accept_invitation(_other, _username, _key_attrs),
     do: Multi.error(Multi.new(), :invitation, :invitation_unknown)
+
+  defp accepted(invitation, account_attrs, key_attrs) do
+    Multi.new()
+    |> Multi.insert(:account, User.changeset(%User{}, account_attrs))
+    |> Invitations.accept(invitation)
+    |> Grant.with_key_and_codes(key_attrs)
+  end
 
   # Creates the first account without an invitation. `Instance.claim/2` refuses a second claim.
   # The claim step runs before the grant, as `accept/2` does above.

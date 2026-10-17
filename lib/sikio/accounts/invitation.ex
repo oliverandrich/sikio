@@ -10,6 +10,8 @@ defmodule Sikio.Accounts.Invitation do
   """
   use Ecto.Schema
 
+  import Ecto.Changeset, only: [get_field: 2, validate_required: 2]
+
   alias Ithibati.Schema.Invitation
 
   # The same identifier as the account schema. `Ithibati.Config` raises when the two differ.
@@ -35,8 +37,14 @@ defmodule Sikio.Accounts.Invitation do
   Returns the changeset from `invitation_changeset/3`.
 
   It applies this instance's format. An invalid changeset skips token generation and the
-  accounts lookup.
+  accounts lookup. An open invitation, built with `addressed: false`, needs a note.
   """
-  def changeset(invitation, attrs, opts \\ []),
-    do: invitation_changeset(invitation, attrs, opts)
+  def changeset(invitation, attrs, opts \\ []) do
+    changeset = invitation_changeset(invitation, attrs, opts)
+
+    # An open invitation names nobody, so its note is the only thing that tells it apart.
+    if get_field(changeset, :username),
+      do: changeset,
+      else: validate_required(changeset, [:note])
+  end
 end
