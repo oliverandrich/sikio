@@ -61,10 +61,17 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  # Each search index is asked for this many hits. The add page ranks them across indexes.
+  @search_hits 50
+
   def search(term) when is_binary(term) do
     with {:ok, term} <- search_term(term),
          {:ok, results} <- directory(term) do
-      {:ok, results |> Enum.flat_map(&search_result/1) |> Enum.uniq_by(& &1.url) |> Enum.take(20)}
+      {:ok,
+       results
+       |> Enum.flat_map(&search_result/1)
+       |> Enum.uniq_by(& &1.url)
+       |> Enum.take(@search_hits)}
     else
       {:error, :invalid_search} -> {:error, :invalid_search}
       {:error, :unavailable} -> {:error, :directory_unavailable}
@@ -81,7 +88,7 @@ defmodule Sikio.Feeds.Discovery do
   @doc """
   Searches the German public broadcasters' media libraries through MediathekViewWeb.
 
-  Matches title and topic, newest first, at most 20 programmes. Variants of one programme are
+  Matches title and topic, newest first, at most 50 programmes. Variants of one programme are
   left out: audio description, plain language, sign language and trailers. The video is the
   HD file where the broadcaster offers one. `base` is the instance; see `mediathek_url/0`.
   """
@@ -95,7 +102,7 @@ defmodule Sikio.Feeds.Discovery do
        |> Enum.reject(&variant?/1)
        |> Enum.flat_map(&programme/1)
        |> Parser.one_per_page()
-       |> Enum.take(20)}
+       |> Enum.take(@search_hits)}
     else
       {:error, :invalid_search} -> {:error, :invalid_search}
       _ -> {:error, :mediathek_unavailable}
@@ -163,7 +170,7 @@ defmodule Sikio.Feeds.Discovery do
   def mediathek_url, do: Application.get_env(:sikio, :mediathek_url, @mediathek_public)
 
   # One page per search, with no follow-up pages. Its maintainer asks for sparing use.
-  # Variants are fetched too, so 30 results leave enough programmes after the filter.
+  # Variants are fetched too, so 75 results leave enough programmes after the filter.
   defp mediathek_query(term) do
     %{
       queries: [%{fields: ["title", "topic"], query: term}],
@@ -171,7 +178,7 @@ defmodule Sikio.Feeds.Discovery do
       sortOrder: "desc",
       future: false,
       offset: 0,
-      size: 30
+      size: 75
     }
   end
 
@@ -226,7 +233,7 @@ defmodule Sikio.Feeds.Discovery do
   @youtube_videos "EgIQAQ=="
 
   @doc """
-  Searches a PeerTube index for channels, at most 20.
+  Searches a PeerTube index for channels, at most 50.
 
   The index answers PeerTube's search API across instances. `base` is the index; see
   `peertube_search_url/0`.
@@ -235,7 +242,7 @@ defmodule Sikio.Feeds.Discovery do
     do: peertube_search(term, base, "video-channels", %{}, &peertube_channel(&1, base))
 
   @doc """
-  Searches a PeerTube index for videos, at most 20. Sensitive and live videos are left out.
+  Searches a PeerTube index for videos, at most 50. Sensitive and live videos are left out.
   """
   def peertube_video_search(term, base \\ peertube_search_url()) when is_binary(term),
     do:
@@ -369,10 +376,10 @@ defmodule Sikio.Feeds.Discovery do
 
   defp peertube_search(term, base, kind, filters, result) do
     with {:ok, term} <- search_term(term),
-         query = URI.encode_query(Map.merge(filters, %{search: term, count: 20})),
+         query = URI.encode_query(Map.merge(filters, %{search: term, count: @search_hits})),
          {:ok, %{"data" => hits}} when is_list(hits) <-
            json("#{base}/api/v1/search/#{kind}?#{query}") do
-      {:ok, hits |> Enum.flat_map(result) |> Enum.uniq_by(& &1.url) |> Enum.take(20)}
+      {:ok, hits |> Enum.flat_map(result) |> Enum.uniq_by(& &1.url) |> Enum.take(@search_hits)}
     else
       {:error, :invalid_search} -> {:error, :invalid_search}
       _ -> {:error, :peertube_unavailable}
@@ -451,7 +458,7 @@ defmodule Sikio.Feeds.Discovery do
   def episode_search(term) when is_binary(term) do
     with {:ok, term} <- search_term(term),
          {:ok, results} <- directory(term, "podcastEpisode") do
-      {:ok, results |> Enum.flat_map(&episode/1) |> Enum.take(20)}
+      {:ok, results |> Enum.flat_map(&episode/1) |> Enum.take(@search_hits)}
     else
       {:error, :invalid_search} -> {:error, :invalid_search}
       _ -> {:error, :directory_unavailable}
@@ -532,7 +539,7 @@ defmodule Sikio.Feeds.Discovery do
         media: "podcast",
         entity: entity,
         country: "DE",
-        limit: 20
+        limit: @search_hits
       })
 
     case json("https://itunes.apple.com/search?" <> query) do

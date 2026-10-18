@@ -16,8 +16,8 @@ Its own section becomes the version's release notes.
 - The subscriptions page refreshes one source or all active sources on request. A row shows the
   refresh until it finishes, then its result. A source checked within the last minute is not
   asked again.
-- The add page searches YouTube for channels and videos, in two tabs beside PeerTube's. It reads
-  YouTube's results page and needs no API key.
+- The add page searches YouTube for channels and videos. It reads YouTube's results page and
+  needs no API key.
 - An invitation in username mode carries a note for the members who manage invitations. The
   invitee chooses the username on accepting it, checked for format and for an existing account
   before the passkey dialog.
@@ -26,6 +26,10 @@ Its own section becomes the version's release notes.
 
 ### Changed
 
+- A search on the add page shows the hits of every index in one list, best match first. The list
+  appears once every index answered, or after five seconds. A pill per kind with hits shows its
+  count and filters the list. Without a filter the list shows the best 20 hits.
+- Apple Podcasts, the Mediathek and PeerTube are asked for 50 hits per search instead of 20.
 - An invitation link is `/invite#TOKEN`. The token sits after `#`, which no request sends.
 - Sikio requires Ithibati 0.8.1.
 

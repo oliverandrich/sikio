@@ -138,7 +138,7 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, _} = live(conn, ~p"/add")
     view |> form("#add-form", %{q: "small hours"}) |> render_submit()
     render_async(view)
-    assert has_element?(view, "#panel-podcasts", "Other Show")
+    assert has_element?(view, "#results", "Other Show")
     assert has_element?(view, "#sidebar a", "Followed")
 
     ids = view |> render() |> Floki.parse_document!() |> Floki.attribute("[id]", "id")
@@ -177,8 +177,8 @@ defmodule SikioWeb.AddSourceLiveTest do
     {:ok, view, _} = live(conn, ~p"/add")
     view |> form("#add-form", %{q: "small hours"}) |> render_submit()
     render_async(view)
-    assert has_element?(view, ~s|#tab-podcasts[aria-selected="true"]|, "2")
-    assert has_element?(view, "#panel-podcasts", "Apple Podcasts")
+    assert has_element?(view, "#filter-podcasts", "2")
+    assert has_element?(view, "#found-0", "Apple Podcasts")
     assert has_element?(view, "#found-0", "Ada")
     src = Pictures.path(["https://img.example/small-hours.jpg"], ~p"/images/kind-audio.svg")
     assert has_element?(view, ~s|#found-0 img[src="#{src}"]|)
@@ -280,9 +280,10 @@ defmodule SikioWeb.AddSourceLiveTest do
       }
     end
 
-    # Four tabs: podcasts, their episodes, the Mediathek's series and its programmes. Each
-    # shows its count. A programme's actions show without a click.
-    test "a search fills four tabs, and a programme goes to the queue", %{conn: conn, user: user} do
+    # One list holds podcasts, their episodes, the Mediathek's series and its programmes. A pill
+    # per kind shows its count and filters the list. A programme's actions show without a click.
+    test "a search lists every kind at once, a pill filters it, and a programme goes to the queue",
+         %{conn: conn, user: user} do
       searches(
         [%{collectionName: "Small Hours", feedUrl: feed_url()}],
         [episode("One & two", feed_url())],
@@ -293,19 +294,26 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "tatort"}) |> render_submit()
       render_async(view)
 
-      assert has_element?(view, ~s|#tab-podcasts[aria-selected="true"]|, "1")
-      assert has_element?(view, "#tab-episodes", "1")
-      assert has_element?(view, "#tab-series", "2")
-      assert has_element?(view, "#tab-programmes", "2")
-      assert has_element?(view, "#panel-programmes.hidden")
+      assert has_element?(view, "#filter-podcasts", "1")
+      assert has_element?(view, "#filter-episodes", "1")
+      assert has_element?(view, "#filter-series", "2")
+      assert has_element?(view, "#filter-programmes", "2")
+      assert has_element?(view, "#results #found-0")
+      assert has_element?(view, "#results #programme-0")
 
-      view |> element("#tab-programmes") |> render_click()
-      assert has_element?(view, ~s|#tab-programmes[aria-selected="true"]|)
-      assert has_element?(view, "#panel-podcasts.hidden")
+      view |> element("#filter-programmes") |> render_click()
+      assert has_element?(view, ~s|#filter-programmes[aria-pressed="true"]|)
+      refute has_element?(view, "#search-hint")
+      refute has_element?(view, "#found-0")
       assert has_element?(view, "#programme-0", "Die Erfindung des Rades")
       assert has_element?(view, "#programme-0", "WDR")
       assert has_element?(view, "#programme-0", "Fernsehfilm")
       assert has_element?(view, ~s|#programme-0 a[href^="https://mediathek"][target="_blank"]|)
+
+      # A second press on the same pill shows every kind again.
+      view |> element("#filter-programmes") |> render_click()
+      assert has_element?(view, ~s|#filter-programmes[aria-pressed="false"]|)
+      assert has_element?(view, "#found-0")
 
       result = view |> element(~s|#programme-0 [data-action="queue"]|) |> render_click()
       assert {:error, {:live_redirect, %{to: "/queue/" <> _}}} = result
@@ -355,8 +363,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "maus"}) |> render_submit()
       render_async(view)
 
-      # Without podcasts, the first tab with results opens.
-      assert has_element?(view, ~s|#tab-series[aria-selected="true"]|, "1")
+      assert has_element?(view, "#filter-series", "1")
       assert has_element?(view, "#series-0", "Die Sendung mit der Maus · ARD")
       # A series names the hit it was found by. A count of hits would read as its size.
       assert has_element?(
@@ -441,7 +448,6 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "small hours"}) |> render_submit()
       render_async(view)
 
-      assert has_element?(view, ~s|#tab-episodes[aria-selected="true"]|)
       assert has_element?(view, "#episode-0", "One & two")
       assert has_element?(view, "#episode-0", "Small Hours")
       assert has_element?(view, "#episode-0 [data-description].line-clamp-2")
@@ -519,7 +525,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       {:ok, view, _} = live(conn, ~p"/add")
       view |> form("#add-form", %{q: feed_url()}) |> render_submit()
       render_async(view)
-      refute has_element?(view, "#search-tabs")
+      refute has_element?(view, "#search-filters")
     end
   end
 
@@ -564,9 +570,8 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "linux"}) |> render_submit()
       render_async(view)
 
-      # Without other results, the first tab with results opens.
-      assert has_element?(view, ~s|#tab-channels[aria-selected="true"]|, "PeerTube channels")
-      assert has_element?(view, "#tab-channels", "1")
+      assert has_element?(view, "#filter-channels", "PeerTube channels")
+      assert has_element?(view, "#filter-channels", "1")
       assert has_element?(view, "#channel-0", hit.displayName)
       assert has_element?(view, "#channel-0", hit.host)
 
@@ -665,9 +670,8 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "linux"}) |> render_submit()
       render_async(view)
 
-      assert has_element?(view, "#tab-videos", "PeerTube videos")
-      assert has_element?(view, "#tab-videos", "1")
-      view |> element("#tab-videos") |> render_click()
+      assert has_element?(view, "#filter-videos", "PeerTube videos")
+      assert has_element?(view, "#filter-videos", "1")
       assert has_element?(view, "#video-0", hit.name)
       assert has_element?(view, "#video-0", "Linux")
 
@@ -724,7 +728,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       {:ok, view, _} = live(conn, ~p"/add")
       view |> form("#add-form", %{q: feed_url()}) |> render_submit()
       render_async(view)
-      refute has_element?(view, "#search-tabs")
+      refute has_element?(view, "#search-filters")
     end
   end
 
@@ -744,7 +748,7 @@ defmodule SikioWeb.AddSourceLiveTest do
 
     view |> element("#clear-search") |> render_click()
     refute has_element?(view, "#found-0")
-    refute has_element?(view, "#search-tabs")
+    refute has_element?(view, "#search-filters")
     assert has_element?(view, ~s|#add-q[value=""]|)
     refute has_element?(view, "#clear-search")
   end
@@ -920,11 +924,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "good"}) |> render_submit()
       render_async(view)
 
-      assert has_element?(
-               view,
-               ~s|#tab-youtube_channels[aria-selected="true"]|,
-               "YouTube channels"
-             )
+      assert has_element?(view, "#filter-youtube_channels", "YouTube channels")
 
       assert has_element?(view, "#youtube-channel-0", "Channel good")
       assert has_element?(view, "#youtube-channel-0", "youtube.com")
@@ -965,8 +965,7 @@ defmodule SikioWeb.AddSourceLiveTest do
       view |> form("#add-form", %{q: "good"}) |> render_submit()
       render_async(view)
 
-      assert has_element?(view, "#tab-youtube_videos", "YouTube videos")
-      view |> element("#tab-youtube_videos") |> render_click()
+      assert has_element?(view, "#filter-youtube_videos", "YouTube videos")
       assert has_element?(view, "#youtube-video-0", "Video abcdefghijk")
       assert has_element?(view, "#youtube-video-0", "Good Channel")
 
@@ -1002,6 +1001,141 @@ defmodule SikioWeb.AddSourceLiveTest do
       assert has_element?(view, "#youtube-channels-error", "paste the channel's link")
       assert has_element?(view, "#youtube-videos-error", "paste the video's link")
       refute has_element?(view, "#discovery-error")
+    end
+  end
+
+  describe "one ranked list" do
+    # Apple answers `podcasts` and YouTube answers `channels`. The other searches find nothing.
+    defp ranked_searches(podcasts, channels, youtube \\ nil) do
+      test = self()
+
+      Req.Test.stub(HTTP, fn conn ->
+        case {conn.request_path, URI.decode_query(conn.query_string)} do
+          {"/results", %{"sp" => "EgIQAg=="}} when is_function(youtube) ->
+            youtube.(conn)
+
+          {"/results", %{"sp" => "EgIQAg=="}} ->
+            Plug.Conn.send_resp(conn, 200, youtube_results(channels))
+
+          {path, query} ->
+            # Each search's task reports itself, so a test can wait for all but one.
+            send(test, {:answered, self()})
+            nothing_but(conn, path, query, podcasts)
+        end
+      end)
+    end
+
+    defp nothing_but(conn, "/search", %{"entity" => "podcast"}, podcasts),
+      do: Req.Test.json(conn, %{results: podcasts})
+
+    defp nothing_but(conn, "/search", _query, _podcasts), do: Req.Test.json(conn, %{results: []})
+
+    defp nothing_but(conn, "/api/query", _query, _podcasts),
+      do: Req.Test.json(conn, %{result: %{results: []}})
+
+    defp nothing_but(conn, "/api/v1/search/" <> _, _query, _podcasts),
+      do: Req.Test.json(conn, %{data: []})
+
+    defp nothing_but(conn, "/results", _query, _podcasts),
+      do: Plug.Conn.send_resp(conn, 200, youtube_results([]))
+
+    defp show(title), do: %{collectionName: title, artistName: "Ada", feedUrl: feed_url()}
+
+    defp rows(view) do
+      view
+      |> element("#results")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.attribute("article", "id")
+    end
+
+    # Each index ranks by its own measure. The list orders all hits by their title's match.
+    test "hits from every search are ordered by how well they match", %{conn: conn} do
+      ranked_searches([show("Other Show"), show("Good")], [youtube_channel_hit("good")])
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "good"}) |> render_submit()
+      render_async(view)
+
+      assert rows(view) == ["found-1", "youtube-channel-0", "found-0"]
+      assert has_element?(view, "#youtube-channel-0", "YouTube")
+    end
+
+    test "the list shows the best 20, and a pill shows every hit of its kind", %{conn: conn} do
+      ranked_searches(Enum.map(1..25, &show("Show #{&1}")), [])
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "show"}) |> render_submit()
+      render_async(view)
+
+      assert length(rows(view)) == 20
+      assert has_element?(view, "#filter-podcasts", "25")
+      # A kind without hits shows no pill.
+      refute has_element?(view, "#filter-episodes")
+
+      view |> element("#filter-podcasts") |> render_click()
+      assert length(rows(view)) == 25
+    end
+
+    # Rows that jumped as each search answered would move under the pointer. The list waits for
+    # the slowest search, and a deadline ends the wait. A later answer joins the list.
+    test "the list waits for every search until its deadline", %{conn: conn} do
+      test = self()
+
+      ranked_searches([show("Good")], [], fn conn ->
+        send(test, {:blocked, self()})
+
+        receive do
+          :answer ->
+            Plug.Conn.send_resp(conn, 200, youtube_results([youtube_channel_hit("good")]))
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "good"}) |> render_submit()
+      assert_receive {:blocked, youtube}
+
+      # Six searches answer. Their tasks end once the view holds their results.
+      for _search <- 1..6 do
+        assert_receive {:answered, task}
+        ref = Process.monitor(task)
+        assert_receive {:DOWN, ^ref, :process, _, _}
+      end
+
+      assert has_element?(view, "#filter-podcasts", "1")
+      assert has_element?(view, "#search-loading")
+      assert rows(view) == []
+
+      # The list shows what came in. The loading line stays for the search still running.
+      send(view.pid, {:settle, "good"})
+      assert has_element?(view, "#search-loading")
+      assert rows(view) == ["found-0"]
+
+      send(youtube, :answer)
+      render_async(view)
+      refute has_element?(view, "#search-loading")
+      assert rows(view) == ["found-0", "youtube-channel-0"]
+    end
+
+    # An empty list at the deadline is no answer yet while a search still runs.
+    test "nothing is reported found while a search still runs", %{conn: conn} do
+      test = self()
+
+      ranked_searches([], [], fn conn ->
+        send(test, {:blocked, self()})
+        receive do: (:answer -> Plug.Conn.send_resp(conn, 200, youtube_results([])))
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "good"}) |> render_submit()
+      assert_receive {:blocked, youtube}
+
+      send(view.pid, {:settle, "good"})
+      refute has_element?(view, "#no-results")
+
+      send(youtube, :answer)
+      render_async(view)
+      assert has_element?(view, "#no-results")
     end
   end
 

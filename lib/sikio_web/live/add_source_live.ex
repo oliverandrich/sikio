@@ -11,6 +11,8 @@ defmodule SikioWeb.AddSourceLive do
   A search also asks MediathekViewWeb. A programme from it is saved on its own, as an item.
   A search also asks a PeerTube index for channels and videos. A video is saved as its link is.
   A search also reads YouTube's results page for channels and videos, saved the same way.
+  A search lists the hits of every index in one list, ordered by `Sikio.Feeds.SearchRank`. The list
+  renders once every index answered, or after a deadline. A pill per kind filters it.
   Discovery runs in `start_async/3`. Candidates stay in assigns under generated ids.
   A forged id therefore selects nothing.
 
@@ -25,11 +27,12 @@ defmodule SikioWeb.AddSourceLive do
     only: [artwork: 1, date: 1, page_picture: 1, runtime: 1, source_name: 1, source_picture: 1]
 
   alias Sikio.Feeds.Discovery
+  alias Sikio.Feeds.SearchRank
   alias Sikio.Library
   alias SikioWeb.LibraryPaths
   alias SikioWeb.SubscriptionSettings
 
-  # Each tab with the assign that holds its results, in the order `choose_tab/1` tries them.
+  # Each kind of hit with the assign that holds its results, in the order of the pills.
   @results [
     podcasts: :candidates,
     episodes: :episodes,
@@ -41,7 +44,25 @@ defmodule SikioWeb.AddSourceLive do
     youtube_videos: :youtube_videos
   ]
 
-  @tabs Enum.map(@results, fn {tab, _results} -> to_string(tab) end)
+  @kinds Enum.map(@results, fn {kind, _results} -> to_string(kind) end)
+
+  # Each kind's row id prefix. Rows of all kinds share one list, so their ids must differ.
+  @prefixes %{
+    podcasts: "found-",
+    episodes: "episode-",
+    series: "series-",
+    programmes: "programme-",
+    channels: "channel-",
+    videos: "video-",
+    youtube_channels: "youtube-channel-",
+    youtube_videos: "youtube-video-"
+  }
+
+  # The list renders once every search answered, or after this many milliseconds.
+  @deadline 5_000
+
+  # Without a filter, the list shows this many of the best hits.
+  @shown 20
 
   # Each search besides Apple's podcast search with the assign that holds its state.
   @states %{
@@ -60,35 +81,22 @@ defmodule SikioWeb.AddSourceLive do
     "save_youtube_video" => :youtube_videos
   }
 
-  # Each list's rows subscribe to a source: its row id prefix, the fields with its address and
-  # name, and the `Discovery` function that fetches it. A capture here would be a compile-time
-  # dependency.
+  # Each list's rows subscribe to a source: the fields with its address and name, and the
+  # `Discovery` function that fetches it. A capture here would be a compile-time dependency.
   @subscribable %{
-    "episodes" => {:episodes, "episode-", :feed_url, :podcast, :discover},
-    "series" => {:series, "series-", :series_url, :title, :mediathek_series},
-    "programmes" => {:programmes, "programme-", :series_url, :series_title, :mediathek_series},
-    "channels" => {:channels, "channel-", :url, :title, :discover},
-    "videos" => {:videos, "video-", :channel_url, :channel, :discover},
-    "youtube_channels" => {:youtube_channels, "youtube-channel-", :url, :title, :discover},
-    "youtube_videos" => {:youtube_videos, "youtube-video-", :channel_url, :channel, :discover}
+    "episodes" => {:episodes, :feed_url, :podcast, :discover},
+    "series" => {:series, :series_url, :title, :mediathek_series},
+    "programmes" => {:programmes, :series_url, :series_title, :mediathek_series},
+    "channels" => {:channels, :url, :title, :discover},
+    "videos" => {:videos, :channel_url, :channel, :discover},
+    "youtube_channels" => {:youtube_channels, :url, :title, :discover},
+    "youtube_videos" => {:youtube_videos, :channel_url, :channel, :discover}
   }
 
   @existing ~w(newest all none)
 
   # A series taken whole is fetched once with this many programmes. Its refreshes ask for 20.
   @whole_series 100
-
-  # Each stream with the assign that holds its results and the field that orders them.
-  @lists [
-    {:sources, :candidates, :id},
-    {:episodes, :episodes, :key},
-    {:series, :series, :key},
-    {:programmes, :programmes, :key},
-    {:channels, :channels, :key},
-    {:videos, :videos, :key},
-    {:youtube_channels, :youtube_channels, :key},
-    {:youtube_videos, :youtube_videos, :key}
-  ]
 
   @lookups [
     :subscribe,
@@ -112,14 +120,8 @@ defmodule SikioWeb.AddSourceLive do
        mode: nil,
        busy: false
      )
-     |> stream_configure(:sources, dom_id: &"found-#{&1.id}")
-     |> stream_configure(:programmes, dom_id: &"programme-#{&1.key}")
-     |> stream_configure(:episodes, dom_id: &"episode-#{&1.key}")
-     |> stream_configure(:series, dom_id: &"series-#{&1.key}")
-     |> stream_configure(:channels, dom_id: &"channel-#{&1.key}")
-     |> stream_configure(:videos, dom_id: &"video-#{&1.key}")
-     |> stream_configure(:youtube_channels, dom_id: &"youtube-channel-#{&1.key}")
-     |> stream_configure(:youtube_videos, dom_id: &"youtube-video-#{&1.key}")
+     |> stream_configure(:sources, dom_id: &(@prefixes.podcasts <> &1.id))
+     |> stream_configure(:results, dom_id: & &1.id)
      |> without_results()}
   end
 
@@ -145,9 +147,12 @@ defmodule SikioWeb.AddSourceLive do
   # One input: a URL is discovered, any other text is searched.
   def handle_event("add", %{"q" => q}, socket), do: {:noreply, lookup(socket, q)}
 
-  # A tab keeps its place once the account picked it, while the other searches still answer.
-  def handle_event("tab", %{"tab" => tab}, socket) when tab in @tabs,
-    do: {:noreply, assign(socket, tab: String.to_existing_atom(tab), tab_picked: true)}
+  # A pill filters the list to its kind. Pressed again, it shows every kind.
+  def handle_event("filter", %{"kind" => kind}, socket) when kind in @kinds do
+    kind = String.to_existing_atom(kind)
+    filter = if socket.assigns.filter == kind, do: nil, else: kind
+    {:noreply, socket |> assign(filter: filter) |> show_rows()}
+  end
 
   # One description shows in full at a time.
   def handle_event("more", %{"row" => row}, socket) do
@@ -187,11 +192,11 @@ defmodule SikioWeb.AddSourceLive do
 
   def handle_event("subscribe", %{"list" => list, "key" => key}, socket)
       when is_map_key(@subscribable, list) do
-    {name, prefix, url, title, fetch} = @subscribable[list]
+    {name, url, title, fetch} = @subscribable[list]
 
     case socket.assigns[name][key] do
       %{^url => address} = row when is_binary(address) ->
-        {:noreply, ask(socket, prefix <> key, row[title], {fetch, address})}
+        {:noreply, ask(socket, @prefixes[name] <> key, row[title], {fetch, address})}
 
       _forged ->
         {:noreply, socket}
@@ -303,19 +308,19 @@ defmodule SikioWeb.AddSourceLive do
   # A feed without the episode is final. A video's instance may only be down at the moment.
   defp fetching(:episodes, key, episode),
     do:
-      {"episode-" <> key, gettext("This episode is no longer in its podcast's feed."),
+      {@prefixes.episodes <> key, gettext("This episode is no longer in its podcast's feed."),
        fn -> Discovery.episode_item(episode) end}
 
   defp fetching(:videos, key, video),
     do:
-      {"video-" <> key,
+      {@prefixes.videos <> key,
        gettext("This video could not be read from its PeerTube instance. Try again later."),
        fn -> Discovery.peertube_video_item(video.url) end}
 
   # The video is read as its pasted link would be.
   defp fetching(:youtube_videos, key, video),
     do:
-      {"youtube-video-" <> key,
+      {@prefixes.youtube_videos <> key,
        gettext("This video could not be read from YouTube. Try again later."),
        fn -> Discovery.item(video.url) end}
 
@@ -340,47 +345,47 @@ defmodule SikioWeb.AddSourceLive do
   def handle_async(:sources, {:ok, {:ok, sources}}, socket) do
     sources = keyed(sources, :id)
 
-    {:noreply,
-     socket
-     |> assign(busy: false, searched: true, candidates: Map.new(sources, &{&1.id, &1}))
-     |> show_sources(sources)
-     |> choose_tab()}
+    search? = socket.assigns.mode == :search
+    sources = if search?, do: scored(sources, :podcasts, socket.assigns.term), else: sources
+    socket = assign(socket, busy: false, candidates: by_id(sources))
+
+    if search?,
+      do: {:noreply, answered(socket)},
+      else: {:noreply, show_sources(socket, sources)}
   end
 
   def handle_async(:programmes, {:ok, {:ok, found}}, socket) do
+    term = socket.assigns.term
     found = found |> Enum.map(&with_series/1) |> keyed(:key)
-    series = found |> grouped() |> keyed(:key)
+    series = found |> grouped() |> keyed(:key) |> scored(:series, term)
 
     {:noreply,
      socket
      |> assign(
-       programmes: Map.new(found, &{&1.key, &1}),
-       series: Map.new(series, &{&1.key, &1}),
+       programmes: found |> scored(:programmes, term) |> by_key(),
+       series: by_key(series),
        programmes_state: :done
      )
-     |> stream(:programmes, found, reset: true)
-     |> stream(:series, series, reset: true)
-     |> choose_tab()}
+     |> answered()}
   end
 
   def handle_async(source, {:ok, {:ok, found}}, socket)
       when is_map_key(@states, source) do
-    found = keyed(found, :key)
+    found = found |> keyed(:key) |> scored(source, socket.assigns.term)
 
     {:noreply,
      socket
-     |> assign([{source, Map.new(found, &{&1.key, &1})}, {@states[source], :done}])
-     |> stream(source, found, reset: true)
-     |> choose_tab()}
+     |> assign([{source, by_key(found)}, {@states[source], :done}])
+     |> answered()}
   end
 
   # The podcast search reports an invalid term. The other searches stay silent about it.
   def handle_async(source, {:ok, {:error, :invalid_search}}, socket)
       when is_map_key(@states, source),
-      do: {:noreply, assign(socket, @states[source], nil)}
+      do: {:noreply, socket |> assign(@states[source], nil) |> answered()}
 
   def handle_async(source, _failed, socket) when is_map_key(@states, source),
-    do: {:noreply, socket |> assign(@states[source], :failed) |> choose_tab()}
+    do: {:noreply, socket |> assign(@states[source], :failed) |> answered()}
 
   def handle_async(:fetched_item, {:ok, {at, _gone, {:ok, item}}}, socket),
     do: socket |> assign(saving: nil) |> save_item(item, at)
@@ -413,7 +418,14 @@ defmodule SikioWeb.AddSourceLive do
   def handle_async(:sources, {:exit, _reason}, socket), do: failed(socket, :unavailable)
 
   defp failed(socket, reason),
-    do: {:noreply, socket |> assign(busy: false, error: message(reason)) |> choose_tab()}
+    do: {:noreply, socket |> assign(busy: false, error: message(reason)) |> answered()}
+
+  @impl true
+  # A search's deadline. A new lookup cancels the timer; one that fired already names its term.
+  def handle_info({:settle, term}, %{assigns: %{mode: :search, term: term}} = socket),
+    do: {:noreply, socket |> assign(settled: true) |> show_rows()}
+
+  def handle_info(_stale, socket), do: {:noreply, socket}
 
   defp fetch_failed(socket, error) do
     errors = Map.put(socket.assigns.row_errors, socket.assigns.saving, error)
@@ -456,26 +468,69 @@ defmodule SikioWeb.AddSourceLive do
     |> Enum.sort_by(& &1.first)
   end
 
-  # The first tab with results opens, unless the account picked one.
-  defp choose_tab(%{assigns: %{tab_picked: true}} = socket), do: socket
+  # A search's answer. The list renders once no search is left, or once its deadline passed.
+  defp answered(%{assigns: %{mode: :search} = assigns} = socket) do
+    waiting =
+      assigns.busy or Enum.any?(@states, fn {_kind, state} -> assigns[state] == :searching end)
 
-  defp choose_tab(socket) do
-    tab =
-      Enum.find_value(@results, :podcasts, fn {tab, results} ->
-        map_size(socket.assigns[results]) > 0 && tab
-      end)
-
-    assign(socket, tab: tab)
+    socket |> assign(waiting: waiting, settled: assigns.settled or not waiting) |> show_rows()
   end
+
+  defp answered(socket), do: show_rows(socket)
 
   # A stream re-renders a row only when it is inserted again.
   # Re-inserting all rows in order updates each row's state.
+  defp show_rows(%{assigns: %{mode: :search} = assigns} = socket) do
+    rows = ranked(assigns)
+    counts = Map.new(@results, fn {kind, results} -> {kind, map_size(assigns[results])} end)
+
+    socket
+    |> assign(counts: counts)
+    |> stream(:results, shown(assigns, rows), reset: true)
+  end
+
   defp show_rows(socket) do
-    Enum.reduce(@lists, socket, fn {stream, results, key}, socket ->
-      rows = socket.assigns[results] |> Map.values() |> Enum.sort_by(&String.to_integer(&1[key]))
-      stream(socket, stream, rows, reset: true)
+    rows = socket.assigns.candidates |> Map.values() |> Enum.sort_by(&String.to_integer(&1.id))
+    stream(socket, :sources, rows, reset: true)
+  end
+
+  defp shown(%{settled: false}, _rows), do: []
+  defp shown(%{filter: nil}, rows), do: Enum.take(rows, @shown)
+  defp shown(%{filter: kind}, rows), do: Enum.filter(rows, &(&1.kind == kind))
+
+  # Every hit with its kind and row id, best match first. A tie keeps each index's order.
+  defp ranked(assigns) do
+    for {{kind, results}, order} <- Enum.with_index(@results),
+        hit <- Map.values(assigns[results]) do
+      key = hit[:key] || hit.id
+
+      %{
+        id: @prefixes[kind] <> key,
+        kind: kind,
+        hit: hit,
+        rank: {-hit.score, String.to_integer(key), order}
+      }
+    end
+    |> Enum.sort_by(& &1.rank)
+  end
+
+  # Each hit's score is computed once, when its index answers. Rows re-render on every event.
+  defp scored(hits, kind, term) do
+    Enum.map(hits, fn hit ->
+      {title, origin} = named(kind, hit)
+      Map.put(hit, :score, SearchRank.score(term, title, origin))
     end)
   end
+
+  defp by_id(hits), do: Map.new(hits, &{&1.id, &1})
+  defp by_key(hits), do: Map.new(hits, &{&1.key, &1})
+
+  # The title a hit is ranked by, and the name of the show or channel it comes from.
+  defp named(:podcasts, hit), do: {hit.title, hit[:author]}
+  defp named(:episodes, hit), do: {hit.title, hit.podcast}
+  defp named(:programmes, hit), do: {hit.title, hit.topic}
+  defp named(kind, hit) when kind in [:videos, :youtube_videos], do: {hit.title, hit.channel}
+  defp named(_kind, hit), do: {hit.title, nil}
 
   defp discover(socket, url),
     do:
@@ -488,6 +543,9 @@ defmodule SikioWeb.AddSourceLive do
     socket
     |> searching(:search)
     |> assign(
+      term: term,
+      waiting: true,
+      deadline: Process.send_after(self(), {:settle, term}, @deadline),
       programmes_state: :searching,
       episodes_state: :searching,
       channels_state: :searching,
@@ -512,14 +570,16 @@ defmodule SikioWeb.AddSourceLive do
     |> without_results()
   end
 
-  defp cancel_lookups(socket), do: Enum.reduce(@lookups, socket, &cancel_async(&2, &1))
+  defp cancel_lookups(socket) do
+    if timer = socket.assigns[:deadline], do: Process.cancel_timer(timer)
+    Enum.reduce(@lookups, assign(socket, deadline: nil), &cancel_async(&2, &1))
+  end
 
   # The state of a page that has looked nothing up yet.
   defp without_results(socket) do
     socket
     |> assign(
       error: nil,
-      searched: false,
       candidates: %{},
       fallback: nil,
       subscribing: nil,
@@ -541,17 +601,14 @@ defmodule SikioWeb.AddSourceLive do
       youtube_videos_state: nil,
       saving: nil,
       more: nil,
-      tab: :podcasts,
-      tab_picked: false
+      term: nil,
+      waiting: false,
+      settled: false,
+      counts: %{},
+      filter: nil
     )
     |> stream(:sources, [], reset: true)
-    |> stream(:programmes, [], reset: true)
-    |> stream(:episodes, [], reset: true)
-    |> stream(:series, [], reset: true)
-    |> stream(:channels, [], reset: true)
-    |> stream(:videos, [], reset: true)
-    |> stream(:youtube_channels, [], reset: true)
-    |> stream(:youtube_videos, [], reset: true)
+    |> stream(:results, [], reset: true)
   end
 
   # Gives each result a key in list order. A row's button names the key, not the result.
@@ -770,7 +827,7 @@ defmodule SikioWeb.AddSourceLive do
           </p>
         </div>
         <%!-- `role="alert"` outside the `aria-live` region, so it is announced once. A search
-        reports its errors in its own tab. --%>
+        reports its errors below its pills. --%>
         <div
           :if={@error && @mode != :search}
           id="discovery-error"
@@ -806,406 +863,93 @@ defmodule SikioWeb.AddSourceLive do
             subscribing={@subscribing}
           />
         </div>
-        <%!-- A search shows its two sources as tabs. Each tab reports its count, loading and
-        errors. The panels stay in the DOM, because a stream loses its rows when its container
-        leaves it. --%>
-        <div
-          :if={@mode == :search}
-          id="search-tabs"
-          role="tablist"
-          aria-label={gettext("Search results")}
-          class="mt-8 -mx-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line px-4 [scrollbar-width:none] sm:mx-0 sm:px-0"
-        >
-          <.search_tab
-            tab="podcasts"
-            selected={@tab == :podcasts}
-            label={gettext("Podcasts")}
-            count={if @busy, do: "…", else: map_size(@candidates)}
-          />
-          <.search_tab
-            tab="episodes"
-            selected={@tab == :episodes}
-            label={gettext("Episodes")}
-            count={if @episodes_state == :searching, do: "…", else: map_size(@episodes)}
-          />
-          <.search_tab
-            tab="series"
-            selected={@tab == :series}
-            label={gettext("Series")}
-            count={if @programmes_state == :searching, do: "…", else: map_size(@series)}
-          />
-          <.search_tab
-            tab="programmes"
-            selected={@tab == :programmes}
-            label={gettext("Programmes")}
-            count={if @programmes_state == :searching, do: "…", else: map_size(@programmes)}
-          />
-          <.search_tab
-            tab="channels"
-            selected={@tab == :channels}
-            label={gettext("PeerTube channels")}
-            count={if @channels_state == :searching, do: "…", else: map_size(@channels)}
-          />
-          <.search_tab
-            tab="videos"
-            selected={@tab == :videos}
-            label={gettext("PeerTube videos")}
-            count={if @videos_state == :searching, do: "…", else: map_size(@videos)}
-          />
-          <.search_tab
-            tab="youtube_channels"
-            selected={@tab == :youtube_channels}
-            label={gettext("YouTube channels")}
-            count={
-              if @youtube_channels_state == :searching,
-                do: "…",
-                else: map_size(@youtube_channels)
-            }
-          />
-          <.search_tab
-            tab="youtube_videos"
-            selected={@tab == :youtube_videos}
-            label={gettext("YouTube videos")}
-            count={if @youtube_videos_state == :searching, do: "…", else: map_size(@youtube_videos)}
-          />
+        <%!-- A pasted link's sources. --%>
+        <div id="sources" phx-update="stream" class={list_class()}>
+          <.source_row
+            :for={{dom_id, source} <- @streams.sources}
+            id={dom_id}
+            picture={source_picture(source)}
+            title={source.title}
+            action={%{"phx-click" => "select", "phx-value-id" => source.id}}
+            disabled={@busy or @subscribing != nil}
+            subscribing={@subscribing == source.id}
+            error={@row_errors[source.id]}
+          >
+            <span :if={source[:author]}>{source.author}</span>
+            <span :if={source[:entries]}>
+              {gettext("%{count} recent items available", count: length(source.entries))}
+            </span>
+            <span class="min-w-0 truncate font-mono" title={source.url}>
+              {String.replace_prefix(source.url, "https://", "")}
+            </span>
+          </.source_row>
         </div>
-        <div
-          id="panel-podcasts"
-          role={@mode == :search && "tabpanel"}
-          aria-labelledby={@mode == :search && "tab-podcasts"}
-          class={[(@mode == :search and @tab != :podcasts) && "hidden"]}
-        >
-          <p :if={@mode == :search} class="mt-3 text-meta text-muted">
-            {gettext("Via Apple Podcasts. Subscriptions use the show's own RSS feed.")}
+        <%!-- A search lists the hits of every index in one list. A pill per kind shows its count
+        and filters the list. --%>
+        <div :if={@mode == :search} class="mt-8">
+          <div
+            id="search-filters"
+            role="group"
+            aria-label={gettext("Filter results")}
+            class="flex flex-wrap justify-center gap-2"
+          >
+            <.filter_pill
+              :for={{kind, label} <- pills()}
+              kind={to_string(kind)}
+              label={label}
+              count={Map.get(@counts, kind, 0)}
+              filter={@filter}
+            />
+          </div>
+          <p :if={@waiting} id="search-loading" class="mt-3 text-label text-muted">
+            {gettext("Searching Apple Podcasts, the Mediathek, PeerTube and YouTube…")}
           </p>
-          <p :if={@mode == :search and @busy} class="mt-3 text-label text-muted">
-            {gettext("Searching Apple Podcasts…")}
-          </p>
+          <%!-- Searches of one index fail together, so each index reports once. --%>
+          <div class="mt-3 flex flex-col gap-1 text-label text-danger empty:hidden">
+            <p :if={@error} id="search-error" role="alert">{@error}</p>
+            <p :if={@episodes_state == :failed and is_nil(@error)} id="episodes-error" role="alert">
+              {gettext("Apple Podcasts search is unavailable right now. Try again later.")}
+            </p>
+            <p :if={@programmes_state == :failed} id="programmes-error" role="alert">
+              {gettext("The Mediathek search is unavailable right now. Try again later.")}
+            </p>
+            <p
+              :if={@channels_state == :failed or @videos_state == :failed}
+              id="channels-error"
+              role="alert"
+            >
+              {gettext("The PeerTube search is unavailable right now. Try again later.")}
+            </p>
+            <p :if={@youtube_channels_state == :failed} id="youtube-channels-error" role="alert">
+              {gettext(
+                "YouTube's results could not be read right now. Try again later, or paste the channel's link."
+              )}
+            </p>
+            <p :if={@youtube_videos_state == :failed} id="youtube-videos-error" role="alert">
+              {gettext(
+                "YouTube's results could not be read right now. Try again later, or paste the video's link."
+              )}
+            </p>
+          </div>
           <p
-            :if={@searched and map_size(@candidates) == 0 and is_nil(@error) and is_nil(@item)}
+            :if={@settled and not @waiting and Enum.all?(@counts, fn {_kind, n} -> n == 0 end)}
             id="no-results"
             class="mt-3 text-muted"
           >
-            {gettext("No podcasts found. Try another name or paste the show's website.")}
+            {gettext("Nothing found. Try another name or paste the show's website.")}
           </p>
-          <p
-            :if={@error && @mode == :search}
-            id="search-error"
-            role="alert"
-            class="mt-3 text-label text-danger"
-          >
-            {@error}
-          </p>
-          <%!-- Shown only with a row. After live navigation an empty stream holds whitespace,
-          which `:empty` would count as content. --%>
-          <div id="sources" phx-update="stream" class={list_class()}>
-            <.source_row
-              :for={{dom_id, source} <- @streams.sources}
-              id={dom_id}
-              picture={source_picture(source)}
-              title={source.title}
-              action={%{"phx-click" => "select", "phx-value-id" => source.id}}
-              disabled={@busy or @subscribing != nil}
-              subscribing={@subscribing == source.id}
-              error={@row_errors[source.id]}
-            >
-              <span :if={source[:author]}>{source.author}</span>
-              <span :if={source[:entries]}>
-                {gettext("%{count} recent items available", count: length(source.entries))}
-              </span>
-              <span class="min-w-0 truncate font-mono" title={source.url}>
-                {String.replace_prefix(source.url, "https://", "")}
-              </span>
-            </.source_row>
-          </div>
         </div>
-        <div
-          id="panel-episodes"
-          role="tabpanel"
-          aria-labelledby="tab-episodes"
-          class={[@tab != :episodes && "hidden"]}
-        >
-          <p class="mt-3 text-meta text-muted">
-            {gettext("Single episodes via Apple Podcasts. An episode is added on its own.")}
-          </p>
-          <.search_state
-            id="episodes"
-            state={@episodes_state}
-            count={map_size(@episodes)}
-            searching={gettext("Searching Apple Podcasts…")}
-            empty={gettext("No episodes found.")}
-            failed={gettext("Apple Podcasts search is unavailable right now. Try again later.")}
+        <div id="results" phx-update="stream" class={list_class()}>
+          <.result
+            :for={{dom_id, row} <- @streams.results}
+            id={dom_id}
+            row={row}
+            busy={@busy}
+            subscribing={@subscribing}
+            saving={@saving}
+            errors={@row_errors}
+            more={@more}
           />
-          <div id="episodes" phx-update="stream" class={list_class()}>
-            <.item_row
-              :for={{dom_id, episode} <- @streams.episodes}
-              id={dom_id}
-              list="episodes"
-              key={episode.key}
-              title={episode.title}
-              origin={[episode.podcast]}
-              published_at={episode.published_at}
-              duration={episode.duration}
-              description={episode.description}
-              picture={source_picture(%{kind: :podcast, icon_url: episode.icon_url})}
-              more={@more == dom_id}
-              save="save_episode"
-              saving={@saving == dom_id}
-              subscribe_label={gettext("Subscribe to %{title}", title: episode.podcast)}
-              subscribing={@subscribing}
-              error={@row_errors[dom_id]}
-            />
-          </div>
-        </div>
-        <div
-          id="panel-series"
-          role="tabpanel"
-          aria-labelledby="tab-series"
-          class={[@tab != :series && "hidden"]}
-        >
-          <p class="mt-3 text-meta text-muted">
-            {gettext(
-              "Series via MediathekViewWeb, from the German public broadcasters. A subscription follows a topic on its channel."
-            )}
-          </p>
-          <.search_state
-            id="series"
-            state={@programmes_state}
-            count={map_size(@series)}
-            searching={gettext("Searching the Mediathek…")}
-            empty={gettext("No series found in the Mediathek.")}
-            failed={gettext("The Mediathek search is unavailable right now. Try again later.")}
-          />
-          <div id="series" phx-update="stream" class={list_class()}>
-            <.source_row
-              :for={{dom_id, series} <- @streams.series}
-              id={dom_id}
-              picture={page_picture(series.pages)}
-              title={series.title}
-              action={
-                %{
-                  "phx-click" => "subscribe",
-                  "phx-value-list" => "series",
-                  "phx-value-key" => series.key
-                }
-              }
-              disabled={@subscribing != nil}
-              subscribing={@subscribing == dom_id}
-              error={@row_errors[dom_id]}
-            >
-              <%!-- The inner element truncates; the outer one is the flex item that holds the dot. --%>
-              <span :if={series.found != ""} class="min-w-0" title={series.found}>
-                <span class="truncate">{gettext("found: %{title}", title: series.found)}</span>
-              </span>
-              <span>{date(series.found_at)}</span>
-            </.source_row>
-          </div>
-        </div>
-        <div
-          id="panel-programmes"
-          role="tabpanel"
-          aria-labelledby="tab-programmes"
-          class={[@tab != :programmes && "hidden"]}
-        >
-          <p class="mt-3 text-meta text-muted">
-            {gettext(
-              "Films and programmes via MediathekViewWeb, from the German public broadcasters. A programme is added on its own."
-            )}
-          </p>
-          <.search_state
-            id="programmes"
-            state={@programmes_state}
-            count={map_size(@programmes)}
-            searching={gettext("Searching the Mediathek…")}
-            empty={gettext("No programmes found in the Mediathek.")}
-            failed={gettext("The Mediathek search is unavailable right now. Try again later.")}
-          />
-          <div id="programmes" phx-update="stream" class={list_class()}>
-            <.item_row
-              :for={{dom_id, programme} <- @streams.programmes}
-              id={dom_id}
-              list="programmes"
-              key={programme.key}
-              title={programme.title}
-              origin={[programme.channel, programme.topic]}
-              published_at={programme.published_at}
-              duration={programme.duration}
-              description={programme.description}
-              picture={page_picture(List.wrap(programme.page_url))}
-              page_url={programme.page_url}
-              more={@more == dom_id}
-              save="save_programme"
-              subscribe_label={gettext("Subscribe to %{title}", title: programme.series_title)}
-              subscribing={@subscribing}
-              error={@row_errors[dom_id]}
-            />
-          </div>
-        </div>
-        <div
-          id="panel-channels"
-          role="tabpanel"
-          aria-labelledby="tab-channels"
-          class={[@tab != :channels && "hidden"]}
-        >
-          <p class="mt-3 text-meta text-muted">
-            {gettext(
-              "Channels on PeerTube instances, via a search index across instances. Subscriptions use the channel's own feed."
-            )}
-          </p>
-          <.search_state
-            id="channels"
-            state={@channels_state}
-            count={map_size(@channels)}
-            searching={gettext("Searching PeerTube…")}
-            empty={gettext("No channels found on PeerTube.")}
-            failed={gettext("The PeerTube search is unavailable right now. Try again later.")}
-          />
-          <div id="channels" phx-update="stream" class={list_class()}>
-            <.source_row
-              :for={{dom_id, channel} <- @streams.channels}
-              id={dom_id}
-              picture={source_picture(%{kind: :peertube, icon_url: channel.icon_url})}
-              title={channel.title}
-              action={
-                %{
-                  "phx-click" => "subscribe",
-                  "phx-value-list" => "channels",
-                  "phx-value-key" => channel.key
-                }
-              }
-              disabled={@subscribing != nil}
-              subscribing={@subscribing == dom_id}
-              error={@row_errors[dom_id]}
-            >
-              <span>{channel.host}</span>
-              <span :if={channel.videos_count}>
-                {ngettext("1 video", "%{count} videos", channel.videos_count)}
-              </span>
-            </.source_row>
-          </div>
-        </div>
-        <div
-          id="panel-videos"
-          role="tabpanel"
-          aria-labelledby="tab-videos"
-          class={[@tab != :videos && "hidden"]}
-        >
-          <p class="mt-3 text-meta text-muted">
-            {gettext(
-              "Videos on PeerTube instances, via a search index across instances. A video is added on its own."
-            )}
-          </p>
-          <.search_state
-            id="videos"
-            state={@videos_state}
-            count={map_size(@videos)}
-            searching={gettext("Searching PeerTube…")}
-            empty={gettext("No videos found on PeerTube.")}
-            failed={gettext("The PeerTube search is unavailable right now. Try again later.")}
-          />
-          <div id="videos" phx-update="stream" class={list_class()}>
-            <.item_row
-              :for={{dom_id, video} <- @streams.videos}
-              id={dom_id}
-              list="videos"
-              key={video.key}
-              title={video.title}
-              origin={[video.channel]}
-              published_at={video.published_at}
-              duration={video.duration}
-              picture={source_picture(%{kind: :peertube, icon_url: video.icon_url})}
-              more={@more == dom_id}
-              save="save_video"
-              saving={@saving == dom_id}
-              subscribe_label={gettext("Subscribe to %{title}", title: video.channel)}
-              subscribing={@subscribing}
-              error={@row_errors[dom_id]}
-            />
-          </div>
-        </div>
-        <div
-          id="panel-youtube_channels"
-          role="tabpanel"
-          aria-labelledby="tab-youtube_channels"
-          class={[@tab != :youtube_channels && "hidden"]}
-        >
-          <p class="mt-3 text-meta text-muted">
-            {gettext(
-              "Channels on YouTube, from its results page. Subscriptions use the channel's own feed."
-            )}
-          </p>
-          <.search_state
-            id="youtube-channels"
-            state={@youtube_channels_state}
-            count={map_size(@youtube_channels)}
-            searching={gettext("Searching YouTube…")}
-            empty={gettext("No channels found on YouTube.")}
-            failed={
-              gettext(
-                "YouTube's results could not be read right now. Try again later, or paste the channel's link."
-              )
-            }
-          />
-          <div id="youtube-channels" phx-update="stream" class={list_class()}>
-            <.source_row
-              :for={{dom_id, channel} <- @streams.youtube_channels}
-              id={dom_id}
-              picture={source_picture(%{kind: :youtube, icon_url: channel.icon_url})}
-              title={channel.title}
-              action={
-                %{
-                  "phx-click" => "subscribe",
-                  "phx-value-list" => "youtube_channels",
-                  "phx-value-key" => channel.key
-                }
-              }
-              disabled={@subscribing != nil}
-              subscribing={@subscribing == dom_id}
-              error={@row_errors[dom_id]}
-            >
-              <span>youtube.com</span>
-            </.source_row>
-          </div>
-        </div>
-        <div
-          id="panel-youtube_videos"
-          role="tabpanel"
-          aria-labelledby="tab-youtube_videos"
-          class={[@tab != :youtube_videos && "hidden"]}
-        >
-          <p class="mt-3 text-meta text-muted">
-            {gettext("Videos on YouTube, from its results page. A video is added on its own.")}
-          </p>
-          <.search_state
-            id="youtube-videos"
-            state={@youtube_videos_state}
-            count={map_size(@youtube_videos)}
-            searching={gettext("Searching YouTube…")}
-            empty={gettext("No videos found on YouTube.")}
-            failed={
-              gettext(
-                "YouTube's results could not be read right now. Try again later, or paste the video's link."
-              )
-            }
-          />
-          <div id="youtube-videos" phx-update="stream" class={list_class()}>
-            <.item_row
-              :for={{dom_id, video} <- @streams.youtube_videos}
-              id={dom_id}
-              list="youtube_videos"
-              key={video.key}
-              title={video.title}
-              origin={[video.channel]}
-              duration={video.duration}
-              picture={source_picture(%{kind: :youtube, icon_url: video.icon_url})}
-              more={@more == dom_id}
-              save="save_youtube_video"
-              saving={@saving == dom_id}
-              subscribe_label={gettext("Subscribe to %{title}", title: video.channel)}
-              subscribing={@subscribing}
-              error={@row_errors[dom_id]}
-            />
-          </div>
         </div>
         <.confirm_dialog
           :if={@asking}
@@ -1250,29 +994,208 @@ defmodule SikioWeb.AddSourceLive do
     """
   end
 
-  attr :tab, :string, required: true
-  attr :selected, :boolean, required: true
+  attr :kind, :string, required: true
   attr :label, :string, required: true
-  attr :count, :any, required: true
+  attr :count, :integer, required: true
+  attr :filter, :atom, required: true
 
-  defp search_tab(assigns) do
+  # A kind's count and its filter. A kind without hits shows no pill.
+  defp filter_pill(assigns) do
+    assigns = assign(assigns, pressed: to_string(assigns.filter) == assigns.kind)
+
     ~H"""
     <button
-      id={"tab-" <> @tab}
+      :if={@count > 0}
+      id={"filter-" <> @kind}
       type="button"
-      role="tab"
-      aria-selected={to_string(@selected)}
-      aria-controls={"panel-" <> @tab}
-      phx-click="tab"
-      phx-value-tab={@tab}
-      class={[
-        "-mb-px flex items-center gap-2 border-b-2 px-3 py-2 text-label font-semibold",
-        if(@selected, do: "border-ink text-ink", else: "border-transparent text-muted hover:text-ink")
-      ]}
+      phx-click="filter"
+      phx-value-kind={@kind}
+      aria-pressed={to_string(@pressed)}
+      class="inline-flex min-h-8 items-center gap-2 rounded-full border border-line bg-surface px-3 text-label text-ink hover:bg-ground aria-pressed:border-transparent aria-pressed:bg-accent aria-pressed:font-semibold aria-pressed:text-on-accent"
     >
       {@label}
-      <span class="rounded-full bg-ground px-2 font-mono text-meta font-normal">{@count}</span>
+      <span class="font-mono text-meta font-normal">{@count}</span>
     </button>
+    """
+  end
+
+  # Each kind's pill label, in the order of `@results`.
+  defp pills, do: for({kind, _results} <- @results, do: {kind, pill_label(kind)})
+
+  defp pill_label(:podcasts), do: gettext("Podcasts")
+  defp pill_label(:episodes), do: gettext("Episodes")
+  defp pill_label(:series), do: gettext("Series")
+  defp pill_label(:programmes), do: gettext("Programmes")
+  defp pill_label(:channels), do: gettext("PeerTube channels")
+  defp pill_label(:videos), do: gettext("PeerTube videos")
+  defp pill_label(:youtube_channels), do: gettext("YouTube channels")
+  defp pill_label(:youtube_videos), do: gettext("YouTube videos")
+
+  # The index a hit comes from. The row's buttons tell a source from a single item.
+  defp index(kind) when kind in [:podcasts, :episodes], do: "Apple Podcasts"
+  defp index(kind) when kind in [:series, :programmes], do: "Mediathek"
+  defp index(kind) when kind in [:channels, :videos], do: "PeerTube"
+  defp index(_youtube), do: "YouTube"
+
+  # One hit of the search list, drawn as its kind's row.
+  attr :id, :string, required: true
+  attr :row, :map, required: true
+  attr :busy, :boolean, required: true
+  attr :subscribing, :string, default: nil
+  attr :saving, :string, default: nil
+  attr :errors, :map, required: true
+  attr :more, :string, default: nil
+
+  defp result(assigns) do
+    kind = assigns.row.kind
+    assigns = assign(assigns, kind: kind, hit: assigns.row.hit, index: index(kind))
+
+    ~H"""
+    <.source_row
+      :if={@kind == :podcasts}
+      id={@id}
+      index={@index}
+      picture={source_picture(@hit)}
+      title={@hit.title}
+      action={%{"phx-click" => "select", "phx-value-id" => @hit.id}}
+      disabled={@busy or @subscribing != nil}
+      subscribing={@subscribing == @hit.id}
+      error={@errors[@hit.id]}
+    >
+      <span :if={@hit[:author]}>{@hit.author}</span>
+      <span class="min-w-0 truncate font-mono" title={@hit.url}>
+        {String.replace_prefix(@hit.url, "https://", "")}
+      </span>
+    </.source_row>
+    <.item_row
+      :if={@kind == :episodes}
+      id={@id}
+      index={@index}
+      list={to_string(@kind)}
+      key={@hit.key}
+      title={@hit.title}
+      origin={[@hit.podcast]}
+      published_at={@hit.published_at}
+      duration={@hit.duration}
+      description={@hit.description}
+      picture={source_picture(%{kind: :podcast, icon_url: @hit.icon_url})}
+      more={@more == @id}
+      save="save_episode"
+      saving={@saving == @id}
+      subscribe_label={gettext("Subscribe to %{title}", title: @hit.podcast)}
+      subscribing={@subscribing}
+      error={@errors[@id]}
+    />
+    <.source_row
+      :if={@kind == :series}
+      id={@id}
+      index={@index}
+      picture={page_picture(@hit.pages)}
+      title={@hit.title}
+      action={
+        %{"phx-click" => "subscribe", "phx-value-list" => "series", "phx-value-key" => @hit.key}
+      }
+      disabled={@subscribing != nil}
+      subscribing={@subscribing == @id}
+      error={@errors[@id]}
+    >
+      <%!-- The inner element truncates; the outer one is the flex item that holds the dot. --%>
+      <span :if={@hit.found != ""} class="min-w-0" title={@hit.found}>
+        <span class="truncate">{gettext("found: %{title}", title: @hit.found)}</span>
+      </span>
+      <span>{date(@hit.found_at)}</span>
+    </.source_row>
+    <.item_row
+      :if={@kind == :programmes}
+      id={@id}
+      index={@index}
+      list={to_string(@kind)}
+      key={@hit.key}
+      title={@hit.title}
+      origin={[@hit.channel, @hit.topic]}
+      published_at={@hit.published_at}
+      duration={@hit.duration}
+      description={@hit.description}
+      picture={page_picture(List.wrap(@hit.page_url))}
+      page_url={@hit.page_url}
+      more={@more == @id}
+      save="save_programme"
+      subscribe_label={gettext("Subscribe to %{title}", title: @hit.series_title)}
+      subscribing={@subscribing}
+      error={@errors[@id]}
+    />
+    <.source_row
+      :if={@kind == :channels}
+      id={@id}
+      index={@index}
+      picture={source_picture(%{kind: :peertube, icon_url: @hit.icon_url})}
+      title={@hit.title}
+      action={
+        %{"phx-click" => "subscribe", "phx-value-list" => "channels", "phx-value-key" => @hit.key}
+      }
+      disabled={@subscribing != nil}
+      subscribing={@subscribing == @id}
+      error={@errors[@id]}
+    >
+      <span>{@hit.host}</span>
+      <span :if={@hit.videos_count}>
+        {ngettext("1 video", "%{count} videos", @hit.videos_count)}
+      </span>
+    </.source_row>
+    <.item_row
+      :if={@kind == :videos}
+      id={@id}
+      index={@index}
+      list={to_string(@kind)}
+      key={@hit.key}
+      title={@hit.title}
+      origin={[@hit.channel]}
+      published_at={@hit.published_at}
+      duration={@hit.duration}
+      picture={source_picture(%{kind: :peertube, icon_url: @hit.icon_url})}
+      more={@more == @id}
+      save="save_video"
+      saving={@saving == @id}
+      subscribe_label={gettext("Subscribe to %{title}", title: @hit.channel)}
+      subscribing={@subscribing}
+      error={@errors[@id]}
+    />
+    <.source_row
+      :if={@kind == :youtube_channels}
+      id={@id}
+      index={@index}
+      picture={source_picture(%{kind: :youtube, icon_url: @hit.icon_url})}
+      title={@hit.title}
+      action={
+        %{
+          "phx-click" => "subscribe",
+          "phx-value-list" => "youtube_channels",
+          "phx-value-key" => @hit.key
+        }
+      }
+      disabled={@subscribing != nil}
+      subscribing={@subscribing == @id}
+      error={@errors[@id]}
+    >
+      <span>youtube.com</span>
+    </.source_row>
+    <.item_row
+      :if={@kind == :youtube_videos}
+      id={@id}
+      index={@index}
+      list={to_string(@kind)}
+      key={@hit.key}
+      title={@hit.title}
+      origin={[@hit.channel]}
+      duration={@hit.duration}
+      picture={source_picture(%{kind: :youtube, icon_url: @hit.icon_url})}
+      more={@more == @id}
+      save="save_youtube_video"
+      saving={@saving == @id}
+      subscribe_label={gettext("Subscribe to %{title}", title: @hit.channel)}
+      subscribing={@subscribing}
+      error={@errors[@id]}
+    />
     """
   end
 
@@ -1295,6 +1218,7 @@ defmodule SikioWeb.AddSourceLive do
   attr :id, :string, required: true
   attr :picture, :string, required: true
   attr :title, :string, required: true
+  attr :index, :string, default: nil, doc: "the search index a hit comes from"
   attr :action, :map, required: true, doc: "the button's click event and values"
   attr :disabled, :boolean, required: true
   attr :subscribing, :boolean, required: true
@@ -1308,6 +1232,7 @@ defmodule SikioWeb.AddSourceLive do
       <div class="min-w-0 flex-1">
         <h3 class="truncate text-body font-semibold">{@title}</h3>
         <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
+          <span :if={@index} class="font-semibold">{@index}</span>
           {render_slot(@inner_block)}
         </p>
       </div>
@@ -1319,32 +1244,13 @@ defmodule SikioWeb.AddSourceLive do
     """
   end
 
-  # The loading, empty and failed lines of one search.
-  attr :id, :string, required: true
-  attr :state, :atom, required: true
-  attr :count, :integer, required: true
-  attr :searching, :string, required: true
-  attr :empty, :string, required: true
-  attr :failed, :string, required: true
-
-  defp search_state(assigns) do
-    ~H"""
-    <p :if={@state == :searching} id={@id <> "-loading"} class="mt-3 text-label text-muted">
-      {@searching}
-    </p>
-    <p :if={@state == :done and @count == 0} id={"no-" <> @id} class="mt-3 text-muted">{@empty}</p>
-    <p :if={@state == :failed} id={@id <> "-error"} role="alert" class="mt-3 text-label text-danger">
-      {@failed}
-    </p>
-    """
-  end
-
   # One episode or programme with its actions in view. A long description shows two lines until
   # “more” is pressed.
   attr :id, :string, required: true
   attr :list, :string, required: true, doc: "the results' name in `@subscribable`, or `item`"
   attr :key, :string, required: true
   attr :title, :string, required: true
+  attr :index, :string, default: nil, doc: "the search index a hit comes from"
   attr :origin, :list, required: true
   attr :published_at, :any, default: nil
   attr :duration, :integer, default: nil
@@ -1366,6 +1272,7 @@ defmodule SikioWeb.AddSourceLive do
         <div class="min-w-0">
           <h3 class="text-body font-semibold">{@title}</h3>
           <p class="meta-dots flex flex-wrap items-center text-meta text-muted">
+            <span :if={@index} class="font-semibold">{@index}</span>
             <span :for={part <- @origin} :if={part not in [nil, ""]} class="min-w-0" title={part}>
               <span class="truncate">{part}</span>
             </span>

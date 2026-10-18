@@ -35,18 +35,26 @@ PeerTube and YouTube. If a guessed URL fails, the page offers a search for the s
 - Find YouTube channels and videos by name. Sikio reads YouTube's results page and needs no API
   key. The request comes from the server, so YouTube sees the search term and the server's
   address, not your browser. Live and upcoming videos are left out. YouTube may answer with a
-  consent page or a bot check, and the tab then says so. Pasting a channel or video link still
+  consent page or a bot check, and the search then says so. Pasting a channel or video link still
   works.
 
-A search shows its results in eight tabs: **Podcasts**, **Episodes**, **Series**,
-**Programmes**, **PeerTube channels**, **PeerTube videos**, **YouTube channels** and **YouTube
-videos**. Each tab shows its count. Episodes come from Apple Podcasts and are read from their
-podcast's feed. A row in **Episodes**, **Programmes**, **PeerTube videos** or **YouTube videos**
-adds its item to the queue or the inbox, without a subscription. The same row subscribes to its
-podcast, series or channel. A PeerTube video is read from its instance, a YouTube video from
-YouTube, each as a pasted video link is. A long description shows two lines until **more** is
-pressed. Rows in **Series** and **Programmes** show the picture of the broadcaster's page once
-they come into view. Sikio fetches it and caches it, so the browser never contacts the
+A search asks Apple Podcasts, the Mediathek and PeerTube for up to 50 hits each and reads one
+results page from YouTube. It shows all hits in one list, best match first. A title
+that equals the search term ranks highest, then one that starts with it or contains it. A
+misspelt term still finds a close title. A hit also ranks by the name of its podcast or channel,
+a little below its own title. Each row names its index. The list appears once every index
+answered, or after five seconds. A later answer joins the list.
+
+Pills above the list name the kinds: **Podcasts**, **Episodes**, **Series**, **Programmes**,
+**PeerTube channels**, **PeerTube videos**, **YouTube channels** and **YouTube videos**. Each
+shows its count; a kind without hits shows no pill. Without a filter the list shows the best 20
+hits. Pressing a pill shows every hit of its kind; pressing it again shows all kinds. Episodes
+come from Apple Podcasts and are read from their podcast's feed. A row of an episode, a programme
+or a video adds its item to the queue or the inbox, without a subscription. The same row
+subscribes to its podcast, series or channel. A PeerTube video is read from its instance, a
+YouTube video from YouTube, each as a pasted video link is. A long description shows two lines
+until **more** is pressed. Rows of series and programmes show the picture of the broadcaster's
+page once they come into view. Sikio fetches it and caches it, so the browser never contacts the
 broadcaster.
 
 **Subscribe** first asks two questions. **Episodes so far** takes only the newest, all of them

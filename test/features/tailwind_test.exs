@@ -213,7 +213,7 @@ defmodule SikioWeb.TailwindTest do
     |> click(css("#main-navigation a[href='/add'], header a[href='/add']", count: :any, at: 0))
     |> assert_has(css("#add-form"))
     |> execute_script(
-      "return ['sources', 'programmes'].map(id => getComputedStyle(document.getElementById(id)).display)",
+      "return ['sources', 'results'].map(id => getComputedStyle(document.getElementById(id)).display)",
       fn displays -> assert displays == ["none", "none"] end
     )
   end

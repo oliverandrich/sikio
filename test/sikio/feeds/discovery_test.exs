@@ -569,6 +569,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
       params = URI.decode_query(conn.query_string)
       assert params["term"] == "a & b"
       assert params["media"] == "podcast"
+      assert params["limit"] == "50"
 
       Req.Test.json(conn, %{
         results: [
@@ -674,7 +675,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
         query = Jason.decode!(body)
         assert [%{"fields" => ["title", "topic"], "query" => "tatort"}] = query["queries"]
         assert %{"sortBy" => "timestamp", "sortOrder" => "desc", "future" => false} = query
-        assert %{"offset" => 0, "size" => 30} = query, "one modest page, as the maintainer asks"
+        assert %{"offset" => 0, "size" => 75} = query, "one page, as the maintainer asks"
 
         Req.Test.json(conn, %{
           result: %{
@@ -889,7 +890,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
       Req.Test.stub(HTTP, fn conn ->
         assert Plug.Conn.get_req_header(conn, "host") == ["index.example"]
         assert conn.request_path == "/api/v1/search/video-channels"
-        assert %{"search" => "linux", "count" => "20"} = URI.decode_query(conn.query_string)
+        assert %{"search" => "linux", "count" => "50"} = URI.decode_query(conn.query_string)
 
         Req.Test.json(conn, %{
           total: 3,
@@ -934,7 +935,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
       Req.Test.stub(HTTP, fn conn ->
         assert conn.request_path == "/api/v1/search/videos"
 
-        assert %{"search" => "linux", "count" => "20", "nsfw" => "false", "isLive" => "false"} =
+        assert %{"search" => "linux", "count" => "50", "nsfw" => "false", "isLive" => "false"} =
                  URI.decode_query(conn.query_string)
 
         Req.Test.json(conn, %{
@@ -1246,7 +1247,7 @@ defmodule Sikio.Feeds.DiscoveryTest do
   test "Apple's episode search returns episodes with their podcast's feed" do
     Req.Test.stub(HTTP, fn conn ->
       params = URI.decode_query(conn.query_string)
-      assert %{"entity" => "podcastEpisode", "term" => "tatort", "limit" => "20"} = params
+      assert %{"entity" => "podcastEpisode", "term" => "tatort", "limit" => "50"} = params
 
       Req.Test.json(conn, %{
         results: [
