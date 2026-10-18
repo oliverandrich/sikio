@@ -36,8 +36,11 @@ defmodule SikioWeb.Notes do
   def notes(nil, _format), do: nil
 
   def notes(description, :text) do
+    # Without `u`, `\R` matches the byte 0x85, which ends some emoji. With `u`, invalid UTF-8
+    # raises, so stray bytes become replacement characters first.
     description
-    |> String.split(~r/\R/)
+    |> String.replace_invalid()
+    |> String.split(~r/\R/u)
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
     |> case do

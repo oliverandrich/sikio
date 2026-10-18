@@ -20,6 +20,11 @@ Its own section becomes the version's release notes.
 
 - Sikio requires Ithibati 0.9.0.
 
+### Fixed
+
+- Plain-text notes with an emoji such as 📅 no longer crash the library view. Their lines were
+  split inside the emoji.
+
 ### Upgrading
 
 - A migration adds the administrator flag and grants it to the account that claimed the

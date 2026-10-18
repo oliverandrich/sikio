@@ -49,6 +49,16 @@ defmodule SikioWeb.NotesTest do
       assert rendered("5 < 6 and counting", :text) =~ "5 &lt; 6 and counting"
     end
 
+    # The calendar emoji ends in byte 0x85, which a byte-wise \R takes for a line break.
+    test "an emoji is never split into lines" do
+      assert rendered("📅 Termine\n🔗 https://example.org", :text) =~ "<p>📅 Termine</p>"
+    end
+
+    # A stray Latin-1 byte is no UTF-8. The notes still render, with a replacement character.
+    test "notes that are not valid UTF-8 still render" do
+      assert rendered(<<"Caf", 0xE9, "\nnext">>, :text) =~ "<p>next</p>"
+    end
+
     test "keeps the lines a chapter list depends on" do
       html = rendered("Chapters:\n00:00 One\n01:00 Two", :text)
 
