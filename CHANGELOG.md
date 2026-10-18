@@ -11,6 +11,10 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- Sikio requires Ithibati 0.9.0.
+
 ## [0.8.0] - 2026-10-18
 
 ### Added
