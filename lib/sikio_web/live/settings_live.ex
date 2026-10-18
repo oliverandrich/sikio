@@ -157,6 +157,7 @@ defmodule SikioWeb.SettingsLive do
           tag="nav"
         >
           <.group_link to={~p"/accounts"}>{gettext("Accounts")}</.group_link>
+          <.group_link to={~p"/platforms"}>{gettext("Platforms")}</.group_link>
         </.group>
         <%!-- The status region exists from the start, so screen readers announce its text. --%>
         <p id="settings-saved" role="status" class="px-4 text-label text-muted">

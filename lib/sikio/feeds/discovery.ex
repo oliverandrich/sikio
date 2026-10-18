@@ -78,6 +78,9 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
+  @doc "Returns whether `term`, trimmed, has the 2 to 120 characters every search requires."
+  def search_term?(term), do: match?({:ok, _term}, search_term(term))
+
   defp search_term(term) do
     term = String.trim(term)
     if String.length(term) in 2..120, do: {:ok, term}, else: {:error, :invalid_search}

@@ -134,6 +134,9 @@ defmodule SikioWeb.OPMLLive do
   defp result_label(%{status: :failed, reason: :unsafe_url}),
     do: gettext("Only public HTTP(S) feed URLs are supported.")
 
+  defp result_label(%{status: :failed, reason: :platform_off}),
+    do: gettext("This platform is switched off on this instance.")
+
   defp result_label(%{status: :failed}),
     do: gettext("Could not read this feed. Check its URL and try it individually.")
 

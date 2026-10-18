@@ -133,6 +133,7 @@ defmodule SikioWeb.Router do
       # `AccountsLive` checks the administrator role itself. A live_session of its own would
       # reload the page on every visit and stop the player in the root layout.
       live "/accounts", AccountsLive
+      live "/platforms", PlatformsLive
     end
 
     # A form POST, not a LiveView event, because a LiveView cannot write to the session.

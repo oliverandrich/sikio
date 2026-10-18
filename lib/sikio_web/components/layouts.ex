@@ -160,7 +160,8 @@ defmodule SikioWeb.Layouts do
       :invitations,
       :account,
       :settings,
-      :accounts
+      :accounts,
+      :platforms
     ],
     doc: "where the reader is, to mark it in the navigation"
 
@@ -197,7 +198,7 @@ defmodule SikioWeb.Layouts do
 
     tab = assigns.tab || if(assigns.section in [:places, :add, :subscriptions], do: :library)
     # The gear menu holds the settings and the pages under them.
-    settings? = assigns.section in [:settings, :account, :invitations, :accounts]
+    settings? = assigns.section in [:settings, :account, :invitations, :accounts, :platforms]
     assigns = assign(assigns, counts: counts, tab: tab, settings?: settings?)
 
     ~H"""

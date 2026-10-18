@@ -167,7 +167,10 @@ their library and how many items go. Its subscriptions, items and every account'
 favourites and saved items for it are deleted. Adding the feed again later starts afresh. An
 item's **More actions** menu offers administrators **Remove for everyone** as well. The item
 leaves every library, and a refresh does not bring it back while its feed lists it. Only
-removing the feed and adding it again lifts that block.
+removing the feed and adding it again lifts that block. Under **Settings → Platforms**,
+administrators switch podcasts, YouTube, PeerTube and the Mediathek on or off. All are on by
+default. A platform that is off is not searched, and its links, OPML entries and transferred
+items are refused. Existing subscriptions keep refreshing and playing.
 
 ## Inviting somebody
 

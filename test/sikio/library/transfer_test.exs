@@ -233,6 +233,19 @@ defmodule Sikio.Library.TransferTest do
       assert %{play_on: false, locale: "de"} = Preferences.get(bob)
     end
 
+    # Podcasts are switched off. The import neither subscribes nor saves any.
+    test "takes nothing from a platform that is off", c do
+      admin = Repo.insert!(%Sikio.Accounts.User{username: unique_username(), admin: true})
+      {:ok, _} = Sikio.Platforms.set(admin, :podcast, false)
+      bob = account()
+
+      summary = Transfer.restore(bob, c.document)
+
+      assert %{subscriptions: %{imported: 0}} = summary
+      assert Library.subscriptions(bob) == []
+      assert Library.entries(bob, %{"status" => ""}) == []
+    end
+
     test "keeps what the account already has and adds the rest", c do
       bob = account()
       {:ok, preview} = Parser.parse(podcast_later(), c.url)

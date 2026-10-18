@@ -1139,6 +1139,66 @@ defmodule SikioWeb.AddSourceLiveTest do
     end
   end
 
+  describe "a platform that is off" do
+    setup do
+      admin = Repo.insert!(%User{username: unique_username(), admin: true})
+      {:ok, _} = Sikio.Platforms.set(admin, :youtube, false)
+      :ok
+    end
+
+    # No request goes to YouTube, and its kinds have no pills.
+    test "is not searched", %{conn: conn} do
+      Req.Test.stub(HTTP, fn conn ->
+        refute conn.request_path == "/results", "asked YouTube"
+
+        case conn.request_path do
+          "/search" ->
+            Req.Test.json(conn, %{results: [%{collectionName: "Good", feedUrl: feed_url()}]})
+
+          "/api/query" ->
+            Req.Test.json(conn, %{result: %{results: []}})
+
+          _ ->
+            Req.Test.json(conn, %{data: []})
+        end
+      end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      assert has_element?(view, "#add-hint", "Apple Podcasts")
+      refute has_element?(view, "#add-hint", "YouTube")
+
+      view |> form("#add-form", %{q: "good"}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, "#found-0", "Good")
+      refute has_element?(view, "#filter-youtube_channels")
+      refute has_element?(view, "#search-loading")
+    end
+
+    # Without the podcast search, the page still says a term is too short.
+    test "a term that is too short is answered without the podcast search", %{conn: conn} do
+      admin = Repo.insert!(%User{username: unique_username(), admin: true})
+      {:ok, _} = Sikio.Platforms.set(admin, :podcast, false)
+      Req.Test.stub(HTTP, fn _conn -> flunk("searched with a term that is too short") end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: "a"}) |> render_submit()
+
+      assert has_element?(view, "#search-error", "between 2 and 120 characters")
+    end
+
+    test "refuses its links", %{conn: conn} do
+      Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, youtube()) end)
+
+      {:ok, view, _} = live(conn, ~p"/add")
+      view |> form("#add-form", %{q: youtube_feed_url()}) |> render_submit()
+      render_async(view)
+
+      assert has_element?(view, "#discovery-error", "switched off on this instance")
+      refute has_element?(view, "#found-0")
+    end
+  end
+
   describe "a single item" do
     # The channel id comes from a unique feed URL, so no concurrent test saves the same feed.
     defp stub_video do

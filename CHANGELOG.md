@@ -24,6 +24,9 @@ Its own section becomes the version's release notes.
   members have some of it in their library and how many items go with it.
 - Administrators remove an item for everyone from its More actions menu. A refresh does not bring
   it back while its feed lists it.
+- Administrators switch podcasts, YouTube, PeerTube and the Mediathek on or off under Settings →
+  Platforms. A platform that is off is not searched and takes no new subscriptions or items;
+  existing subscriptions keep refreshing.
 
 ### Changed
 
@@ -38,6 +41,7 @@ Its own section becomes the version's release notes.
 
 ### Upgrading
 
+- A migration adds the instance settings with every platform on.
 - A migration adds the table of removed items, `blocked_entries`.
 - A migration adds the administrator flag and grants it to the account that claimed the
   instance. An instance whose first account was deleted has no administrator until

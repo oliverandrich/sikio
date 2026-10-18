@@ -23,6 +23,7 @@ defmodule Sikio.Library.Transfer do
   alias Sikio.Library.Sources
   alias Sikio.Library.Subscription
   alias Sikio.Library.TransferImport
+  alias Sikio.Platforms
   alias Sikio.Playback
   alias Sikio.Playback.State
   alias Sikio.Preferences
@@ -233,13 +234,15 @@ defmodule Sikio.Library.Transfer do
         do: entry.feed_url
   end
 
-  # Stores the sources of starred or saved entries nobody follows here, as saving one does.
+  # Stores the sources of starred or saved entries nobody follows here, as saving one does. A
+  # platform that is off stores none, so its entries count as missing.
   defp store_chosen(entries, followed) do
     entries
     |> chosen_sources(followed)
     |> Sources.fetch_all()
     |> Enum.flat_map(fn {url, fetched} ->
       with {:ok, preview} <- fetched,
+           :ok <- Platforms.allow(preview.kind),
            {:ok, feed} <- Feeds.store(preview, &Library.deliver/2) do
         [{url, feed.id}]
       else
@@ -305,6 +308,7 @@ defmodule Sikio.Library.Transfer do
 
   defp item(url) do
     with {:ok, %{preview: preview, external_id: external_id}} <- Discovery.item(url),
+         :ok <- Platforms.allow(preview.kind),
          held = held?(preview.url, external_id),
          {:ok, feed} <- Feeds.store(preview, &Library.deliver/2),
          %Entry{id: id} <- Repo.get_by(Entry, feed_id: feed.id, external_id: external_id) do

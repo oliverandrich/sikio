@@ -29,6 +29,7 @@ defmodule SikioWeb.AddSourceLive do
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.SearchRank
   alias Sikio.Library
+  alias Sikio.Platforms
   alias SikioWeb.LibraryPaths
   alias SikioWeb.SubscriptionSettings
 
@@ -93,6 +94,17 @@ defmodule SikioWeb.AddSourceLive do
     "youtube_videos" => {:youtube_videos, :channel_url, :channel, :discover}
   }
 
+  # Each search with the platform it asks.
+  @searches [
+    sources: :podcast,
+    episodes: :podcast,
+    programmes: :mediathek,
+    channels: :peertube,
+    videos: :peertube,
+    youtube_channels: :youtube,
+    youtube_videos: :youtube
+  ]
+
   @existing ~w(newest all none)
 
   # A series taken whole is fetched once with this many programmes. Its refreshes ask for 20.
@@ -118,7 +130,8 @@ defmodule SikioWeb.AddSourceLive do
        page_title: gettext("Add a source"),
        form: to_form(%{"q" => ""}),
        mode: nil,
-       busy: false
+       busy: false,
+       platforms: Platforms.enabled()
      )
      |> stream_configure(:sources, dom_id: &(@prefixes.podcasts <> &1.id))
      |> stream_configure(:results, dom_id: & &1.id)
@@ -336,22 +349,22 @@ defmodule SikioWeb.AddSourceLive do
         fallback = if String.contains?(url, "://"), do: nil, else: url
         socket |> discover(url) |> assign(fallback: fallback)
 
+      # The searches each check the term. Without the podcast search, one would say nothing.
       {:search, term} ->
-        search(socket, term)
+        if Discovery.search_term?(term),
+          do: search(socket, term),
+          else:
+            socket |> searching(:search) |> assign(busy: false, error: message(:invalid_search))
     end
   end
 
   @impl true
+  # A pasted link whose every source belongs to a platform that is off finds nothing.
   def handle_async(:sources, {:ok, {:ok, sources}}, socket) do
-    sources = keyed(sources, :id)
-
-    search? = socket.assigns.mode == :search
-    sources = if search?, do: scored(sources, :podcasts, socket.assigns.term), else: sources
-    socket = assign(socket, busy: false, candidates: by_id(sources))
-
-    if search?,
-      do: {:noreply, answered(socket)},
-      else: {:noreply, show_sources(socket, sources)}
+    case {socket.assigns.mode, Enum.filter(sources, &on?(socket, &1[:kind]))} do
+      {:link, []} when sources != [] -> failed(socket, :platform_off)
+      {_mode, allowed} -> found_sources(socket, allowed)
+    end
   end
 
   def handle_async(:programmes, {:ok, {:ok, found}}, socket) do
@@ -401,8 +414,11 @@ defmodule SikioWeb.AddSourceLive do
     do: fetch_failed(socket, message(:unavailable))
 
   # Only a link to one video or episode yields an item. Its preview holds the entry.
-  def handle_async(:item, {:ok, {:ok, %{preview: _, external_id: _} = item}}, socket),
-    do: {:noreply, show_item(socket, item)}
+  def handle_async(:item, {:ok, {:ok, %{preview: preview, external_id: _} = item}}, socket) do
+    if on?(socket, preview.kind),
+      do: {:noreply, show_item(socket, item)},
+      else: {:noreply, assign(socket, error: message(:platform_off))}
+  end
 
   def handle_async(:item, _result, socket), do: {:noreply, socket}
 
@@ -416,6 +432,18 @@ defmodule SikioWeb.AddSourceLive do
 
   def handle_async(:sources, {:ok, {:error, reason}}, socket), do: failed(socket, reason)
   def handle_async(:sources, {:exit, _reason}, socket), do: failed(socket, :unavailable)
+
+  defp found_sources(socket, sources) do
+    sources = keyed(sources, :id)
+
+    search? = socket.assigns.mode == :search
+    sources = if search?, do: scored(sources, :podcasts, socket.assigns.term), else: sources
+    socket = assign(socket, busy: false, candidates: by_id(sources))
+
+    if search?,
+      do: {:noreply, answered(socket)},
+      else: {:noreply, show_sources(socket, sources)}
+  end
 
   defp failed(socket, reason),
     do: {:noreply, socket |> assign(busy: false, error: message(reason)) |> answered()}
@@ -539,28 +567,39 @@ defmodule SikioWeb.AddSourceLive do
       |> start_async(:sources, fn -> Discovery.discover(url) end)
       |> start_async(:item, fn -> Discovery.item(url) end)
 
+  # A platform that is off is not asked. Its searches have no state, so the list does not wait.
   defp search(socket, term) do
-    socket
-    |> searching(:search)
-    |> assign(
-      term: term,
-      waiting: true,
-      deadline: Process.send_after(self(), {:settle, term}, @deadline),
-      programmes_state: :searching,
-      episodes_state: :searching,
-      channels_state: :searching,
-      videos_state: :searching,
-      youtube_channels_state: :searching,
-      youtube_videos_state: :searching
-    )
-    |> start_async(:sources, fn -> Discovery.search(term) end)
-    |> start_async(:episodes, fn -> Discovery.episode_search(term) end)
-    |> start_async(:programmes, fn -> Discovery.mediathek_search(term) end)
-    |> start_async(:channels, fn -> Discovery.peertube_channel_search(term) end)
-    |> start_async(:videos, fn -> Discovery.peertube_video_search(term) end)
-    |> start_async(:youtube_channels, fn -> Discovery.youtube_channel_search(term) end)
-    |> start_async(:youtube_videos, fn -> Discovery.youtube_video_search(term) end)
+    searches = Enum.filter(@searches, fn {_search, kind} -> on?(socket, kind) end)
+
+    socket =
+      socket
+      |> searching(:search)
+      |> assign(
+        term: term,
+        waiting: true,
+        busy: Enum.any?(searches, &match?({:sources, _kind}, &1)),
+        deadline: Process.send_after(self(), {:settle, term}, @deadline)
+      )
+
+    searching =
+      for {search, _kind} <- searches, @states[search], do: {@states[search], :searching}
+
+    searches
+    |> Enum.reduce(assign(socket, searching), fn {search, _kind}, socket ->
+      start_async(socket, search, fn -> searched(search, term) end)
+    end)
+    |> answered()
   end
+
+  defp searched(:sources, term), do: Discovery.search(term)
+  defp searched(:episodes, term), do: Discovery.episode_search(term)
+  defp searched(:programmes, term), do: Discovery.mediathek_search(term)
+  defp searched(:channels, term), do: Discovery.peertube_channel_search(term)
+  defp searched(:videos, term), do: Discovery.peertube_video_search(term)
+  defp searched(:youtube_channels, term), do: Discovery.youtube_channel_search(term)
+  defp searched(:youtube_videos, term), do: Discovery.youtube_video_search(term)
+
+  defp on?(socket, kind), do: Map.get(socket.assigns.platforms, kind) != false
 
   # A new lookup cancels a pending subscribe task.
   defp searching(socket, mode) do
@@ -675,6 +714,9 @@ defmodule SikioWeb.AddSourceLive do
        |> put_flash(:info, message)
        |> push_navigate(to: LibraryPaths.library_path(%{"status" => place}, entry))}
     else
+      {:error, :platform_off} ->
+        {:noreply, socket |> put_flash(:error, message(:platform_off)) |> show_rows()}
+
       # An episode's row was disabled while its feed was fetched.
       _ ->
         {:noreply,
@@ -704,6 +746,9 @@ defmodule SikioWeb.AddSourceLive do
          |> put_flash(:info, gettext("Subscribed to %{title}.", title: name))
          |> push_navigate(to: to)}
 
+      {:error, :platform_off} ->
+        {:noreply, socket |> put_flash(:error, message(:platform_off)) |> show_rows()}
+
       # Re-inserts the rows, so no row keeps its pending state after a failure.
       {:error, _} ->
         {:noreply,
@@ -712,6 +757,31 @@ defmodule SikioWeb.AddSourceLive do
          |> show_rows()}
     end
   end
+
+  # With every platform on, the hint names them all. Otherwise it names those that are on.
+  defp hint(platforms) do
+    kinds = Platforms.kinds()
+
+    case Enum.filter(kinds, &platforms[&1]) do
+      ^kinds ->
+        gettext(
+          "Paste a link to a podcast, a YouTube or PeerTube channel or video, or search Apple Podcasts, the Mediathek, PeerTube and YouTube."
+        )
+
+      [] ->
+        gettext("Every platform is switched off on this instance.")
+
+      on ->
+        gettext("Paste a link, or search by name. On this instance: %{platforms}.",
+          platforms: Enum.map_join(on, ", ", &platform_name/1)
+        )
+    end
+  end
+
+  defp platform_name(:podcast), do: "Apple Podcasts"
+  defp platform_name(:mediathek), do: gettext("the Mediathek")
+  defp platform_name(:peertube), do: "PeerTube"
+  defp platform_name(:youtube), do: "YouTube"
 
   # Messages name a next step where one exists.
   # A generic error does not tell whether to retry, fix the link or give up.
@@ -733,8 +803,11 @@ defmodule SikioWeb.AddSourceLive do
         "YouTube did not reveal this channel. Try its channel URL; private or unavailable videos cannot be resolved."
       )
 
+  defp message(:platform_off),
+    do: gettext("This platform is switched off on this instance. Ask an administrator.")
+
   defp message(:invalid_search),
-    do: gettext("Enter between 2 and 120 characters to search Apple Podcasts.")
+    do: gettext("Enter between 2 and 120 characters to search.")
 
   defp message(:directory_unavailable),
     do:
@@ -812,9 +885,7 @@ defmodule SikioWeb.AddSourceLive do
             </.button>
           </fieldset>
           <p id="add-hint" class="mt-2 text-center text-meta leading-relaxed text-muted">
-            {gettext(
-              "Paste a link to a podcast, a YouTube or PeerTube channel or video, or search Apple Podcasts, the Mediathek, PeerTube and YouTube."
-            )}
+            {hint(@platforms)}
           </p>
         </.form>
         <div

@@ -18,6 +18,7 @@ defmodule Sikio.Library do
   alias Sikio.Library.Favourite
   alias Sikio.Library.SavedEntry
   alias Sikio.Library.Subscription
+  alias Sikio.Platforms
   alias Sikio.Playback
   alias Sikio.Playback.State
   alias Sikio.Repo
@@ -64,9 +65,24 @@ defmodule Sikio.Library do
   `existing` picks which of the feed's present entries the account receives: `:newest` (the
   default), `:all` or `:none`. They go where `delivery` sends later entries: `:inbox` (the
   default), `:queue` or `:skip`. The other present entries are archived for the account.
-  Subscribing again changes nothing.
+  Subscribing again changes nothing. A platform that is off returns `{:error, :platform_off}`.
   """
-  def subscribe(%User{id: user_id}, preview, opts \\ []) do
+  def subscribe(%User{} = account, preview, opts \\ []) do
+    if followed?(account, preview) or Platforms.allow(preview.kind) == :ok,
+      do: subscribe_allowed(account, preview, opts),
+      else: {:error, :platform_off}
+  end
+
+  # A source the account follows is found again whatever its platform's switch says now.
+  defp followed?(%User{id: user_id}, %{url: url}),
+    do:
+      Repo.exists?(
+        from s in Subscription,
+          join: f in assoc(s, :feed),
+          where: s.user_id == ^user_id and f.url == ^url
+      )
+
+  defp subscribe_allowed(%User{id: user_id}, preview, opts) do
     existing = Keyword.get(opts, :existing, :newest)
     delivery = Keyword.get(opts, :delivery, :inbox)
 
@@ -105,14 +121,22 @@ defmodule Sikio.Library do
   The feed and its entries are stored shared, as for a subscription, and not polled for this.
   `:queue` puts the entry at the end of the queue; `:inbox` leaves it where its playback state is.
   A newly saved entry has no playback state, so it is new.
-  Returns `{:ok, entry}`, or `{:error, :not_found}` when the preview does not hold the entry.
+  Returns `{:ok, entry}`, `{:error, :not_found}` when the preview does not hold the entry, or
+  `{:error, :platform_off}` when its platform is off.
   Broadcasts `{:entry_saved, entry_id}` to the account, or the queue's event for `:queue`.
   """
   def save(%User{id: user_id} = account, preview, external_id, at) when at in [:inbox, :queue] do
     result =
-      if Enum.any?(preview.entries, &(&1.external_id == external_id)),
-        do: Repo.transaction(fn -> saved(user_id, preview, external_id) end),
-        else: {:error, :not_found}
+      cond do
+        Platforms.allow(preview.kind) != :ok ->
+          {:error, :platform_off}
+
+        Enum.any?(preview.entries, &(&1.external_id == external_id)) ->
+          Repo.transaction(fn -> saved(user_id, preview, external_id) end)
+
+        true ->
+          {:error, :not_found}
+      end
 
     with {:ok, entry} <- result do
       Events.feed_updated(entry.feed_id)
