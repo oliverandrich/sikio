@@ -21,6 +21,7 @@ defmodule SikioWeb.LibraryLive do
   alias Sikio.Library
   alias Sikio.Playback
   alias Sikio.Preferences
+  alias Sikio.Removals
   alias SikioWeb.DateGroups
   alias SikioWeb.LibraryLive.Calendar
   alias SikioWeb.LibraryLive.Rows
@@ -49,7 +50,8 @@ defmodule SikioWeb.LibraryLive do
        heard_days: %{},
        chosen_for_width: nil,
        time_zone_offset: time_zone_offset(get_connect_params(socket)),
-       tab: :inbox
+       tab: :inbox,
+       removing_everywhere: nil
      )}
   end
 
@@ -422,6 +424,50 @@ defmodule SikioWeb.LibraryLive do
   def handle_event("remove_entry", %{"id" => id}, socket) do
     Library.remove_entry(socket.assigns.current_account, id)
     {:noreply, push_patch(socket, to: address(socket, socket.assigns.filters))}
+  end
+
+  # The menu item shows only to administrators. `Removals.remove_entry/2` checks the stored role.
+  def handle_event(
+        "ask_remove_everywhere",
+        %{"id" => id},
+        %{assigns: %{selected: %{id: id}}} = socket
+      ),
+      do: {:noreply, assign(socket, removing_everywhere: socket.assigns.selected)}
+
+  def handle_event("ask_remove_everywhere", _params, socket), do: {:noreply, socket}
+
+  def handle_event("cancel_remove_everywhere", _params, socket),
+    do: {:noreply, assign(socket, removing_everywhere: nil)}
+
+  def handle_event(
+        "confirm_remove_everywhere",
+        _params,
+        %{assigns: %{removing_everywhere: nil}} = socket
+      ),
+      do: {:noreply, socket}
+
+  def handle_event("confirm_remove_everywhere", _params, socket) do
+    entry = socket.assigns.removing_everywhere
+    socket = assign(socket, removing_everywhere: nil)
+
+    case Removals.remove_entry(socket.assigns.current_account, entry.id) do
+      {:ok, _entry} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Removed %{title} for everyone.", title: entry.title))
+         |> push_patch(to: address(socket, socket.assigns.filters))}
+
+      {:error, :forbidden} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("Only administrators can remove an item for everyone.")
+         )}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("This item is no longer there."))}
+    end
   end
 
   def handle_event("dequeue", %{"id" => id}, socket),
@@ -989,9 +1035,21 @@ defmodule SikioWeb.LibraryLive do
             entry={@selected}
             notes={@notes}
             chapters={@chapters}
+            admin={@current_account.admin}
           />
         </section>
       </div>
+      <.confirm_dialog
+        :if={@removing_everywhere}
+        name="remove-everywhere"
+        title={gettext("Remove %{title} for everyone?", title: @removing_everywhere.title)}
+        confirm_label={gettext("Remove for everyone")}
+        variant="danger"
+      >
+        {gettext(
+          "It leaves every library, with progress, favourites and saved items. A refresh does not bring it back."
+        )}
+      </.confirm_dialog>
     </Layouts.member>
     """
   end

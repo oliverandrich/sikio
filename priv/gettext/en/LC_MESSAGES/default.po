@@ -709,7 +709,7 @@ msgstr ""
 msgid "Subscribed to %{title}."
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:592
+#: lib/sikio_web/live/library_live.ex:641
 #: lib/sikio_web/live/subscriptions_live.ex:35
 #: lib/sikio_web/live/subscriptions_live.ex:49
 #: lib/sikio_web/live/subscriptions_live.ex:93
@@ -801,7 +801,7 @@ msgstr ""
 msgid "Close player"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:954
+#: lib/sikio_web/live/library_live.ex:1003
 #, elixir-autogen, elixir-format
 msgid "Find your first source →"
 msgstr ""
@@ -814,8 +814,8 @@ msgstr ""
 #: lib/sikio_web/components/layouts.ex:449
 #: lib/sikio_web/components/layouts.ex:504
 #: lib/sikio_web/live/add_source_live.ex:763
-#: lib/sikio_web/live/library_live.ex:186
-#: lib/sikio_web/live/library_live.ex:520
+#: lib/sikio_web/live/library_live.ex:188
+#: lib/sikio_web/live/library_live.ex:569
 #: lib/sikio_web/live/places_live.ex:17
 #: lib/sikio_web/live/places_live.ex:35
 #: lib/sikio_web/live/places_live.ex:37
@@ -861,7 +861,7 @@ msgstr ""
 msgid "Now playing"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:949
+#: lib/sikio_web/live/library_live.ex:998
 #, elixir-autogen, elixir-format
 msgid "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
 msgstr ""
@@ -878,14 +878,14 @@ msgstr ""
 msgid "Play again"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:947
+#: lib/sikio_web/live/library_live.ex:996
 #, elixir-autogen, elixir-format
 msgid "Space for something good."
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:233
-#: lib/sikio_web/live/library_live.ex:391
-#: lib/sikio_web/live/library_live.ex:453
+#: lib/sikio_web/live/library_live.ex:235
+#: lib/sikio_web/live/library_live.ex:393
+#: lib/sikio_web/live/library_live.ex:502
 #: lib/sikio_web/live/player_dock_live.ex:132
 #: lib/sikio_web/live/player_dock_live.ex:188
 #, elixir-autogen, elixir-format
@@ -897,7 +897,7 @@ msgstr ""
 msgid "This source is no longer in your library."
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:703
+#: lib/sikio_web/live/library_live.ex:752
 #, elixir-autogen, elixir-format
 msgid "Unavailable source"
 msgstr ""
@@ -1144,7 +1144,7 @@ msgstr ""
 msgid "Views"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:708
+#: lib/sikio_web/live/library_live.ex:757
 #, elixir-autogen, elixir-format
 msgid "%{count} item"
 msgid_plural "%{count} items"
@@ -1161,12 +1161,12 @@ msgstr ""
 msgid "Open on YouTube"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:979
+#: lib/sikio_web/live/library_live.ex:1028
 #, elixir-autogen, elixir-format
 msgid "Selected item"
 msgstr ""
 
-#: lib/sikio_web/components/library_components.ex:719
+#: lib/sikio_web/components/library_components.ex:730
 #, elixir-autogen, elixir-format
 msgid "The publisher sent no notes for this item."
 msgstr ""
@@ -1282,26 +1282,26 @@ msgstr ""
 msgid "The address no longer exists on its server."
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:916
+#: lib/sikio_web/live/library_live.ex:965
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:923
+#: lib/sikio_web/live/library_live.ex:972
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
 
 #: lib/sikio_web/components/layouts.ex:453
 #: lib/sikio_web/components/layouts.ex:509
-#: lib/sikio_web/live/library_live.ex:685
-#: lib/sikio_web/live/library_live.ex:851
+#: lib/sikio_web/live/library_live.ex:734
+#: lib/sikio_web/live/library_live.ex:900
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:887
-#: lib/sikio_web/live/library_live.ex:888
+#: lib/sikio_web/live/library_live.ex:936
+#: lib/sikio_web/live/library_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Search in %{place}"
 msgstr ""
@@ -1553,7 +1553,7 @@ msgstr ""
 msgid "Tags"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:695
+#: lib/sikio_web/live/library_live.ex:744
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Unavailable tag"
 msgstr ""
@@ -1583,8 +1583,8 @@ msgstr ""
 msgid "Delete %{name}?"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:800
-#: lib/sikio_web/live/library_live.ex:801
+#: lib/sikio_web/live/library_live.ex:849
+#: lib/sikio_web/live/library_live.ex:850
 #: lib/sikio_web/live/tag_settings.ex:112
 #, elixir-autogen, elixir-format
 msgid "Delete tag"
@@ -1606,8 +1606,8 @@ msgstr ""
 msgid "Rename %{name}"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:789
-#: lib/sikio_web/live/library_live.ex:790
+#: lib/sikio_web/live/library_live.ex:838
+#: lib/sikio_web/live/library_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "Rename tag"
 msgstr ""
@@ -1661,15 +1661,15 @@ msgid_plural "%{count} items in this list will be archived. They stay out of you
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/sikio_web/components/library_components.ex:568
-#: lib/sikio_web/components/library_components.ex:630
+#: lib/sikio_web/components/library_components.ex:569
+#: lib/sikio_web/components/library_components.ex:631
 #: lib/sikio_web/live/mark_all.ex:76
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Archive"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:778
-#: lib/sikio_web/live/library_live.ex:779
+#: lib/sikio_web/live/library_live.ex:827
+#: lib/sikio_web/live/library_live.ex:828
 #, elixir-autogen, elixir-format
 msgid "Archive all"
 msgstr ""
@@ -1684,12 +1684,12 @@ msgstr ""
 msgid "Archived"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:351
+#: lib/sikio_web/live/library_live.ex:353
 #, elixir-autogen, elixir-format
 msgid "Nothing here is left to archive."
 msgstr ""
 
-#: lib/sikio_web/components/library_components.ex:641
+#: lib/sikio_web/components/library_components.ex:642
 #, elixir-autogen, elixir-format
 msgid "Back to the inbox"
 msgstr ""
@@ -1699,8 +1699,8 @@ msgstr ""
 msgid "History"
 msgstr ""
 
-#: lib/sikio_web/components/library_components.ex:546
-#: lib/sikio_web/components/library_components.ex:548
+#: lib/sikio_web/components/library_components.ex:547
+#: lib/sikio_web/components/library_components.ex:549
 #, elixir-autogen, elixir-format
 msgid "In the queue"
 msgstr ""
@@ -1775,8 +1775,8 @@ msgstr ""
 msgid "The inbox"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:813
-#: lib/sikio_web/live/library_live.ex:814
+#: lib/sikio_web/live/library_live.ex:862
+#: lib/sikio_web/live/library_live.ex:863
 #: lib/sikio_web/live/subscriptions_live.ex:271
 #: lib/sikio_web/live/subscriptions_live.ex:272
 #, elixir-autogen, elixir-format
@@ -1788,7 +1788,7 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: lib/sikio_web/components/library_components.ex:604
+#: lib/sikio_web/components/library_components.ex:605
 #, elixir-autogen, elixir-format
 msgid "More actions"
 msgstr ""
@@ -1798,7 +1798,7 @@ msgstr ""
 msgid "Queue again"
 msgstr ""
 
-#: lib/sikio_web/components/library_components.ex:612
+#: lib/sikio_web/components/library_components.ex:613
 #, elixir-autogen, elixir-format
 msgid "Remove from the queue"
 msgstr ""
@@ -1862,8 +1862,8 @@ msgstr ""
 msgid "To the inbox"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:826
-#: lib/sikio_web/live/library_live.ex:827
+#: lib/sikio_web/live/library_live.ex:875
+#: lib/sikio_web/live/library_live.ex:876
 #: lib/sikio_web/live/subscriptions_live.ex:283
 #: lib/sikio_web/live/subscriptions_live.ex:284
 #, elixir-autogen, elixir-format
@@ -2039,7 +2039,7 @@ msgstr ""
 msgid "Live channels are also checked once a day."
 msgstr ""
 
-#: lib/sikio_web/components/library_components.ex:661
+#: lib/sikio_web/components/library_components.ex:662
 #, elixir-autogen, elixir-format
 msgid "Remove from library"
 msgstr ""
@@ -2076,8 +2076,8 @@ msgstr[1] ""
 msgid "%{month} %{day}"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:838
-#: lib/sikio_web/live/library_live.ex:839
+#: lib/sikio_web/live/library_live.ex:887
+#: lib/sikio_web/live/library_live.ex:888
 #, elixir-autogen, elixir-format
 msgid "Calendar"
 msgstr ""
@@ -2270,8 +2270,8 @@ msgstr ""
 
 #: lib/sikio_web/components/library_components.ex:154
 #: lib/sikio_web/components/library_components.ex:156
-#: lib/sikio_web/components/library_components.ex:581
 #: lib/sikio_web/components/library_components.ex:582
+#: lib/sikio_web/components/library_components.ex:583
 #, elixir-autogen, elixir-format
 msgid "Favourite"
 msgstr ""
@@ -2292,18 +2292,18 @@ msgid "Star an item to keep it here."
 msgstr ""
 
 #: lib/sikio_web/live/invitations_live.ex:241
-#: lib/sikio_web/live/library_live.ex:405
+#: lib/sikio_web/live/library_live.ex:407
 #, elixir-autogen, elixir-format
 msgid "Link copied."
 msgstr ""
 
-#: lib/sikio_web/components/library_components.ex:598
 #: lib/sikio_web/components/library_components.ex:599
+#: lib/sikio_web/components/library_components.ex:600
 #, elixir-autogen, elixir-format
 msgid "Share"
 msgstr ""
 
-#: lib/sikio_web/live/library_live.ex:408
+#: lib/sikio_web/live/library_live.ex:410
 #, elixir-autogen, elixir-format
 msgid "The link could not be copied."
 msgstr ""
@@ -2696,17 +2696,21 @@ msgid_plural "Its %{count} items leave every library, with progress, favourites 
 msgstr[0] ""
 msgstr[1] ""
 
+#: lib/sikio_web/live/library_live.ex:1048
 #: lib/sikio_web/live/subscription_settings.ex:334
 #, elixir-autogen, elixir-format
 msgid "Remove %{title} for everyone?"
 msgstr ""
 
+#: lib/sikio_web/components/library_components.ex:672
+#: lib/sikio_web/live/library_live.ex:1049
 #: lib/sikio_web/live/subscription_settings.ex:314
 #: lib/sikio_web/live/subscription_settings.ex:335
 #, elixir-autogen, elixir-format
 msgid "Remove for everyone"
 msgstr ""
 
+#: lib/sikio_web/live/library_live.ex:460
 #: lib/sikio_web/live/subscription_settings.ex:111
 #, elixir-autogen, elixir-format
 msgid "Removed %{title} for everyone."
@@ -2722,4 +2726,19 @@ msgstr[1] ""
 #: lib/sikio_web/live/subscription_settings.ex:114
 #, elixir-autogen, elixir-format
 msgid "Only administrators can remove a feed for everyone."
+msgstr ""
+
+#: lib/sikio_web/live/library_live.ex:1052
+#, elixir-autogen, elixir-format
+msgid "It leaves every library, with progress, favourites and saved items. A refresh does not bring it back."
+msgstr ""
+
+#: lib/sikio_web/live/library_live.ex:468
+#, elixir-autogen, elixir-format
+msgid "Only administrators can remove an item for everyone."
+msgstr ""
+
+#: lib/sikio_web/live/library_live.ex:472
+#, elixir-autogen, elixir-format
+msgid "This item is no longer there."
 msgstr ""

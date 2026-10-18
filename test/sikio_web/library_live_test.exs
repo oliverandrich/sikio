@@ -87,6 +87,23 @@ defmodule SikioWeb.LibraryLiveTest do
     assert Library.entry(c.user, entry.id) == nil
   end
 
+  # An administrator removes an item for everyone, after a confirmation. Members see no such entry.
+  test "an administrator removes an item for everyone", c do
+    {:ok, view, _} = live(c.conn, "/all/#{c.audio.id}-one-two")
+    refute has_element?(view, "#remove-everywhere")
+
+    c.user |> Ecto.Changeset.change(admin: true) |> Repo.update!()
+    {:ok, view, _} = live(c.conn, "/all/#{c.audio.id}-one-two")
+    view |> element("#remove-everywhere") |> render_click()
+    assert has_element?(view, "dialog#remove-everywhere-confirm", "One & two")
+
+    view |> element("#confirm-remove-everywhere") |> render_click()
+    assert_patch(view, "/all")
+    assert render(view) =~ "Removed One &amp; two for everyone."
+    refute has_element?(view, "#entries-#{c.audio.id}")
+    refute Repo.get(Sikio.Feeds.Entry, c.audio.id)
+  end
+
   # An account that follows nothing but saved an item sees it, not the welcome for a new library.
   test "an account with only saved items lists them" do
     user = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))

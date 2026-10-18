@@ -12,6 +12,7 @@ defmodule Sikio.Removals do
 
   alias Sikio.Accounts
   alias Sikio.Accounts.User
+  alias Sikio.Feeds.BlockedEntry
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
   alias Sikio.Library.Events
@@ -52,6 +53,39 @@ defmodule Sikio.Removals do
     end
   end
 
+  @doc """
+  Removes the entry with `entry_id` for everyone and blocks it in its feed.
+
+  The block keeps the import from bringing it back while the feed still lists it. Every
+  account's playback, favourite and saved state for it cascades. After the commit, every account
+  that could see it receives `{:entry_removed, entry_id}`. Returns `{:ok, entry}`,
+  `{:error, :not_found}` or `{:error, :forbidden}`.
+  """
+  def remove_entry(admin, entry_id) do
+    with {:ok, {entry, holders}} <-
+           Accounts.with_admin(admin, fn _admins -> delete_entry(Repo.get(Entry, entry_id)) end) do
+      Enum.each(holders, &Events.broadcast(%User{id: &1}, {:entry_removed, entry.id}))
+      {:ok, entry}
+    end
+  end
+
+  defp delete_entry(nil), do: {:error, :not_found}
+
+  # The feed row is locked first, as a refresh's feed upsert locks it. A refresh that read the
+  # blocks before this block then finishes first, and its row is the one deleted here.
+  defp delete_entry(entry) do
+    from(f in Feed, where: f.id == ^entry.feed_id, select: f.id)
+    |> Repo.for_update()
+    |> Repo.one()
+
+    holders = holders(from(e in Entry, where: e.id == ^entry.id, select: e.id), entry.feed_id)
+    block = %BlockedEntry{feed_id: entry.feed_id, external_id: entry.external_id}
+
+    with {:ok, _block} <- Repo.insert(block, on_conflict: :nothing),
+         {:ok, entry} <- Repo.delete(entry),
+         do: {:ok, {entry, holders}}
+  end
+
   # The holders are read before the cascade takes their rows.
   defp delete_feed(nil), do: {:error, :not_found}
 
@@ -60,9 +94,11 @@ defmodule Sikio.Removals do
     with {:ok, feed} <- Repo.delete(feed), do: {:ok, {feed, holders}}
   end
 
-  # Every account with a subscription to the feed or a state of one of its entries.
-  defp holders(feed_id) do
-    entries = from(e in Entry, where: e.feed_id == ^feed_id, select: e.id)
+  # Every account with a subscription to the feed or a state of one of the entries.
+  defp holders(feed_id),
+    do: holders(from(e in Entry, where: e.feed_id == ^feed_id, select: e.id), feed_id)
+
+  defp holders(entries, feed_id) do
     subscribers = from(s in Subscription, where: s.feed_id == ^feed_id, select: s.user_id)
 
     [subscribers | Enum.map([SavedEntry, Favourite, State], &holding(&1, entries))]

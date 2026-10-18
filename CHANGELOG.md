@@ -22,6 +22,8 @@ Its own section becomes the version's release notes.
   deletes the account's own data and ends its open sessions.
 - Administrators remove a feed for everyone from its edit dialog. The confirmation names how many
   members have some of it in their library and how many items go with it.
+- Administrators remove an item for everyone from its More actions menu. A refresh does not bring
+  it back while its feed lists it.
 
 ### Changed
 
@@ -36,6 +38,7 @@ Its own section becomes the version's release notes.
 
 ### Upgrading
 
+- A migration adds the table of removed items, `blocked_entries`.
 - A migration adds the administrator flag and grants it to the account that claimed the
   instance. An instance whose first account was deleted has no administrator until
   `bin/grant-admin` names one.

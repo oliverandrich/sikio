@@ -164,7 +164,10 @@ any account. Removing then asks for a confirmation. An administrator cannot remo
 account there. Shared episodes and feeds stay. An administrator also finds **Remove for
 everyone** in a source's edit dialog. The confirmation names how many members have some of it in
 their library and how many items go. Its subscriptions, items and every account's progress,
-favourites and saved items for it are deleted. Adding the feed again later starts afresh.
+favourites and saved items for it are deleted. Adding the feed again later starts afresh. An
+item's **More actions** menu offers administrators **Remove for everyone** as well. The item
+leaves every library, and a refresh does not bring it back while its feed lists it. Only
+removing the feed and adding it again lifts that block.
 
 ## Inviting somebody
 

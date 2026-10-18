@@ -295,16 +295,16 @@ defmodule SikioWeb.LibraryComponents do
   attr :menu, :string, required: true, doc: "the menu it closes"
   attr :push, :any, default: nil, doc: "the event and its values"
   attr :href, :string, default: nil, doc: "an address it opens in a new tab instead"
+  attr :danger, :boolean, default: false, doc: "whether it removes something for good"
   slot :icon, required: true
   slot :inner_block, required: true
 
   def menu_item(assigns) do
     assigns =
-      assign(
-        assigns,
-        :class,
-        "flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-control px-3 text-left text-label text-ink hover:bg-ground sm:min-h-9"
-      )
+      assign(assigns, :class, [
+        "flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-control px-3 text-left text-label hover:bg-ground sm:min-h-9",
+        if(assigns.danger, do: "text-danger", else: "text-ink")
+      ])
 
     ~H"""
     <a
@@ -490,6 +490,7 @@ defmodule SikioWeb.LibraryComponents do
   attr :entry, :map, required: true
   attr :notes, :any, required: true, doc: "the filtered notes, or nil"
   attr :chapters, :list, required: true, doc: "the chapters the notes listed"
+  attr :admin, :boolean, default: false, doc: "whether the menu offers removal for everyone"
 
   def detail(assigns) do
     entry = assigns.entry
@@ -659,6 +660,16 @@ defmodule SikioWeb.LibraryComponents do
             >
               <:icon><Lucideicons.trash_2 aria-hidden="true" class="size-4" /></:icon>
               {gettext("Remove from library")}
+            </.menu_item>
+            <.menu_item
+              :if={@admin}
+              id="remove-everywhere"
+              push={{"ask_remove_everywhere", %{id: @entry.id}}}
+              menu="item-more"
+              danger
+            >
+              <:icon><Lucideicons.trash_2 aria-hidden="true" class="size-4" /></:icon>
+              {gettext("Remove for everyone")}
             </.menu_item>
           </.item_menu>
         </div>

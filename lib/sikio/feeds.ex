@@ -13,6 +13,7 @@ defmodule Sikio.Feeds do
 
   alias Sikio.Chapters
   alias Sikio.Feeds.Artwork
+  alias Sikio.Feeds.BlockedEntry
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
@@ -307,7 +308,13 @@ defmodule Sikio.Feeds do
 
   defp import_entries(feed_id, entries) do
     now = DateTime.utc_now()
-    entries = Enum.uniq_by(entries, & &1.external_id)
+    blocked = blocked(feed_id)
+
+    entries =
+      entries
+      |> Enum.uniq_by(& &1.external_id)
+      |> Enum.reject(&MapSet.member?(blocked, &1.external_id))
+
     kept = kept_text(feed_id, entries)
 
     rows =
@@ -336,6 +343,13 @@ defmodule Sikio.Feeds do
       )
 
     {written, new}
+  end
+
+  # An administrator removed these for everyone; see `Sikio.Removals.remove_entry/2`.
+  defp blocked(feed_id) do
+    from(b in BlockedEntry, where: b.feed_id == ^feed_id, select: b.external_id)
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   # `search_text` must match the row after the upsert. The upsert keeps stored text fields a poll
