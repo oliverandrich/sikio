@@ -9,6 +9,7 @@ defmodule Sikio.Release do
   """
   alias Ecto.Adapters.SQL
   alias Ithibati.Identity.Instance
+  alias Sikio.Accounts
   alias Sikio.Claim
   alias Sikio.Convert
   alias Sikio.Repo.Postgres
@@ -53,12 +54,37 @@ defmodule Sikio.Release do
   end
 
   @doc "Runs `setup_code/0` and halts with exit status 1 on error, for shell scripts."
-  def setup_code! do
-    case setup_code() do
-      :ok -> :ok
-      _error -> System.halt(1)
+  def setup_code!, do: halt_on_error(setup_code())
+
+  @doc """
+  Makes the account named `username` an administrator and says so. In email mode the name is
+  the account's address.
+
+  The operator's way back when an instance has no administrator, for example because its first
+  account was deleted. Returns `{:error, :not_found}` for an unknown username.
+  """
+  def grant_admin(username) do
+    case with_repo(fn -> Accounts.grant_admin_as_operator(username) end) do
+      {:ok, _account} ->
+        IO.puts("#{username} is an administrator.")
+        :ok
+
+      {:error, :not_found} = error ->
+        IO.puts("No account is named #{username}. Nothing changed.")
+        error
+
+      {:error, reason} = error ->
+        IO.puts("Nothing changed: #{inspect(reason)}")
+        error
     end
   end
+
+  @doc "Runs `grant_admin/1` for `GRANT_ADMIN_USERNAME` and halts with status 1 on error."
+  def grant_admin!, do: halt_on_error(grant_admin(System.fetch_env!("GRANT_ADMIN_USERNAME")))
+
+  # A shell script reads the exit status, not the returned term.
+  defp halt_on_error(:ok), do: :ok
+  defp halt_on_error(_error), do: System.halt(1)
 
   # `eval` loads the configuration but starts no application, so the start-up check does not run.
   # Without this call, Ithibati returns `:claim_is_open`, which does not name the key to change.

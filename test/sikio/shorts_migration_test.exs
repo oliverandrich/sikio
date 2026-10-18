@@ -9,7 +9,6 @@ defmodule Sikio.ShortsMigrationTest do
   """
   use Sikio.MigrationCase
 
-  alias Sikio.Accounts.User
   alias Sikio.Feeds.Feed
 
   @before 20_261_007_110_000
@@ -20,8 +19,8 @@ defmodule Sikio.ShortsMigrationTest do
   } do
     migrate(repo, :up, @before)
 
-    ada = Repo.insert!(%User{username: "ada"})
-    grace = Repo.insert!(%User{username: "grace"})
+    ada = user!("ada")
+    grace = user!("grace")
     feed = Repo.insert!(%Feed{url: "https://example.org/yt", kind: :youtube, title: "F"})
     entry!(feed.id, external_id: "yt:video:abcdefghijk", title: "Old")
     now = DateTime.utc_now()

@@ -5,7 +5,7 @@ defmodule Sikio.Invitations do
   Creates, lists, fetches and withdraws invitations.
 
   The application cannot remove an account. Withdrawing an invitation before it is redeemed is
-  the only control over who joins. Every member may invite and withdraw; there is no admin role.
+  the only control over who joins. Every member may invite and withdraw.
 
   The table belongs to this application; the invariants and queries belong to Ithibati.
   `pending_query/0` returns the predicate `fetch/1` uses. `withdraw/1` rechecks acceptance

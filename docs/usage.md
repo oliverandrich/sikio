@@ -2,9 +2,10 @@
 
 Sikio is a Phoenix LiveView application on SQLite or PostgreSQL. Ithibati provides passkeys,
 recovery codes and invitations. The first account needs a setup code from the operator. Every
-later account needs an invitation link. There is no administrator role. By default, accounts
-have usernames and invitation links are shared by hand. In email mode, links are sent by mail.
-[Operations](operations.md) describes `ACCOUNT_IDENTITY` and the mail settings.
+later account needs an invitation link. The account that claimed the instance is its
+administrator. By default, accounts have usernames and invitation links are shared by hand. In
+email mode, links are sent by mail. [Operations](operations.md) describes `ACCOUNT_IDENTITY` and
+the mail settings.
 
 **Add** is the button below the wordmark, or the plus button on a phone. Its input field
 accepts a URL or a search term. Input with `://`, or a single word with a dot such as

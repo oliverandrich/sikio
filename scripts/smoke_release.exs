@@ -119,11 +119,24 @@ defmodule Sikio.ReleaseSmoke do
   defp check_by_hand(release, env) do
     Smoke.run([Path.join(release, "migrate")], env)
     assert Smoke.table?("ithibati_setup_codes", env)
+    check_grant_admin(release, env)
     env = Map.put(env, "PORT", Smoke.free_port())
 
     Smoke.with_server(Path.join(release, "server"), env, fn ->
       assert Smoke.await_landing("127.0.0.1", env["PORT"], "release after bin/migrate") =~ "Sikio"
     end)
+  end
+
+  # The operator's way back to an administrator runs through `eval` in the release.
+  defp check_grant_admin(release, env) do
+    Smoke.sql(
+      "INSERT INTO users (username, admin, inserted_at, updated_at) VALUES " <>
+        "('smoke', FALSE, '2026-01-01T00:00:00.000000Z', '2026-01-01T00:00:00.000000Z')",
+      env
+    )
+
+    Smoke.run([Path.join(release, "grant-admin"), "smoke"], env)
+    assert Smoke.sql("SELECT count(*) FROM users WHERE username = 'smoke' AND admin", env) == "1"
   end
 
   # A release links its icons and manifest by digested names. Browsers install the app from these,

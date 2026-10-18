@@ -9,15 +9,13 @@ defmodule Sikio.PreferencesMigrationTest do
   """
   use Sikio.MigrationCase
 
-  alias Sikio.Accounts.User
-
   @before 20_261_007_120_000
   @version 20_261_008_100_000
 
   test "an account keeps its Play on, and a deleted start tag falls back", %{repo: repo} do
     migrate(repo, :up, @before)
 
-    ada = Repo.insert!(%User{username: "ada"})
+    ada = user!("ada")
     now = DateTime.utc_now()
 
     Repo.insert_all("playback_preferences", [

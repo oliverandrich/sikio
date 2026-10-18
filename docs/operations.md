@@ -241,6 +241,19 @@ A valid code stores a setup proof in the session. The proof expires after ten mi
 consumed by the first account. A setup page loaded after the proof expires shows the code field
 again.
 
+## Administrators
+
+The account that claims the instance is its administrator. Upgrading to 0.9.0 makes the claiming
+account an administrator if it still exists. An instance whose first account was deleted has
+none. On the host, this makes an account an administrator:
+
+```sh
+bin/grant-admin USERNAME
+```
+
+In email mode, pass the account's address. The command exits with status 1 when no account has
+that username or address.
+
 ## Updates and data protection
 
 Database backups and OS-level backups are the operator's responsibility. They include runtime

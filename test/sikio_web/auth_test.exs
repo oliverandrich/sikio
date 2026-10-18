@@ -50,7 +50,8 @@ defmodule SikioWeb.AuthTest do
 
       assert {:ok, _conn} = Auth.register(conn(), key_attrs(), "first_one", %{})
 
-      assert Repo.get_by(User, username: "first_one")
+      # The account that claims the instance administers it.
+      assert %User{admin: true} = Repo.get_by(User, username: "first_one")
       refute Instance.needs_setup?()
     end
 
@@ -152,7 +153,7 @@ defmodule SikioWeb.AuthTest do
       assert {:ok, _conn} =
                Auth.register(conn(), key_attrs(), name, %{"token" => ctx.invitation.token})
 
-      assert Repo.get_by(User, username: name)
+      assert %User{admin: false} = Repo.get_by(User, username: name)
       assert Repo.get!(Invitation, ctx.invitation.id).accepted_at
     end
   end

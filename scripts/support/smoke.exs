@@ -17,12 +17,19 @@ defmodule Sikio.ReleaseSmoke.Smoke do
   def table?(table, env) do
     case database() do
       "sqlite" ->
-        sql = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = '#{table}'"
-        run(["sqlite3", env["DATABASE_PATH"], sql], env) == "1"
+        sql("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = '#{table}'", env) ==
+          "1"
 
       "postgres" ->
-        sql = "SELECT to_regclass('public.#{table}') IS NOT NULL"
-        run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-Atc", sql], env) == "t"
+        sql("SELECT to_regclass('public.#{table}') IS NOT NULL", env) == "t"
+    end
+  end
+
+  @doc "Runs one SQL statement on the release's database and returns its output."
+  def sql(statement, env) do
+    case database() do
+      "sqlite" -> run(["sqlite3", env["DATABASE_PATH"], statement], env)
+      "postgres" -> run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-Atc", statement], env)
     end
   end
 

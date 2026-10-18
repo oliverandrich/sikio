@@ -1,0 +1,12 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+set -eu
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: $0 USERNAME (the address in email mode)" >&2
+  exit 64
+fi
+
+export GRANT_ADMIN_USERNAME="$1"
+cd -P -- "$(dirname -- "$0")"
+exec ./sikio eval "Sikio.Release.grant_admin!()"

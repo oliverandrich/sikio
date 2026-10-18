@@ -70,10 +70,19 @@ defmodule Sikio.MigrationCase do
 
   The row bypasses the schema. The schema lists current columns, which would fail the insert.
   """
-  def entry!(feed_id, attrs) do
+  def entry!(feed_id, attrs), do: row!("entries", Map.put(Map.new(attrs), :feed_id, feed_id))
+
+  @doc """
+  Inserts a `users` row in the table's shape at the migrated version. Returns `%{id: id}`.
+
+  The row bypasses the schema, as `entry!/2` does.
+  """
+  def user!(username), do: row!("users", %{username: username})
+
+  defp row!(table, attrs) do
     now = DateTime.utc_now()
-    row = Map.merge(%{feed_id: feed_id, inserted_at: now, updated_at: now}, Map.new(attrs))
-    {1, [%{id: id}]} = Repo.insert_all("entries", [row], returning: [:id])
+    row = Map.merge(%{inserted_at: now, updated_at: now}, attrs)
+    {1, [%{id: id}]} = Repo.insert_all(table, [row], returning: [:id])
     %{id: id}
   end
 

@@ -178,12 +178,13 @@ defmodule SikioWeb.Auth do
   end
 
   # Creates the first account without an invitation. `Instance.claim/2` refuses a second claim.
+  # The claiming account administers the instance.
   # The claim step runs before the grant, as `accept/2` does above.
   # A failed transaction then generates no recovery codes.
   # Generated codes would appear in plaintext in the returned `changes_so_far`.
   defp claim_instance(username, key_attrs, authorization) do
     Multi.new()
-    |> Multi.insert(:account, User.changeset(%User{}, %{"username" => username}))
+    |> Multi.insert(:account, User.changeset(%User{admin: true}, %{"username" => username}))
     |> Instance.claim(authorization: authorization)
     |> Grant.with_key_and_codes(key_attrs)
   end

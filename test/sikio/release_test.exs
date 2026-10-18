@@ -64,6 +64,20 @@ defmodule Sikio.ReleaseTest do
     refute printed =~ ~r/[a-zA-Z0-9_-]{32}/
   end
 
+  # The operator's way back when an instance has no administrator left.
+  test "grant-admin makes a member an administrator and names an unknown one" do
+    member = Repo.insert!(%Sikio.Accounts.User{username: unique_username()})
+
+    printed = capture_io(fn -> assert Sikio.Release.grant_admin(member.username) == :ok end)
+    assert printed =~ member.username
+    assert Repo.reload!(member).admin
+
+    printed =
+      capture_io(fn -> assert Sikio.Release.grant_admin("nobody") == {:error, :not_found} end)
+
+    assert printed =~ "nobody"
+  end
+
   defp claim do
     {:ok, _conn} =
       Auth.register(

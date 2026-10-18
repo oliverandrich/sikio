@@ -5,8 +5,8 @@ defmodule Sikio.Accounts.Invitation do
   The invitations schema, owned by this application like the accounts schema.
 
   Ithibati adds the invitee's identifier, the token digest, an expiry and an acceptance timestamp.
-  What an invitation grants is up to this application. Sikio has no roles, so it adds only the
-  inviter association.
+  What an invitation grants is up to this application. An invitee becomes a member, so Sikio
+  adds only the inviter association.
   """
   use Ecto.Schema
 

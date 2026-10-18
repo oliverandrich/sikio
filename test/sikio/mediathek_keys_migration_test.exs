@@ -10,7 +10,6 @@ defmodule Sikio.MediathekKeysMigrationTest do
   """
   use Sikio.MigrationCase
 
-  alias Sikio.Accounts.User
   alias Sikio.Feeds.Feed
 
   @before 20_261_011_090_000
@@ -19,7 +18,7 @@ defmodule Sikio.MediathekKeysMigrationTest do
   test "copies of one page become the open one, with the furthest state", %{repo: repo} do
     migrate(repo, :up, @before)
 
-    user = Repo.insert!(%User{username: "ada"})
+    user = user!("ada")
     url = "https://mediathekviewweb.de/feed?query=x"
     series = Repo.insert!(%Feed{url: url, kind: :mediathek, title: "House of Yang · SWR"})
     podcast = Repo.insert!(%Feed{url: "https://example.org/rss", kind: :podcast, title: "P"})

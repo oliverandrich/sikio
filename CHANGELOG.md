@@ -11,9 +11,20 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Added
+
+- The account that claimed the instance is its administrator. `bin/grant-admin USERNAME` makes
+  another account one.
+
 ### Changed
 
 - Sikio requires Ithibati 0.9.0.
+
+### Upgrading
+
+- A migration adds the administrator flag and grants it to the account that claimed the
+  instance. An instance whose first account was deleted has no administrator until
+  `bin/grant-admin` names one.
 
 ## [0.8.0] - 2026-10-18
 

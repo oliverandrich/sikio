@@ -9,7 +9,6 @@ defmodule Sikio.QueueMigrationTest do
   """
   use Sikio.MigrationCase
 
-  alias Sikio.Accounts.User
   alias Sikio.Feeds.Feed
 
   @before 20_261_006_090_000
@@ -18,8 +17,8 @@ defmodule Sikio.QueueMigrationTest do
   test "what is under way is queued, the last played first", %{repo: repo} do
     migrate(repo, :up, @before)
 
-    user = Repo.insert!(%User{username: "ada"})
-    other = Repo.insert!(%User{username: "grace"})
+    user = user!("ada")
+    other = user!("grace")
     feed = Repo.insert!(%Feed{url: "https://example.org/rss", kind: :podcast, title: "F"})
 
     rows = [

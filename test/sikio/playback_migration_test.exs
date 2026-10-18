@@ -10,7 +10,6 @@ defmodule Sikio.PlaybackMigrationTest do
   """
   use Sikio.MigrationCase
 
-  alias Sikio.Accounts.User
   alias Sikio.Feeds.Feed
 
   @before 20_261_005_090_000
@@ -19,7 +18,7 @@ defmodule Sikio.PlaybackMigrationTest do
   test "what was finished becomes heard or archived by how far it was played", %{repo: repo} do
     migrate(repo, :up, @before)
 
-    user = Repo.insert!(%User{username: "ada"})
+    user = user!("ada")
     feed = Repo.insert!(%Feed{url: "https://example.org/rss", kind: :podcast, title: "F"})
 
     rows = [
@@ -72,7 +71,7 @@ defmodule Sikio.PlaybackMigrationTest do
   test "rolled back, heard and archived are finished again and the queue is gone", %{repo: repo} do
     migrate(repo, :up, @version)
 
-    user = Repo.insert!(%User{username: "ada"})
+    user = user!("ada")
     feed = Repo.insert!(%Feed{url: "https://example.org/rss", kind: :podcast, title: "F"})
 
     for {title, status} <- [{"heard", "heard"}, {"archived", "archived"}, {"new", "new"}] do

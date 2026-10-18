@@ -8,8 +8,8 @@ and its authorizations. `Sikio.Claim` stops the boot for any other `initial_clai
 [Operations](operations.md) for the operator's steps.
 
 Later registrations require a valid invitation. Every signed-in member can create invitation
-links on `/invitations`. A link is shown once, expires, and can be accepted once. There is no
-administrator role.
+links on `/invitations`. A link is shown once, expires, and can be accepted once. The account
+that claimed the instance is an administrator. `bin/grant-admin` makes another account one.
 
 The same page lists pending invitations with invitee, inviter, creation time and expiry. Any
 member can withdraw any pending invitation, and its link stops working immediately. Sikio cannot
