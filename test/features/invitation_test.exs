@@ -65,6 +65,44 @@ defmodule SikioWeb.InvitationTest do
     assert Repo.one(Invitation).accepted_at
   end
 
+  # Headless Chrome may refuse the clipboard, so the page records what it would write. A new link
+  # mounts a new button, so the last link's check does not carry over.
+  feature "the copy button copies each new link, and a new link starts without a check", %{
+    session: session
+  } do
+    virtual_authenticator(session)
+
+    session
+    |> open("/")
+    |> code_entered()
+    |> fill_in(css("input[name=username]"), with: "ada")
+    |> click(button("Create your passkey"))
+    |> landed_on("/recovery-codes")
+
+    first = invite_link(session, "Grace")
+
+    session
+    |> execute_script("""
+    Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {
+      writeText: async text => { window.copiedText = text }
+    }})
+    """)
+    |> click(button("Copy link"))
+    |> assert_has(css("[phx-hook=CopyText][data-copied]"))
+    |> execute_script("return window.copiedText", fn copied -> assert copied == first end)
+    |> fill_in(css("input[name=note]"), with: "Ada")
+    |> click(button("Create a link"))
+    |> assert_has(css("[phx-hook=CopyText]:not([data-copy-text='#{first}'])"))
+    # Read once, not awaited: the old check clears itself after two seconds.
+    |> execute_script(
+      "return document.querySelector('[phx-hook=CopyText]').hasAttribute('data-copied')",
+      fn copied -> refute copied end
+    )
+    |> click(button("Copy link"))
+    |> assert_has(css("[phx-hook=CopyText][data-copied]"))
+    |> execute_script("return window.copiedText", fn copied -> refute copied == first end)
+  end
+
   # Refused before the passkey dialog, so no credential is made for a name that cannot be stored.
   feature "a taken name is refused before any passkey is made", %{session: session} do
     virtual_authenticator(session)

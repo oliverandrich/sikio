@@ -229,7 +229,7 @@ defmodule SikioWeb.InvitationsLive do
           <code id="invitation-link-text" class="min-w-0 flex-1 break-all py-1.5">{@link}</code>
           <button
             type="button"
-            id="copy-invitation-link"
+            id={"copy-invitation-link-#{@link_id}"}
             phx-hook="CopyText"
             data-copy-text={@link}
             data-copy-status={"copy-link-status-#{@link_id}"}

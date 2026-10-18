@@ -31,6 +31,7 @@ function page({statusLine = true} = {}) {
   const listeners = {}
   const status = {textContent: ""}
   const button = {
+    isConnected: true,
     disabled: false,
     dataset: {copyText: "https://sikio.example.org/invite#tok", copyStatus: "copy-link-status",
       copySuccess: "Link copied.", copyError: "Copying was blocked."},
@@ -62,6 +63,40 @@ test("a status line that is gone by the time the copy answers is skipped", async
   hook.mounted()
   await listeners.click()
   hook.destroyed()
+})
+
+// The button may go away while the clipboard answers, for example when its link is withdrawn.
+test("a button removed during the copy is left alone", async () => {
+  const {listeners, status, button} = page()
+  const {navigator} = clipboard()
+  useNavigator(navigator)
+  const hook = withJs(button)
+
+  hook.mounted()
+  const copying = listeners.click()
+  button.isConnected = false
+  await copying
+  hook.destroyed()
+
+  assert.equal(status.textContent, "")
+  assert.equal("copied" in button.dataset, false)
+})
+
+// LiveView can destroy a hook and mount a new one on the same element.
+test("a hook destroyed during the copy is left alone", async () => {
+  const {listeners, status, button} = page()
+  const {navigator} = clipboard()
+  useNavigator(navigator)
+  const hook = withJs(button)
+
+  hook.mounted()
+  const click = listeners.click
+  const copying = click()
+  hook.destroyed()
+  await copying
+
+  assert.equal(status.textContent, "")
+  assert.equal("copied" in button.dataset, false)
 })
 
 test("a click copies the button's text and reports it", async () => {

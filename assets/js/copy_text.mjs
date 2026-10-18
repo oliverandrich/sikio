@@ -16,7 +16,8 @@ export async function copyText(text, navigator = globalThis.navigator) {
 // `data-copy-status` and the two sentences in `data-copy-success` and `data-copy-error`. The
 // status line carries `phx-update="ignore"`, so a patch keeps the sentence. After a copy the
 // button carries `data-copied` for two seconds, which shows a check instead of the copy icon.
-// Attributes go through `js()`, so a patch that arrives meanwhile keeps them.
+// Attributes go through `js()`, so a patch that arrives meanwhile keeps them. Each text needs its
+// own button id. A new text then mounts a new hook without the last check.
 export const CopyText = {
   mounted() {
     this.onClick = async () => {
@@ -24,9 +25,10 @@ export const CopyText = {
 
       this.js().setAttribute(this.el, "disabled", "")
       const copied = await copyText(text)
+      // The button or its hook may be gone by the time the clipboard answers.
+      if (this.gone || !this.el.isConnected) return
       this.js().removeAttribute(this.el, "disabled")
 
-      // The link and its status line may be gone by now.
       const status = document.getElementById(copyStatus)
       if (status) status.textContent = copied ? copySuccess : copyError
 
@@ -39,6 +41,7 @@ export const CopyText = {
     this.el.addEventListener("click", this.onClick)
   },
   destroyed() {
+    this.gone = true
     clearTimeout(this.reset)
     this.el.removeEventListener("click", this.onClick)
   }

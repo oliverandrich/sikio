@@ -91,10 +91,24 @@ defmodule SikioWeb.InvitationListingTest do
     # An icon button: the name is for screen readers and the tooltip, not a second label.
     assert has_element?(
              view,
-             ~s(#copy-invitation-link[aria-label="Copy link"][title="Copy link"] svg)
+             ~s(button[phx-hook=CopyText][aria-label="Copy link"][title="Copy link"] svg)
            )
 
-    refute has_element?(view, "#copy-invitation-link", "Copy link")
+    refute has_element?(view, "button[phx-hook=CopyText]", "Copy link")
+  end
+
+  # A new link mounts a new button, so the last link's check does not carry over.
+  test "each new link has a button of its own" do
+    {:ok, view, _html} = live(signed_in(member()), ~p"/invitations")
+
+    view |> form("#invitation-form", %{"note" => "grace"}) |> render_submit()
+    first = Repo.get_by!(Invitation, note: "grace")
+    assert has_element?(view, "#copy-invitation-link-#{first.id}")
+
+    view |> form("#invitation-form", %{"note" => "ada"}) |> render_submit()
+    second = Repo.get_by!(Invitation, note: "ada")
+    assert has_element?(view, "#copy-invitation-link-#{second.id}")
+    refute has_element?(view, "#copy-invitation-link-#{first.id}")
   end
 
   # The row stores only the token digest, so the displayed link is the only copy of the token.

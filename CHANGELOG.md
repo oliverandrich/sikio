@@ -21,6 +21,8 @@ Its own section becomes the version's release notes.
 - An invitation in username mode carries a note for the members who manage invitations. The
   invitee chooses the username on accepting it, checked for format and for an existing account
   before the passkey dialog.
+- A new invitation link has a copy button beside it. It shows a check for two seconds after
+  copying.
 
 ### Changed
 
