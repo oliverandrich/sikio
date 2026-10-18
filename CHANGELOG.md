@@ -11,6 +11,8 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-18
+
 ### Added
 
 - The subscriptions page refreshes one source or all active sources on request. A row shows the
