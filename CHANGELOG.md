@@ -15,10 +15,13 @@ Its own section becomes the version's release notes.
 
 - The account that claimed the instance is its administrator. `bin/grant-admin USERNAME` makes
   another account one.
+- Administrators find every account under Settings → Accounts, with its creation date and role.
+  Members cannot open the page.
 
 ### Changed
 
 - Sikio requires Ithibati 0.9.0.
+- On wide screens, the pages under Settings show a breadcrumb back to the settings.
 
 ### Fixed
 

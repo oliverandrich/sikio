@@ -40,6 +40,19 @@ defmodule SikioWeb.SettingsLiveTest do
     assert has_element?(view, ~s|#nav-back[href="/account/settings"]|)
   end
 
+  # A phone's bar leads back. A wide screen hides that bar's link, so a breadcrumb leads back.
+  test "each account page names the settings above its heading", c do
+    for path <- [~p"/invitations", ~p"/account/passkeys", ~p"/account/recovery-codes"] do
+      {:ok, view, _} = live(c.conn, path)
+      assert has_element?(view, ~s|#breadcrumb a[href="/account/settings"]|, "Settings")
+      assert has_element?(view, ~s|#breadcrumb [aria-current="page"]|)
+    end
+
+    # Pages outside the settings keep their bar alone.
+    {:ok, view, _} = live(c.conn, ~p"/account/settings")
+    refute has_element?(view, "#breadcrumb")
+  end
+
   # Play on lives here alone. The queue has no switch for it.
   test "Play on is saved as soon as it changes", c do
     {:ok, view, _} = live(c.conn, ~p"/account/settings")

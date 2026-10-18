@@ -151,7 +151,17 @@ defmodule SikioWeb.Layouts do
 
   attr :section, :atom,
     default: nil,
-    values: [nil, :library, :places, :add, :subscriptions, :invitations, :account, :settings],
+    values: [
+      nil,
+      :library,
+      :places,
+      :add,
+      :subscriptions,
+      :invitations,
+      :account,
+      :settings,
+      :accounts
+    ],
     doc: "where the reader is, to mark it in the navigation"
 
   attr :tab, :atom,
@@ -169,6 +179,10 @@ defmodule SikioWeb.Layouts do
     doc:
       "`%{to: path, label: text}`, where a phone's bar leads back to; `patch:` stays in the view"
 
+  attr :breadcrumb, :boolean,
+    default: false,
+    doc: "whether wide screens, which hide the bar's back link, show a breadcrumb to `back`"
+
   attr :bleed, :boolean,
     default: false,
     doc: "whether the page lays out its own columns edge to edge, as the library does"
@@ -182,7 +196,9 @@ defmodule SikioWeb.Layouts do
            Sikio.Library.tally(assigns.sidebar.counts, %{}, assigns.sidebar.tag_feeds))
 
     tab = assigns.tab || if(assigns.section in [:places, :add, :subscriptions], do: :library)
-    assigns = assign(assigns, counts: counts, tab: tab)
+    # The gear menu holds the settings and the pages under them.
+    settings? = assigns.section in [:settings, :account, :invitations, :accounts]
+    assigns = assign(assigns, counts: counts, tab: tab, settings?: settings?)
 
     ~H"""
     <div class="min-h-svh pb-[calc(var(--nav-bar)+var(--safe-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
@@ -240,7 +256,7 @@ defmodule SikioWeb.Layouts do
             </.link>
             <details
               id="user-menu"
-              data-active={@section in [:account, :invitations, :settings]}
+              data-active={@settings?}
               class="relative shrink-0"
               phx-click-away={JS.remove_attribute("open", to: "#user-menu")}
               phx-window-keydown={JS.remove_attribute("open", to: "#user-menu")}
@@ -251,7 +267,7 @@ defmodule SikioWeb.Layouts do
                 title={@current_account.username}
                 class={[
                   "flex size-11 cursor-pointer list-none items-center justify-center rounded-control lg:size-7 text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-accent",
-                  @section in [:account, :invitations, :settings] && "bg-selection text-accent"
+                  @settings? && "bg-selection text-accent"
                 ]}
               >
                 <Lucideicons.settings aria-hidden="true" class="size-5 lg:size-4.5" />
@@ -266,7 +282,7 @@ defmodule SikioWeb.Layouts do
                 <.link
                   id="settings-link"
                   navigate={~p"/account/settings"}
-                  aria-current={@section in [:settings, :account, :invitations] && "page"}
+                  aria-current={@settings? && "page"}
                   class="block rounded-control px-3 py-2 hover:bg-ground aria-[current=page]:font-semibold aria-[current=page]:text-accent"
                 >{gettext("Settings")}</.link>
                 <button
@@ -447,6 +463,18 @@ defmodule SikioWeb.Layouts do
             !@bleed && "mx-auto max-w-7xl px-6 py-6 sm:px-12 sm:py-12 lg:max-w-none lg:px-10 lg:py-10"
           ]}
         >
+          <nav
+            :if={@breadcrumb && @back && @title}
+            id="breadcrumb"
+            aria-label={gettext("Breadcrumb")}
+            class="mb-4 hidden items-center gap-1 text-label text-muted lg:flex"
+          >
+            <.link navigate={@back[:to]} patch={@back[:patch]} class="hover:text-ink">
+              {@back.label}
+            </.link>
+            <Lucideicons.chevron_right aria-hidden="true" class="size-4" />
+            <span aria-current="page" class="text-ink">{@title}</span>
+          </nav>
           {render_slot(@inner_block)}
         </main>
       </div>

@@ -55,6 +55,7 @@ defmodule SikioWeb.AccountSecurityLive do
       section={:account}
       title={if(@live_action == :passkeys, do: gettext("Passkeys"), else: gettext("Recovery codes"))}
       back={%{to: ~p"/account/settings", label: gettext("Settings")}}
+      breadcrumb
     >
       <section :if={@live_action == :passkeys}>
         <.header>

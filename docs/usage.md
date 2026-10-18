@@ -152,15 +152,20 @@ subscription deletes no shared episodes.
   Stale player messages and late events cannot overwrite a newer position. A lost connection
   pauses playback.
 
+## Administration
+
+The account that claimed the instance is its administrator. Administrators find every account
+under **Settings → Accounts**, with its creation date and role. Members cannot open that page.
+
 ## Inviting somebody
 
 `/invitations` creates invitation links and lists the pending ones. The list shows the invitee,
 the inviter, the creation time and the expiry. A link expires after seven days and works once.
 In email mode it is bound to the address it was created for. In username mode the invitee
-chooses the username on accepting it. Each member may create 20
-invitations per 24-hour window. Only the token's digest is stored, so a link is shown once. Pass
-it on immediately or create a new one. In email mode, the link is also mailed to the address. A
-failed delivery shows an error, and the link can still be shared by hand.
+chooses the username on accepting it. Each member may create 20 invitations per 24-hour window.
+Only the token's digest is stored, so a link is shown once. Pass it on immediately or create a
+new one. In email mode, the link is also mailed to the address. A failed delivery shows an
+error, and the link can still be shared by hand.
 
 "Take it back" deletes a pending invitation, and its link stops working immediately. Any member
 may withdraw any invitation, as any member may create one. Sikio cannot remove an account.

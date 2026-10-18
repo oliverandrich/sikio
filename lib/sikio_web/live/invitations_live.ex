@@ -167,6 +167,7 @@ defmodule SikioWeb.InvitationsLive do
       section={:invitations}
       title={gettext("Invitations")}
       back={%{to: ~p"/account/settings", label: gettext("Settings")}}
+      breadcrumb
     >
       <.header>
         {gettext("Invitations")}

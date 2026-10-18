@@ -128,8 +128,10 @@ Every member may invite. A member withdraws only their own invitations.
 Administrators are accounts whose `admin` flag is set. The account that claimed the instance
 is the first one. Administrators grant and revoke the role; the last administrator keeps it.
 Only administrators remove accounts, feeds and entries, or switch a platform on or off. Each
-administrator function takes the acting account first and checks the flag in its query. The
-administrator `live_session` guards the pages as well; it does not replace that check.
+administrator function takes the acting account first and checks the flag in its query.
+Administrator pages stay in the member `live_session`, so navigating to them keeps the player
+playing, and declare `on_mount {SikioWeb.Admin, :require_admin}`. The hook does not replace the
+check in the query.
 
 Migrations and schemas use `:utc_datetime_usec`. Never reset a database that holds
 development data.

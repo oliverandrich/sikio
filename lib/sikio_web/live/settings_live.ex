@@ -150,6 +150,14 @@ defmodule SikioWeb.SettingsLive do
           </.group_link>
           <.group_link to={~p"/invitations"}>{gettext("Invitations")}</.group_link>
         </.group>
+        <.group
+          :if={@current_account.admin}
+          id="settings-admin"
+          heading={gettext("Administration")}
+          tag="nav"
+        >
+          <.group_link to={~p"/accounts"}>{gettext("Accounts")}</.group_link>
+        </.group>
         <%!-- The status region exists from the start, so screen readers announce its text. --%>
         <p id="settings-saved" role="status" class="px-4 text-label text-muted">
           {if @saved?, do: gettext("Saved.")}

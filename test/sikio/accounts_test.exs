@@ -74,6 +74,15 @@ defmodule Sikio.AccountsTest do
     assert Repo.reload!(admin).admin
   end
 
+  test "an administrator lists every account by name, a member lists none" do
+    admin = account(%{admin: true, username: "zz" <> unique_username()})
+    member = account(%{username: "aa" <> unique_username()})
+
+    assert {:ok, accounts} = Accounts.list_accounts(admin)
+    assert Enum.map(accounts, & &1.id) == [member.id, admin.id]
+    assert Accounts.list_accounts(member) == {:error, :forbidden}
+  end
+
   # The operator's way back when no administrator is left, run on the host.
   test "the operator grants the role by username" do
     member = account()

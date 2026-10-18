@@ -15,6 +15,17 @@ defmodule Sikio.Accounts do
   alias Sikio.Repo
 
   @doc """
+  Lists every account by username for an administrator.
+
+  Returns `{:error, :forbidden}` unless `admin` is one.
+  """
+  def list_accounts(%User{id: id}) do
+    if Repo.exists?(from u in User, where: u.id == ^id and u.admin),
+      do: {:ok, Repo.all(from u in User, order_by: u.username)},
+      else: {:error, :forbidden}
+  end
+
+  @doc """
   Makes the account with `account_id` an administrator.
 
   Returns `{:error, :forbidden}` unless `admin` is one, and `{:error, :not_found}` for an
