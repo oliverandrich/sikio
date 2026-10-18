@@ -121,7 +121,15 @@ never carry a watched or heard status.
 Ithibati owns passkeys, recovery codes, sessions and the atomic acceptance of an
 invitation. Use its public API only. `SikioWeb.Auth` is the handler and
 `Ithibati.Web.Gate` supplies `current_account`; do not add a second authentication
-system beside it. Every member may invite; there is no administrator role.
+system beside it.
+
+Every member may invite. A member withdraws only their own invitations.
+
+Administrators are accounts whose `admin` flag is set. The account that claimed the instance
+is the first one. Administrators grant and revoke the role; the last administrator keeps it.
+Only administrators remove accounts, feeds and entries, or switch a platform on or off. Each
+administrator function takes the acting account first and checks the flag in its query. The
+administrator `live_session` guards the pages as well; it does not replace that check.
 
 Migrations and schemas use `:utc_datetime_usec`. Never reset a database that holds
 development data.

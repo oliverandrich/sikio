@@ -154,8 +154,9 @@ subscription deletes no shared episodes.
 ## Inviting somebody
 
 `/invitations` creates invitation links and lists the pending ones. The list shows the invitee,
-the inviter, the creation time and the expiry. A link expires after seven days. It is bound to
-the username or address it was created for and works once. Each member may create 20
+the inviter, the creation time and the expiry. A link expires after seven days and works once.
+In email mode it is bound to the address it was created for. In username mode the invitee
+chooses the username on accepting it. Each member may create 20
 invitations per 24-hour window. Only the token's digest is stored, so a link is shown once. Pass
 it on immediately or create a new one. In email mode, the link is also mailed to the address. A
 failed delivery shows an error, and the link can still be shared by hand.
