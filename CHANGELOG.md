@@ -29,6 +29,11 @@ Its own section becomes the version's release notes.
 - An invitation link is `/invite#TOKEN`. The token sits after `#`, which no request sends.
 - Sikio requires Ithibati 0.8.1.
 
+### Fixed
+
+- A picture whose server was busy or unreachable is fetched again after ten minutes, not after a
+  day. A 404 or a file that is no picture still waits a day.
+
 ### Upgrading
 
 - A migration moves the invitations table to Ithibati's schema version 5. On SQLite it rebuilds

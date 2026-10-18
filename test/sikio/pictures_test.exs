@@ -276,6 +276,36 @@ defmodule Sikio.PicturesTest do
       assert {:ok, %{type: "image/jpeg"}} = Pictures.fetch([page], dir)
     end
 
+    # A busy image server or a dropped connection is asked again after ten minutes. A search
+    # loads many pictures at once, and a day's wait would leave its rows without them.
+    test "a picture that did not answer is asked again later", %{tmp_dir: dir} do
+      failures = [
+        &Plug.Conn.send_resp(&1, 503, ""),
+        &Plug.Conn.send_resp(&1, 429, ""),
+        &Req.Test.transport_error(&1, :econnrefused)
+      ]
+
+      for {failure, n} <- Enum.with_index(failures) do
+        Req.Test.stub(Sikio.Feeds.HTTP, failure)
+        assert Pictures.fetch(["https://img.example.org/busy-#{n}.jpg"], dir) == :error
+      end
+
+      markers = Path.wildcard(Path.join(dir, "*.failed"))
+      assert length(markers) == 3
+
+      for marker <- markers do
+        %{mtime: next} = File.stat!(marker, time: :posix)
+        assert (next - System.os_time(:second)) in 595..600
+      end
+
+      # A missing picture is a final answer and waits a day.
+      serving(%{})
+      assert Pictures.fetch(["https://img.example.org/gone.jpg"], dir) == :error
+      [gone] = Path.wildcard(Path.join(dir, "*.failed")) -- markers
+      %{mtime: next} = File.stat!(gone, time: :posix)
+      assert (next - System.os_time(:second)) in 86_395..86_400
+    end
+
     test "the next candidate is tried when one is missing", %{tmp_dir: dir} do
       serving(%{"/show.png" => {"image/png", png()}})
 

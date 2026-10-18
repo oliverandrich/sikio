@@ -117,6 +117,15 @@ defmodule Sikio.Feeds.HTTP do
   defp merged("", _base), do: ""
   defp merged(href, base), do: base |> URI.merge(href) |> URI.to_string()
 
+  @doc """
+  Returns true for a `get/2` result that may pass on its own: 408, 429, a 5xx or `:unavailable`.
+
+  `:unavailable` covers a failed lookup, a failed connection and a timeout.
+  """
+  def transient?({:ok, %{status: status}}) when status in [408, 429] or status >= 500, do: true
+  def transient?({:error, :unavailable}), do: true
+  def transient?(_result), do: false
+
   def public_address?({a, b, c, d}) do
     ip = (a <<< 24) + (b <<< 16) + (c <<< 8) + d
 

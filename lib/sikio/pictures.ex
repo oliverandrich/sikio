@@ -157,6 +157,7 @@ defmodule Sikio.Pictures do
   end
 
   # An unwritable cache loses the picture, not the page. A failed write counts as a miss.
+  # A busy server, a failed lookup or a failed connection may pass. It is retried as a page is.
   defp download(url, path) do
     with {:ok, %{status: 200} = response} <- HTTP.get(url, max_bytes: @max_bytes),
          true <- claims_raster?(response.headers),
@@ -164,7 +165,8 @@ defmodule Sikio.Pictures do
          :ok <- write(path, response.body) do
       {:ok, %{type: type, path: path}}
     else
-      _ -> missed(path)
+      failure ->
+        missed(path, if(HTTP.transient?(failure), do: @busy_retry_after, else: @retry_after))
     end
   end
 

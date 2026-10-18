@@ -1175,14 +1175,8 @@ defmodule Sikio.Feeds.Discovery do
           {:error, _reason} -> {:error, :not_found}
         end
 
-      {:ok, %{status: status}} when status in [408, 429] or status >= 500 ->
-        {:error, :unavailable}
-
-      {:error, :unavailable} ->
-        {:error, :unavailable}
-
-      _ ->
-        {:error, :not_found}
+      result ->
+        if HTTP.transient?(result), do: {:error, :unavailable}, else: {:error, :not_found}
     end
   end
 
