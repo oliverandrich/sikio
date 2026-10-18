@@ -20,12 +20,12 @@ defmodule Sikio.StarterDriftTest do
   @app "sikio"
 
   # Files kept identical to the starter. Other generated files are application-owned.
-  # The account schema carries the administrator flag, so it is application-owned.
+  # The account schema and the invitations context carry administrator rules, so they are
+  # application-owned.
   # The second test fails when an unlisted file matches its template.
   @shared [
     "lib/__APP__/accounts/invitation.ex.tpl",
     "lib/__APP__/auth_cleanup.ex.tpl",
-    "lib/__APP__/invitations.ex.tpl",
     "lib/__APP___web/client_ip.ex.tpl",
     "lib/__APP___web/controllers/session_controller.ex.tpl",
     "lib/__APP___web/controllers/session_html.ex.tpl",

@@ -24,6 +24,7 @@ Its own section becomes the version's release notes.
 ### Changed
 
 - Sikio requires Ithibati 0.9.0.
+- A member takes back only the invitations they sent. An administrator takes back any.
 - On wide screens, the pages under Settings show a breadcrumb back to the settings.
 
 ### Fixed

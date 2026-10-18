@@ -173,10 +173,10 @@ Only the token's digest is stored, so a link is shown once. Pass it on immediate
 new one. In email mode, the link is also mailed to the address. A failed delivery shows an
 error, and the link can still be shared by hand.
 
-"Take it back" deletes a pending invitation, and its link stops working immediately. Any member
-may withdraw any invitation, as any member may create one. Invitations created before the
-inviter was recorded show no inviter, and the list states that. An invitation from a removed
-account names a former member.
+"Take it back" deletes a pending invitation, and its link stops working immediately. A member
+takes back the invitations they sent; an administrator takes back any. Invitations created
+before the inviter was recorded show no inviter, and the list states that. An invitation from a
+removed account names a former member.
 
 Playback progress persists through feed updates and through unsubscribing and resubscribing.
 Marking the playing item as heard or archived ends playback as if the item had ended. With

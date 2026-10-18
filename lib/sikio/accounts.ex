@@ -33,7 +33,7 @@ defmodule Sikio.Accounts do
   unknown account.
   """
   def grant_admin(admin, account_id),
-    do: as_admin(admin, fn _admins -> account_id |> account() |> set_admin(true) end)
+    do: with_admin(admin, fn _admins -> account_id |> account() |> set_admin(true) end)
 
   @doc """
   Takes the role from the account with `account_id`. An administrator may revoke it from
@@ -43,7 +43,7 @@ defmodule Sikio.Accounts do
   of `grant_admin/2`.
   """
   def revoke_admin(admin, account_id) do
-    as_admin(admin, fn admins ->
+    with_admin(admin, fn admins ->
       case account(account_id) do
         %User{id: id} when admins == [id] -> {:error, :last_admin}
         account -> set_admin(account, false)
@@ -60,7 +60,7 @@ defmodule Sikio.Accounts do
   their own account here: `{:error, :self}`. Otherwise it returns the errors of `grant_admin/2`.
   """
   def remove_account(%User{id: id} = admin, account_id) do
-    as_admin(admin, fn _admins ->
+    with_admin(admin, fn _admins ->
       # Locked, so a session that is signing in waits for the deletion instead of slipping past.
       case account(account_id, lock: true) do
         nil -> {:error, :not_found}
@@ -87,9 +87,15 @@ defmodule Sikio.Accounts do
     |> set_admin(true)
   end
 
-  # Every administrator row is locked first, in one statement and in id order, so concurrent
-  # changes queue instead of deadlocking. The acting account must be among them.
-  defp as_admin(%User{id: id}, fun) do
+  @doc """
+  Runs `fun` for an administrator, in a transaction that has locked every administrator row.
+
+  `fun` receives the administrators' ids and returns `{:ok, result}` or `{:error, reason}`; an
+  error rolls the transaction back. Returns `{:error, :forbidden}` without calling `fun` unless
+  `admin` is one. The rows are locked in one statement and in id order, so concurrent changes of
+  the role queue instead of deadlocking.
+  """
+  def with_admin(%User{id: id}, fun) do
     Repo.transaction(fn ->
       admins =
         from(u in User, where: u.admin, select: u.id, order_by: u.id)

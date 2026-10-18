@@ -5,8 +5,8 @@ defmodule SikioWeb.InvitationsLive do
   Creates and withdraws invitation links behind `{:require_account, to: "/login"}`.
 
   The gate assigns `current_account` or redirects before `mount/3` runs, so this view does not
-  check it. Every member may invite; per-account invitation rules would belong here, not in
-  Ithibati.
+  check it. Every member may invite and take back their own invitations; an administrator takes
+  back any. `Sikio.Invitations.withdraw/2` checks that, not this view.
   """
   use SikioWeb, :live_view
 
@@ -57,7 +57,6 @@ defmodule SikioWeb.InvitationsLive do
   end
 
   # The id comes from the client and is not scoped to the account.
-  # Every member may withdraw any unaccepted invitation, as every member may invite.
   def handle_event("withdraw", %{"id" => id}, socket) do
     {:noreply, socket |> taken_back(Invitations.get(id)) |> listed()}
   end
@@ -68,12 +67,17 @@ defmodule SikioWeb.InvitationsLive do
     do: assign(socket, error: gettext("That invitation is no longer there."))
 
   defp taken_back(socket, invitation) do
-    case Invitations.withdraw(invitation) do
+    case Invitations.withdraw(socket.assigns.current_account, invitation) do
       # Clears the shown link when its `link_id` matches the withdrawn invitation.
       # The withdrawn row holds only a digest, so the id is the comparison.
       {:ok, gone} ->
         socket = assign(socket, error: nil)
         if gone.id == socket.assigns.link_id, do: forgotten(socket), else: socket
+
+      {:error, :forbidden} ->
+        assign(socket,
+          error: gettext("Only the member who sent it, or an administrator, can take it back.")
+        )
 
       # Ithibati returns `:already_accepted` when the delete matches no unaccepted row.
       # That covers an accepted invitation and one deleted by a concurrent withdrawal.
@@ -266,9 +270,9 @@ defmodule SikioWeb.InvitationsLive do
       </p>
 
       <p :if={@pending != []} class="mt-2 text-label opacity-70">
-        {gettext(
-          "Anybody here can take one back. Until it is accepted, this is the only say over who joins."
-        )}
+        {if @current_account.admin,
+          do: gettext("As an administrator, you can take back any invitation until it is accepted."),
+          else: gettext("You can take back the ones you sent, until they are accepted.")}
       </p>
 
       <ul :if={@pending != []} id="pending-invitations" class="mt-4 divide-y">
@@ -295,6 +299,7 @@ defmodule SikioWeb.InvitationsLive do
           </span>
 
           <button
+            :if={Invitations.withdrawable?(@current_account, invitation)}
             type="button"
             phx-click="withdraw"
             phx-value-id={invitation.id}

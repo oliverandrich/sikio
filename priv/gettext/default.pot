@@ -53,7 +53,7 @@ msgstr ""
 msgid "Copying was blocked. Select the codes above and copy them manually."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:212
+#: lib/sikio_web/live/invitations_live.ex:216
 #, elixir-autogen, elixir-format
 msgid "Create a link"
 msgstr ""
@@ -73,7 +73,7 @@ msgstr ""
 msgid "I've saved my codes. Continue"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:179
+#: lib/sikio_web/live/invitations_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "Invite somebody"
 msgstr ""
@@ -140,7 +140,7 @@ msgstr ""
 msgid "Sign out"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:175
+#: lib/sikio_web/live/invitations_live.ex:179
 #, elixir-autogen, elixir-format
 msgid "Signed in as %{username}."
 msgstr ""
@@ -180,7 +180,7 @@ msgstr ""
 msgid "That did not check out. Start again."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:150
+#: lib/sikio_web/live/invitations_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "That invitation could not be written."
 msgstr ""
@@ -286,7 +286,7 @@ msgstr ""
 msgid "Your browser stopped partway through."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:228
+#: lib/sikio_web/live/invitations_live.ex:232
 #, elixir-autogen, elixir-format
 msgid "Your invitation is ready. Send this link to your guest:"
 msgstr ""
@@ -495,8 +495,8 @@ msgstr ""
 msgid "Use a recovery code instead"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:168
-#: lib/sikio_web/live/invitations_live.ex:173
+#: lib/sikio_web/live/invitations_live.ex:172
+#: lib/sikio_web/live/invitations_live.ex:177
 #: lib/sikio_web/live/settings_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "Invitations"
@@ -1024,7 +1024,7 @@ msgstr ""
 msgid "Enter your email address and create a passkey to set up your account."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:186
+#: lib/sikio_web/live/invitations_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Enter your guest's email address. Their invitation link is sent there."
 msgstr ""
@@ -1054,12 +1054,12 @@ msgstr ""
 msgid "The account will belong to %{address}."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:141
+#: lib/sikio_web/live/invitations_live.ex:145
 #, elixir-autogen, elixir-format
 msgid "The invitation could not be sent. Pass the link on yourself."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:200
+#: lib/sikio_web/live/invitations_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Their email address"
 msgstr ""
@@ -1069,71 +1069,66 @@ msgstr ""
 msgid "Your invitation to Sikio"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:156
+#: lib/sikio_web/live/invitations_live.ex:160
 #, elixir-autogen, elixir-format
 msgid "Email address %{message}."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:130
+#: lib/sikio_web/live/invitations_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Too many invitations. Try again in an hour."
 msgid_plural "Too many invitations. Try again in %{count} hours."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/sikio_web/live/invitations_live.ex:122
+#: lib/sikio_web/live/invitations_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "Too many invitations. Try again in a minute."
 msgid_plural "Too many invitations. Try again in %{count} minutes."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/sikio_web/live/invitations_live.ex:269
-#, elixir-autogen, elixir-format
-msgid "Anybody here can take one back. Until it is accepted, this is the only say over who joins."
-msgstr ""
-
-#: lib/sikio_web/live/invitations_live.ex:286
+#: lib/sikio_web/live/invitations_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Invited by %{username}"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:290
+#: lib/sikio_web/live/invitations_live.ex:294
 #, elixir-autogen, elixir-format
 msgid "Made %{date}"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:265
+#: lib/sikio_web/live/invitations_live.ex:269
 #, elixir-autogen, elixir-format
 msgid "Nothing is waiting to be accepted."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:262
+#: lib/sikio_web/live/invitations_live.ex:266
 #, elixir-autogen, elixir-format
 msgid "Outstanding invitations"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:294
+#: lib/sikio_web/live/invitations_live.ex:298
 #, elixir-autogen, elixir-format
 msgid "Runs out %{date}"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:303
+#: lib/sikio_web/live/invitations_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "Take it back"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:68
+#: lib/sikio_web/live/invitations_live.ex:67
 #, elixir-autogen, elixir-format
 msgid "That invitation is no longer there."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:314
+#: lib/sikio_web/live/invitations_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:84
+#: lib/sikio_web/live/invitations_live.ex:88
 #, elixir-autogen, elixir-format
 msgid "That invitation is not waiting any more. Somebody accepted it, or took it back first."
 msgstr ""
@@ -1965,7 +1960,7 @@ msgstr ""
 #: lib/sikio_web/components/layouts.ex:287
 #: lib/sikio_web/live/account_security_live.ex:57
 #: lib/sikio_web/live/accounts_live.ex:125
-#: lib/sikio_web/live/invitations_live.ex:169
+#: lib/sikio_web/live/invitations_live.ex:173
 #: lib/sikio_web/live/settings_live.ex:85
 #: lib/sikio_web/live/settings_live.ex:88
 #, elixir-autogen, elixir-format
@@ -2296,7 +2291,7 @@ msgstr ""
 msgid "Star an item to keep it here."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:237
+#: lib/sikio_web/live/invitations_live.ex:241
 #: lib/sikio_web/live/library_live.ex:405
 #, elixir-autogen, elixir-format
 msgid "Link copied."
@@ -2502,22 +2497,22 @@ msgstr ""
 msgid "Enter an email address."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:208
+#: lib/sikio_web/live/invitations_live.ex:212
 #, elixir-autogen, elixir-format
 msgid "Grace, from the meetup"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:153
+#: lib/sikio_web/live/invitations_live.ex:157
 #, elixir-autogen, elixir-format
 msgid "Note %{message}."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:207
+#: lib/sikio_web/live/invitations_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Note (optional)"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:182
+#: lib/sikio_web/live/invitations_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "Note whom the link is for, then send it to them. They choose their own username."
 msgstr ""
@@ -2532,7 +2527,7 @@ msgstr ""
 msgid "Pick a username."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:207
+#: lib/sikio_web/live/invitations_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Who is it for?"
 msgstr ""
@@ -2542,13 +2537,13 @@ msgstr ""
 msgid "Open the link from your invitation to accept it."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:239
-#: lib/sikio_web/live/invitations_live.ex:240
+#: lib/sikio_web/live/invitations_live.ex:243
+#: lib/sikio_web/live/invitations_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Copy link"
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:238
+#: lib/sikio_web/live/invitations_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Copying was blocked. Select the link and copy it yourself."
 msgstr ""
@@ -2654,7 +2649,7 @@ msgstr ""
 msgid "This account no longer exists."
 msgstr ""
 
-#: lib/sikio_web/live/invitations_live.ex:315
+#: lib/sikio_web/live/invitations_live.ex:320
 #, elixir-autogen, elixir-format
 msgid "a former member"
 msgstr ""
@@ -2672,4 +2667,19 @@ msgstr ""
 #: lib/sikio_web/live/accounts_live.ex:98
 #, elixir-autogen, elixir-format
 msgid "Your own account cannot be removed here."
+msgstr ""
+
+#: lib/sikio_web/live/invitations_live.ex:79
+#, elixir-autogen, elixir-format
+msgid "Only the member who sent it, or an administrator, can take it back."
+msgstr ""
+
+#: lib/sikio_web/live/invitations_live.ex:275
+#, elixir-autogen, elixir-format
+msgid "You can take back the ones you sent, until they are accepted."
+msgstr ""
+
+#: lib/sikio_web/live/invitations_live.ex:274
+#, elixir-autogen, elixir-format
+msgid "As an administrator, you can take back any invitation until it is accepted."
 msgstr ""

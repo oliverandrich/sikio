@@ -89,12 +89,13 @@ defmodule Sikio.InvitationsTest do
     end
   end
 
-  describe "withdraw/1" do
+  describe "withdraw/2" do
     test "takes one back, and the link stops working at once" do
-      {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
+      inviter = member()
+      {:ok, invitation} = Invitations.open(inviter, %{"note" => "grace"})
       token = invitation.token
 
-      assert {:ok, _withdrawn} = Invitations.withdraw(invitation)
+      assert {:ok, _withdrawn} = Invitations.withdraw(inviter, invitation)
 
       assert Invitations.pending() == []
       refute Ithibati.Identity.Invitations.fetch(token)
@@ -103,13 +104,26 @@ defmodule Sikio.InvitationsTest do
     # Ithibati rechecks acceptance inside the delete.
     # This prevents withdrawing an invitation during a concurrent redemption.
     test "refuses one that has already been accepted" do
-      {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
+      inviter = member()
+      {:ok, invitation} = Invitations.open(inviter, %{"note" => "grace"})
 
       accepted =
         invitation |> Ecto.Changeset.change(accepted_at: DateTime.utc_now()) |> Repo.update!()
 
-      assert {:error, :already_accepted} = Invitations.withdraw(accepted)
+      assert {:error, :already_accepted} = Invitations.withdraw(inviter, accepted)
       assert Repo.aggregate(Invitation, :count) == 1
+    end
+
+    # The role is read from the database, so a struct claiming it withdraws nothing.
+    test "another member withdraws nothing; an administrator withdraws any" do
+      {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
+      other = member()
+
+      assert Invitations.withdraw(%{other | admin: true}, invitation) == {:error, :forbidden}
+      assert Repo.aggregate(Invitation, :count) == 1
+
+      admin = Repo.insert!(%Sikio.Accounts.User{username: unique_username(), admin: true})
+      assert {:ok, _withdrawn} = Invitations.withdraw(admin, invitation)
     end
   end
 end

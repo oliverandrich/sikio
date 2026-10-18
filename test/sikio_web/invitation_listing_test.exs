@@ -4,8 +4,9 @@ defmodule SikioWeb.InvitationListingTest do
   @moduledoc """
   Listing and withdrawing pending invitations.
 
-  Every member may view and withdraw invitations. An administrator may remove a member who
-  invited somebody; the invitation then names a former member.
+  Every member may view invitations and withdraw their own; an administrator withdraws any. An
+  administrator may remove a member who invited somebody; the invitation then names a former
+  member.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -65,13 +66,12 @@ defmodule SikioWeb.InvitationListingTest do
     refute has_element?(view, "#pending-invitations")
   end
 
-  test "any member can withdraw one, and the link stops working at once" do
-    {:ok, invitation} = Invitations.open(member("ada"), %{"note" => "grace"})
+  test "the inviter withdraws their own, and the link stops working at once" do
+    ada = member("ada")
+    {:ok, invitation} = Invitations.open(ada, %{"note" => "grace"})
     token = invitation.token
 
-    {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
-
-    assert has_element?(view, "#invitation-#{invitation.id}")
+    {:ok, view, _html} = live(signed_in(ada), ~p"/invitations")
 
     view
     |> element(~s(#invitation-#{invitation.id} button[phx-click="withdraw"]))
@@ -79,6 +79,33 @@ defmodule SikioWeb.InvitationListingTest do
 
     refute has_element?(view, "#invitation-#{invitation.id}")
     refute Ithibati.Identity.Invitations.fetch(token)
+  end
+
+  # Another member sees the invitation but cannot take it back, not even by a forged event.
+  test "another member cannot withdraw it" do
+    {:ok, invitation} = Invitations.open(member("ada"), %{"note" => "grace"})
+
+    {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
+
+    assert has_element?(view, "#invitation-#{invitation.id}")
+    refute has_element?(view, ~s(#invitation-#{invitation.id} button[phx-click="withdraw"]))
+
+    render_click(view, "withdraw", %{"id" => to_string(invitation.id)})
+    assert has_element?(view, "#invitation-#{invitation.id}")
+    assert render(view) =~ "Only the member who sent it, or an administrator, can take it back."
+  end
+
+  test "an administrator withdraws anybody's" do
+    {:ok, invitation} = Invitations.open(member("ada"), %{"note" => "grace"})
+    admin = Repo.insert!(%User{username: unique_username(), admin: true})
+
+    {:ok, view, _html} = live(signed_in(admin), ~p"/invitations")
+
+    view
+    |> element(~s(#invitation-#{invitation.id} button[phx-click="withdraw"]))
+    |> render_click()
+
+    refute has_element?(view, "#invitation-#{invitation.id}")
   end
 
   # The link is long and copied by hand otherwise. The status line is the hook's, so a patch
@@ -124,9 +151,10 @@ defmodule SikioWeb.InvitationListingTest do
   # The row stores only the token digest, so the displayed link is the only copy of the token.
   # Withdrawing another invitation must keep the displayed link.
   test "taking one back leaves a link that belongs to another invitation standing" do
-    {:ok, old} = Invitations.open(member("ada"), %{"note" => "alan"})
+    ada = member("ada")
+    {:ok, old} = Invitations.open(ada, %{"note" => "alan"})
 
-    {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
+    {:ok, view, _html} = live(signed_in(ada), ~p"/invitations")
 
     view |> form("#invitation-form", %{"note" => "grace"}) |> render_submit()
     assert render(view) =~ "/invite#"
@@ -168,9 +196,10 @@ defmodule SikioWeb.InvitationListingTest do
   # An invitation can be accepted between render and click. Ithibati then treats it as gone.
   # The page renders a message instead of raising, and the row remains.
   test "withdrawing one that was accepted in the meantime says so and keeps it" do
-    {:ok, invitation} = Invitations.open(member("ada"), %{"note" => "grace"})
+    ada = member("ada")
+    {:ok, invitation} = Invitations.open(ada, %{"note" => "grace"})
 
-    {:ok, view, _html} = live(signed_in(member("bob")), ~p"/invitations")
+    {:ok, view, _html} = live(signed_in(ada), ~p"/invitations")
 
     invitation |> Ecto.Changeset.change(accepted_at: DateTime.utc_now()) |> Repo.update!()
 
