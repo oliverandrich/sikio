@@ -9,16 +9,23 @@ defmodule SikioWeb.SubscriptionSettings do
   `open: {:leave, subscription, trigger}`. `trigger` is the DOM id refocused on cancel.
   `open: :close` closes it. The subscription must have its feed preloaded.
   The parent process then receives `{#{inspect(__MODULE__)}, :saved}`, `:left` or `:not_found`.
+
+  For an administrator, the edit dialog also removes the feed for everyone, after a confirmation
+  that names what goes with it. The parent then receives `{:removed, message}` or
+  `{:refused, message}` and shows the message, which a component's flash cannot do without a
+  navigation.
   """
   use SikioWeb, :live_component
 
   import SikioWeb.MediaComponents, only: [source_name: 1]
 
   alias Sikio.Library
+  alias Sikio.Removals
   alias Sikio.Tags
 
   @impl true
-  def mount(socket), do: {:ok, assign(socket, editing: nil, unsubscribing: nil, trigger: nil)}
+  def mount(socket),
+    do: {:ok, assign(socket, editing: nil, unsubscribing: nil, removing: nil, trigger: nil)}
 
   @impl true
   def update(%{open: {:edit, subscription, trigger}}, socket) do
@@ -39,7 +46,8 @@ defmodule SikioWeb.SubscriptionSettings do
      )}
   end
 
-  def update(%{open: :close}, socket), do: {:ok, assign(socket, editing: nil, unsubscribing: nil)}
+  def update(%{open: :close}, socket),
+    do: {:ok, assign(socket, editing: nil, unsubscribing: nil, removing: nil)}
 
   def update(%{open: {:leave, subscription, trigger}}, socket),
     do: {:ok, assign(socket, trigger: trigger, unsubscribing: subscription, editing: nil)}
@@ -67,6 +75,51 @@ defmodule SikioWeb.SubscriptionSettings do
   def handle_event("unsubscribe", _params, socket),
     do:
       {:noreply, assign(socket, unsubscribing: socket.assigns.editing.subscription, editing: nil)}
+
+  # The button shows only to administrators. The counts are theirs alone, so `feed_removal/2`
+  # checks the stored role before the confirmation opens.
+  def handle_event(
+        "remove_feed",
+        _params,
+        %{assigns: %{editing: %{subscription: subscription}}} = socket
+      ) do
+    case Removals.feed_removal(socket.assigns.current_account, subscription.feed_id) do
+      {:ok, removal} ->
+        {:noreply,
+         assign(socket, removing: Map.put(removal, :subscription, subscription), editing: nil)}
+
+      {:error, _forbidden} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("remove_feed", _params, socket), do: {:noreply, socket}
+
+  def handle_event("cancel_remove_feed", _params, socket),
+    do: {:noreply, socket |> assign(:removing, nil) |> give_back_focus()}
+
+  def handle_event("confirm_remove_feed", _params, %{assigns: %{removing: nil}} = socket),
+    do: {:noreply, socket}
+
+  def handle_event("confirm_remove_feed", _params, socket) do
+    subscription = socket.assigns.removing.subscription
+    name = source_name(subscription)
+
+    message =
+      case Removals.remove_feed(socket.assigns.current_account, subscription.feed_id) do
+        {:ok, _feed} ->
+          {:removed, gettext("Removed %{title} for everyone.", title: name)}
+
+        {:error, :forbidden} ->
+          {:refused, gettext("Only administrators can remove a feed for everyone.")}
+
+        {:error, _gone} ->
+          :not_found
+      end
+
+    send(self(), {__MODULE__, message})
+    {:noreply, assign(socket, :removing, nil)}
+  end
 
   def handle_event("cancel_unsubscribe", _params, socket),
     do: {:noreply, socket |> assign(:unsubscribing, nil) |> give_back_focus()}
@@ -238,16 +291,29 @@ defmodule SikioWeb.SubscriptionSettings do
         </form>
         <%!-- Unsubscribe opens a separate confirmation dialog. --%>
         <:aside>
-          <button
-            id="unsubscribe"
-            type="button"
-            phx-click="unsubscribe"
-            phx-target={@myself}
-            class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-danger hover:underline sm:min-h-9"
-          >
-            <Lucideicons.unplug aria-hidden="true" class="size-4" />
-            {gettext("Unsubscribe")}
-          </button>
+          <div class="flex flex-wrap gap-x-5 gap-y-1">
+            <button
+              id="unsubscribe"
+              type="button"
+              phx-click="unsubscribe"
+              phx-target={@myself}
+              class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-danger hover:underline sm:min-h-9"
+            >
+              <Lucideicons.unplug aria-hidden="true" class="size-4" />
+              {gettext("Unsubscribe")}
+            </button>
+            <button
+              :if={@current_account.admin}
+              id="remove-feed"
+              type="button"
+              phx-click="remove_feed"
+              phx-target={@myself}
+              class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-danger hover:underline sm:min-h-9"
+            >
+              <Lucideicons.trash_2 aria-hidden="true" class="size-4" />
+              {gettext("Remove for everyone")}
+            </button>
+          </div>
         </:aside>
       </.confirm_dialog>
       <.confirm_dialog
@@ -261,6 +327,28 @@ defmodule SikioWeb.SubscriptionSettings do
         <p>
           {gettext("Its items leave your library. Your progress stays, should you subscribe again.")}
         </p>
+      </.confirm_dialog>
+      <.confirm_dialog
+        :if={@removing}
+        name="remove-feed"
+        title={gettext("Remove %{title} for everyone?", title: source_name(@removing.subscription))}
+        confirm_label={gettext("Remove for everyone")}
+        variant="danger"
+        target={@myself}
+      >
+        <p>
+          {ngettext(
+            "It is in 1 member's library.",
+            "It is in %{count} members' libraries.",
+            @removing.members
+          )}
+          {ngettext(
+            "Its item leaves every library, with progress, favourites and saved items.",
+            "Its %{count} items leave every library, with progress, favourites and saved items.",
+            @removing.entries
+          )}
+        </p>
+        <p class="mt-2">{gettext("Adding it again later starts afresh.")}</p>
       </.confirm_dialog>
     </div>
     """

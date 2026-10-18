@@ -223,6 +223,37 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     assert has_element?(view, "#subscriptions-empty")
   end
 
+  # An administrator removes a feed for everyone from its dialog, after a confirmation that
+  # names what goes with it.
+  test "an administrator removes a feed for everyone", %{user: user} do
+    admin = Repo.insert!(%User{username: unique_username(), admin: true})
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(admin, preview)
+    {:ok, _} = Library.subscribe(user, preview)
+    conn = build_conn() |> init_test_session(%{}) |> Gate.log_in(admin)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#edit-subscription-#{subscription.id}") |> render_click()
+    view |> element("#remove-feed") |> render_click()
+    assert has_element?(view, "dialog#remove-feed-confirm", "Small Hours")
+    assert has_element?(view, "dialog#remove-feed-confirm", "It is in 2 members' libraries.")
+    assert has_element?(view, "dialog#remove-feed-confirm", "Its item leaves every library")
+
+    view |> element("#confirm-remove-feed") |> render_click()
+    assert render(view) =~ "Removed Small Hours for everyone."
+    assert has_element?(view, "#subscriptions-empty")
+    assert Library.subscriptions(user) == []
+  end
+
+  test "a member's dialog offers no removal for everyone", %{conn: conn, user: user} do
+    {:ok, preview} = Parser.parse(podcast(), feed_url())
+    {:ok, subscription} = Library.subscribe(user, preview)
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+
+    view |> element("#edit-subscription-#{subscription.id}") |> render_click()
+    refute has_element?(view, "#remove-feed")
+  end
+
   # The row stays busy until the job reports, then shows the job's result without a reload.
   test "a row refreshes its source and shows the result", %{conn: conn, user: user} do
     subscription = subscribed(user)

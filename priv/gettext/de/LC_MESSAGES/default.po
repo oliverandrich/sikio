@@ -521,7 +521,7 @@ msgstr "%{count} aktuelle Einträge verfügbar"
 msgid "%{imported} imported · %{existing} already subscribed · %{failed} failed"
 msgstr "%{imported} importiert · %{existing} bereits abonniert · %{failed} fehlgeschlagen"
 
-#: lib/sikio_web/live/subscriptions_live.ex:223
+#: lib/sikio_web/live/subscriptions_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr "Aktiv"
@@ -587,7 +587,7 @@ msgstr "Dieses Abo konnte nicht gespeichert werden. Bitte versuche es erneut."
 msgid "Enter between 2 and 120 characters to search Apple Podcasts."
 msgstr "Gib 2 bis 120 Zeichen ein, um Apple Podcasts zu durchsuchen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:158
+#: lib/sikio_web/live/subscriptions_live.ex:165
 #, elixir-autogen, elixir-format
 msgid "Export OPML"
 msgstr "OPML exportieren"
@@ -609,7 +609,7 @@ msgstr "%{count} Quellen importieren"
 
 #: lib/sikio_web/live/add_source_live.ex:989
 #: lib/sikio_web/live/opml_live.ex:155
-#: lib/sikio_web/live/subscriptions_live.ex:152
+#: lib/sikio_web/live/subscriptions_live.ex:159
 #, elixir-autogen, elixir-format
 msgid "Import OPML"
 msgstr "OPML importieren"
@@ -649,7 +649,7 @@ msgstr "Suche nach deinem nächsten guten Fund…"
 msgid "Only public HTTP(S) feed URLs are supported."
 msgstr "Nur öffentliche HTTP(S)-Feed-URLs werden unterstützt."
 
-#: lib/sikio_web/live/subscriptions_live.ex:126
+#: lib/sikio_web/live/subscriptions_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "Pause polling"
 msgstr "Abfrage pausieren"
@@ -665,7 +665,7 @@ msgstr "Verwende eine öffentliche http- oder https-URL. Lokale und private Adre
 msgid "Podcast"
 msgstr "Podcast"
 
-#: lib/sikio_web/live/subscriptions_live.ex:223
+#: lib/sikio_web/live/subscriptions_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Polling paused"
 msgstr "Abfrage pausiert"
@@ -702,7 +702,7 @@ msgstr "Abonnieren"
 msgid "Subscribed to %{title}."
 msgstr "%{title} abonniert."
 
-#: lib/sikio_web/live/library_live.ex:585
+#: lib/sikio_web/live/library_live.ex:592
 #: lib/sikio_web/live/subscriptions_live.ex:35
 #: lib/sikio_web/live/subscriptions_live.ex:49
 #: lib/sikio_web/live/subscriptions_live.ex:93
@@ -715,7 +715,7 @@ msgstr "Abo nicht gefunden."
 #: lib/sikio_web/live/opml_live.ex:156
 #: lib/sikio_web/live/places_live.ex:61
 #: lib/sikio_web/live/subscriptions_live.ex:26
-#: lib/sikio_web/live/subscriptions_live.ex:140
+#: lib/sikio_web/live/subscriptions_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "Subscriptions"
 msgstr "Abos"
@@ -735,10 +735,10 @@ msgstr "Das ist keine gültige OPML-Aboliste."
 msgid "This page or feed is too large to import. Try a direct feed URL."
 msgstr "Diese Seite oder dieser Feed ist zu groß für den Import. Versuche eine direkte Feed-URL."
 
-#: lib/sikio_web/live/subscription_settings.ex:249
-#: lib/sikio_web/live/subscription_settings.ex:257
-#: lib/sikio_web/live/subscriptions_live.ex:287
-#: lib/sikio_web/live/subscriptions_live.ex:288
+#: lib/sikio_web/live/subscription_settings.ex:303
+#: lib/sikio_web/live/subscription_settings.ex:323
+#: lib/sikio_web/live/subscriptions_live.ex:294
+#: lib/sikio_web/live/subscriptions_live.ex:295
 #, elixir-autogen, elixir-format
 msgid "Unsubscribe"
 msgstr "Abo entfernen"
@@ -764,12 +764,12 @@ msgstr "YouTube"
 msgid "YouTube did not reveal this channel. Try its channel URL; private or unavailable videos cannot be resolved."
 msgstr "YouTube hat diesen Kanal nicht preisgegeben. Versuche die Kanal-URL; private oder nicht verfügbare Videos lassen sich nicht auflösen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:183
+#: lib/sikio_web/live/subscriptions_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Your collection starts with one good source."
 msgstr "Deine Sammlung beginnt mit einer guten Quelle."
 
-#: lib/sikio_web/live/subscriptions_live.ex:144
+#: lib/sikio_web/live/subscriptions_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "Your subscriptions"
 msgstr "Deine Abos"
@@ -794,7 +794,7 @@ msgstr "Quelle hinzufügen"
 msgid "Close player"
 msgstr "Player schließen"
 
-#: lib/sikio_web/live/library_live.ex:947
+#: lib/sikio_web/live/library_live.ex:954
 #, elixir-autogen, elixir-format
 msgid "Find your first source →"
 msgstr "Finde deine erste Quelle →"
@@ -813,7 +813,7 @@ msgstr "Angefangen"
 #: lib/sikio_web/live/places_live.ex:35
 #: lib/sikio_web/live/places_live.ex:37
 #: lib/sikio_web/live/settings_live.ex:86
-#: lib/sikio_web/live/subscriptions_live.ex:141
+#: lib/sikio_web/live/subscriptions_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Library"
 msgstr "Mediathek"
@@ -854,7 +854,7 @@ msgstr "Neu"
 msgid "Now playing"
 msgstr "Läuft gerade"
 
-#: lib/sikio_web/live/library_live.ex:942
+#: lib/sikio_web/live/library_live.ex:949
 #, elixir-autogen, elixir-format
 msgid "Paste a YouTube channel, a video or a podcast website. Or find your next listen in Apple Podcasts."
 msgstr "Füge einen YouTube-Kanal, ein Video oder eine Podcast-Webseite ein. Oder finde deinen nächsten Hörtipp in Apple Podcasts."
@@ -871,7 +871,7 @@ msgstr "Abspielen"
 msgid "Play again"
 msgstr "Erneut abspielen"
 
-#: lib/sikio_web/live/library_live.ex:940
+#: lib/sikio_web/live/library_live.ex:947
 #, elixir-autogen, elixir-format
 msgid "Space for something good."
 msgstr "Platz für etwas Gutes."
@@ -890,7 +890,7 @@ msgstr "Dieser Eintrag ist nicht mehr in deiner Mediathek."
 msgid "This source is no longer in your library."
 msgstr "Diese Quelle ist nicht mehr in deiner Mediathek."
 
-#: lib/sikio_web/live/library_live.ex:696
+#: lib/sikio_web/live/library_live.ex:703
 #, elixir-autogen, elixir-format
 msgid "Unavailable source"
 msgstr "Nicht verfügbare Quelle"
@@ -1139,7 +1139,7 @@ msgstr "Alle Einträge"
 msgid "Views"
 msgstr "Ansichten"
 
-#: lib/sikio_web/live/library_live.ex:701
+#: lib/sikio_web/live/library_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "%{count} item"
 msgid_plural "%{count} items"
@@ -1156,7 +1156,7 @@ msgstr "Fortschritt"
 msgid "Open on YouTube"
 msgstr "Auf YouTube öffnen"
 
-#: lib/sikio_web/live/library_live.ex:972
+#: lib/sikio_web/live/library_live.ex:979
 #, elixir-autogen, elixir-format
 msgid "Selected item"
 msgstr "Ausgewählter Eintrag"
@@ -1267,7 +1267,7 @@ msgstr "Der Feed ist größer, als Sikio liest."
 msgid "The server could not be reached. Sikio will try again."
 msgstr "Der Server war nicht erreichbar. Sikio versucht es erneut."
 
-#: lib/sikio_web/live/subscriptions_live.ex:233
+#: lib/sikio_web/live/subscriptions_live.ex:240
 #, elixir-autogen, elixir-format
 msgid "Imported items are safe."
 msgstr "Bereits geladene Einträge bleiben erhalten."
@@ -1277,26 +1277,26 @@ msgstr "Bereits geladene Einträge bleiben erhalten."
 msgid "The address no longer exists on its server."
 msgstr "Die Adresse gibt es auf ihrem Server nicht mehr."
 
-#: lib/sikio_web/live/library_live.ex:909
+#: lib/sikio_web/live/library_live.ex:916
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/sikio_web/live/library_live.ex:916
+#: lib/sikio_web/live/library_live.ex:923
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "Status"
 
 #: lib/sikio_web/components/layouts.ex:453
 #: lib/sikio_web/components/layouts.ex:509
-#: lib/sikio_web/live/library_live.ex:678
-#: lib/sikio_web/live/library_live.ex:844
+#: lib/sikio_web/live/library_live.ex:685
+#: lib/sikio_web/live/library_live.ex:851
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr "Suchen"
 
-#: lib/sikio_web/live/library_live.ex:880
-#: lib/sikio_web/live/library_live.ex:881
+#: lib/sikio_web/live/library_live.ex:887
+#: lib/sikio_web/live/library_live.ex:888
 #, elixir-autogen, elixir-format
 msgid "Search in %{place}"
 msgstr "In %{place} suchen"
@@ -1521,12 +1521,12 @@ msgstr "Heute"
 msgid "Yesterday"
 msgstr "Gestern"
 
-#: lib/sikio_web/live/subscription_settings.ex:262
+#: lib/sikio_web/live/subscription_settings.ex:328
 #, elixir-autogen, elixir-format
 msgid "Its items leave your library. Your progress stays, should you subscribe again."
 msgstr "Die Einträge verschwinden aus deiner Bibliothek. Dein Fortschritt bleibt, falls du es wieder abonnierst."
 
-#: lib/sikio_web/live/subscription_settings.ex:256
+#: lib/sikio_web/live/subscription_settings.ex:322
 #, elixir-autogen, elixir-format
 msgid "Unsubscribe from %{title}?"
 msgstr "„%{title}“ nicht mehr abonnieren?"
@@ -1543,22 +1543,22 @@ msgstr "Aktuelle Folge im Player einschließen"
 
 #: lib/sikio_web/components/layouts.ex:358
 #: lib/sikio_web/live/places_live.ex:48
-#: lib/sikio_web/live/subscription_settings.ex:216
+#: lib/sikio_web/live/subscription_settings.ex:269
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "Tags"
 
-#: lib/sikio_web/live/library_live.ex:688
+#: lib/sikio_web/live/library_live.ex:695
 #, elixir-autogen, elixir-format
 msgid "Unavailable tag"
 msgstr "Nicht verfügbarer Tag"
 
-#: lib/sikio_web/live/subscription_settings.ex:234
+#: lib/sikio_web/live/subscription_settings.ex:287
 #, elixir-autogen, elixir-format
 msgid "New tag"
 msgstr "Neuer Tag"
 
-#: lib/sikio_web/live/subscription_settings.ex:233
+#: lib/sikio_web/live/subscription_settings.ex:286
 #, elixir-autogen, elixir-format
 msgid "New tag, or several set apart by commas"
 msgstr "Neuer Tag, oder mehrere mit Kommas getrennt"
@@ -1578,14 +1578,14 @@ msgstr "Ein anderer Tag heißt schon so."
 msgid "Delete %{name}?"
 msgstr "%{name} löschen?"
 
-#: lib/sikio_web/live/library_live.ex:793
-#: lib/sikio_web/live/library_live.ex:794
+#: lib/sikio_web/live/library_live.ex:800
+#: lib/sikio_web/live/library_live.ex:801
 #: lib/sikio_web/live/tag_settings.ex:112
 #, elixir-autogen, elixir-format
 msgid "Delete tag"
 msgstr "Tag löschen"
 
-#: lib/sikio_web/live/subscription_settings.ex:178
+#: lib/sikio_web/live/subscription_settings.ex:231
 #: lib/sikio_web/live/tag_settings.ex:102
 #, elixir-autogen, elixir-format
 msgid "Name"
@@ -1601,8 +1601,8 @@ msgstr "Umbenennen"
 msgid "Rename %{name}"
 msgstr "%{name} umbenennen"
 
-#: lib/sikio_web/live/library_live.ex:782
-#: lib/sikio_web/live/library_live.ex:783
+#: lib/sikio_web/live/library_live.ex:789
+#: lib/sikio_web/live/library_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "Rename tag"
 msgstr "Tag umbenennen"
@@ -1663,8 +1663,8 @@ msgstr[1] "%{count} Einträge in dieser Liste werden archiviert. Sie erscheinen 
 msgid "Archive"
 msgstr "Archivieren"
 
-#: lib/sikio_web/live/library_live.ex:771
-#: lib/sikio_web/live/library_live.ex:772
+#: lib/sikio_web/live/library_live.ex:778
+#: lib/sikio_web/live/library_live.ex:779
 #, elixir-autogen, elixir-format
 msgid "Archive all"
 msgstr "Alle archivieren"
@@ -1750,35 +1750,35 @@ msgid "Move %{title} in the queue"
 msgstr "%{title} in der Queue verschieben"
 
 #: lib/sikio_web/live/add_source_live.ex:980
-#: lib/sikio_web/live/subscription_settings.ex:194
+#: lib/sikio_web/live/subscription_settings.ex:247
 #, elixir-autogen, elixir-format
 msgid "New episodes go to"
 msgstr "Neue Folgen landen"
 
-#: lib/sikio_web/live/subscription_settings.ex:154
+#: lib/sikio_web/live/subscription_settings.ex:207
 #, elixir-autogen, elixir-format
 msgid "The archive, unheard"
 msgstr "ungehört im Archiv"
 
-#: lib/sikio_web/live/subscription_settings.ex:153
+#: lib/sikio_web/live/subscription_settings.ex:206
 #, elixir-autogen, elixir-format
 msgid "The end of the queue"
 msgstr "am Ende der Queue"
 
-#: lib/sikio_web/live/subscription_settings.ex:152
+#: lib/sikio_web/live/subscription_settings.ex:205
 #, elixir-autogen, elixir-format
 msgid "The inbox"
 msgstr "in der Inbox"
 
-#: lib/sikio_web/live/library_live.ex:806
-#: lib/sikio_web/live/library_live.ex:807
-#: lib/sikio_web/live/subscriptions_live.ex:264
-#: lib/sikio_web/live/subscriptions_live.ex:265
+#: lib/sikio_web/live/library_live.ex:813
+#: lib/sikio_web/live/library_live.ex:814
+#: lib/sikio_web/live/subscriptions_live.ex:271
+#: lib/sikio_web/live/subscriptions_live.ex:272
 #, elixir-autogen, elixir-format
 msgid "Edit subscription"
 msgstr "Abo bearbeiten"
 
-#: lib/sikio_web/live/subscription_settings.ex:165
+#: lib/sikio_web/live/subscription_settings.ex:218
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Speichern"
@@ -1825,7 +1825,7 @@ msgstr "Verwalten"
 msgid "Manage subscriptions"
 msgstr "Abos verwalten"
 
-#: lib/sikio_web/live/subscriptions_live.ex:145
+#: lib/sikio_web/live/subscriptions_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "%{count} source"
 msgid_plural "%{count} sources"
@@ -1837,30 +1837,30 @@ msgstr[1] "%{count} Quellen"
 msgid "Coming from another app?"
 msgstr "Du kommst von einer anderen App?"
 
-#: lib/sikio_web/live/subscriptions_live.ex:125
+#: lib/sikio_web/live/subscriptions_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Resume polling"
 msgstr "Abfrage fortsetzen"
 
-#: lib/sikio_web/live/subscriptions_live.ex:130
+#: lib/sikio_web/live/subscriptions_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Straight to the archive"
 msgstr "Direkt ins Archiv"
 
-#: lib/sikio_web/live/subscriptions_live.ex:129
+#: lib/sikio_web/live/subscriptions_live.ex:136
 #, elixir-autogen, elixir-format
 msgid "To the end of the queue"
 msgstr "Ans Ende der Queue"
 
-#: lib/sikio_web/live/subscriptions_live.ex:128
+#: lib/sikio_web/live/subscriptions_live.ex:135
 #, elixir-autogen, elixir-format
 msgid "To the inbox"
 msgstr "In die Inbox"
 
-#: lib/sikio_web/live/library_live.ex:819
-#: lib/sikio_web/live/library_live.ex:820
-#: lib/sikio_web/live/subscriptions_live.ex:276
-#: lib/sikio_web/live/subscriptions_live.ex:277
+#: lib/sikio_web/live/library_live.ex:826
+#: lib/sikio_web/live/library_live.ex:827
+#: lib/sikio_web/live/subscriptions_live.ex:283
+#: lib/sikio_web/live/subscriptions_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Open website"
 msgstr "Website öffnen"
@@ -1918,26 +1918,26 @@ msgstr "OPML-Datei wählen"
 msgid "or drop it here"
 msgstr "oder hierher ziehen"
 
-#: lib/sikio_web/live/subscriptions_live.ex:372
+#: lib/sikio_web/live/subscriptions_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "A shared feed may still update for other subscribers while your polling is paused."
 msgstr "Ein gemeinsamer Feed kann für andere weiter aktualisiert werden, während deine Abfrage pausiert."
 
-#: lib/sikio_web/live/subscriptions_live.ex:379
+#: lib/sikio_web/live/subscriptions_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "Active sources refresh at most every hour, less often when they rarely publish."
 msgid_plural "Active sources refresh at most every %{count} hours, less often when they rarely publish."
 msgstr[0] "Aktive Quellen werden höchstens jede Stunde aktualisiert, seltener, wenn sie selten veröffentlichen."
 msgstr[1] "Aktive Quellen werden höchstens alle %{count} Stunden aktualisiert, seltener, wenn sie selten veröffentlichen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:387
+#: lib/sikio_web/live/subscriptions_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Active sources refresh at most every minute, less often when they rarely publish."
 msgid_plural "Active sources refresh at most every %{count} minutes, less often when they rarely publish."
 msgstr[0] "Aktive Quellen werden höchstens jede Minute aktualisiert, seltener, wenn sie selten veröffentlichen."
 msgstr[1] "Aktive Quellen werden höchstens alle %{count} Minuten aktualisiert, seltener, wenn sie selten veröffentlichen."
 
-#: lib/sikio_web/live/subscription_settings.ex:213
+#: lib/sikio_web/live/subscription_settings.ex:266
 #, elixir-autogen, elixir-format
 msgid "Show Shorts"
 msgstr "Shorts anzeigen"
@@ -2009,27 +2009,27 @@ msgid_plural "%{count} left"
 msgstr[0] "1 übrig"
 msgstr[1] "%{count} übrig"
 
-#: lib/sikio_web/live/subscriptions_live.ex:348
+#: lib/sikio_web/live/subscriptions_live.ex:355
 #, elixir-autogen, elixir-format
 msgid "Google's hub announces new videos as they appear."
 msgstr "Der Hub von Google meldet neue Videos, sobald sie erscheinen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:351
+#: lib/sikio_web/live/subscriptions_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "Live"
 msgstr "Live"
 
-#: lib/sikio_web/live/subscriptions_live.ex:358
+#: lib/sikio_web/live/subscriptions_live.ex:365
 #, elixir-autogen, elixir-format
 msgid "Polling"
 msgstr "Abfrage"
 
-#: lib/sikio_web/live/subscriptions_live.ex:356
+#: lib/sikio_web/live/subscriptions_live.ex:363
 #, elixir-autogen, elixir-format
 msgid "Sikio asks for new videos at intervals."
 msgstr "Sikio fragt in Abständen nach neuen Videos."
 
-#: lib/sikio_web/live/subscriptions_live.ex:371
+#: lib/sikio_web/live/subscriptions_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "Live channels are also checked once a day."
 msgstr "Live-Kanäle werden zusätzlich einmal am Tag abgefragt."
@@ -2071,8 +2071,8 @@ msgstr[1] "%{day}, %{count} Einträge"
 msgid "%{month} %{day}"
 msgstr "%{day}. %{month}"
 
-#: lib/sikio_web/live/library_live.ex:831
-#: lib/sikio_web/live/library_live.ex:832
+#: lib/sikio_web/live/library_live.ex:838
+#: lib/sikio_web/live/library_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "Calendar"
 msgstr "Kalender"
@@ -2387,7 +2387,7 @@ msgstr "Import gestartet. Sikio lädt jetzt deine Quellen. Du kannst die Seite v
 
 #: lib/sikio_web/live/library_transfer_live.ex:22
 #: lib/sikio_web/live/library_transfer_live.ex:97
-#: lib/sikio_web/live/subscriptions_live.ex:165
+#: lib/sikio_web/live/subscriptions_live.ex:172
 #, elixir-autogen, elixir-format
 msgid "Move your library"
 msgstr "Mediathek umziehen"
@@ -2427,17 +2427,17 @@ msgstr "%{restored} Folgen übernommen · %{kept} unverändert gelassen · %{mis
 msgid "The import stopped. What it added so far stays; importing the file again adds the rest."
 msgstr "Der Import wurde abgebrochen. Was er schon übernommen hat, bleibt; ein erneuter Import der Datei ergänzt den Rest."
 
-#: lib/sikio_web/live/subscriptions_live.ex:173
+#: lib/sikio_web/live/subscriptions_live.ex:180
 #, elixir-autogen, elixir-format
 msgid "Refresh all"
 msgstr "Alle aktualisieren"
 
-#: lib/sikio_web/live/subscriptions_live.ex:317
+#: lib/sikio_web/live/subscriptions_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "Refresh now"
 msgstr "Jetzt aktualisieren"
 
-#: lib/sikio_web/live/subscriptions_live.ex:317
+#: lib/sikio_web/live/subscriptions_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "Refreshing"
 msgstr "Wird aktualisiert"
@@ -2678,3 +2678,43 @@ msgstr "Du kannst deine eigenen zurücknehmen, solange sie nicht angenommen sind
 #, elixir-autogen, elixir-format
 msgid "As an administrator, you can take back any invitation until it is accepted."
 msgstr "Als Administrator kannst du jede Einladung zurücknehmen, solange sie nicht angenommen ist."
+
+#: lib/sikio_web/live/subscription_settings.ex:351
+#, elixir-autogen, elixir-format
+msgid "Adding it again later starts afresh."
+msgstr "Wird er später wieder hinzugefügt, beginnt er von vorn."
+
+#: lib/sikio_web/live/subscription_settings.ex:345
+#, elixir-autogen, elixir-format
+msgid "Its item leaves every library, with progress, favourites and saved items."
+msgid_plural "Its %{count} items leave every library, with progress, favourites and saved items."
+msgstr[0] "Sein Eintrag verschwindet aus allen Bibliotheken, samt Fortschritt, Favoriten und gespeicherten Einträgen."
+msgstr[1] "Seine %{count} Einträge verschwinden aus allen Bibliotheken, samt Fortschritt, Favoriten und gespeicherten Einträgen."
+
+#: lib/sikio_web/live/subscription_settings.ex:334
+#, elixir-autogen, elixir-format
+msgid "Remove %{title} for everyone?"
+msgstr "%{title} für alle entfernen?"
+
+#: lib/sikio_web/live/subscription_settings.ex:314
+#: lib/sikio_web/live/subscription_settings.ex:335
+#, elixir-autogen, elixir-format
+msgid "Remove for everyone"
+msgstr "Für alle entfernen"
+
+#: lib/sikio_web/live/subscription_settings.ex:111
+#, elixir-autogen, elixir-format
+msgid "Removed %{title} for everyone."
+msgstr "%{title} wurde für alle entfernt."
+
+#: lib/sikio_web/live/subscription_settings.ex:340
+#, elixir-autogen, elixir-format
+msgid "It is in 1 member's library."
+msgid_plural "It is in %{count} members' libraries."
+msgstr[0] "Er steckt in der Bibliothek von 1 Mitglied."
+msgstr[1] "Er steckt in den Bibliotheken von %{count} Mitgliedern."
+
+#: lib/sikio_web/live/subscription_settings.ex:114
+#, elixir-autogen, elixir-format
+msgid "Only administrators can remove a feed for everyone."
+msgstr "Nur Administratoren können einen Feed für alle entfernen."

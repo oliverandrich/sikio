@@ -92,6 +92,13 @@ defmodule SikioWeb.SubscriptionsLive do
   def handle_info({SubscriptionSettings, :not_found}, socket),
     do: {:noreply, put_flash(socket, :error, gettext("Subscription not found."))}
 
+  def handle_info({SubscriptionSettings, {:refused, message}}, socket),
+    do: {:noreply, put_flash(socket, :error, message)}
+
+  def handle_info({SubscriptionSettings, {:removed, message}}, socket),
+    do:
+      {:noreply, socket |> put_flash(:info, message) |> load_subscriptions() |> Sidebar.refresh()}
+
   # After a save or unsubscribe, reloads the list and refreshes the sidebar.
   def handle_info({SubscriptionSettings, _done}, socket),
     do: {:noreply, socket |> load_subscriptions() |> Sidebar.refresh()}

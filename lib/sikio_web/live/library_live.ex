@@ -572,6 +572,13 @@ defmodule SikioWeb.LibraryLive do
   def handle_info({SubscriptionSettings, :left}, socket),
     do: {:noreply, push_patch(socket, to: start_path(socket))}
 
+  # The feed is gone for everyone, so the page leaves its source.
+  def handle_info({SubscriptionSettings, {:removed, message}}, socket),
+    do: {:noreply, socket |> put_flash(:info, message) |> push_patch(to: start_path(socket))}
+
+  def handle_info({SubscriptionSettings, {:refused, message}}, socket),
+    do: {:noreply, put_flash(socket, :error, message)}
+
   # A rename refreshes the sidebar first, so `address` and `handle_params` use the new name.
   def handle_info({TagSettings, :renamed}, socket) do
     socket = SikioWeb.Sidebar.refresh(socket)

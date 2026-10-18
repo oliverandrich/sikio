@@ -20,6 +20,8 @@ Its own section becomes the version's release notes.
 - Administrators grant and revoke the role and remove accounts on that page. Granting and
   removing ask for the passkey within five minutes. Removing also asks for a confirmation,
   deletes the account's own data and ends its open sessions.
+- Administrators remove a feed for everyone from its edit dialog. The confirmation names how many
+  members have some of it in their library and how many items go with it.
 
 ### Changed
 

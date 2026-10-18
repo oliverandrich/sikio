@@ -161,7 +161,10 @@ administrator keeps it. **Remove** deletes an account with its subscriptions, pl
 passkeys, and ends its open sessions. Granting the role and removing an account first ask for
 the passkey, unless it was confirmed in the last five minutes. A new administrator could remove
 any account. Removing then asks for a confirmation. An administrator cannot remove their own
-account there. Shared episodes and feeds stay.
+account there. Shared episodes and feeds stay. An administrator also finds **Remove for
+everyone** in a source's edit dialog. The confirmation names how many members have some of it in
+their library and how many items go. Its subscriptions, items and every account's progress,
+favourites and saved items for it are deleted. Adding the feed again later starts afresh.
 
 ## Inviting somebody
 

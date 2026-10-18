@@ -838,6 +838,19 @@ defmodule SikioWeb.LibraryLiveTest do
       refute has_element?(view, "#source-#{c.sub.feed_id}")
       assert [%{feed: %{kind: :youtube}}] = Library.subscriptions(c.user)
     end
+
+    # An administrator removes the feed for everyone; the page leaves the gone source.
+    test "an administrator removes the feed for everyone and returns to the queue", c do
+      c.user |> Ecto.Changeset.change(admin: true) |> Repo.update!()
+      {:ok, view, _} = live(c.conn, "/feeds/#{c.sub.feed_id}-small-hours")
+      view |> element("#edit-subscription") |> render_click()
+      view |> element("#remove-feed") |> render_click()
+      view |> element("#confirm-remove-feed") |> render_click()
+
+      assert_patch(view, "/queue")
+      assert render(view) =~ "Removed Small Hours for everyone."
+      refute Repo.get(Sikio.Feeds.Feed, c.sub.feed_id)
+    end
   end
 
   # A player saves progress every few seconds. A reload per sample would reload every open tab.
