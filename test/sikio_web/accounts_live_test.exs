@@ -8,6 +8,7 @@ defmodule SikioWeb.AccountsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Ithibati.Identity.Sessions
   alias Ithibati.Web.Gate
   alias Sikio.Accounts.User
   alias Sikio.Repo
@@ -57,5 +58,92 @@ defmodule SikioWeb.AccountsLiveTest do
 
     {:ok, view, _} = live(signed_in(conn, account()), ~p"/account/settings")
     refute has_element?(view, "#settings-admin")
+  end
+
+  # A confirmation from the last five minutes, as `/account/verify` leaves it in the session.
+  defp confirmed(conn, account) do
+    conn
+    |> Plug.Conn.put_session(:confirmed_account_id, account.id)
+    |> Plug.Conn.put_session(:confirmed_at, System.system_time(:second))
+  end
+
+  test "an administrator grants and revokes the role on a row", %{conn: conn} do
+    admin = account(%{admin: true})
+    member = account()
+    {:ok, view, _} = live(conn |> signed_in(admin) |> confirmed(admin), ~p"/accounts")
+
+    view |> element(~s|#account-#{member.id} [data-action="grant"]|) |> render_click()
+    assert has_element?(view, "#account-#{member.id}", "Administrator")
+
+    view |> element(~s|#account-#{member.id} [data-action="revoke"]|) |> render_click()
+    assert has_element?(view, "#account-#{member.id}", "Member")
+    refute Repo.reload!(member).admin
+  end
+
+  # A new administrator could remove any account, so granting the role asks for the passkey too.
+  test "granting without a recent confirmation asks for it first", %{conn: conn} do
+    admin = account(%{admin: true})
+    member = account()
+    {:ok, view, _} = live(signed_in(conn, admin), ~p"/accounts")
+
+    assert {:error, {:redirect, %{to: "/account/confirm/accounts"}}} =
+             view |> element(~s|#account-#{member.id} [data-action="grant"]|) |> render_click()
+
+    refute Repo.reload!(member).admin
+  end
+
+  test "the own row offers no actions, and a forged event removes nothing", %{conn: conn} do
+    admin = account(%{admin: true})
+    {:ok, view, _} = live(conn |> signed_in(admin) |> confirmed(admin), ~p"/accounts")
+
+    refute has_element?(view, "#account-#{admin.id} [data-action]")
+    render_click(view, "remove", %{"id" => to_string(admin.id)})
+    refute has_element?(view, "#remove-confirm")
+  end
+
+  # Removing an account cannot be undone, so it asks for the passkey first, as the account's
+  # security settings do.
+  test "removing without a recent confirmation asks for it first", %{conn: conn} do
+    admin = account(%{admin: true})
+    member = account()
+    {:ok, view, _} = live(signed_in(conn, admin), ~p"/accounts")
+
+    assert {:error, {:redirect, %{to: "/account/confirm/accounts"}}} =
+             view |> element(~s|#account-#{member.id} [data-action="remove"]|) |> render_click()
+
+    assert Repo.get(User, member.id)
+
+    conn = get(signed_in(conn, admin), ~p"/account/confirm/accounts")
+    assert redirected_to(conn) == "/account/verify"
+    assert get_session(conn, :reauth_target) == "/accounts"
+    assert {:ok, _verify, _html} = live(conn, ~p"/account/verify")
+  end
+
+  test "a confirmed administrator removes an account and its open pages", %{conn: conn} do
+    admin = account(%{admin: true})
+    member = account()
+    token = Sessions.generate_session_token(member)
+    SikioWeb.Endpoint.subscribe(Gate.live_socket_id(token))
+    {:ok, view, _} = live(conn |> signed_in(admin) |> confirmed(admin), ~p"/accounts")
+
+    view |> element(~s|#account-#{member.id} [data-action="remove"]|) |> render_click()
+    assert has_element?(view, "#remove-confirm", member.username)
+
+    view |> element("#confirm-remove") |> render_click()
+    refute has_element?(view, "#account-#{member.id}")
+    assert render(view) =~ "Removed #{member.username}."
+    refute Repo.get(User, member.id)
+    assert_receive %Phoenix.Socket.Broadcast{event: "disconnect"}
+  end
+
+  test "cancelling the dialog removes nothing", %{conn: conn} do
+    admin = account(%{admin: true})
+    member = account()
+    {:ok, view, _} = live(conn |> signed_in(admin) |> confirmed(admin), ~p"/accounts")
+
+    view |> element(~s|#account-#{member.id} [data-action="remove"]|) |> render_click()
+    view |> element("#cancel-remove") |> render_click()
+    refute has_element?(view, "#remove-confirm")
+    assert Repo.get(User, member.id)
   end
 end

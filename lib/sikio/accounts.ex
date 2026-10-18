@@ -2,14 +2,15 @@
 
 defmodule Sikio.Accounts do
   @moduledoc """
-  The administrator role. An administrator grants and revokes it; the last one keeps it.
+  The administrator role and what it allows: listing accounts, granting and revoking the role,
+  and removing an account with its Ithibati sessions. The last administrator keeps the role.
 
-  `grant_admin/2` and `revoke_admin/2` take the acting account first and read its flag from the
-  database, so a stale struct grants nothing. Ithibati owns sign-in; this module owns only the
-  role.
+  Each function takes the acting account first and reads its flag from the database, so a stale
+  struct grants nothing. Ithibati owns sign-in; this module calls its public session API only.
   """
   import Ecto.Query
 
+  alias Ithibati.Identity.Sessions
   alias Ithibati.Schema.Identifier
   alias Sikio.Accounts.User
   alias Sikio.Repo
@@ -51,6 +52,30 @@ defmodule Sikio.Accounts do
   end
 
   @doc """
+  Removes the account with `account_id` and everything it owns, with its sessions.
+
+  The sessions are revoked in the same transaction, so none is created between revocation and
+  deletion. Returns `{:ok, digests}` with the revoked sessions' digests, for
+  `Ithibati.Web.Gate.disconnect_sessions/2` after the commit. An administrator cannot remove
+  their own account here: `{:error, :self}`. Otherwise it returns the errors of `grant_admin/2`.
+  """
+  def remove_account(%User{id: id} = admin, account_id) do
+    as_admin(admin, fn _admins ->
+      # Locked, so a session that is signing in waits for the deletion instead of slipping past.
+      case account(account_id, lock: true) do
+        nil -> {:error, :not_found}
+        %User{id: ^id} -> {:error, :self}
+        account -> removed(account)
+      end
+    end)
+  end
+
+  defp removed(account) do
+    digests = Sessions.revoke_all(account)
+    with {:ok, _account} <- Repo.delete(account), do: {:ok, digests}
+  end
+
+  @doc """
   Makes the account named `identifier` an administrator, for the operator on the host.
 
   The identifier is a username, or an address in email mode, normalized as Ithibati stores it.
@@ -80,10 +105,14 @@ defmodule Sikio.Accounts do
   defp committed({:error, reason}), do: Repo.rollback(reason)
 
   # An id from a form arrives as a string.
-  defp account(account_id) do
+  defp account(account_id, opts \\ []) do
     case Ecto.Type.cast(:id, account_id) do
-      {:ok, id} -> Repo.get(User, id)
-      :error -> nil
+      {:ok, id} ->
+        query = from(u in User, where: u.id == ^id)
+        Repo.one(if opts[:lock], do: Repo.for_update(query), else: query)
+
+      :error ->
+        nil
     end
   end
 

@@ -283,11 +283,7 @@ defmodule SikioWeb.InvitationsLive do
           </span>
 
           <span class="text-label opacity-70">
-            <%= if invitation.invited_by do %>
-              {gettext("Invited by %{username}", username: invitation.invited_by.username)}
-            <% else %>
-              {gettext("Invited by %{username}", username: gettext("Unknown"))}
-            <% end %>
+            {gettext("Invited by %{username}", username: inviter(invitation))}
           </span>
 
           <span class="text-label opacity-70">
@@ -311,6 +307,12 @@ defmodule SikioWeb.InvitationsLive do
     </Layouts.member>
     """
   end
+
+  # The inviter column has no foreign key, so a removed inviter leaves its id behind. Rows from
+  # before the column existed have none.
+  defp inviter(%{invited_by: %{username: username}}), do: username
+  defp inviter(%{invited_by_id: nil}), do: gettext("Unknown")
+  defp inviter(_removed), do: gettext("a former member")
 
   # Uses the application's date format, `YYYY-MM-DD`.
   defp on(at), do: Calendar.strftime(at, "%Y-%m-%d")

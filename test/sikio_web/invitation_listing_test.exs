@@ -4,8 +4,8 @@ defmodule SikioWeb.InvitationListingTest do
   @moduledoc """
   Listing and withdrawing pending invitations.
 
-  Members cannot be removed once they join, so withdrawal before acceptance is the only control.
-  Every member may view and withdraw invitations. There is no administrator role.
+  Every member may view and withdraw invitations. An administrator may remove a member who
+  invited somebody; the invitation then names a former member.
   """
   use SikioWeb.ConnCase, async: true
 
@@ -45,6 +45,16 @@ defmodule SikioWeb.InvitationListingTest do
 
   # Checks element ids, because the form placeholder "grace_hopper" contains the name "grace".
   # A page-wide text search would always match.
+  # An administrator may remove the inviter. The invitation stays and names a former member.
+  test "a row whose inviter was removed names a former member" do
+    gone = member()
+    {:ok, invitation} = Invitations.open(gone, %{"note" => "grace"})
+    Repo.delete!(gone)
+
+    {:ok, view, _html} = live(signed_in(member()), ~p"/invitations")
+    assert has_element?(view, "#invitation-#{invitation.id}", "former member")
+  end
+
   test "an accepted invitation is not listed" do
     {:ok, invitation} = Invitations.open(member(), %{"note" => "grace"})
     invitation |> Ecto.Changeset.change(accepted_at: DateTime.utc_now()) |> Repo.update!()

@@ -12,9 +12,11 @@ links on `/invitations`. A link is shown once, expires, and can be accepted once
 that claimed the instance is an administrator. `bin/grant-admin` makes another account one.
 
 The same page lists pending invitations with invitee, inviter, creation time and expiry. Any
-member can withdraw any pending invitation, and its link stops working immediately. Sikio cannot
-remove an account. Withdrawing an invitation is therefore the only control over who joins.
-Invitations created before the inviter was recorded show no inviter, and the list states that.
+member can withdraw any pending invitation, and its link stops working immediately. An
+administrator removes an account on `/accounts` after confirming the passkey within five
+minutes. Removing revokes the account's sessions in the same transaction and disconnects their
+LiveViews after the commit. Invitations created before the inviter was recorded show no inviter,
+and the list states that. An invitation from a removed account names a former member.
 
 The account identifier is a username or an email address. `Sikio.Identity` reads the mode from
 `ACCOUNT_IDENTITY`, and the default is username. In username mode, the inviter shares the link

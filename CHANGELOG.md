@@ -17,6 +17,9 @@ Its own section becomes the version's release notes.
   another account one.
 - Administrators find every account under Settings → Accounts, with its creation date and role.
   Members cannot open the page.
+- Administrators grant and revoke the role and remove accounts on that page. Granting and
+  removing ask for the passkey within five minutes. Removing also asks for a confirmation,
+  deletes the account's own data and ends its open sessions.
 
 ### Changed
 

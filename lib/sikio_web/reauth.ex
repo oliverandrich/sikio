@@ -5,6 +5,19 @@ defmodule SikioWeb.Reauth do
   import Plug.Conn
   import Phoenix.Controller, only: [json: 2]
 
+  # Each purpose a confirmation is asked for, with the page it returns to.
+  @targets %{
+    "passkeys" => "/account/passkeys",
+    "recovery-codes" => "/account/recovery-codes",
+    "accounts" => "/accounts"
+  }
+
+  @doc "Returns `{:ok, path}` for a known purpose, else `:error`."
+  def target(purpose), do: Map.fetch(@targets, purpose)
+
+  @doc "Returns whether `path` is a page a confirmation returns to."
+  def target?(path), do: path in Map.values(@targets)
+
   def recent?(session, account) do
     case {session["confirmed_account_id"], session["confirmed_at"]} do
       {id, at} when id == account.id and is_integer(at) ->
@@ -21,7 +34,7 @@ defmodule SikioWeb.Reauth do
   def pending?(conn),
     do:
       not is_nil(conn.assigns[:current_account]) and
-        get_session(conn, :reauth_target) in ["/account/passkeys", "/account/recovery-codes"]
+        target?(get_session(conn, :reauth_target))
 
   def complete(conn, account, codes \\ nil) do
     case conn.assigns[:current_account] do

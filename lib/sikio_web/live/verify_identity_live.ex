@@ -4,10 +4,11 @@ defmodule SikioWeb.VerifyIdentityLive do
   @moduledoc "Confirm the current account without switching users or creating a new session."
   use SikioWeb, :live_view
   alias SikioWeb.CeremonyMessages
+  alias SikioWeb.Reauth
 
   @impl true
   def mount(_params, session, socket) do
-    if session["reauth_target"] in ["/account/passkeys", "/account/recovery-codes"] do
+    if Reauth.target?(session["reauth_target"]) do
       {:ok, assign(socket, error: nil, code: "")}
     else
       {:ok, redirect(socket, to: ~p"/account/passkeys")}
@@ -36,9 +37,7 @@ defmodule SikioWeb.VerifyIdentityLive do
       flash={@flash}
       title={gettext("Confirm your identity")}
       subtitle={
-        gettext(
-          "Confirm your current account before changing its security settings. Confirmation lasts five minutes."
-        )
+        gettext("Confirm your current account before this change. Confirmation lasts five minutes.")
       }
     >
       <p :if={@error} role="alert" class="mb-4 text-label text-danger">{@error}</p>

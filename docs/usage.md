@@ -156,6 +156,12 @@ subscription deletes no shared episodes.
 
 The account that claimed the instance is its administrator. Administrators find every account
 under **Settings → Accounts**, with its creation date and role. Members cannot open that page.
+An administrator makes another account an administrator or revokes the role. The last
+administrator keeps it. **Remove** deletes an account with its subscriptions, playback, tags and
+passkeys, and ends its open sessions. Granting the role and removing an account first ask for
+the passkey, unless it was confirmed in the last five minutes. A new administrator could remove
+any account. Removing then asks for a confirmation. An administrator cannot remove their own
+account there. Shared episodes and feeds stay.
 
 ## Inviting somebody
 
@@ -168,9 +174,9 @@ new one. In email mode, the link is also mailed to the address. A failed deliver
 error, and the link can still be shared by hand.
 
 "Take it back" deletes a pending invitation, and its link stops working immediately. Any member
-may withdraw any invitation, as any member may create one. Sikio cannot remove an account.
-Withdrawing an invitation is therefore the only control over who joins. Invitations created
-before the inviter was recorded show no inviter, and the list states that.
+may withdraw any invitation, as any member may create one. Invitations created before the
+inviter was recorded show no inviter, and the list states that. An invitation from a removed
+account names a former member.
 
 Playback progress persists through feed updates and through unsubscribing and resubscribing.
 Marking the playing item as heard or archived ends playback as if the item had ended. With

@@ -21,13 +21,15 @@ defmodule SikioWeb.AccountSecurityController do
       else: conn |> redirect(to: ~p"/account/confirm/recovery-codes") |> halt()
   end
 
-  def confirm(conn, %{"purpose" => purpose}) when purpose in ["passkeys", "recovery-codes"] do
-    conn
-    |> put_session(:reauth_target, "/account/" <> purpose)
-    |> redirect(to: ~p"/account/verify")
-  end
+  def confirm(conn, %{"purpose" => purpose}) do
+    case Reauth.target(purpose) do
+      {:ok, path} ->
+        conn |> put_session(:reauth_target, path) |> redirect(to: ~p"/account/verify")
 
-  def confirm(conn, _params), do: conn |> send_resp(404, "Not Found")
+      :error ->
+        send_resp(conn, 404, "Not Found")
+    end
+  end
 
   def sign_out_all(conn, _params), do: conn |> Gate.log_out_all() |> redirect(to: ~p"/login")
 

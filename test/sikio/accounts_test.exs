@@ -6,6 +6,7 @@ defmodule Sikio.AccountsTest do
   """
   use Sikio.DataCase, async: true
 
+  alias Ithibati.Identity.Sessions
   alias Sikio.Accounts
   alias Sikio.Accounts.User
 
@@ -81,6 +82,46 @@ defmodule Sikio.AccountsTest do
     assert {:ok, accounts} = Accounts.list_accounts(admin)
     assert Enum.map(accounts, & &1.id) == [member.id, admin.id]
     assert Accounts.list_accounts(member) == {:error, :forbidden}
+  end
+
+  describe "remove_account/2" do
+    # The sessions go in the same transaction as the account, and their digests come back for
+    # the caller to disconnect after the commit.
+    test "an administrator removes a member with its sessions" do
+      admin = account(%{admin: true})
+      member = account()
+      token = Sessions.generate_session_token(member)
+
+      assert {:ok, [_digest]} = Accounts.remove_account(admin, member.id)
+      refute Repo.get(User, member.id)
+      refute Sessions.get_user_by_session_token(token)
+    end
+
+    test "another administrator can be removed" do
+      admin = account(%{admin: true})
+      other = account(%{admin: true})
+
+      assert {:ok, []} = Accounts.remove_account(admin, to_string(other.id))
+      refute Repo.get(User, other.id)
+    end
+
+    # Removing oneself is a different question, with its own consequences.
+    test "an administrator cannot remove their own account here" do
+      admin = account(%{admin: true})
+      account(%{admin: true})
+
+      assert Accounts.remove_account(admin, admin.id) == {:error, :self}
+      assert Repo.get(User, admin.id)
+    end
+
+    test "a member removes nothing, and an unknown account is reported" do
+      admin = account(%{admin: true})
+      member = account()
+
+      assert Accounts.remove_account(member, admin.id) == {:error, :forbidden}
+      assert Accounts.remove_account(admin, -1) == {:error, :not_found}
+      assert Repo.get(User, admin.id)
+    end
   end
 
   # The operator's way back when no administrator is left, run on the host.
