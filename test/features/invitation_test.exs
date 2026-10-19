@@ -4,62 +4,54 @@ defmodule SikioWeb.InvitationTest do
   @moduledoc """
   Claims an instance and accepts an invitation with a passkey, in a browser.
   """
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   alias Sikio.Accounts.Invitation
 
   # The page shows the link only once. The row stores only the token digest.
-  defp invite_link(session, note) do
-    session
+  defp invite_link(conn, note) do
+    conn
     |> open("/invitations")
-    |> fill_in(css("input[name=note]"), with: note)
-    |> click(button("Create a link"))
-    |> find(css("code"))
-    |> Element.text()
-    |> String.trim()
+    |> fill_in("Who is it for?", with: note)
+    |> click_button("Create a link")
+    |> assert_has("code")
+    |> value_of("return document.querySelector('code').textContent.trim()")
   end
 
-  feature "the first account claims the instance, and the next arrives on a link", %{
-    session: session
-  } do
-    virtual_authenticator(session)
+  test "the first account claims the instance, and the next arrives on a link", %{conn: conn} do
+    virtual_authenticator(conn)
 
-    session
+    conn
     |> open("/")
     |> code_entered()
-    |> assert_has(css("p", text: "Choose your username and create a passkey"))
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Create your passkey"))
-    |> landed_on("/recovery-codes")
-    |> assert_has(css("h1", text: "Save your recovery codes"))
+    |> assert_has("p", text: "Choose your username and create a passkey")
+    |> fill_in("Username", with: "ada")
+    |> click_button("Create your passkey")
+    |> assert_path("/recovery-codes")
+    |> assert_has("h1", text: "Save your recovery codes")
 
-    link = invite_link(session, "Grace, from the meetup")
+    link = invite_link(conn, "Grace, from the meetup")
     assert link =~ "/invite#"
 
     # A fresh session, because an invitation is for a signed-out visitor.
     # The check is here, not later: accepting signs in as the invitee either way.
     # A later assertion would pass even if `clear_cookies/1` had no effect.
-    session
+    conn
     |> clear_cookies()
     |> open("/invitations")
-    |> gone(css("p", text: "Signed in as"))
+    |> refute_has("p", text: "Signed in as")
 
     # The token leaves the address before the socket joins. The invitee chooses the name.
-    session
+    conn
     |> open(link)
-    |> assert_has(css("#invitation-accept-form"))
-
-    assert current_url(session) =~ ~r{/invite$}
-
-    session
-    |> fill_in(css("input[name=username]"), with: "grace")
-    |> click(button("Accept with a passkey"))
-    |> landed_on("/recovery-codes")
-    |> assert_has(css("h1", text: "Save your recovery codes"))
-
-    session
+    |> assert_has("#invitation-accept-form")
+    |> script("return location.href", fn url -> assert url =~ ~r{/invite$} end)
+    |> fill_in("Username", with: "grace")
+    |> click_button("Accept with a passkey")
+    |> assert_path("/recovery-codes")
+    |> assert_has("h1", text: "Save your recovery codes")
     |> open("/invitations")
-    |> assert_has(css("p", text: "Signed in as grace."))
+    |> assert_has("p", text: "Signed in as grace.")
 
     assert Repo.get_by(User, username: "grace")
     assert Repo.one(Invitation).accepted_at
@@ -67,83 +59,65 @@ defmodule SikioWeb.InvitationTest do
 
   # Headless Chrome may refuse the clipboard, so the page records what it would write. A new link
   # mounts a new button, so the last link's check does not carry over.
-  feature "the copy button copies each new link, and a new link starts without a check", %{
-    session: session
+  test "the copy button copies each new link, and a new link starts without a check", %{
+    conn: conn
   } do
-    virtual_authenticator(session)
+    conn
+    |> claimed("ada")
 
-    session
-    |> open("/")
-    |> code_entered()
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Create your passkey"))
-    |> landed_on("/recovery-codes")
+    first = invite_link(conn, "Grace")
 
-    first = invite_link(session, "Grace")
-
-    session
-    |> execute_script("""
+    conn
+    |> evaluate("""
     Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {
       writeText: async text => { window.copiedText = text }
     }})
     """)
-    |> click(button("Copy link"))
-    |> assert_has(css("[phx-hook=CopyText][data-copied]"))
-    |> execute_script("return window.copiedText", fn copied -> assert copied == first end)
-    |> fill_in(css("input[name=note]"), with: "Ada")
-    |> click(button("Create a link"))
-    |> assert_has(css("[phx-hook=CopyText]:not([data-copy-text='#{first}'])"))
+    |> click_button("Copy link")
+    |> assert_has("[phx-hook=CopyText][data-copied]")
+    |> script("return window.copiedText", fn copied -> assert copied == first end)
+    |> fill_in("Who is it for?", with: "Ada")
+    |> click_button("Create a link")
+    |> assert_has("[phx-hook=CopyText]:not([data-copy-text='#{first}'])")
     # Read once, not awaited: the old check clears itself after two seconds.
-    |> execute_script(
+    |> script(
       "return document.querySelector('[phx-hook=CopyText]').hasAttribute('data-copied')",
       fn copied -> refute copied end
     )
-    |> click(button("Copy link"))
-    |> assert_has(css("[phx-hook=CopyText][data-copied]"))
-    |> execute_script("return window.copiedText", fn copied -> refute copied == first end)
+    |> click_button("Copy link")
+    |> assert_has("[phx-hook=CopyText][data-copied]")
+    |> script("return window.copiedText", fn copied -> refute copied == first end)
   end
 
   # Refused before the passkey dialog, so no credential is made for a name that cannot be stored.
-  feature "a taken name is refused before any passkey is made", %{session: session} do
-    virtual_authenticator(session)
+  test "a taken name is refused before any passkey is made", %{conn: conn} do
+    conn
+    |> claimed("ada")
 
-    session
-    |> open("/")
-    |> code_entered()
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Create your passkey"))
-    |> landed_on("/recovery-codes")
+    link = invite_link(conn, "Grace")
 
-    link = invite_link(session, "Grace")
-
-    session
+    conn
     |> clear_cookies()
     |> open(link)
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Accept with a passkey"))
-    |> assert_has(css("[role=alert]", text: "That username is taken."))
+    |> fill_in("Username", with: "ada")
+    |> click_button("Accept with a passkey")
+    |> assert_has("[role=alert]", text: "That username is taken.")
 
     refute Repo.one(Invitation).accepted_at
   end
 
   # A second link opened in the same tab changes only the fragment, which loads nothing by itself.
-  feature "another link opened in the same tab opens its own invitation", %{session: session} do
-    virtual_authenticator(session)
+  test "another link opened in the same tab opens its own invitation", %{conn: conn} do
+    conn
+    |> claimed("ada")
 
-    session
-    |> open("/")
-    |> code_entered()
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Create your passkey"))
-    |> landed_on("/recovery-codes")
+    [_, token] = conn |> invite_link("Grace") |> String.split("#")
 
-    [_, token] = session |> invite_link("Grace") |> String.split("#")
-
-    session
+    conn
     |> clear_cookies()
     |> open("/invite#a-token-nobody-ever-held")
-    |> assert_has(css("[role=alert]"))
-    |> execute_script("window.location.hash = '#{token}'")
-    |> assert_has(css("#invitation-accept-form"))
+    |> assert_has("[role=alert]")
+    |> evaluate("window.location.hash = '#{token}'")
+    |> assert_has("#invitation-accept-form")
   end
 end

@@ -93,12 +93,14 @@ Oban tests use `testing: :manual`. Jobs run only when a test executes them.
 
 ## Browser tests
 
-Browser tests are mandatory. Install Chrome and a matching Chromedriver. On CI,
-CHROMEWEBDRIVER is the runner's driver directory. Locally, set a matching `chromedriver` in the
-ignored `mise.local.toml`, or set CHROMEWEBDRIVER. Check both versions after browser updates.
+Browser tests are mandatory. They run in Playwright's Chrome for Testing. No installed Chrome is
+needed. `mise run browser` installs the pinned `playwright` package from `assets/package.json` and
+its headless Chrome. `mise run setup`, `mise run check` and `mise run test` run it first.
 `mise run check` builds assets before the browser tests. Before a direct `mise run test`, run
 `mix assets.build`. Tests start an endpoint on port 4102. Set PORT to run suites concurrently.
-A missing Chrome or Chromedriver fails the run. The browser tests are not skipped. They run
+`PW_SCREENSHOT=true mix test --failed` reruns failed features and keeps a screenshot of each in
+`screenshots/`. `PW_TRACE=true` keeps a Playwright trace in `traces/` instead.
+A missing Playwright or browser fails the run. The browser tests are not skipped. They run
 against SQLite only. `SIKIO_DATABASE=postgres mix test --include feature` runs them against
 PostgreSQL.
 

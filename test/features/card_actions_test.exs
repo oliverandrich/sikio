@@ -7,7 +7,7 @@ defmodule SikioWeb.CardActionsTest do
   The card width depends on the adjacent columns, not the window.
   So only a browser can measure it.
   """
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   import Sikio.FeedFixtures
 
@@ -16,8 +16,8 @@ defmodule SikioWeb.CardActionsTest do
   alias Sikio.Playback
 
   # Starting playback queues the video, so the card head offers "Mark as watched".
-  setup %{session: session} do
-    account = signed_in(session, "ada")
+  setup %{conn: conn} do
+    account = signed_in(conn, "ada")
     {:ok, preview} = Parser.parse(youtube(), youtube_feed_url())
     {:ok, _} = Library.subscribe(account, preview)
     [video | _] = Library.entries(account)
@@ -27,38 +27,38 @@ defmodule SikioWeb.CardActionsTest do
 
   # A narrow card shows icons with visually hidden labels. A wide card shows the labels.
   # At both widths the actions end inside the card.
-  feature "a card names its actions where they fit and shows icons where not", context do
-    %{session: session, video: video} = context
+  test "a card names its actions where they fit and shows icons where not", context do
+    %{conn: conn, video: video} = context
 
-    session
-    |> resize_window(1024, 800)
+    conn
+    |> resize(1024, 800)
     |> open(item_path(video))
-    |> assert_has(css("#item-actions > #mark-completed"))
-    |> execute_script(measure(), fn [card_right, actions_right, label] ->
+    |> assert_has("#item-actions > #mark-completed")
+    |> script(measure(), fn [card_right, actions_right, label] ->
       assert actions_right <= card_right, "the actions stay inside the narrow card"
       assert label == "absolute", "the names are for screen readers only"
     end)
-    |> resize_window(1920, 900)
-    |> assert_has(css("#item-actions > #mark-completed", text: "Mark as watched"))
-    |> execute_script(measure(), fn [card_right, actions_right, label] ->
+    |> resize(1920, 900)
+    |> assert_has("#item-actions > #mark-completed", text: "Mark as watched")
+    |> script(measure(), fn [card_right, actions_right, label] ->
       assert actions_right <= card_right, "the actions stay inside the wide card"
       assert label == "static"
     end)
   end
 
   # The other actions are in the `#item-more` menu. It opens, runs an action and closes.
-  feature "the menu at the card's head acts and closes", context do
-    %{session: session, video: video} = context
+  test "the menu at the card's head acts and closes", context do
+    %{conn: conn, video: video} = context
 
-    session
-    |> resize_window(1440, 900)
+    conn
+    |> resize(1440, 900)
     |> open(item_path(video))
-    |> gone(css("#item-more #dequeue", visible: true))
-    |> click(css("#item-more summary"))
-    |> assert_has(css("#item-more[open] #dequeue", visible: true))
-    |> click(css("#dequeue"))
-    |> assert_has(css("#item-actions > #queue-menu"))
-    |> gone(css("#item-more[open]"))
+    |> refute_has("#item-more #dequeue")
+    |> click("#item-more summary")
+    |> assert_has("#item-more[open] #dequeue")
+    |> click("#dequeue")
+    |> assert_has("#item-actions > #queue-menu")
+    |> refute_has("#item-more[open]")
   end
 
   defp measure do

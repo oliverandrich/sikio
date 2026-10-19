@@ -181,6 +181,6 @@ every feed request through `Req.Test`, so a test that forgets its stub fails ins
 asking a stranger's server.
 
 The player's browser half is covered by node's own test runner over
-`assets/js/*.test.mjs`, and by Wallaby features for what only a browser can show. A feature
+`assets/js/*.test.mjs`, and by Playwright features for what only a browser can show. A feature
 starts signed in with `signed_in/2` unless signing in is what it tests. After changing
 JavaScript or CSS, check it in a browser with freshly built assets.

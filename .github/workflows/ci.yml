@@ -48,7 +48,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          install_args: erlang elixir
+          install_args: erlang elixir node
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -57,6 +57,15 @@ jobs:
           key: ${{ runner.os }}-mix1-test-sqlite-${{ hashFiles('mise.toml', 'mix.lock') }}
           restore-keys: ${{ runner.os }}-mix1-test-sqlite-
       - run: mix deps.get --check-locked
+      # The lockfile pins playwright, and each playwright version pins its browser build.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('assets/package-lock.json') }}
+      - run: mise run browser:npm
+      # The runner image does not promise the system libraries the headless Chrome needs.
+      # check:sqlite then installs the browser itself through its `browser` dependency.
+      - run: npm exec --prefix assets -- playwright install-deps chromium
       - run: mise run check:sqlite
 
   # What depends on the database, again for PostgreSQL. The browser features stay with SQLite.

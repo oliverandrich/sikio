@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 defmodule SikioWeb.TailwindTest do
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   alias Sikio.FeedFixtures
   alias Sikio.Feeds.Parser
@@ -13,39 +13,39 @@ defmodule SikioWeb.TailwindTest do
   @ground "oklch(0.985 0 none)"
   @dark_ground "oklch(0.145 0 none)"
 
-  feature "styles follow system changes and ignore an old stored theme", %{session: session} do
-    session
-    |> system_scheme("light")
+  test "styles follow system changes and ignore an old stored theme", %{conn: conn} do
+    conn
+    |> color_scheme("light")
     |> open("/")
-    |> execute_script("localStorage.setItem('phx:theme', 'dark')")
+    |> script("localStorage.setItem('phx:theme', 'dark')")
     |> open("/")
-    |> execute_script("return getComputedStyle(document.body).backgroundColor", fn color ->
+    |> script("return getComputedStyle(document.body).backgroundColor", fn color ->
       assert color == @ground
     end)
-    |> gone(css("[data-phx-theme]"))
-    |> execute_script(
+    |> refute_has("[data-phx-theme]")
+    |> script(
       "return getComputedStyle(document.querySelector('#setup-code-form button')).display",
       fn display ->
         assert display == "inline-flex"
       end
     )
-    |> system_scheme("dark")
-    |> execute_script("return getComputedStyle(document.body).colorScheme", fn scheme ->
+    |> color_scheme("dark")
+    |> script("return getComputedStyle(document.body).colorScheme", fn scheme ->
       assert scheme == "dark"
     end)
-    |> execute_script("return getComputedStyle(document.body).backgroundColor", fn color ->
+    |> script("return getComputedStyle(document.body).backgroundColor", fn color ->
       assert color == @dark_ground
     end)
-    |> system_scheme("light")
-    |> execute_script("return getComputedStyle(document.body).backgroundColor", fn color ->
+    |> color_scheme("light")
+    |> script("return getComputedStyle(document.body).backgroundColor", fn color ->
       assert color == @ground
     end)
   end
 
   # Durations, dates and counts use the mono font. The test checks the runtime element only.
   # Browsers load a font face only when used. A missing face falls back without an error.
-  feature "the runtime is set in IBM Plex Mono, and the face is loaded", %{session: session} do
-    account = signed_in(session, "ada")
+  test "the runtime is set in IBM Plex Mono, and the face is loaded", %{conn: conn} do
+    account = signed_in(conn, "ada")
 
     {:ok, preview} =
       Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
@@ -53,10 +53,10 @@ defmodule SikioWeb.TailwindTest do
     {:ok, _} = Library.subscribe(account, preview)
     [entry] = Library.entries(account)
 
-    session
+    conn
     |> open("/all")
-    |> assert_has(css("#runtime-#{entry.id}"))
-    |> execute_script(
+    |> assert_has("#runtime-#{entry.id}")
+    |> script(
       """
       const runtime = getComputedStyle(document.querySelector('#runtime-#{entry.id}')).fontFamily
       return document.fonts.ready.then(() => [runtime, document.fonts.check('500 12px "IBM Plex Mono"')])
@@ -70,24 +70,17 @@ defmodule SikioWeb.TailwindTest do
 
   # On a phone the confirm button spans the action row at 44 px height.
   # The buttons stack in the order confirm, cancel, unsubscribe.
-  @sessions [
-    [
-      capabilities:
-        put_in(Wallaby.Chrome.default_capabilities(), [:chromeOptions, :mobileEmulation], %{
-          deviceMetrics: %{width: 390, height: 844, pixelRatio: 1}
-        })
-    ]
-  ]
-  feature "a dialog's confirm button spans the width at a finger's height on a phone", %{
-    session: session
+  @tag browser_context_opts: phone(390, 844)
+  test "a dialog's confirm button spans the width at a finger's height on a phone", %{
+    conn: conn
   } do
-    feed = subscribed(session)
+    feed = subscribed(conn)
 
-    session
+    conn
     |> open("/feeds/#{feed}")
-    |> click(css("#edit-subscription"))
-    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
-    |> execute_script(
+    |> click("#edit-subscription")
+    |> assert_has("dialog#edit-subscription-confirm[open]")
+    |> script(
       """
       const box = id => document.getElementById(id).getBoundingClientRect()
       const save = box('confirm-edit-subscription'), cancel = box('cancel-edit-subscription')
@@ -111,13 +104,13 @@ defmodule SikioWeb.TailwindTest do
   # The whole header scrolls only in a window too short for those two.
   # A pencil icon beside the sources links to their management, so the link bar is phone-only.
   # The test checks computed `overflowY` and `display`, not actual scrolling.
-  feature "the lg sidebar may scroll and hides the bar of links", %{session: session} do
-    signed_in(session, "ada")
+  test "the lg sidebar may scroll and hides the bar of links", %{conn: conn} do
+    signed_in(conn, "ada")
 
-    session
-    |> resize_window(1440, 900)
+    conn
+    |> resize(1440, 900)
     |> open("/subscriptions")
-    |> execute_script(
+    |> script(
       """
       const style = selector => getComputedStyle(document.querySelector(selector))
       return [style('#sidebar').overflowY, style('header:has(#sidebar)').overflowY,
@@ -138,12 +131,12 @@ defmodule SikioWeb.TailwindTest do
   # An image does not inherit page colours, so the SVG has its own dark scheme.
   # The mark needs 3:1 contrast against its background, the WCAG minimum for graphics.
   # The SVG background is composited over the page's dark background first.
-  feature "a source's fallback picture stands out in the dark", %{session: session} do
+  test "a source's fallback picture stands out in the dark", %{conn: conn} do
     for path <- ["/images/kind-audio.svg", "/images/kind-video.svg"] do
-      session
-      |> system_scheme("dark")
+      conn
+      |> color_scheme("dark")
       |> visit(path)
-      |> execute_script(
+      |> script(
         """
         const ground = getComputedStyle(document.querySelector('rect'));
         const mark = getComputedStyle(document.querySelector('rect + *'));
@@ -185,34 +178,24 @@ defmodule SikioWeb.TailwindTest do
     0.2126 * r + 0.7152 * g + 0.0722 * b
   end
 
-  defp subscribed(session) do
-    account = signed_in(session, "ada")
+  defp subscribed(conn) do
+    account = signed_in(conn, "ada")
     {:ok, preview} = Parser.parse(FeedFixtures.podcast(), "https://example.org/rss")
     {:ok, _} = Library.subscribe(account, preview)
     hd(Library.entries(account)).feed_id
   end
 
-  defp system_scheme(session, value) do
-    {:ok, _} =
-      Wallaby.HTTPClient.request(:post, "#{session.url}/chromium/send_command_and_get_result", %{
-        cmd: "Emulation.setEmulatedMedia",
-        params: %{features: [%{name: "prefers-color-scheme", value: value}]}
-      })
-
-    session
-  end
-
   # The result lists carry a ring. Empty, they must take no space, or the ring draws a line.
   # After live navigation an empty stream container holds whitespace, so `:empty` misses it.
-  feature "empty result lists on the add page draw nothing", %{session: session} do
-    signed_in(session, "ada")
+  test "empty result lists on the add page draw nothing", %{conn: conn} do
+    signed_in(conn, "ada")
 
-    session
-    |> resize_window(1280, 900)
+    conn
+    |> resize(1280, 900)
     |> open("/inbox")
-    |> click(css("#main-navigation a[href='/add'], header a[href='/add']", count: :any, at: 0))
-    |> assert_has(css("#add-form"))
-    |> execute_script(
+    |> click("#main-navigation a[href='/add'], header a[href='/add'] >> visible=true >> nth=0")
+    |> assert_has("#add-form")
+    |> script(
       "return ['sources', 'results'].map(id => getComputedStyle(document.getElementById(id)).display)",
       fn displays -> assert displays == ["none", "none"] end
     )

@@ -467,7 +467,7 @@ defmodule SikioWeb.LibraryLiveTest do
     assert has_element?(view, "#library-count", "1 item")
     assert has_element?(view, ~s|#search-form input[value="good"]|)
 
-    # Escape sends `close_search`. A Wallaby feature presses the key itself.
+    # Escape sends `close_search`. A browser feature presses the key itself.
     render_hook(view, "close_search", %{})
     assert_patch(view, "/inbox")
 

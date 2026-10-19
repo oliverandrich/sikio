@@ -50,7 +50,7 @@ defmodule Sikio.MixProject do
 
   defp deps do
     [
-      {:wallaby, "~> 0.31.0", only: :test, runtime: false},
+      {:phoenix_test_playwright, "~> 0.19.0", only: :test, runtime: false},
       {:ithibati, "~> 0.9.0"},
       {:oban, "~> 2.24"},
       # The transport is Mint. Req stays out of the release: it is here for `Req.Test`, which

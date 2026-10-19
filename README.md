@@ -53,8 +53,8 @@ up to a claimed instance behind Caddy:
 
 ## Develop it
 
-You need [mise](https://mise.jdx.dev). The full check also needs PostgreSQL 18 and Chrome with a
-matching chromedriver.
+You need [mise](https://mise.jdx.dev). The full check also needs PostgreSQL 18. `mise run setup`
+installs the browser for the browser tests.
 
 ```sh
 mise trust

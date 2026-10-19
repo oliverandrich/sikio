@@ -14,12 +14,13 @@ if Application.fetch_env!(:sikio, :database) == :sqlite,
 
 Ecto.Adapters.SQL.Sandbox.mode(Sikio.Repo, :manual)
 
-Application.put_env(:wallaby, :chromedriver, path: SikioWeb.BrowserDriver.path(), headless: true)
-
 # Removes the image cache, so no test reads images fetched in an earlier run.
 File.rm_rf!(Sikio.Pictures.cache_dir())
 
-Application.put_env(:wallaby, :base_url, SikioWeb.Endpoint.url())
-{:ok, _} = Application.ensure_all_started(:wallaby)
-{:ok, _} = SikioWeb.BrowserPool.start_link()
-ExUnit.after_suite(fn _ -> SikioWeb.BrowserPool.stop() end)
+# The PostgreSQL pass excludes the browser features, so it needs neither node nor Playwright.
+ex_unit = ExUnit.configuration()
+
+if :feature in ex_unit[:include] or :feature not in ex_unit[:exclude] do
+  Application.put_env(:phoenix_test, :base_url, SikioWeb.Endpoint.url())
+  {:ok, _} = PhoenixTest.Playwright.Supervisor.start_link()
+end

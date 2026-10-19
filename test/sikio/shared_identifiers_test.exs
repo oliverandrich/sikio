@@ -51,7 +51,7 @@ defmodule Sikio.SharedIdentifiersTest do
         source = File.read!(path),
         source =~ "async: true",
         source =~ "use Sikio.DataCase" or source =~ "use SikioWeb.ConnCase" or
-          source =~ "use SikioWeb.FeatureCase",
+          source =~ "use SikioWeb.PlaywrightCase",
         do: path
   end
 

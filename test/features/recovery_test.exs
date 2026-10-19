@@ -1,41 +1,36 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 defmodule SikioWeb.RecoveryTest do
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   alias Ithibati.Identity.RecoveryCodes
 
-  feature "recovery codes sign in without a passkey and cannot be reused", %{session: session} do
-    virtual_authenticator(session)
-
+  test "recovery codes sign in without a passkey and cannot be reused", %{conn: conn} do
     codes =
-      session
-      |> open("/")
-      |> code_entered()
-      |> fill_in(css("input[name=username]"), with: "ada")
-      |> click(button("Create your passkey"))
-      |> landed_on("/recovery-codes")
-      |> all(css("main li"))
-      |> Enum.map(&Wallaby.Element.text/1)
+      conn
+      |> claimed("ada")
+      |> assert_has("main li", count: 12)
+      |> value_of(
+        "return Array.from(document.querySelectorAll('main li'), li => li.textContent.trim())"
+      )
 
-    assert length(codes) == 12
     [code | _] = codes
 
-    session
+    conn
     |> clear_cookies()
     |> open("/recover")
-    |> fill_in(css("input[name=code]"), with: code)
-    |> click(button("Sign in with a recovery code"))
-    |> through_navigation(css("#library-heading"))
+    |> fill_in("input[name=code]", "Recovery code", with: code)
+    |> click_button("Sign in with a recovery code")
+    |> assert_has("#library-heading")
     |> open("/invitations")
-    |> assert_has(css("p", text: "Signed in as ada"))
+    |> assert_has("p", text: "Signed in as ada")
 
-    session
+    conn
     |> clear_cookies()
     |> open("/recover")
-    |> fill_in(css("input[name=code]"), with: code)
-    |> click(button("Sign in with a recovery code"))
-    |> assert_has(css("[role=alert]"))
+    |> fill_in("input[name=code]", "Recovery code", with: code)
+    |> click_button("Sign in with a recovery code")
+    |> assert_has("[role=alert]")
 
     account = Repo.get_by!(User, username: "ada")
     assert RecoveryCodes.remaining(account) == 11

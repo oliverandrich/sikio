@@ -9,8 +9,24 @@ uv = "0.13.1"
 
 [tasks.setup]
 description = "Install dependencies, create the development database and build assets"
+depends = ["browser"]
 env.MIX_ENV = "dev"
 run = "mix setup"
+
+# Playwright drives the browser features with Chrome for Testing, so no installed Chrome is needed.
+# Google Chrome leaves a copy of its app bundle in the temp folder on every launch.
+# The browser lands in Playwright's shared cache, one copy per Playwright version.
+# The install checks Playwright's cache on every run, so a deleted or half-downloaded browser comes back.
+[tasks.browser]
+description = "Install the Playwright driver and the headless Chrome for the browser features"
+depends = ["browser:npm"]
+run = "npm exec --prefix assets -- playwright install chromium --only-shell"
+
+[tasks."browser:npm"]
+description = "Install the pinned playwright package when the lockfile changed"
+sources = ["assets/package-lock.json"]
+outputs = ["assets/node_modules/.package-lock.json"]
+run = "npm ci --prefix assets --no-audit --no-fund"
 
 [tasks.dev]
 description = "Start the development server in the foreground"
@@ -29,7 +45,7 @@ description = "Check workflows, compile, format, lint, security, assets and test
 run = [{ task = "check:lint" }, { task = "check:sqlite" }, { task = "check:postgres" }]
 
 # The player's browser half is plain modules with no framework, so node's own runner covers it.
-# No npm package is needed for it, and none is installed.
+# No npm package is needed for it. The only npm package, playwright, serves the browser features.
 # gitleaks reads every commit, so a secret removed in a later commit still fails the check.
 [tasks."check:lint"]
 description = "Check workflows, secrets in the history, license markers and the browser modules"
@@ -43,6 +59,7 @@ run = [
 # SQLite is the default build and gets every check, the browser features included.
 [tasks."check:sqlite"]
 description = "Compile, format, lint, security, assets and tests on SQLite"
+depends = ["browser"]
 env.MIX_ENV = "test"
 run = "SIKIO_DATABASE=sqlite mix precommit"
 
@@ -54,6 +71,7 @@ run = "SIKIO_DATABASE=postgres mix check.database"
 
 [tasks.test]
 description = "Run the tests against SQLite and Postgres, and the browser modules"
+depends = ["browser"]
 env.MIX_ENV = "test"
 run = [
   "SIKIO_DATABASE=sqlite mix test",

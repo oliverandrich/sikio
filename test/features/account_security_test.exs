@@ -1,92 +1,74 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 defmodule SikioWeb.AccountSecurityFeatureTest do
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   alias Ithibati.Identity.Passkeys
   alias Ithibati.Identity.RecoveryCodes
 
-  feature "a member manages passkeys and replaces recovery codes from the settings", %{
-    session: session
-  } do
-    first = virtual_authenticator(session)
+  test "a member manages passkeys and replaces recovery codes from the settings", %{conn: conn} do
+    first = virtual_authenticator(conn)
 
-    session
+    conn
     |> open("/")
     |> code_entered()
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Create your passkey"))
-    |> landed_on("/recovery-codes")
+    |> fill_in("Username", with: "ada")
+    |> click_button("Create your passkey")
+    |> assert_path("/recovery-codes")
     |> open("/")
-    |> click(css("#user-menu summary"))
-    |> click(css("#settings-link"))
-    |> landed_on("/account/settings")
-    |> click(css(~s|#settings-account a[href="/account/passkeys"]|))
-    |> landed_on("/account/passkeys")
+    |> click("#user-menu summary")
+    |> click("#settings-link")
+    |> assert_path("/account/settings")
+    |> click(~s|#settings-account a[href="/account/passkeys"]|)
+    |> assert_path("/account/passkeys")
     |> connected()
-
-    session
-    |> click(link("Confirm your identity to add a passkey"))
-    |> landed_on("/account/verify")
+    |> click_link("Confirm your identity to add a passkey")
+    |> assert_path("/account/verify")
     |> connected()
-    |> click(button("Confirm with a passkey"))
-    |> landed_on("/account/passkeys")
+    |> click_button("Confirm with a passkey")
+    |> assert_path("/account/passkeys")
     |> connected()
-
     # A new authenticator models a second device.
     # Ithibati excludes the first device's existing credential from enrollment.
-    {:ok, _} =
-      Wallaby.HTTPClient.request(:post, "#{session.url}/chromium/send_command_and_get_result", %{
-        cmd: "WebAuthn.removeVirtualAuthenticator",
-        params: %{authenticatorId: first}
-      })
-
-    virtual_authenticator(session)
-
-    session
-    |> fill_in(css("#add-passkey-form input[name=label]"), with: "Phone")
-    |> click(button("Add a passkey"))
-    |> through_navigation(css("article input[value=Phone]"))
+    |> remove_authenticator(first)
+    |> tap(&virtual_authenticator/1)
+    |> fill_in("#add-passkey-form input[name=label]", "Passkey name", with: "Phone")
+    |> click_button("Add a passkey")
+    |> assert_has("article input[value=Phone]")
 
     account = Repo.get_by!(User, username: "ada")
     assert length(Passkeys.list_keys(account)) == 2
     phone = Enum.find(Passkeys.list_keys(account), &(&1.label == "Phone"))
 
-    session
-    |> fill_in(css("#key-#{phone.id} input[name=label]"), with: "Work phone")
-    |> click(css("#key-#{phone.id} button", text: "Save name"))
-    |> through_navigation(css("input[value='Work phone']"))
+    conn
+    |> fill_in("#key-#{phone.id} input[name=label]", "Passkey name", with: "Work phone")
+    |> click("#key-#{phone.id} button", "Save name")
+    |> assert_has("input[value='Work phone']")
     |> open("/account/recovery-codes")
-    |> click(css("input[name=confirm]"))
-    |> click(button("Generate new recovery codes"))
-    |> landed_on("/recovery-codes")
-    |> assert_has(button("Copy recovery codes"))
-    |> assert_has(css("h1", text: "Save your recovery codes"))
+    |> click("input[name=confirm]")
+    |> click_button("Generate new recovery codes")
+    |> assert_path("/recovery-codes")
+    |> assert_has("button", text: "Copy recovery codes")
+    |> assert_has("h1", text: "Save your recovery codes")
   end
 
-  feature "a recovery code confirms identity when the passkey is unavailable", %{session: session} do
-    virtual_authenticator(session)
-
-    session
-    |> open("/")
-    |> code_entered()
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Create your passkey"))
-    |> landed_on("/recovery-codes")
+  test "a recovery code confirms identity when the passkey is unavailable", %{conn: conn} do
+    conn
+    |> claimed("ada")
 
     account = Repo.get_by!(User, username: "ada")
     [code | _] = RecoveryCodes.regenerate(account)
 
-    session
+    conn
     |> open("/account/recovery-codes")
-    |> click(link("Confirm your identity to generate new codes"))
-    |> landed_on("/account/verify")
+    |> click_link("Confirm your identity to generate new codes")
+    |> assert_path("/account/verify")
     |> connected()
-    |> click(css("summary", text: "Use a recovery code instead"))
-    |> fill_in(css("input[name=code]"), with: code)
-    |> click(button("Confirm with a recovery code"))
-    |> landed_on("/account/recovery-codes")
+    |> click("summary", "Use a recovery code instead")
+    |> fill_in("Recovery code", with: code)
+    |> click_button("Confirm with a recovery code")
+    |> assert_path("/account/recovery-codes")
     |> connected()
-    |> assert_has(button("Generate new recovery codes"))
+    |> assert_has("button", text: "Generate new recovery codes")
   end
 end

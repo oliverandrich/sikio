@@ -13,7 +13,7 @@ defmodule SikioWeb.PlayerTest do
   The tests check that the element is never replaced, not a media server.
   Audio output on a real speaker needs a real device and is tracked separately.
   """
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   import Sikio.FeedFixtures
 
@@ -23,8 +23,8 @@ defmodule SikioWeb.PlayerTest do
 
   @notes "#item-notes, #item-no-notes"
 
-  setup %{session: session} do
-    account = signed_in(session, "ada")
+  setup %{conn: conn} do
+    account = signed_in(conn, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
     {:ok, _subscription} = Library.subscribe(account, preview)
     [entry] = Library.entries(account)
@@ -32,23 +32,23 @@ defmodule SikioWeb.PlayerTest do
     %{account: account, entry: entry}
   end
 
-  feature "the audio element itself survives navigating between pages", context do
-    %{session: session, account: account, entry: entry} = context
+  test "the audio element itself survives navigating between pages", context do
+    %{conn: conn, account: account, entry: entry} = context
 
-    session
+    conn
     |> open("/all")
-    |> click(css("#play-#{entry.id}"))
-    |> click(css("#start-playback"))
+    |> click("#play-#{entry.id}")
+    |> click("#start-playback")
     # Pinned to the detail, the panel shows no title of its own.
     # `data-entry-id` on `#player-control` identifies the playing entry.
-    |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
-    |> assert_has(css("#player-panel [data-audio-face]"))
+    |> assert_attached(~s|#player-control[data-entry-id="#{entry.id}"]|)
+    |> assert_has("#player-panel [data-audio-face]")
     |> mark_player()
-    |> click(css("#add-button"))
-    |> assert_has(css("h1", text: "Add a source"))
+    |> click("#add-button")
+    |> assert_has("h1", text: "Add a source")
     # From lg the panel folds into the sidebar bar on this page, mounted but hidden.
     # The test checks that it is the same element.
-    |> assert_has(css("#player-panel audio", visible: false))
+    |> assert_hidden("#player-panel audio")
     |> assert_same_player()
 
     assert Library.entry(account, entry.id).playback.session_id
@@ -56,111 +56,108 @@ defmodule SikioWeb.PlayerTest do
 
   # On a phone the playing panel lies over the card's own player.
   # Two players for one episode could disagree, so the card's player is hidden while it plays.
-  feature "on a phone the card's player gives way to the playing one", context do
-    %{session: session, entry: entry} = context
+  test "on a phone the card's player gives way to the playing one", context do
+    %{conn: conn, entry: entry} = context
 
-    session
-    |> resize_window(500, 900)
+    conn
+    |> resize(500, 900)
     |> open(item_path(entry))
-    |> assert_has(css("#audio-cue"))
-    |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel [data-audio-face]"))
-    |> assert_has(css("#audio-cue", visible: false))
+    |> assert_has("#audio-cue")
+    |> click("#start-playback")
+    |> assert_has("#player-panel [data-audio-face]")
+    |> assert_hidden("#audio-cue")
   end
 
   # The Media Session metadata names the episode and its artwork.
   # The lock screen and media keys use it.
   # It is cleared when the player closes.
-  feature "the system's controls name what plays", context do
-    %{session: session, entry: entry} = context
+  test "the system's controls name what plays", context do
+    %{conn: conn, entry: entry} = context
     named = "return navigator.mediaSession.metadata && navigator.mediaSession.metadata.title"
 
-    session
+    conn
     |> open(item_path(entry))
-    |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel [data-audio-face]"))
-    |> execute_script(named, fn title -> assert title == entry.title end)
-    |> execute_script(
+    |> click("#start-playback")
+    |> assert_has("#player-panel [data-audio-face]")
+    |> script(named, fn title -> assert title == entry.title end)
+    |> script(
       "return navigator.mediaSession.metadata.artwork[0].src",
       fn src -> assert src =~ "/pictures/" end
     )
     |> press("close-player")
-    |> then(fn session ->
-      assert {:ok, _} =
-               retry(fn -> holds(session, "return navigator.mediaSession.metadata === null") end)
-
-      session
-    end)
+    |> eventually("return navigator.mediaSession.metadata === null")
   end
 
   # An ended item starts the next item in the queue when continuous play is enabled.
   # No audio is served, so the test dispatches the `ended` event.
-  feature "an ended item plays on with the queue", context do
-    %{session: session, account: account, entry: entry} = context
+  test "an ended item plays on with the queue", context do
+    %{conn: conn, account: account, entry: entry} = context
     {:ok, preview} = Parser.parse(podcast("Next up"), feed_url("next"))
     {:ok, subscription} = Library.subscribe(account, preview)
     [following] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
     {:ok, _} = Sikio.Playback.enqueue(account, following.id, :last)
 
-    session
+    conn
     |> open(item_path(entry))
-    |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
-    |> execute_script(
-      "document.querySelector('#player-panel audio').dispatchEvent(new Event('ended'))"
-    )
-    |> assert_has(css(~s|#player-control[data-entry-id="#{following.id}"]|))
+    |> click("#start-playback")
+    |> assert_attached(~s|#player-control[data-entry-id="#{entry.id}"]|)
+    |> script("document.querySelector('#player-panel audio').dispatchEvent(new Event('ended'))")
+    |> assert_attached(~s|#player-control[data-entry-id="#{following.id}"]|)
   end
 
   # When playback continues from the ended item's detail, the detail follows to the next item.
   # This requires the visible list to contain that item. The player is pinned in the new detail.
   # The URL stays in the queue list.
-  feature "the detail follows the queue to the next item", context do
-    follows_the_queue(context, {1280, 900})
+  test "the detail follows the queue to the next item", context do
+    {path, following} = follow_the_queue(context, {1280, 900})
+    assert path =~ ~r|^/queue/#{following.id}-|
   end
 
   # On a phone the detail covers the list, which still contains the next item.
-  feature "on a phone the detail follows the queue to the next item", context do
-    follows_the_queue(context, {500, 900})
+  test "on a phone the detail follows the queue to the next item", context do
+    {path, following} = follow_the_queue(context, {500, 900})
+    assert path =~ ~r|^/queue/#{following.id}-|
   end
 
-  defp follows_the_queue(%{session: session, account: account, entry: entry}, {width, height}) do
+  # Returns the path the browser ends on and the item that follows.
+  defp follow_the_queue(%{conn: conn, account: account, entry: entry}, {width, height}) do
     following = queued_after(account, entry)
 
-    session
-    |> resize_window(width, height)
-    |> open(SikioWeb.LibraryPaths.library_path(%{"status" => "queue"}, entry))
-    |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
-    |> execute_script(
-      "document.querySelector('#player-panel audio').dispatchEvent(new Event('ended'))"
-    )
-    |> assert_has(css(~s|#player-control[data-entry-id="#{following.id}"]|))
-    |> assert_has(css(~s|#item-detail[data-entry-id="#{following.id}"]|))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"]|))
-    |> then(&assert(current_path(&1) =~ ~r|^/queue/#{following.id}-|))
+    path =
+      conn
+      |> resize(width, height)
+      |> open(SikioWeb.LibraryPaths.library_path(%{"status" => "queue"}, entry))
+      |> click("#start-playback")
+      |> assert_attached(~s|#player-control[data-entry-id="#{entry.id}"]|)
+      |> script("document.querySelector('#player-panel audio').dispatchEvent(new Event('ended'))")
+      |> assert_attached(~s|#player-control[data-entry-id="#{following.id}"]|)
+      |> assert_has(~s|#item-detail[data-entry-id="#{following.id}"]|)
+      |> assert_has(~s|#player-panel[data-place="pinned"]|)
+      |> current_path()
+
+    {path, following}
   end
 
   # The last queued item ends and nothing follows. The queue is empty, so the detail is too.
   # Neither the detail nor the dock shows an item the list no longer contains.
-  feature "the detail empties when the queue plays out its last item", context do
-    %{session: session, account: account, entry: entry} = context
+  test "the detail empties when the queue plays out its last item", context do
+    %{conn: conn, account: account, entry: entry} = context
     {:ok, _} = Sikio.Playback.enqueue(account, entry.id, :last)
 
-    session
-    |> resize_window(1280, 900)
+    conn
+    |> resize(1280, 900)
     |> open(SikioWeb.LibraryPaths.library_path(%{"status" => "queue"}, entry))
-    |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
+    |> click("#start-playback")
+    |> assert_attached(~s|#player-control[data-entry-id="#{entry.id}"]|)
     # No audio is served, so the test dispatches `loadedmetadata` and `ended`.
     # Only a loaded player saves the end, which removes the item from the queue.
-    |> execute_script("""
+    |> script("""
     const audio = document.querySelector('#player-panel audio')
     audio.dispatchEvent(new Event('loadedmetadata'))
     audio.dispatchEvent(new Event('ended'))
     """)
-    |> gone(css("#item-detail h2"))
-    |> gone(css("#player-panel"))
+    |> refute_has("#item-detail h2")
+    |> refute_has("#player-panel")
     |> then(&assert(current_path(&1) == "/queue"))
   end
 
@@ -174,17 +171,17 @@ defmodule SikioWeb.PlayerTest do
     following
   end
 
-  feature "the player survives a dropped and restored socket", context do
-    %{session: session, account: account, entry: entry} = context
+  test "the player survives a dropped and restored socket", context do
+    %{conn: conn, account: account, entry: entry} = context
 
-    session
+    conn
     |> open(item_path(entry))
-    |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel [data-audio-face]"))
+    |> click("#start-playback")
+    |> assert_has("#player-panel [data-audio-face]")
     |> mark_player()
     |> drop_socket(account)
-    |> assert_has(css("body[data-rejoined]"))
-    |> assert_has(css("#player-panel [data-audio-face]"))
+    |> assert_has("body[data-rejoined]")
+    |> assert_has("#player-panel [data-audio-face]")
     |> assert_same_player()
 
     assert Library.entry(account, entry.id).playback.session_id
@@ -192,37 +189,36 @@ defmodule SikioWeb.PlayerTest do
 
   # The bottom padding of `#page-content` is for the floating panel.
   # Only narrow screens have that panel.
-  feature "closing the player gives the page its scroll room back", context do
-    %{session: session, entry: entry} = context
+  test "closing the player gives the page its scroll room back", context do
+    %{conn: conn, entry: entry} = context
 
-    session
-    |> resize_window(500, 900)
+    conn
+    |> resize(500, 900)
     |> open(item_path(entry))
-    |> click(css("#start-playback"))
-    |> assert_has(css("#player-panel"))
-    |> click(css("#tab-inbox"))
-    |> assert_has(css(~s|#player-panel[data-place="floating"]|))
-    |> execute_script(padding(), fn padding -> refute padding == "0px" end)
+    |> click("#start-playback")
+    |> assert_has("#player-panel")
+    |> click("#tab-inbox")
+    |> assert_has(~s|#player-panel[data-place="floating"]|)
+    |> script(padding(), fn padding -> refute padding == "0px" end)
     |> press("close-player")
-
     # Waiting for this value also waits for the close round trip.
     # Removing the panel resets the padding to zero.
-    assert {:ok, _} = retry(fn -> settled(session) end)
-    gone(session, css("#player-panel"))
+    |> eventually(padding(), equals: "0px")
+    |> refute_has("#player-panel")
   end
 
   # From lg a pinned video's height is 9/16 of its width, capped at the window height.
   # The panel has no overflow.
-  feature "from lg a video grows to the window's height and the panel never scrolls", context do
-    %{session: session, account: account} = context
-    video = video_with_notes(session, account)
+  test "from lg a video grows to the window's height and the panel never scrolls", context do
+    %{conn: conn, account: account} = context
+    video = video_with_notes(conn, account)
 
-    session
-    |> resize_window(1920, 500)
+    conn
+    |> resize(1920, 500)
     |> open(item_path(video))
-    |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] video|))
-    |> execute_script(
+    |> click("#start-playback")
+    |> assert_has(~s|#player-panel[data-place="pinned"] video|)
+    |> script(
       """
       const panel = document.getElementById('player-panel')
       const frame = panel.querySelector('video').getBoundingClientRect()
@@ -237,37 +233,37 @@ defmodule SikioWeb.PlayerTest do
   end
 
   # Without a share sheet, as in some desktop browsers, the share button copies the link.
-  feature "without a share sheet the share button copies the link", context do
-    %{session: session, entry: entry} = context
+  test "without a share sheet the share button copies the link", context do
+    %{conn: conn, entry: entry} = context
 
-    session
+    conn
     |> open(item_path(entry))
     # Headless Chrome may refuse the clipboard, so the page records what it would write.
-    |> execute_script("""
+    |> script("""
     navigator.share = undefined
     navigator.clipboard.writeText = async text => { window.copiedText = text }
     """)
-    |> click(css("#share"))
-    |> assert_has(css("#flash-info", text: "Link copied."))
-    |> execute_script("return window.copiedText", &assert(&1 == entry.page_url))
+    |> click("#share")
+    |> assert_has("#flash-info", text: "Link copied.")
+    |> script("return window.copiedText", &assert(&1 == entry.page_url))
   end
 
   # The poster starts the video, as the play button below it does.
-  feature "a click on a PeerTube video's poster starts it", context do
-    %{session: session, account: account} = context
-    video = video_with_notes(session, account)
+  test "a click on a PeerTube video's poster starts it", context do
+    %{conn: conn, account: account} = context
+    video = video_with_notes(conn, account)
 
-    session
+    conn
     |> open(item_path(video))
-    |> click(css("#video-cue img"))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] video|))
+    |> click("#video-cue img")
+    |> assert_has(~s|#player-panel[data-place="pinned"] video|)
   end
 
   # Before play a PeerTube video shows its poster above Sikio's controls.
   # The dock's player then covers both in the same boxes.
-  feature "a PeerTube video's card player is covered without a jump", context do
-    %{session: session, account: account} = context
-    video = video_with_notes(session, account)
+  test "a PeerTube video's card player is covered without a jump", context do
+    %{conn: conn, account: account} = context
+    video = video_with_notes(conn, account)
 
     boxes = """
     return arguments[0].map(s => {
@@ -276,62 +272,39 @@ defmodule SikioWeb.PlayerTest do
     })
     """
 
-    session
-    |> resize_window(1280, 900)
-    |> open(item_path(video))
-    |> execute_script(boxes, [["#video-cue img", "#audio-cue"]], &Process.put(:cue, &1))
-    |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] video[poster]|))
-    |> assert_has(css("#video-cue", visible: false))
-    |> then(fn session ->
-      cue = Process.delete(:cue)
+    conn = conn |> resize(1280, 900) |> open(item_path(video))
+    cue = value_of(conn, boxes, [["#video-cue img", "#audio-cue"]])
 
-      assert {:ok, _} =
-               retry(fn ->
-                 execute_script(
-                   session,
-                   boxes,
-                   [["#player-panel video", "#player-panel [data-audio-face]"]],
-                   &Process.put(:player, &1)
-                 )
-
-                 if Process.get(:player) == cue,
-                   do: {:ok, cue},
-                   else: {:error, Process.get(:player)}
-               end)
-    end)
+    conn
+    |> click("#start-playback")
+    |> assert_has(~s|#player-panel[data-place="pinned"] video[poster]|)
+    |> assert_hidden("#video-cue")
+    |> eventually(boxes,
+      args: [["#player-panel video", "#player-panel [data-audio-face]"]],
+      equals: cue
+    )
   end
 
   # The button enlarges the video alone. Sikio's controls stay outside, so the video shows the
   # browser's own while fullscreen lasts.
-  feature "a video fills the screen with the browser's controls, and leaves it again", context do
-    %{session: session, account: account} = context
-    video = video_with_notes(session, account)
+  test "a video fills the screen with the browser's controls, and leaves it again", context do
+    %{conn: conn, account: account} = context
+    video = video_with_notes(conn, account)
 
     state = """
     const video = document.querySelector("#player-panel video")
     return [document.fullscreenElement === video, video.controls]
     """
 
-    session
-    |> resize_window(1280, 900)
+    conn
+    |> resize(1280, 900)
     |> open(item_path(video))
-    |> click(css("#start-playback"))
-    |> assert_has(css(~s|#player-panel[data-place="pinned"] video[poster]|))
-    |> click(css("#player-panel button[data-fullscreen]"))
-    |> then(fn session ->
-      assert {:ok, _} = retry(fn -> fullscreen(session, state, [true, true]) end)
-      execute_script(session, "document.exitFullscreen()")
-      assert {:ok, _} = retry(fn -> fullscreen(session, state, [false, false]) end)
-    end)
-  end
-
-  defp fullscreen(session, script, expected) do
-    execute_script(session, script, &Process.put(:fullscreen, &1))
-
-    if Process.get(:fullscreen) == expected,
-      do: {:ok, expected},
-      else: {:error, Process.get(:fullscreen)}
+    |> click("#start-playback")
+    |> assert_has(~s|#player-panel[data-place="pinned"] video[poster]|)
+    |> click("#player-panel button[data-fullscreen]")
+    |> eventually(state, equals: [true, true])
+    |> script("document.exitFullscreen()")
+    |> eventually(state, equals: [false, false])
   end
 
   describe "from lg, the player's place" do
@@ -343,17 +316,17 @@ defmodule SikioWeb.PlayerTest do
     end
 
     # The card menu renders above the pinned player, not beneath it.
-    feature "the card's menu opens over the playing player", context do
-      %{session: session, entry: entry} = context
+    test "the card's menu opens over the playing player", context do
+      %{conn: conn, entry: entry} = context
 
-      session
-      |> resize_window(1280, 900)
+      conn
+      |> resize(1280, 900)
       |> open(item_path(entry))
-      |> click(css("#start-playback"))
-      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
-      |> click(css("#item-more summary"))
-      |> assert_has(css("#item-more[open] #dequeue", visible: true))
-      |> execute_script(
+      |> click("#start-playback")
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-face]|)
+      |> click("#item-more summary")
+      |> assert_has("#item-more[open] #dequeue")
+      |> script(
         """
         const box = document.getElementById('dequeue').getBoundingClientRect()
         const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
@@ -366,34 +339,29 @@ defmodule SikioWeb.PlayerTest do
     # The player sits at the head of the detail card, above the title and notes.
     # A video spans its card edge to edge, as on a phone.
     # The video position is measured before playback, so nothing is requested from YouTube.
-    feature "is in the detail that shows what plays, above its title", context do
-      %{session: session, account: account, entry: entry, video: video} = context
+    test "is in the detail that shows what plays, above its title", context do
+      %{conn: conn, account: account, entry: entry, video: video} = context
 
-      session
-      |> resize_window(1280, 900)
+      conn
+      |> resize(1280, 900)
       |> open(item_path(video))
-      |> assert_has(css("#player-slot #start-playback"))
-      |> execute_script(flush("#player-slot", "#item-detail article"), fn flush ->
+      |> assert_has("#player-slot #start-playback")
+      |> script(flush("#player-slot", "#item-detail article"), fn flush ->
         assert flush
       end)
       |> open(item_path(entry))
-      |> click(css("#start-playback"))
-      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
-      |> execute_script(within("#player-panel", "#item-detail"), fn inside -> assert inside end)
+      |> click("#start-playback")
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-face]|)
+      |> script(within("#player-panel", "#item-detail"), fn inside -> assert inside end)
       # The detail shows the source and title, and selecting another item closes the player.
       # So the pinned panel hides its heading and its close button.
-      |> assert_has(css("#player-panel .player-heading", visible: false))
-      |> assert_has(css("#close-player", visible: false))
+      |> assert_hidden("#player-panel .player-heading")
+      |> assert_hidden("#close-player")
       # It is flush with the detail card, not the surrounding column.
-      |> execute_script(flush("#player-panel", "#player-slot"), fn flush -> assert flush end)
+      |> script(flush("#player-panel", "#player-slot"), fn flush -> assert flush end)
       # The player comes first. The title starts the text column, aligned with the notes.
-      |> then(fn session ->
-        assert {:ok, _} =
-                 retry(fn -> holds(session, below("#item-detail h2", "#player-panel")) end)
-
-        session
-      end)
-      |> execute_script(
+      |> eventually(below("#item-detail h2", "#player-panel"))
+      |> script(
         """
         const box = s => document.querySelector(s).getBoundingClientRect()
         return [Math.round(box('#item-detail h2').left), Math.round(box('#item-notes, #item-no-notes').left),
@@ -408,7 +376,7 @@ defmodule SikioWeb.PlayerTest do
       # Saving a position patches the detail and the dock.
       # Neither patch may remove the placement attributes.
       # Removal for even one frame causes a flicker.
-      |> execute_script("""
+      |> script("""
       window.sikioLost = []
       const watch = (id, name) => new MutationObserver(() => {
         if (!document.querySelector(id).hasAttribute(name)) window.sikioLost.push(name)
@@ -417,70 +385,51 @@ defmodule SikioWeb.PlayerTest do
       watch('#player-panel', 'data-place')
       """)
       |> saved_at(account, entry, 30)
-      |> assert_has(css("#playback-status", text: "62 min left"))
-      |> then(fn session ->
-        # The dock's status is hidden while pinned, and WebDriver reads only visible text.
-        status = "#player-panel .player-status"
-        script = "return document.querySelector('#{status}').textContent.includes('0:30')"
-        assert {:ok, _} = retry(fn -> holds(session, script) end)
-        session
-      end)
-      |> execute_script("return window.sikioLost", fn lost -> assert lost == [] end)
+      |> assert_has("#playback-status", text: "62 min left")
+      # The dock's status is hidden while pinned, and `assert_has/3` reads only visible text.
+      |> eventually(
+        "return document.querySelector('#player-panel .player-status').textContent.includes('0:30')"
+      )
+      |> script("return window.sikioLost", fn lost -> assert lost == [] end)
       # The slot follows the player's height, so the notes stay below it.
       # The test sets the face height to 300px.
-      |> execute_script(
+      |> script(
         "document.querySelector('#player-panel [data-audio-face]').style.height = '300px'"
       )
-      |> then(fn session ->
-        assert {:ok, _} = retry(fn -> holds(session, below(@notes, "#player-panel")) end)
-        session
-      end)
+      |> eventually(below(@notes, "#player-panel"))
     end
 
     # Before loading, the card shows its own player.
     # Releasing its seek bar starts the dock player in the same box.
-    feature "the card's player starts where it is dragged to and is covered without a jump",
-            context do
-      %{session: session, account: account, entry: entry} = context
+    test "the card's player starts where it is dragged to and is covered without a jump",
+         context do
+      %{conn: conn, account: account, entry: entry} = context
 
       box =
         "const b = document.querySelector(arguments[0]).getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(Math.round)"
 
-      session
-      |> resize_window(1280, 900)
-      |> open(item_path(entry))
-      |> gone(css("#player-panel"))
-      |> execute_script(box, ["#audio-cue"], fn cue -> Process.put(:cue, cue) end)
-      |> execute_script("""
+      conn = conn |> resize(1280, 900) |> open(item_path(entry)) |> refute_has("#player-panel")
+      cue = value_of(conn, box, ["#audio-cue"])
+
+      conn
+      |> script("""
       const seek = document.querySelector('#audio-cue [data-audio-seek]')
       seek.value = '600'
       seek.dispatchEvent(new Event('input', {bubbles: true}))
       seek.dispatchEvent(new Event('change', {bubbles: true}))
       """)
-      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-seek][value="600"]|))
-      |> assert_has(css("#audio-cue", visible: false))
-      |> then(fn session ->
-        cue = Process.delete(:cue)
-        script = "#{box}.join(',') === '#{Enum.join(cue, ",")}'"
-        # Compares the panel's face, not the panel.
-        # The message line below the face is empty and collapsed.
-        assert {:ok, _} =
-                 retry(fn ->
-                   holds(
-                     session,
-                     String.replace(script, "arguments[0]", "'#player-panel [data-audio-face]'")
-                   )
-                 end)
-
-        session
-      end)
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-seek][value="600"]|)
+      |> assert_hidden("#audio-cue")
+      # Compares the panel's face, not the panel.
+      # The message line below the face is empty and collapsed.
+      |> eventually(box, args: ["#player-panel [data-audio-face]"], equals: cue)
 
       assert Library.entry(account, entry.id).playback.position == 600.0
     end
 
     # A chapter starts the item at its time. During playback another chapter seeks the player.
-    feature "a chapter starts the item there and later moves the player", context do
-      %{session: session, account: account} = context
+    test "a chapter starts the item there and later moves the player", context do
+      %{conn: conn, account: account} = context
       notes = "<p>Worum es geht.</p><p>0:00 Intro<br>1:58 Akkus<br>4:51 Solar</p>"
 
       body =
@@ -496,38 +445,35 @@ defmodule SikioWeb.PlayerTest do
       [entry] =
         Library.entries(account, %{"source" => to_string(subscription.feed_id)})
 
-      session
-      |> resize_window(1280, 900)
+      conn
+      |> resize(1280, 900)
       |> open(item_path(entry))
-      |> click(css("#item-chapters li:nth-child(2) button"))
-      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-seek][value="118"]|))
+      |> click("#item-chapters li:nth-child(2) button")
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-seek][value="118"]|)
       # The audio never loads here. A seek on an element without media depends on load timing.
       # The node tests cover that the player seeks the audio.
       # This test checks that the click reaches the playing player with the chapter's time.
-      |> execute_script("""
+      |> script("""
       window.sought = []
       document.querySelector("#player-control [phx-hook='MediaPlayer']")
         .addEventListener('sikio:seek', event => window.sought.push(event.detail.position))
       """)
-      |> click(css("#item-chapters li:nth-child(3) button"))
-      |> then(fn session ->
-        assert {:ok, _} = retry(fn -> holds(session, "return window.sought.join() === '291'") end)
-        session
-      end)
+      |> click("#item-chapters li:nth-child(3) button")
+      |> eventually("return window.sought.join() === '291'")
     end
 
     # Sikio's controls act on the audio element. The seek bar applies its value on release.
     # The skip buttons jump, and the speed button steps up.
     # The audio never loads, so the test checks the element's properties.
-    feature "the controls drag, skip and change the speed", context do
-      %{session: session, entry: entry} = context
+    test "the controls drag, skip and change the speed", context do
+      %{conn: conn, entry: entry} = context
 
-      session
-      |> resize_window(1280, 900)
+      conn
+      |> resize(1280, 900)
       |> open(item_path(entry))
-      |> click(css("#start-playback"))
-      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
-      |> execute_script(
+      |> click("#start-playback")
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-face]|)
+      |> script(
         """
         const audio = document.querySelector('#player-panel audio')
         const seek = document.querySelector('#player-panel [data-audio-seek]')
@@ -559,18 +505,18 @@ defmodule SikioWeb.PlayerTest do
     # Focus stays on the page, and page keys control the player.
     # p starts the open item like its play button, then toggles play and pause. Arrows skip.
     # Space sends no player command. Library keys such as m keep working.
-    feature "the page's keys drive the player", context do
-      %{session: session, account: account, entry: entry} = context
+    test "the page's keys drive the player", context do
+      %{conn: conn, account: account, entry: entry} = context
 
-      session
-      |> resize_window(1280, 900)
+      conn
+      |> resize(1280, 900)
       |> open(item_path(entry))
-      |> assert_has(css("#start-playback"))
-      |> gone(css("#player-control[data-entry-id]"))
-      |> send_keys(["p"])
-      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
-      |> assert_has(css(~s|#player-control[data-entry-id="#{entry.id}"]|))
-      |> execute_script(
+      |> assert_has("#start-playback")
+      |> refute_attached("#player-control[data-entry-id]")
+      |> keys(["p"])
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-face]|)
+      |> assert_attached(~s|#player-control[data-entry-id="#{entry.id}"]|)
+      |> script(
         """
         window.commands = []
         document.querySelector("#player-control [phx-hook='MediaPlayer']")
@@ -579,57 +525,48 @@ defmodule SikioWeb.PlayerTest do
         """,
         fn outside -> assert outside, "the started player leaves the keyboard to the page" end
       )
-      |> send_keys(["p", " ", :right_arrow])
-      |> then(fn session ->
-        assert {:ok, _} =
-                 retry(fn ->
-                   holds(session, "return window.commands.join() === 'toggle,skip'")
-                 end)
-
-        session
-      end)
-      |> send_keys(["m"])
-      |> assert_has(css("#mark-new", visible: false))
+      |> keys(["p", " ", "ArrowRight"])
+      |> eventually("return window.commands.join() === 'toggle,skip'")
+      |> keys(["m"])
+      |> assert_hidden("#mark-new")
 
       assert Library.entry(account, entry.id).playback.status == :heard
     end
 
     # A click into a video iframe moves keyboard focus into the frame, out of the page's handlers.
     # The page then focuses the panel. A `srcdoc` iframe stands in for the video.
-    feature "takes the keyboard back from a frame in the player", context do
-      %{session: session, entry: entry} = context
+    test "takes the keyboard back from a frame in the player", context do
+      %{conn: conn, entry: entry} = context
 
-      session
-      |> resize_window(1280, 900)
+      conn
+      |> resize(1280, 900)
       |> open(item_path(entry))
-      |> click(css("#start-playback"))
-      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
-      |> execute_script("""
+      |> click("#start-playback")
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-face]|)
+      |> script("""
       const frame = document.createElement('iframe')
       frame.id = 'stand-in'
       frame.srcdoc = '<button id="inside" style="width:100%;height:100%">inside</button>'
       frame.style.cssText = 'width: 300px; height: 120px'
       document.getElementById('player-panel').prepend(frame)
       """)
-      |> click(css("#stand-in"))
-      |> then(fn session ->
-        script = "return document.activeElement && document.activeElement.id === 'player-panel'"
-        assert {:ok, _} = retry(fn -> holds(session, script) end)
-        session
-      end)
+      |> click("#stand-in")
+      |> eventually(
+        "return document.activeElement && document.activeElement.id === 'player-panel'"
+      )
     end
 
     # The detail scrolls in its own column, and the pinned player moves with its slot.
-    feature "moves with the detail as it scrolls", context do
-      %{session: session, entry: entry} = context
+    test "moves with the detail as it scrolls", context do
+      %{conn: conn, entry: entry} = context
 
-      session
-      |> resize_window(1280, 320)
+      conn
+      |> resize(1280, 320)
       |> open(item_path(entry))
-      |> click(css("#start-playback"))
-      |> assert_has(css(~s|#player-panel[data-place="pinned"] [data-audio-face]|))
+      |> click("#start-playback")
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-face]|)
       # Waits three frames first, so no pending placement runs after the scroll.
-      |> execute_script(
+      |> script(
         """
         const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
         return frame().then(frame).then(frame).then(() => {
@@ -641,7 +578,7 @@ defmodule SikioWeb.PlayerTest do
         fn top -> assert top > 0, "the detail has something to scroll" end
       )
       # Measures two frames after the scroll, with no other change in between.
-      |> execute_script(
+      |> script(
         """
         const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
         return frame().then(frame).then(() => {
@@ -656,8 +593,8 @@ defmodule SikioWeb.PlayerTest do
 
     # The compact player's title opens the playing item in the current list, if it contains it.
     # Regression: the title linked to a URL without a list, which switched to all items.
-    feature "its title shows what plays without leaving the list", context do
-      %{session: session, account: account} = context
+    test "its title shows what plays without leaving the list", context do
+      %{conn: conn, account: account} = context
       {:ok, preview} = Parser.parse(podcast("Two Parts"), feed_url("two"))
 
       entries =
@@ -673,27 +610,24 @@ defmodule SikioWeb.PlayerTest do
       [first, second] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
 
       # Uses all items, because playing moves an item from the inbox to the queue.
-      session
-      |> resize_window(1280, 900)
+      conn
+      |> resize(1280, 900)
       |> open("/all")
-      |> click(css("#entries-#{first.id} a"))
-      |> click(css("#start-playback"))
-      |> assert_has(css(~s|#player-control[data-entry-id="#{first.id}"]|))
-      |> click(css("#entries-#{second.id} a"))
-      |> assert_has(css(~s|#player-panel[data-place="compact"] .player-title|))
-      |> click(css("#player-panel .player-title"))
-      |> assert_has(css("#item-detail h2", text: "Part 1"))
-      |> assert_has(css("#library-heading", text: "All items"))
-      |> then(fn session ->
-        assert current_path(session) == "/all/#{first.id}-part-1"
-        session
-      end)
+      |> click("#entries-#{first.id} a")
+      |> click("#start-playback")
+      |> assert_attached(~s|#player-control[data-entry-id="#{first.id}"]|)
+      |> click("#entries-#{second.id} a")
+      |> assert_has(~s|#player-panel[data-place="compact"] .player-title|)
+      |> click("#player-panel .player-title")
+      |> assert_has("#item-detail h2", text: "Part 1")
+      |> assert_has("#library-heading", text: "All items")
+      |> assert_path("/all/#{first.id}-part-1")
     end
 
     # Starting items in sequence hands the player on each time, and the last one still closes.
     # Each start waits for the previous player to save its position.
-    feature "starts one item after another and still closes", context do
-      %{session: session, account: account} = context
+    test "starts one item after another and still closes", context do
+      %{conn: conn, account: account} = context
       {:ok, preview} = Parser.parse(podcast(), feed_url("three"))
 
       entries =
@@ -708,40 +642,40 @@ defmodule SikioWeb.PlayerTest do
         |> Enum.filter(&String.starts_with?(&1.title, "Part"))
         |> Enum.map(& &1.id)
 
-      session = session |> resize_window(1280, 900) |> open("/all")
+      conn = conn |> resize(1280, 900) |> open("/all")
 
       # Navigates by clicks in the list, so the page and its player are not reloaded.
       for id <- ids do
-        session
-        |> click(css("#entries-#{id} a"))
-        |> assert_has(css(~s|#item-detail[data-entry-id="#{id}"]|))
-        |> click(css("#start-playback"))
-        |> assert_has(css(~s|#player-control[data-entry-id="#{id}"]|))
+        conn
+        |> click("#entries-#{id} a")
+        |> assert_has(~s|#item-detail[data-entry-id="#{id}"]|)
+        |> click("#start-playback")
+        |> assert_attached(~s|#player-control[data-entry-id="#{id}"]|)
       end
 
-      session
-      |> click(css("#entries-#{hd(ids)} a"))
-      |> assert_has(css(~s|#player-panel[data-place="compact"]|))
-      |> click(css("#close-player"))
-      |> gone(css("#player-panel"))
+      conn
+      |> click("#entries-#{hd(ids)} a")
+      |> assert_has(~s|#player-panel[data-place="compact"]|)
+      |> click("#close-player")
+      |> refute_has("#player-panel")
     end
 
     # Playback is global, selection is not. When they differ, the notes get the detail space.
     # The player floats at the bottom left at twice the sidebar width.
     # It covers the bottom of the sidebar and the list. The list has padding to scroll past it.
     # On a page without a detail the player stays, and its play button follows the audio state.
-    feature "floats at the bottom left when the detail shows something else", context do
-      %{session: session, account: account, entry: entry, video: video} = context
+    test "floats at the bottom left when the detail shows something else", context do
+      %{conn: conn, account: account, entry: entry, video: video} = context
 
-      session
-      |> resize_window(1280, 900)
+      conn
+      |> resize(1280, 900)
       |> open(item_path(entry))
-      |> click(css("#start-playback"))
-      |> assert_has(css("#player-panel [data-audio-face]"))
+      |> click("#start-playback")
+      |> assert_has("#player-panel [data-audio-face]")
       |> mark_player()
-      |> click(css("#play-#{video.id}"))
-      |> assert_has(css(~s|#player-panel[data-place="compact"] [data-audio-play]|))
-      |> execute_script(
+      |> click("#play-#{video.id}")
+      |> assert_has(~s|#player-panel[data-place="compact"] [data-audio-play]|)
+      |> script(
         """
         const panel = document.getElementById('player-panel').getBoundingClientRect()
         const sidebar = document.querySelector('header:has(#main-navigation)').getBoundingClientRect()
@@ -756,26 +690,20 @@ defmodule SikioWeb.PlayerTest do
           assert room, "the list keeps room to scroll out from under the player"
         end
       )
-      |> click(css("#add-button"))
-      |> assert_has(css(~s|#player-panel[data-place="compact"]|))
+      |> click("#add-button")
+      |> assert_has(~s|#player-panel[data-place="compact"]|)
       |> assert_same_player()
       # No audio is served, so the test dispatches the `play` event.
-      |> assert_has(css("#player-panel [data-audio-play] .audio-icon-play"))
-      |> execute_script(
-        "document.querySelector('#player-panel audio').dispatchEvent(new Event('play'))"
-      )
-      |> assert_has(css("#player-panel [data-audio-play] .audio-icon-pause"))
-      |> assert_has(css("#player-panel [data-audio-play] .audio-icon-play", visible: false))
+      |> assert_has("#player-panel [data-audio-play] .audio-icon-play")
+      |> script("document.querySelector('#player-panel audio').dispatchEvent(new Event('play'))")
+      |> assert_has("#player-panel [data-audio-play] .audio-icon-pause")
+      |> assert_hidden("#player-panel [data-audio-play] .audio-icon-play")
       |> saved_at(account, entry, 30)
       # Saving a position patches the panel. The button must keep showing pause.
-      |> then(fn session ->
-        script =
-          "return document.querySelector('#player-panel .player-status').textContent.includes('0:30')"
-
-        assert {:ok, _} = retry(fn -> holds(session, script) end)
-        session
-      end)
-      |> assert_has(css("#player-panel [data-audio-play] .audio-icon-pause"))
+      |> eventually(
+        "return document.querySelector('#player-panel .player-status').textContent.includes('0:30')"
+      )
+      |> assert_has("#player-panel [data-audio-play] .audio-icon-pause")
     end
   end
 
@@ -783,9 +711,9 @@ defmodule SikioWeb.PlayerTest do
   # The panel sits on the bottom bar and grows upward when its message line fills.
   # The unserved audio fills it here, so a coordinate click can hit the seek bar instead.
   # These tests check the button's effect, not its position.
-  defp press(session, id), do: execute_script(session, "document.getElementById('#{id}').click()")
+  defp press(conn, id), do: script(conn, "document.getElementById('#{id}').click()")
 
-  defp saved_at(session, account, entry, position) do
+  defp saved_at(conn, account, entry, position) do
     %{session_id: player} = Library.entry(account, entry.id).playback
 
     {:ok, _} =
@@ -796,13 +724,7 @@ defmodule SikioWeb.PlayerTest do
         "ended" => false
       })
 
-    session
-  end
-
-  # For `retry/1`: succeeds when the script returns true. Rendering may lag the DOM by a frame.
-  defp holds(session, script) do
-    execute_script(session, script, fn value -> Process.put(:holds, value) end)
-    if Process.delete(:holds) == true, do: {:ok, session}, else: {:error, :not_yet}
+    conn
   end
 
   defp below(lower, upper) do
@@ -832,12 +754,12 @@ defmodule SikioWeb.PlayerTest do
   # An element rebuilt from the same template carries the attribute again.
   # A property exists only on the DOM node and is lost when the node is replaced.
   # So it distinguishes the same element from an identical-looking one.
-  defp mark_player(session),
-    do: execute_script(session, "document.querySelector('#player-panel audio').sikioKept = true")
+  defp mark_player(conn),
+    do: script(conn, "document.querySelector('#player-panel audio').sikioKept = true")
 
-  defp assert_same_player(session) do
-    execute_script(
-      session,
+  defp assert_same_player(conn) do
+    script(
+      conn,
       "return document.querySelector('#player-panel audio').sikioKept === true",
       fn kept -> assert kept, "the audio element was replaced" end
     )
@@ -847,8 +769,8 @@ defmodule SikioWeb.PlayerTest do
   # The browser sees an abnormal close and reconnects by itself.
   # A close initiated in the browser is normal, and LiveView reloads the page instead.
   # The MutationObserver sets `data-rejoined` after the dock disconnects and reconnects.
-  defp drop_socket(session, account) do
-    execute_script(session, """
+  defp drop_socket(conn, account) do
+    script(conn, """
     const dock = document.querySelector('#player-dock > [data-phx-session]')
     let dropped = false
     new MutationObserver(() => {
@@ -858,7 +780,7 @@ defmodule SikioWeb.PlayerTest do
     """)
 
     Process.exit(dock_socket(account).transport_pid, :kill)
-    session
+    conn
   end
 
   defp dock_socket(account) do
@@ -872,15 +794,6 @@ defmodule SikioWeb.PlayerTest do
         _ -> nil
       end
     end)
-  end
-
-  defp settled(session) do
-    result = execute_script(session, padding(), fn value -> Process.put(:padding, value) end)
-
-    case Process.delete(:padding) do
-      "0px" -> {:ok, result}
-      other -> {:error, {:still_padded, other}}
-    end
   end
 
   defp padding,

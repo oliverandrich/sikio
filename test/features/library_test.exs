@@ -7,7 +7,7 @@ defmodule SikioWeb.LibraryTest do
   `Phoenix.LiveViewTest` can send the viewport event.
   It cannot show whether the browser sends it when the list end enters the viewport.
   """
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   import Ecto.Query
 
@@ -19,8 +19,8 @@ defmodule SikioWeb.LibraryTest do
   # Waits for two animation frames, after which a patch or a scroll has been laid out.
   @frames "const frame = () => new Promise(resolve => requestAnimationFrame(resolve))"
 
-  setup %{session: session} do
-    account = signed_in(session, "ada")
+  setup %{conn: conn} do
+    account = signed_in(conn, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
 
     entries =
@@ -34,8 +34,8 @@ defmodule SikioWeb.LibraryTest do
   end
 
   # Queue rows move by their handles: by pointer drag, or one position per arrow key.
-  feature "the queue is put in order by dragging and by keys", %{
-    session: session,
+  test "the queue is put in order by dragging and by keys", %{
+    conn: conn,
     account: account
   } do
     ids =
@@ -50,12 +50,12 @@ defmodule SikioWeb.LibraryTest do
     order =
       "return [...document.querySelectorAll('#entries article')].map(row => row.querySelector('[data-move]').dataset.move)"
 
-    session
-    |> resize_window(1280, 900)
+    conn
+    |> resize(1280, 900)
     |> open("/queue")
-    |> assert_has(css("#entries article", count: 3))
+    |> assert_has("#entries article", count: 3)
     # Drags Episode 3 above the first row.
-    |> execute_script("""
+    |> script("""
     const handle = document.getElementById('move-#{three}')
     const top = document.getElementById('move-#{one}').getBoundingClientRect().top
     const at = (type, y) => handle.dispatchEvent(new PointerEvent(type, {bubbles: true, clientY: y, pointerId: 1, button: 0}))
@@ -64,143 +64,126 @@ defmodule SikioWeb.LibraryTest do
     at('pointerdown', start); at('pointermove', top + 5)
     """)
     # While the pointer is held, the first row already has a transform to make room.
-    |> execute_script(
+    |> script(
       "return getComputedStyle(document.getElementById('move-#{one}').closest('article')).transform",
       fn transform -> assert transform =~ "matrix", "the first row stays put while held over" end
     )
-    |> execute_script("""
+    |> script("""
     const handle = document.getElementById('move-#{three}')
     handle.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientY: window.sikioTop, pointerId: 1, button: 0}))
     """)
-    |> then(fn session ->
-      wanted = Enum.map([three, one, two], &to_string/1)
-      assert {:ok, _} = retry(fn -> in_order(session, order, wanted) end)
-      session
-    end)
+    |> eventually(order, equals: Enum.map([three, one, two], &to_string/1))
     # Moves Episode 3 down one position with the arrow key on its handle.
-    |> execute_script("document.getElementById('move-#{three}').focus()")
-    |> send_keys([:down_arrow])
-    |> then(fn session ->
-      wanted = Enum.map([one, three, two], &to_string/1)
-      assert {:ok, _} = retry(fn -> in_order(session, order, wanted) end)
-      session
-    end)
-  end
-
-  defp in_order(session, script, wanted) do
-    execute_script(session, script, fn got -> Process.put(:order, got) end)
-    if Process.delete(:order) == wanted, do: {:ok, session}, else: {:error, :not_yet}
+    |> script("document.getElementById('move-#{three}').focus()")
+    |> keys(["ArrowDown"])
+    |> eventually(order, equals: Enum.map([one, three, two], &to_string/1))
   end
 
   # ? opens the shortcut overview and Escape closes it. The account menu also opens it.
   # f opens the search, focused and empty. The magnifier button also opens it.
   # Escape clears and closes the search and moves focus to the magnifier.
-  feature "? shows every key, and f or the magnifier opens the search", %{session: session} do
-    session
-    |> resize_window(1440, 900)
+  test "? shows every key, and f or the magnifier opens the search", %{conn: conn} do
+    conn
+    |> resize(1440, 900)
     |> open("/all")
-    |> assert_has(css("#entries article", count: 25))
-    |> gone(css("#shortcuts[open]"))
-    # chromedriver sends ? as Shift plus underscore. A keyboard sends the character in any layout.
-    # The page reads that character, so the test dispatches the event directly.
-    |> execute_script(
-      "document.body.dispatchEvent(new KeyboardEvent('keydown', {key: '?', shiftKey: true, bubbles: true}))"
-    )
-    |> assert_has(css("#shortcuts[open]", text: "Play or pause"))
-    |> assert_has(css("#shortcuts", text: "Previous or next chapter"))
-    |> assert_has(css("#entries article:nth-of-type(1) a[aria-current]"))
+    |> assert_has("#entries article", count: 25)
+    |> refute_has("#shortcuts[open]")
+    |> keys(["?"])
+    |> assert_has("#shortcuts[open]", text: "Play or pause")
+    |> assert_has("#shortcuts", text: "Previous or next chapter")
+    |> assert_has("#entries article:nth-of-type(1) a[aria-current]")
     # Keys typed into the open overview do not reach the page.
     # A `j` dispatched on the body moves the selection by one, and the overview stays open.
-    |> send_keys(["j"])
-    |> execute_script(
+    |> keys(["j"])
+    |> script(
       "document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'j', bubbles: true}))"
     )
-    |> assert_has(css("#entries article:nth-of-type(2) a[aria-current]"))
-    |> assert_has(css("#shortcuts[open]"))
-    |> send_keys([:escape])
-    |> gone(css("#shortcuts[open]"))
-    |> gone(css("#search-input"))
-    |> send_keys(["f"])
-    |> assert_has(css("#search-input"))
-    |> execute_script("return [document.activeElement.id, document.activeElement.value]", fn
+    |> assert_has("#entries article:nth-of-type(2) a[aria-current]")
+    |> assert_has("#shortcuts[open]")
+    |> keys(["Escape"])
+    |> refute_has("#shortcuts[open]")
+    |> refute_has("#search-input")
+    |> keys(["f"])
+    |> assert_has("#search-input")
+    |> script("return [document.activeElement.id, document.activeElement.value]", fn
       [id, value] ->
         assert id == "search-input"
         assert value == ""
     end)
-    |> fill_in(css("#search-input"), with: "Episode 17")
-    |> assert_has(css("#entries article", count: 1))
-    |> send_keys([:escape])
-    |> assert_has(css("#entries article", count: 25))
-    |> gone(css("#search-input"))
-    |> execute_script("return document.activeElement.id", fn id ->
+    |> fill("#search-input", "Episode 17")
+    |> assert_has("#entries article", count: 1)
+    |> keys(["Escape"])
+    |> assert_has("#entries article", count: 25)
+    |> refute_has("#search-input")
+    |> script("return document.activeElement.id", fn id ->
       assert id == "toggle-search"
     end)
-    |> click(css("#toggle-search"))
-    |> assert_has(css("#search-input"))
-    |> execute_script("return document.activeElement.id", fn id -> assert id == "search-input" end)
-    |> click(css("#user-menu summary"))
-    |> click(css("#show-shortcuts"))
-    |> assert_has(css("#shortcuts[open]"))
+    |> click("#toggle-search")
+    |> assert_has("#search-input")
+    |> script("return document.activeElement.id", fn id -> assert id == "search-input" end)
+    |> click("#user-menu summary")
+    |> click("#show-shortcuts")
+    |> assert_has("#shortcuts[open]")
   end
 
   # The mark-all dialog takes focus when it opens, and Escape closes it.
   # It offers to keep the player's item only while the player has one.
   # Unticking that option lowers the count by one and leaves the item unarchived.
   # The others are archived: still listed under all items, not counted under heard.
-  feature "the double check marks a list after asking, and may leave the item in the player", %{
-    session: session
+  test "the double check marks a list after asking, and may leave the item in the player", %{
+    conn: conn
   } do
     # Uses all items, because the playing item moves to the queue and leaves the inbox.
-    session
-    |> resize_window(1440, 900)
+    conn
+    |> resize(1440, 900)
     |> open("/all")
-    |> click(css("#mark-all"))
-    |> assert_has(css("dialog#mark-all-confirm[open]", text: "40 items in this list"))
+    |> click("#mark-all")
+    |> assert_has("dialog#mark-all-confirm[open]", text: "40 items in this list")
     # The dialog element takes focus, so no button shows a focus ring before tabbing.
-    |> execute_script("return document.activeElement.id", fn id ->
+    |> script("return document.activeElement.id", fn id ->
       assert id == "mark-all-confirm"
     end)
-    |> gone(css("#mark-all-playing"))
-    |> send_keys([:escape])
-    |> gone(css("#mark-all-confirm"))
-    |> click(css("#start-playback"))
-    |> assert_has(css("#player-control[data-entry-id]"))
-    |> click(css("#mark-all"))
-    |> assert_has(css("#mark-all-playing input[name=playing][type=checkbox]:checked"))
-    |> click(css("#mark-all-playing input[name=playing][type=checkbox]"))
-    |> assert_has(css("dialog#mark-all-confirm[open]", text: "39 items in this list"))
-    |> click(css("#confirm-mark-all"))
-    |> assert_has(css("#view-queue-count", text: "1"))
-    |> assert_has(css("#entries article:not([data-status=archived])", count: 1))
-    |> assert_has(css("#library-count", text: "40 items"))
-    |> gone(css("#view-heard-count"))
+    |> refute_has("#mark-all-playing")
+    |> keys(["Escape"])
+    |> refute_has("#mark-all-confirm")
+    |> click("#start-playback")
+    |> assert_attached("#player-control[data-entry-id]")
+    |> click("#mark-all")
+    |> assert_has("#mark-all-playing input[name=playing][type=checkbox]:checked")
+    |> click("#mark-all-playing input[name=playing][type=checkbox]")
+    |> assert_has("dialog#mark-all-confirm[open]", text: "39 items in this list")
+    |> click("#confirm-mark-all")
+    |> assert_has("#view-queue-count", text: "1")
+    |> assert_has("#entries article:not([data-status=archived])", count: 1)
+    |> assert_has("#library-count", text: "40 items")
+    |> refute_has("#view-heard-count")
   end
 
   # Escape closes a subscription's dialog and returns focus to the element that opened it.
-  feature "the subscriptions page gives the focus back after its dialog", %{
-    session: session,
+  test "the subscriptions page gives the focus back after its dialog", %{
+    conn: conn,
     account: account
   } do
     [subscription] = Library.subscriptions(account)
 
-    session
-    |> resize_window(1440, 900)
+    conn
+    |> resize(1440, 900)
     |> open("/subscriptions")
-    |> click(css("#edit-subscription-#{subscription.id}"))
-    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
-    |> send_keys([:escape])
-    |> gone(css("#edit-subscription-confirm"))
-    |> execute_script("return document.activeElement.id", fn id ->
+    |> click("#edit-subscription-#{subscription.id}")
+    |> assert_has("dialog#edit-subscription-confirm[open]")
+    |> keys(["Escape"])
+    |> refute_has("#edit-subscription-confirm")
+    |> script("return document.activeElement.id", fn id ->
       assert id == "edit-subscription-#{subscription.id}"
     end)
   end
 
   # A click on an external link without `target` sets `target="_blank"`.
   # So an installed app never loads a foreign page in its own window.
-  feature "a link away without a target gets target=_blank on click", %{session: session} do
-    session
+  test "a link away without a target gets target=_blank on click", %{conn: conn} do
+    conn
     |> open("/inbox")
-    |> execute_script("""
+    |> script("""
     const link = document.createElement('a')
     link.id = 'away'
     link.href = 'https://example.org/elsewhere'
@@ -208,39 +191,39 @@ defmodule SikioWeb.LibraryTest do
     document.body.append(link)
     link.addEventListener('click', event => { window.awayTarget = link.target; event.preventDefault() })
     """)
-    |> click(css("#away"))
-    |> execute_script("return window.awayTarget", fn target -> assert target == "_blank" end)
+    |> click("#away")
+    |> script("return window.awayTarget", fn target -> assert target == "_blank" end)
   end
 
   # A source gets a tag in its own dialog, which stays open while typing.
   # The tag then appears in the sidebar as its own list.
   # Unsubscribing uses the same dialog, after a confirmation that names the source.
-  feature "a source is tagged and left from its own list", %{session: session} do
-    session
-    |> resize_window(1440, 900)
+  test "a source is tagged and left from its own list", %{conn: conn} do
+    conn
+    |> resize(1440, 900)
     |> open("/inbox")
-    |> gone(css("#tags-heading"))
-    |> click(css("#sidebar a", text: "Small Hours"))
-    |> click(css("#edit-subscription"))
-    |> assert_has(css("dialog#edit-subscription-confirm[open]", text: "Small Hours"))
-    |> fill_in(css("#subscription-form input[name=new]"), with: "Must view")
-    |> assert_has(css("dialog#edit-subscription-confirm[open]"))
-    |> click(css("#confirm-edit-subscription"))
-    |> gone(css("#edit-subscription-confirm"))
-    |> click(css("#sidebar a", text: "Must view"))
-    |> assert_has(css("#library-heading", text: "Must view"))
-    |> assert_has(css("#entries article", count: 25))
-    |> click(css("#sidebar a", text: "Small Hours"))
-    |> click(css("#edit-subscription"))
-    |> click(css("#unsubscribe"))
-    |> assert_has(css("dialog#unsubscribe-confirm[open]", text: "Unsubscribe from Small Hours?"))
-    |> send_keys([:escape])
-    |> gone(css("#unsubscribe-confirm"))
-    |> click(css("#edit-subscription"))
-    |> click(css("#unsubscribe"))
-    |> click(css("#confirm-unsubscribe"))
-    |> gone(css("#sidebar a", text: "Small Hours"))
-    |> assert_has(css("#library-heading", text: "Queue"))
+    |> refute_has("#tags-heading")
+    |> click("#sidebar a", "Small Hours")
+    |> click("#edit-subscription")
+    |> assert_has("dialog#edit-subscription-confirm[open]", text: "Small Hours")
+    |> fill("#subscription-form input[name=new]", "Must view")
+    |> assert_has("dialog#edit-subscription-confirm[open]")
+    |> click("#confirm-edit-subscription")
+    |> refute_has("#edit-subscription-confirm")
+    |> click("#sidebar a", "Must view")
+    |> assert_has("#library-heading", text: "Must view")
+    |> assert_has("#entries article", count: 25)
+    |> click("#sidebar a", "Small Hours")
+    |> click("#edit-subscription")
+    |> click("#unsubscribe")
+    |> assert_has("dialog#unsubscribe-confirm[open]", text: "Unsubscribe from Small Hours?")
+    |> keys(["Escape"])
+    |> refute_has("#unsubscribe-confirm")
+    |> click("#edit-subscription")
+    |> click("#unsubscribe")
+    |> click("#confirm-unsubscribe")
+    |> refute_has("#sidebar a", text: "Small Hours")
+    |> assert_has("#library-heading", text: "Queue")
   end
 
   # From lg the window does not scroll. The list and the detail scroll in separate columns.
@@ -248,20 +231,24 @@ defmodule SikioWeb.LibraryTest do
   # Both columns have `tabIndex` 0 for keyboard scrolling.
   # Chrome focuses scroll containers without it, Safari does not.
   # Selecting another item resets the detail to its top.
-  feature "the list and the detail scroll on their own", %{session: session} do
-    session
-    |> resize_window(1440, 400)
+  # Long notes make every detail overflow its column, whatever the fonts and spacing.
+  test "the list and the detail scroll on their own", %{conn: conn} do
+    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 40)
+    Sikio.Repo.update_all(Sikio.Feeds.Entry, set: [description: notes, description_format: :html])
+
+    conn
+    |> resize(1440, 400)
     |> open("/all")
-    |> assert_has(css("#item-detail h2", text: "Episode 40"))
-    |> execute_script(
+    |> assert_has("#item-detail h2", text: "Episode 40")
+    |> script(
       "return ['list-pane', 'item-detail'].map(id => document.getElementById(id).tabIndex)",
       fn indexes -> assert indexes == [0, 0] end
     )
-    |> execute_script("""
+    |> script("""
     window.sikioDetailTop = document.querySelector('#item-detail article').getBoundingClientRect().top
     document.getElementById('list-pane').scrollTop = 1200
     """)
-    |> execute_script(
+    |> script(
       """
       const top = id => Math.round(document.getElementById(id).getBoundingClientRect().top)
       return [document.getElementById('list-pane').scrollTop, window.scrollY, top('list-head'),
@@ -278,7 +265,7 @@ defmodule SikioWeb.LibraryTest do
     )
     # Resets the list scroll, so the clicked row is not under the list head.
     # The detail stays scrolled, so the reset for the next item is observable.
-    |> execute_script(
+    |> script(
       """
       document.getElementById('list-pane').scrollTop = 0
       const detail = document.getElementById('item-detail')
@@ -287,15 +274,15 @@ defmodule SikioWeb.LibraryTest do
       """,
       fn top -> assert top > 0 end
     )
-    |> click(css("#entries article:nth-of-type(2) a"))
-    |> assert_has(css("#item-detail h2", text: "Episode 39"))
-    |> execute_script("return document.getElementById('item-detail').scrollTop", fn top ->
+    |> click("#entries article:nth-of-type(2) a")
+    |> assert_has("#item-detail h2", text: "Episode 39")
+    |> script("return document.getElementById('item-detail').scrollTop", fn top ->
       assert top == 0
     end)
     # Runs last, because keyboard scrolling is smooth and keeps moving the column afterwards.
-    |> execute_script("document.getElementById('item-detail').focus()")
-    |> send_keys([" "])
-    |> execute_script(
+    |> script("document.getElementById('item-detail').focus()")
+    |> keys([" "])
+    |> script(
       # Keys scroll smoothly, so the script waits up to a second for the column to move.
       """
       const detail = document.getElementById('item-detail'), until = performance.now() + 1000
@@ -306,7 +293,7 @@ defmodule SikioWeb.LibraryTest do
       """,
       fn top -> assert top > 0 end
     )
-    |> execute_script(
+    |> script(
       "return [window.scrollY, Math.round(document.getElementById('list-head').getBoundingClientRect().top)]",
       fn [window, head] ->
         assert window == 0
@@ -317,23 +304,29 @@ defmodule SikioWeb.LibraryTest do
 
   # The selected row stays visible below the list head.
   # Checked after moving with j and after opening a row's URL far down the list.
-  feature "the chosen row stays in view", %{session: session} do
-    session
-    |> resize_window(1440, 500)
+  test "the chosen row stays in view", %{conn: conn} do
+    conn
+    |> resize(1440, 500)
     |> open("/all")
-    |> assert_has(css("#item-detail h2", text: "Episode 40"))
-    |> send_keys(List.duplicate("j", 6))
-    |> assert_has(css("#item-detail h2", text: "Episode 34"))
-    |> execute_script(in_view("#entries article:nth-of-type(7)"), fn [below_head, above_end] ->
+    |> assert_has("#item-detail h2", text: "Episode 40")
+    |> keys(List.duplicate("j", 6))
+    |> assert_has("#item-detail h2", text: "Episode 34")
+    |> script(in_view("#entries article:nth-of-type(7)"), fn [below_head, above_end] ->
       assert below_head >= 0, "the row is not under the list's head"
       assert above_end >= 0, "the row is not cut off at the window's end"
     end)
-    |> then(fn session ->
-      href = session |> find(css("#entries article:nth-of-type(20) a")) |> Element.attr("href")
-      open(session, href)
+    |> then(fn conn ->
+      href =
+        conn
+        |> assert_has("#entries article:nth-of-type(20) a")
+        |> value_of(
+          "return document.querySelector('#entries article:nth-of-type(20) a').getAttribute('href')"
+        )
+
+      open(conn, href)
     end)
-    |> assert_has(css("#item-detail h2", text: "Episode 21"))
-    |> execute_script(
+    |> assert_has("#item-detail h2", text: "Episode 21")
+    |> script(
       # The list scrolls to the row after layout, one or two frames after the page loads.
       """
       #{@frames}
@@ -362,49 +355,53 @@ defmodule SikioWeb.LibraryTest do
 
   # A wide screen has room for the detail beside the list, so it shows the first item.
   # A phone shows only the list, because a selected item would cover it.
-  feature "a wide screen shows the first item, a phone the list", %{session: session} do
-    session
-    |> resize_window(1440, 900)
+  test "a wide screen shows the first item, a phone the list", %{conn: conn} do
+    conn
+    |> resize(1440, 900)
     |> open("/all")
-    |> assert_has(css("#item-detail h2", text: "Episode 40"))
-    |> resize_window(500, 900)
+    |> assert_has("#item-detail h2", text: "Episode 40")
+    |> resize(500, 900)
     |> open("/all")
     # An absence check before the socket connects proves nothing.
     # The hook pushes its event only after connecting.
     # Events are handled in order, so once the search opens, the hook's mount event is handled.
-    |> assert_has(css("[data-phx-main].phx-connected"))
-    |> assert_has(css("#entries article", count: 25))
-    |> send_keys(["f"])
-    |> assert_has(css("#search-input"))
-    |> gone(css("#item-detail h2"))
+    |> assert_has("[data-phx-main].phx-connected")
+    |> assert_has("#entries article", count: 25)
+    |> keys(["f"])
+    |> assert_has("#search-input")
+    |> refute_has("#item-detail h2")
   end
 
-  feature "the list loads the next batch when its end comes into view", %{session: session} do
-    session
-    |> resize_window(1440, 900)
+  test "the list loads the next batch when its end comes into view", %{conn: conn} do
+    conn
+    |> resize(1440, 900)
     |> open("/all")
-    |> assert_has(css("#entries article", count: 25))
-    |> execute_script("document.querySelector('#entries article:last-child').scrollIntoView()")
-    |> assert_has(css("#entries article", count: 40))
+    |> assert_has("#entries article", count: 25)
+    |> script("document.querySelector('#entries article:last-child').scrollIntoView()")
+    |> assert_has("#entries article", count: 40)
   end
 
   # An item opened deep in the list loads with a window around it. Scrolling to the window's
   # top loads the batch above, and the row that was first stays where the reader sees it.
-  feature "the list loads the batch above when its top comes into view", context do
+  test "the list loads the batch above when its top comes into view", context do
     # At this height the fourteen rows above push the first row out of view.
-    context.session
-    |> resize_window(1440, 500)
-    |> open(item_path(episode(context.account, "Episode 1")))
-    |> assert_has(css("#item-detail h2", text: "Episode 1"))
-    |> assert_has(css("#entries article", count: 26))
-    |> execute_script(@first_row, fn first -> Process.put(:first, first) end)
-    |> execute_script("document.getElementById('list-pane').scrollTop = 0")
-    |> assert_has(css("#entries article", count: 40))
-    |> execute_script("return document.getElementById('list-pane').scrollTop", fn scrolled ->
+    conn =
+      context.conn
+      |> resize(1440, 500)
+      |> open(item_path(episode(context.account, "Episode 1")))
+      |> assert_has("#item-detail h2", text: "Episode 1")
+      |> assert_has("#entries article", count: 26)
+
+    first = value_of(conn, @first_row)
+
+    conn
+    |> script("document.getElementById('list-pane').scrollTop = 0")
+    |> assert_has("#entries article", count: 40)
+    |> script("return document.getElementById('list-pane').scrollTop", fn scrolled ->
       assert scrolled > 0, "the list jumped to its new top"
     end)
-    |> execute_script(
-      "#{@frames}\nreturn frame().then(frame).then(() => { #{in_view("#" <> Process.get(:first))} })",
+    |> script(
+      "#{@frames}\nreturn frame().then(frame).then(() => { #{in_view("#" <> first)} })",
       fn [below_head, above_end] ->
         assert below_head >= -1, "the row that was first is hidden under the list's head"
         assert above_end >= 0, "the row that was first is cut off at the window's end"
@@ -413,27 +410,31 @@ defmodule SikioWeb.LibraryTest do
   end
 
   # On a phone the page scrolls instead of the list pane, and the back link keeps the window.
-  feature "a phone's list loads the batch above when its top comes into view", context do
-    context.session
-    |> resize_window(390, 844)
-    |> open(item_path(episode(context.account, "Episode 1")))
-    |> assert_has(css("#item-detail h2", text: "Episode 1"))
-    |> click(css("#nav-back"))
-    |> assert_has(css("#entries article", count: 26))
-    |> execute_script(@first_row, fn first -> Process.put(:first, first) end)
+  test "a phone's list loads the batch above when its top comes into view", context do
+    conn =
+      context.conn
+      |> resize(390, 844)
+      |> open(item_path(episode(context.account, "Episode 1")))
+      |> assert_has("#item-detail h2", text: "Episode 1")
+      |> click("#nav-back")
+      |> assert_has("#entries article", count: 26)
+
+    first = value_of(conn, @first_row)
+
+    conn
     # A scroll event fires only on a change, so the page leaves its top before it returns.
     # Both scrolls in one frame would cancel out, so the second waits for two frames.
-    |> execute_script("""
+    |> script("""
     #{@frames}
     window.scrollTo(0, document.body.scrollHeight)
     return frame().then(frame).then(() => window.scrollTo(0, 0))
     """)
-    |> assert_has(css("#entries article", count: 40))
-    |> execute_script(
+    |> assert_has("#entries article", count: 40)
+    |> script(
       """
       #{@frames}
       return frame().then(frame).then(() => {
-        const row = document.getElementById('#{Process.get(:first)}').getBoundingClientRect()
+        const row = document.getElementById('#{first}').getBoundingClientRect()
         return [window.scrollY, Math.round(row.top), Math.round(window.innerHeight - row.top)]
       })
       """,
@@ -446,7 +447,7 @@ defmodule SikioWeb.LibraryTest do
   end
 
   # The history's calendar opens from the head on a phone and fits its width.
-  feature "a phone's history filters by a day from the calendar", context do
+  test "a phone's history filters by a day from the calendar", context do
     Sikio.Playback.mark(context.account, episode(context.account, "Episode 1").id, :heard)
 
     layout = """
@@ -457,30 +458,30 @@ defmodule SikioWeb.LibraryTest do
       getComputedStyle(day).backgroundColor]
     """
 
-    context.session
-    |> resize_window(390, 844)
+    context.conn
+    |> resize(390, 844)
     |> open("/history")
-    |> execute_script(
+    |> script(
       "return getComputedStyle(document.getElementById('history-calendar')).display",
       &assert(&1 == "none")
     )
-    |> click(css("#toggle-calendar"))
-    |> assert_has(css("#history-calendar a[id^=calendar-day-]", count: 1))
-    |> execute_script(layout, fn [display, scroll_width, width, size, background] ->
+    |> click("#toggle-calendar")
+    |> assert_has("#history-calendar a[id^=calendar-day-]", count: 1)
+    |> script(layout, fn [display, scroll_width, width, size, background] ->
       assert display == "block"
       assert scroll_width <= width, "the calendar widens the page"
       assert size == 36
       assert background == "rgba(0, 0, 0, 0)"
     end)
-    |> click(css("#history-calendar a[id^=calendar-day-]"))
-    |> assert_has(css("#calendar-clear"))
-    |> assert_has(css("#entries article", count: 1))
-    |> execute_script(layout, fn [display, _, _, _, background] ->
+    |> click("#history-calendar a[id^=calendar-day-]")
+    |> assert_has("#calendar-clear")
+    |> assert_has("#entries article", count: 1)
+    |> script(layout, fn [display, _, _, _, background] ->
       assert display == "block"
       refute background == "rgba(0, 0, 0, 0)", "the selected day is not highlighted"
     end)
-    |> click(css("#calendar-clear"))
-    |> gone(css("#calendar-clear"))
-    |> assert_has(css("#entries article", count: 1))
+    |> click("#calendar-clear")
+    |> refute_has("#calendar-clear")
+    |> assert_has("#entries article", count: 1)
   end
 end

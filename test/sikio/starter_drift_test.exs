@@ -20,6 +20,7 @@ defmodule Sikio.StarterDriftTest do
   @app "sikio"
 
   # Files kept identical to the starter. Other generated files are application-owned.
+  # The browser tests use Playwright, the starter's templates still use Wallaby.
   # The account schema and the invitations context carry administrator rules, so they are
   # application-owned.
   # The second test fails when an unlisted file matches its template.
@@ -34,8 +35,7 @@ defmodule Sikio.StarterDriftTest do
     "priv/gettext/de/LC_MESSAGES/errors.po.tpl",
     "priv/repo/migrations/20260913120000_create_users.exs.tpl",
     "priv/repo/migrations/20260913120100_add_ithibati.exs.tpl",
-    "priv/repo/migrations/20260918000000_add_challenges.exs.tpl",
-    "test/support/browser_driver.ex.tpl"
+    "priv/repo/migrations/20260918000000_add_challenges.exs.tpl"
   ]
 
   setup_all do

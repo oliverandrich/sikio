@@ -2,11 +2,16 @@
 
 import Config
 
-config :wallaby,
+config :phoenix_test,
   otp_app: :sikio,
-  driver: Wallaby.Chrome,
-  js_logger: nil,
-  screenshot_on_failure: true
+  endpoint: SikioWeb.Endpoint,
+  playwright: [
+    # Wallaby waited up to three seconds, and the features were written against that.
+    timeout: 3_000,
+    # A rerun with PW_SCREENSHOT or PW_TRACE set to true keeps a screenshot or a trace per feature.
+    screenshot: System.get_env("PW_SCREENSHOT", "false") in ~w(t true),
+    trace: System.get_env("PW_TRACE", "false") in ~w(t true)
+  ]
 
 config :sikio, sql_sandbox: true
 

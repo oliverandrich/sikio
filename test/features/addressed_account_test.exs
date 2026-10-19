@@ -9,7 +9,7 @@ defmodule SikioWeb.AddressedAccountTest do
   The form field is `type="email"`, so the browser validates it before submitting.
   Markup assertions cannot show that validation.
   """
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   alias Sikio.TestConfig
 
@@ -18,16 +18,16 @@ defmodule SikioWeb.AddressedAccountTest do
     :ok
   end
 
-  feature "an account is claimed under an address", %{session: session} do
-    virtual_authenticator(session)
+  test "an account is claimed under an address", %{conn: conn} do
+    virtual_authenticator(conn)
 
-    session
+    conn
     |> open("/")
     |> code_entered()
-    |> assert_has(css("input[name=username][type=email]"))
-    |> fill_in(css("input[name=username]"), with: "ada@example.org")
-    |> click(button("Create your passkey"))
-    |> landed_on("/recovery-codes")
+    |> assert_has("input[name=username][type=email]")
+    |> fill_in("Email address", with: "ada@example.org")
+    |> click_button("Create your passkey")
+    |> assert_path("/recovery-codes")
 
     assert Repo.get_by!(User, username: "ada@example.org")
   end
@@ -37,23 +37,23 @@ defmodule SikioWeb.AddressedAccountTest do
   # The missing alert shows this. A submitted form gets `invalid_username`, rendered as an alert.
   # Asserting only that no account exists passes either way.
   # Measured with a field of type `text`: this assertion fails, the account count does not.
-  feature "a name never leaves the browser", %{session: session} do
-    virtual_authenticator(session)
+  test "a name never leaves the browser", %{conn: conn} do
+    virtual_authenticator(conn)
 
-    session
+    conn
     |> open("/")
     |> code_entered()
-    |> fill_in(css("input[name=username]"), with: "ada")
-    |> click(button("Create your passkey"))
+    |> fill_in("Email address", with: "ada")
+    |> click_button("Create your passkey")
     # Constraint validation blocks submitting an invalid form, so no server response follows.
-    |> execute_script(
+    |> script(
       """
       const form = document.getElementById('claim-form')
       return [form.checkValidity(), form.noValidate, form.querySelector('button').formNoValidate]
       """,
       fn checks -> assert checks == [false, false, false] end
     )
-    |> gone(css("[role=alert]"))
+    |> refute_has("[role=alert]")
 
     assert Repo.aggregate(User, :count) == 0
   end

@@ -7,17 +7,15 @@ defmodule SikioWeb.SignedInTest do
   The passkey ceremony takes about as long as the rest of a typical test.
   Sign-in tests run the ceremony. All other features start with `signed_in/2`.
   """
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
-  feature "a session cookie signs the browser in, for its page and its socket", %{
-    session: session
-  } do
-    account = signed_in(session, "ada")
+  test "a session cookie signs the browser in, for its page and its socket", %{conn: conn} do
+    account = signed_in(conn, "ada")
 
-    session
+    conn
     |> open("/inbox")
-    |> assert_has(css("#library-heading", text: "Inbox"))
-    |> assert_has(css("#user-menu summary"))
+    |> assert_has("#library-heading", text: "Inbox")
+    |> assert_has("#user-menu summary")
 
     assert account.username == "ada"
   end

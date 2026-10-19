@@ -4,7 +4,7 @@ defmodule SikioWeb.PicturesFeatureTest do
   @moduledoc """
   Source images requested by the browser and fetched in the server's request process.
   """
-  use SikioWeb.FeatureCase
+  use SikioWeb.PlaywrightCase
 
   import Sikio.FeedFixtures
 
@@ -12,15 +12,15 @@ defmodule SikioWeb.PicturesFeatureTest do
   alias Sikio.Library
 
   # `nobody_answers/1` stubs every outgoing request with a 404, so the fallback image is served.
-  feature "a picture nobody can fetch falls back to the mark of its kind", %{session: session} do
-    account = signed_in(session, "ada")
+  test "a picture nobody can fetch falls back to the mark of its kind", %{conn: conn} do
+    account = signed_in(conn, "ada")
     {:ok, preview} = Parser.parse(podcast(), "https://example.org/rss")
     {:ok, _} = Library.subscribe(account, preview)
 
-    session
+    conn
     |> open("/inbox")
-    |> assert_has(css(~s|img[src^="/pictures/"]|, minimum: 1))
-    |> execute_script(
+    |> assert_has(~s|img[src^="/pictures/"]|)
+    |> script(
       """
       const src = document.querySelector('img[src^="/pictures/"]').getAttribute('src')
       return fetch(src).then(response => [response.status, new URL(response.url).pathname])
