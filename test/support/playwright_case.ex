@@ -18,14 +18,15 @@ defmodule SikioWeb.PlaywrightCase do
 
   import ExUnit.Assertions
   import PhoenixTest
-  import PhoenixTest.Playwright, only: [add_session_cookie: 3]
 
   alias Ithibati.Identity.Instance
-  alias Ithibati.Identity.Sessions
-  alias Ithibati.Web.Gate
+  alias Ithibati.Testing.Passkeys
+  alias Ithibati.Testing.Sessions
   alias PhoenixTest.Playwright.Config
+  alias PlaywrightEx.BrowserContext
   alias PlaywrightEx.Connection
   alias PlaywrightEx.Frame
+  alias PlaywrightEx.Route
   alias Sikio.Accounts.User
   alias Sikio.FeedFixtures
   alias Sikio.Feeds.Parser
@@ -49,6 +50,7 @@ defmodule SikioWeb.PlaywrightCase do
       setup %{conn: conn}, do: SikioWeb.PlaywrightCase.fail_on_page_errors(conn)
 
       import SikioWeb.PlaywrightCase
+      import Ithibati.Testing.Passkeys
 
       alias Sikio.Accounts.User
       alias Sikio.Repo
@@ -58,8 +60,8 @@ defmodule SikioWeb.PlaywrightCase do
   @doc """
   Returns a PeerTube video without image, with a long description.
 
-  Its instance's API names a file on the instance. The browser blocks the instance's host,
-  so the file fails to load and no request leaves the test.
+  Its instance's API names a file on the instance.
+  The browser aborts requests to the instance's host while the test runs, so the file fails to load.
   """
   def video_with_notes(conn, account) do
     {:ok, preview} = Parser.parse(FeedFixtures.peertube(), FeedFixtures.peertube_feed_url())
@@ -73,8 +75,7 @@ defmodule SikioWeb.PlaywrightCase do
         {"application/json", Jason.encode!(%{files: [%{resolution: %{id: 720}, fileUrl: file}]})}
     })
 
-    command(conn, "Network.enable", %{})
-    command(conn, "Network.setBlockedURLs", %{urls: ["https://video.example.org/*"]})
+    block_video_host(conn)
 
     Repo.update!(
       Ecto.Changeset.change(video,
@@ -84,6 +85,18 @@ defmodule SikioWeb.PlaywrightCase do
         description_format: :html
       )
     )
+  end
+
+  # The handler ends with the test process. A request it can no longer abort is left alone.
+  # A second call in the same context finds the handler already registered.
+  defp block_video_host(%{context_id: context}) do
+    abort = fn route, _request -> _ = Route.abort(route) end
+    opts = [connection: connection(), timeout: timeout()]
+
+    case BrowserContext.route(context, "https://video.example.org/**", abort, opts) do
+      {:ok, _} -> :ok
+      {:error, %{reason: :route_already_registered}} -> :ok
+    end
   end
 
   @doc "Returns an entry's path in the unfiltered library list, as `SikioWeb.LibraryPaths` builds it."
@@ -145,10 +158,7 @@ defmodule SikioWeb.PlaywrightCase do
   """
   def signed_in(conn, username) do
     account = Repo.insert!(User.changeset(%User{}, %{username: username}))
-    token = Sessions.generate_session_token(account)
-
-    add_session_cookie(conn, [value: %{Gate.session_key() => token}], Endpoint.session_options())
-
+    Sessions.sign_in(conn, account, Endpoint.session_options())
     account
   end
 
@@ -216,7 +226,7 @@ defmodule SikioWeb.PlaywrightCase do
   Adds the virtual authenticator first, for features whose subject comes after signing up.
   """
   def claimed(conn, username) do
-    virtual_authenticator(conn)
+    Passkeys.virtual_authenticator(conn)
 
     conn
     |> open("/")
@@ -387,69 +397,11 @@ defmodule SikioWeb.PlaywrightCase do
     conn
   end
 
-  @doc """
-  Adds a virtual WebAuthn authenticator to this feature's page.
-
-  Uses Chrome's own authenticator through a CDP session.
-  Playwright's `credentials` API cannot serve this library.
-  Its synthetic credential returns an empty `toJSON()`, which the library uses for serialization.
-  No credential is seeded. Each test registers its own passkey, so registration is covered.
-  """
-  def virtual_authenticator(conn) do
-    command(conn, "WebAuthn.enable", %{})
-
-    %{"authenticator_id" => id} =
-      command(conn, "WebAuthn.addVirtualAuthenticator", %{
-        options: %{
-          protocol: "ctap2",
-          # A platform authenticator such as Touch ID or Windows Hello.
-          # Web application passkeys use this kind.
-          transport: "internal",
-          hasResidentKey: true,
-          hasUserVerification: true,
-          isUserVerified: true,
-          automaticPresenceSimulation: true
-        }
-      })
-
-    id
-  end
-
-  @doc "Removes a virtual authenticator, so a new one can model a second device."
-  def remove_authenticator(conn, authenticator) do
-    command(conn, "WebAuthn.removeVirtualAuthenticator", %{authenticatorId: authenticator})
-    conn
-  end
-
-  # Sends a CDP command over the page's one CDP session.
-  # A virtual authenticator lives only as long as the session that added it.
-  # So the session is opened once per page and kept in the test process.
-  # playwright_ex has no wrapper for `newCDPSession`, so the protocol method is sent by name.
-  # Playwright returns CDP results with their keys in snake case.
-  defp command(conn, method, params) do
-    %{result: result} = send!(cdp_session(conn), :send, %{method: method, params: params})
-    result
-  end
-
   # playwright_ex has no wrapper for these page methods, so they are sent by protocol name.
   defp page_call(%{page_id: page}, method, params) do
-    send!(page, method, params)
-    :ok
-  end
-
-  defp cdp_session(%{context_id: context, page_id: page}) do
-    with nil <- Process.get({__MODULE__, page}) do
-      %{session: %{guid: session}} = send!(context, "newCDPSession", %{page: %{guid: page}})
-      Process.put({__MODULE__, page}, session)
-      session
-    end
-  end
-
-  # Returns the reply's result. A method without a result replies without a `:result` key.
-  defp send!(guid, method, params) do
-    case Connection.send(connection(), %{guid: guid, method: method, params: params}, timeout()) do
+    case Connection.send(connection(), %{guid: page, method: method, params: params}, timeout()) do
       %{error: error} -> raise "#{method} failed: #{inspect(error)}"
-      reply -> Map.get(reply, :result, %{})
+      _reply -> :ok
     end
   end
 
