@@ -102,6 +102,7 @@ run = "mix ecto.migrate"
 
 [tasks.icons]
 description = "Draw the app icons, favicon and README logo from the wordmark"
+depends = ["browser"]
 run = "uv run scripts/icons.py"
 
 [tasks.beans]

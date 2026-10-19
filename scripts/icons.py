@@ -11,12 +11,10 @@ depends on a web font. The geometry follows the wordmark component in Layouts: l
 opacity. The favicon's s takes a 0.2em dot, a 0.1em gap and a 0.07em ring and fills its square
 on nothing; it turns light in a dark browser.
 
-Chrome renders the PNGs from the SVGs. It is found through CHROME, then PATH, then its macOS
-location. Pillow writes the ICO.
+Playwright's headless Chrome renders the PNGs from the SVGs. `mise run browser` installs it with
+the browser tests. Pillow writes the ICO.
 """
 
-import os
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -122,34 +120,30 @@ def logo(ink, amber, target, size=96):
     )
 
 
-def chrome():
-    found = os.environ.get("CHROME") or next(
-        filter(None, map(shutil.which, ["google-chrome", "google-chrome-stable", "chromium", "chrome"])),
-        None,
-    )
-    mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-    if not found and Path(mac).exists():
-        found = mac
-    if not found:
-        raise SystemExit("No Chrome to render the PNGs with. Set CHROME to its path.")
-    return found
+# Runs in node from `assets/`, so `require` finds the pinned playwright package.
+# The page is about:blank, which may not load file URLs, so the SVG arrives as a data URL.
+SCREENSHOT = """
+const [file, px, target] = process.argv.slice(1)
+const {chromium} = require('playwright')
+const svg = 'data:image/svg+xml;base64,' + require('fs').readFileSync(file).toString('base64')
+;(async () => {
+  const browser = await chromium.launch()
+  const page = await browser.newPage({viewport: {width: +px, height: +px}, deviceScaleFactor: 1})
+  await page.setContent(`<!doctype html><style>html,body{margin:0;background:transparent}
+    img{display:block;width:${px}px;height:${px}px}</style><img src="${svg}">`)
+  await page.locator('img').evaluate(img => img.decode())
+  await page.screenshot({path: target, omitBackground: true})
+  await browser.close()
+})()
+"""
 
 
 def render(svg, px, target):
-    """`svg` drawn at `px` square by Chrome, transparent around it."""
-    with tempfile.TemporaryDirectory() as scratch:
-        page = Path(scratch) / "page.html"
-        page.write_text(
-            "<!doctype html><style>html,body{margin:0;background:transparent}"
-            f"img{{display:block;width:{px}px;height:{px}px}}</style>"
-            f'<img src="{svg.as_uri()}">'
-        )
-        subprocess.run(
-            [chrome(), "--headless=new", "--disable-gpu", "--hide-scrollbars",
-             "--force-device-scale-factor=1", "--default-background-color=00000000",
-             f"--window-size={px},{px}", f"--screenshot={target}", page.as_uri()],
-            check=True, capture_output=True,
-        )
+    """`svg` drawn at `px` square, transparent around it."""
+    subprocess.run(
+        ["node", "-e", SCREENSHOT, str(svg), str(px), str(target)],
+        cwd=ROOT / "assets", check=True, capture_output=True,
+    )
 
 
 app_icon, favicon = STATIC / "images/app-icon.svg", STATIC / "images/favicon.svg"
