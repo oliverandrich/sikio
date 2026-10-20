@@ -397,9 +397,10 @@ defmodule SikioWeb.LibraryTest do
     conn
     |> script("document.getElementById('list-pane').scrollTop = 0")
     |> assert_has("#entries article", count: 40)
-    |> script("return document.getElementById('list-pane').scrollTop", fn scrolled ->
-      assert scrolled > 0, "the list jumped to its new top"
-    end)
+    # LiveView scrolls the old first row back in a frame after the patch.
+    |> eventually("return document.getElementById('list-pane').scrollTop > 0",
+      message: "the list jumped to its new top"
+    )
     |> script(
       "#{@frames}\nreturn frame().then(frame).then(() => { #{in_view("#" <> first)} })",
       fn [below_head, above_end] ->
