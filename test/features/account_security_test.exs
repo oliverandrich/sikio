@@ -7,7 +7,7 @@ defmodule SikioWeb.AccountSecurityFeatureTest do
   alias Ithibati.Identity.RecoveryCodes
 
   test "a member manages passkeys and replaces recovery codes from the settings", %{conn: conn} do
-    first = virtual_authenticator(conn)
+    virtual_authenticator(conn)
 
     conn
     |> open("/")
@@ -28,10 +28,9 @@ defmodule SikioWeb.AccountSecurityFeatureTest do
     |> click_button("Confirm with a passkey")
     |> assert_path("/account/passkeys")
     |> connected()
-    # A new authenticator models a second device.
+    # An emptied authenticator models a second device.
     # Ithibati excludes the first device's existing credential from enrollment.
-    |> remove_authenticator(first)
-    |> tap(&virtual_authenticator/1)
+    |> forget_credentials()
     |> fill_in("#add-passkey-form input[name=label]", "Passkey name", with: "Phone")
     |> click_button("Add a passkey")
     |> assert_has("article input[value=Phone]")

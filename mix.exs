@@ -51,7 +51,7 @@ defmodule Sikio.MixProject do
   defp deps do
     [
       {:phoenix_test_playwright, "~> 0.19.0", only: :test, runtime: false},
-      {:ithibati, "~> 0.10.0"},
+      {:ithibati, "~> 0.11.0"},
       {:oban, "~> 2.24"},
       # The transport is Mint. Req stays out of the release: it is here for `Req.Test`, which
       # is what every feed stub is, and for Igniter, which wants it in development.
