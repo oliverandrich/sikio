@@ -115,7 +115,7 @@ defmodule SikioWeb.PlaywrightCase do
   end
 
   @doc """
-  Raises the setup and ceremony rate limits for one browser test.
+  Raises the setup, ceremony, recovery and invitation rate limits for one browser test.
 
   Every test that creates an account spends a code at the real endpoint.
   Browser requests cannot get distinct addresses, so all share the loopback rate-limit counter.
@@ -129,6 +129,10 @@ defmodule SikioWeb.PlaywrightCase do
     Sikio.TestConfig.put_budget(:setup, {1000, 60})
     # Each sign-up is a passkey ceremony from the same loopback address and needs the same raise.
     Sikio.TestConfig.put_budget(:ceremony, {1000, 60})
+    # Recovery codes come from the same address too, and the default budget is ten a minute.
+    Sikio.TestConfig.put_budget(:recovery, {1000, 60})
+    # Invitations count per account id, and SQLite can give a later test's account an earlier id.
+    Sikio.TestConfig.put_budget(:invite, {1000, 86_400})
   end
 
   @doc """
