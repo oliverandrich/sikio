@@ -42,6 +42,8 @@ defmodule SikioWeb.ConnCase do
 
   setup tags do
     Sikio.DataCase.setup_sandbox(tags)
+    # Each test's account starts with a fresh invitation budget; see `Sikio.TestConfig`.
+    Sikio.TestConfig.clear_counters(:invite)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 

@@ -20,14 +20,20 @@ defmodule Sikio.TestConfig do
   """
   def put_budget(group, budget) do
     configured = Application.get_env(:sikio, :auth_rate_limits, [])
-
-    # The counters are keyed by account id.
-    # SQLite rolls its id sequence back with each test's transaction.
-    # A later test's account can therefore reuse an earlier test's id.
-    :sys.replace_state(Sikio.AuthRateLimiter, &put_in(&1, [:groups, group], %{}))
-
+    clear_counters(group)
     put_env(:sikio, :auth_rate_limits, Keyword.put(configured, group, budget))
   end
+
+  @doc """
+  Clears one rate-limit group's counters.
+
+  The counters outlive each test. The invitation counters are keyed by account id.
+  SQLite rolls its id sequence back with each test's transaction.
+  A later test's account can therefore reuse an earlier test's id and inherit its count.
+  Clearing only lowers counts, so concurrent tests are never refused because of it.
+  """
+  def clear_counters(group),
+    do: :sys.replace_state(Sikio.AuthRateLimiter, &put_in(&1, [:groups, group], %{}))
 
   @doc "Sets a key for the test. Restores the previous value on exit, or deletes a new key."
   def put_env(app, key, value) do
