@@ -14,6 +14,12 @@ defmodule SikioWeb.ClientIp do
 
   Loopback peers are trusted, because a proxy on the same host connects from there.
   `:trusted_proxies` lists other proxies, already parsed and validated in `config/runtime.exs`.
+  From these peers the header is walked from the right past every trusted entry.
+
+  A peer in a private range is trusted for one hop without configuration. Caddy on the host
+  reaches a container from the bridge gateway, and a Caddy container from a shared network.
+  Only the entry that proxy appended counts. Walking further would skip a client with a private
+  address and use an entry the client wrote.
 
   The header is parsed here, not by a library. The library considered reads three more headers
   by default, which a client can set. Its private-address handling also overrode the configured
@@ -27,6 +33,14 @@ defmodule SikioWeb.ClientIp do
 
   @localhost {0, 0, 0, 0, 0, 0, 0, 1}
 
+  # RFC 1918 and IPv6 unique local addresses.
+  @private [
+    {{10, 0, 0, 0}, 8},
+    {{172, 16, 0, 0}, 12},
+    {{192, 168, 0, 0}, 16},
+    {{0xFC00, 0, 0, 0, 0, 0, 0, 0}, 7}
+  ]
+
   @impl true
   def init(opts), do: opts
 
@@ -34,7 +48,13 @@ defmodule SikioWeb.ClientIp do
   def call(conn, _opts) do
     proxies = Enum.map(configured(), &unmapped/1)
     peer = unmapped(conn.remote_ip)
-    visitor = if trusted?(peer, proxies), do: forwarded(conn, proxies) || peer, else: peer
+
+    visitor =
+      cond do
+        trusted?(peer, proxies) -> walked(conn, proxies) || peer
+        private?(peer) -> conn |> entries() |> List.last() || peer
+        true -> peer
+      end
 
     # `remote_ip` holds the client address for logs and rate limits.
     # `:socket_peer_ip` keeps the socket peer for debugging a proxy configuration.
@@ -51,13 +71,19 @@ defmodule SikioWeb.ClientIp do
   def bucket({_, _, _, _} = address), do: address
   def bucket({a, b, c, d, _, _, _, _}), do: {a, b, c, d, 0, 0, 0, 0}
 
-  defp forwarded(conn, proxies) do
+  defp walked(conn, proxies) do
+    conn
+    |> entries()
+    |> Enum.reverse()
+    |> Enum.find(&(&1 && not trusted?(&1, proxies)))
+  end
+
+  # Every entry in order, `nil` for one that is not an address.
+  defp entries(conn) do
     conn
     |> Plug.Conn.get_req_header(@header)
     |> Enum.flat_map(&String.split(&1, ","))
     |> Enum.map(&address/1)
-    |> Enum.reverse()
-    |> Enum.find(&(&1 && not trusted?(&1, proxies)))
   end
 
   # Uses `:erlang.binary_to_list/1`, because `to_charlist/1` raises on invalid UTF-8.
@@ -74,6 +100,8 @@ defmodule SikioWeb.ClientIp do
   defp trusted?({127, _, _, _}, _proxies), do: true
   defp trusted?(@localhost, _proxies), do: true
   defp trusted?(address, proxies), do: Enum.any?(proxies, &covers?(&1, address))
+
+  defp private?(address), do: Enum.any?(@private, &covers?(&1, address))
 
   # A range matches addresses of the same family that share its prefix bits.
   defp covers?({network, bits}, address) when tuple_size(network) == tuple_size(address),

@@ -63,7 +63,7 @@ Set these environment variables for both migration and startup:
 | `PEERTUBE_SEARCH_URL` | HTTPS address on the default port of the PeerTube index the PeerTube search asks; `https://search.joinpeertube.org` (Sepia Search) by default |
 | `FEED_POLL_MINUTES` | Minimum poll interval per feed, in whole minutes; 60 by default, at least 5 |
 | `SOURCE_URL` | URL of this deployment's source code; only needed for a modified Sikio |
-| `TRUSTED_PROXIES` | Addresses or ranges such as `172.20.0.0/16` whose `X-Forwarded-For` is trusted; only needed for a proxy outside the loopback |
+| `TRUSTED_PROXIES` | Addresses or ranges such as `172.20.0.0/16` whose `X-Forwarded-For` is trusted; only needed for a chain of proxies or a proxy with a public address |
 | `ACCOUNT_IDENTITY` | `username` (the default) or `email`; any other value stops the boot. `email` requires the mail settings below |
 | `MAIL_ENABLED` | `true` to send invitations by email; required by `ACCOUNT_IDENTITY=email` |
 | `MAIL_FROM` | Sender address of invitation emails |
@@ -110,10 +110,16 @@ HTTPS on port 443. Expose only the proxy publicly. With Caddy on the same host,
 Authentication requests are rate-limited per client address. Sikio reads the client address
 from `X-Forwarded-For` only on a connection from a trusted proxy. IPv6 addresses are counted per
 `/64` prefix. The loopback is always trusted, so a proxy on the same host needs no configuration.
-List any other proxy in `TRUSTED_PROXIES`, comma-separated. An entry is an address or a CIDR
-range. Use a range for a proxy container whose address changes when it is recreated, such as
-the subnet of a shared Docker network. An entry that is neither stops the boot. On connections
-from any other peer, `X-Forwarded-For` is ignored and the peer address is counted.
+A peer with a private address (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`) is
+trusted for one hop: Sikio uses the entry that proxy appended. This covers Caddy reaching a
+container through the Docker gateway or a shared network. A client that reaches Sikio directly
+from a private network can choose its address, so expose Sikio only through the proxy.
+
+List a chain of proxies, or a proxy with a public address, in `TRUSTED_PROXIES`,
+comma-separated. From those peers and the loopback, Sikio walks the header from the right past
+every trusted entry. An entry is an address or a CIDR range. An entry that is neither stops the
+boot. On connections from any other peer, `X-Forwarded-For` is ignored and the peer address is
+counted.
 
 Creating invitations is also rate-limited, per account rather than per address. The limit is 20
 in a 24-hour window. It is set in the application config `:auth_rate_limits`, not by an

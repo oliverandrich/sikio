@@ -10,8 +10,6 @@ services:
     env_file: sikio.env
     environment:
       PHX_HOST: sikio.example.org
-      # The proxy reaches the container through this network's gateway.
-      TRUSTED_PROXIES: 172.30.0.1
     ports:
       - "127.0.0.1:4000:4000"
     volumes:
@@ -19,11 +17,3 @@ services:
 
 volumes:
   sikio-data:
-
-# A fixed subnet, so the gateway named in TRUSTED_PROXIES stays the same.
-networks:
-  default:
-    ipam:
-      config:
-        - subnet: 172.30.0.0/24
-          gateway: 172.30.0.1

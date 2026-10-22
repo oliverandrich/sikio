@@ -30,6 +30,9 @@ Its own section becomes the version's release notes.
 
 ### Changed
 
+- A proxy with a private address no longer needs `TRUSTED_PROXIES`. Sikio uses the
+  `X-Forwarded-For` entry it appended. Caddy on the Docker host or in a shared network works
+  without configuration.
 - Sikio requires Ithibati 0.9.0.
 - A member takes back only the invitations they sent. An administrator takes back any.
 - On wide screens, the pages under Settings show a breadcrumb back to the settings.
@@ -41,6 +44,8 @@ Its own section becomes the version's release notes.
 
 ### Upgrading
 
+- `TRUSTED_PROXIES` keeps working. For a single private proxy it can go, and so can the fixed
+  subnet in an older `compose.yaml`.
 - A migration adds the instance settings with every platform on.
 - A migration adds the table of removed items, `blocked_entries`.
 - A migration adds the administrator flag and grants it to the account that claimed the

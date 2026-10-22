@@ -36,11 +36,58 @@ defmodule SikioWeb.ClientIpTest do
     assert asked({64_768, 0, 0, 0, 1, 2, 3, 4}, @forwarded) == {203, 0, 113, 7}
   end
 
+  # Public addresses, because a private peer is believed for one hop without being listed.
   test "an address outside every trusted range is not believed" do
-    trusting([{{172, 20, 0, 0}, 16}, {{64_768, 0, 0, 0, 0, 0, 0, 0}, 64}])
+    trusting([{{198, 51, 100, 0}, 24}, {{0x2001, 0xDB8, 1, 0, 0, 0, 0, 0}, 48}])
 
-    assert asked({172, 21, 0, 1}, @forwarded) == {172, 21, 0, 1}
-    assert asked({64_768, 0, 0, 1, 0, 0, 0, 1}, @forwarded) == {64_768, 0, 0, 1, 0, 0, 0, 1}
+    assert asked({198, 51, 101, 1}, @forwarded) == {198, 51, 101, 1}
+
+    assert asked({0x2001, 0xDB8, 2, 0, 0, 0, 0, 1}, @forwarded) ==
+             {0x2001, 0xDB8, 2, 0, 0, 0, 0, 1}
+  end
+
+  # Caddy on the host reaches the container from the bridge gateway. A Caddy container reaches it
+  # from the shared network. Both addresses are private.
+  test "a proxy on a private network speaks for the visitor it forwarded" do
+    for peer <- [
+          {10, 0, 0, 2},
+          {172, 17, 0, 1},
+          {192, 168, 215, 1},
+          {0xFD00, 0, 0, 0, 0, 0, 0, 2}
+        ] do
+      assert asked(peer, @forwarded) == {203, 0, 113, 7}, inspect(peer)
+    end
+  end
+
+  test "a private proxy reached through a dual-stack socket is still private" do
+    assert asked({0, 0, 0, 0, 0, 65_535, 44_049, 1}, @forwarded) == {203, 0, 113, 7}
+  end
+
+  # Only the entry the proxy appended counts. Walking further would skip a private visitor and
+  # use an entry the visitor wrote.
+  test "behind a private proxy only the entry it appended counts" do
+    forged = [{"x-forwarded-for", "198.51.100.4, 192.168.1.50"}]
+
+    assert asked({172, 17, 0, 1}, forged) == {192, 168, 1, 50}
+  end
+
+  test "a private proxy with an unreadable last entry leaves the address alone" do
+    assert asked({172, 17, 0, 1}, [{"x-forwarded-for", "198.51.100.4, not-an-address"}]) ==
+             {172, 17, 0, 1}
+
+    assert asked({172, 17, 0, 1}, []) == {172, 17, 0, 1}
+  end
+
+  test "addresses just outside the private ranges are not believed" do
+    for peer <- [
+          {172, 32, 0, 1},
+          {192, 169, 0, 1},
+          {11, 0, 0, 1},
+          {100, 64, 0, 1},
+          {0xFE00, 0, 0, 0, 0, 0, 0, 1}
+        ] do
+      assert asked(peer, @forwarded) == peer, inspect(peer)
+    end
   end
 
   # The IPv4-mapped form a dual-stack socket reports for an IPv4 peer.

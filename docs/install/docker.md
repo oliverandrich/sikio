@@ -68,8 +68,8 @@ sikio.example.org {
 ```
 
 Caddy obtains the certificate and sends the client address in `X-Forwarded-For`. Inside the
-container, connections come from the network gateway. `compose.yaml` fixes the gateway at
-`172.30.0.1` and lists it in `TRUSTED_PROXIES`. Reload Caddy and open `https://sikio.example.org`.
+container, connections come from the network gateway. That address is private, so Sikio trusts
+it without `TRUSTED_PROXIES`. Reload Caddy and open `https://sikio.example.org`.
 
 ## 5. Claim the instance
 
@@ -186,8 +186,6 @@ services:
       PHX_HOST: sikio.example.org
       SIKIO_DATABASE: postgres
       DATABASE_URL: ecto://sikio:${SIKIO_DB_PASSWORD}@postgres/sikio
-      # The caddy network's subnet, from `docker network inspect caddy`.
-      TRUSTED_PROXIES: 172.20.0.0/16
     labels:
       caddy: sikio.example.org
       caddy.reverse_proxy: "{{upstreams 4000}}"
@@ -205,8 +203,8 @@ networks:
     external: true
 ```
 
-Caddy connects from its address on the `caddy` network. That address changes when the Caddy
-container is recreated, so `TRUSTED_PROXIES` lists the whole subnet. The volume holds only the
+Caddy connects from its private address on the `caddy` network, which needs no
+`TRUSTED_PROXIES`. The volume holds only the
 picture cache. Sikio downloads missing pictures again. Database backups are the administrator's
 responsibility. Issue the setup code as in step 5.
 
