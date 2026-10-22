@@ -30,9 +30,9 @@ Its own section becomes the version's release notes.
 
 ### Changed
 
-- A proxy with a private address no longer needs `TRUSTED_PROXIES`. Sikio uses the
-  `X-Forwarded-For` entry it appended. Caddy on the Docker host or in a shared network works
-  without configuration.
+- A proxy with a private address no longer needs `TRUSTED_PROXIES`. Caddy on the Docker host
+  or in a shared network works without configuration. Sikio walks the `X-Forwarded-For` header
+  past configured proxies, so a CDN in `TRUSTED_PROXIES` in front of such a Caddy also works.
 - Sikio requires Ithibati 0.9.0.
 - A member takes back only the invitations they sent. An administrator takes back any.
 - On wide screens, the pages under Settings show a breadcrumb back to the settings.

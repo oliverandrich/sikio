@@ -14,12 +14,13 @@ defmodule SikioWeb.ClientIp do
 
   Loopback peers are trusted, because a proxy on the same host connects from there.
   `:trusted_proxies` lists other proxies, already parsed and validated in `config/runtime.exs`.
-  From these peers the header is walked from the right past every trusted entry.
+  A peer in a private range is trusted without configuration. Caddy on the host reaches a
+  container from the bridge gateway, and a Caddy container from a shared network.
 
-  A peer in a private range is trusted for one hop without configuration. Caddy on the host
-  reaches a container from the bridge gateway, and a Caddy container from a shared network.
-  Only the entry that proxy appended counts. Walking further would skip a client with a private
-  address and use an entry the client wrote.
+  From these peers the header is walked from the right past the loopback and the configured
+  proxies, never past a private address. A client with a private address keeps it, and an
+  entry the client wrote further left is never used. A private peer that only forwards TCP
+  appends nothing, so its clients write the entry themselves. See docs/operations.md.
 
   The header is parsed here, not by a library. The library considered reads three more headers
   by default, which a client can set. Its private-address handling also overrode the configured
@@ -50,11 +51,9 @@ defmodule SikioWeb.ClientIp do
     peer = unmapped(conn.remote_ip)
 
     visitor =
-      cond do
-        trusted?(peer, proxies) -> walked(conn, proxies) || peer
-        private?(peer) -> conn |> entries() |> List.last() || peer
-        true -> peer
-      end
+      if trusted?(peer, proxies) or private?(peer),
+        do: forwarded(conn, proxies) || peer,
+        else: peer
 
     # `remote_ip` holds the client address for logs and rate limits.
     # `:socket_peer_ip` keeps the socket peer for debugging a proxy configuration.
@@ -71,19 +70,13 @@ defmodule SikioWeb.ClientIp do
   def bucket({_, _, _, _} = address), do: address
   def bucket({a, b, c, d, _, _, _, _}), do: {a, b, c, d, 0, 0, 0, 0}
 
-  defp walked(conn, proxies) do
-    conn
-    |> entries()
-    |> Enum.reverse()
-    |> Enum.find(&(&1 && not trusted?(&1, proxies)))
-  end
-
-  # Every entry in order, `nil` for one that is not an address.
-  defp entries(conn) do
+  defp forwarded(conn, proxies) do
     conn
     |> Plug.Conn.get_req_header(@header)
     |> Enum.flat_map(&String.split(&1, ","))
     |> Enum.map(&address/1)
+    |> Enum.reverse()
+    |> Enum.find(&(&1 && not trusted?(&1, proxies)))
   end
 
   # Uses `:erlang.binary_to_list/1`, because `to_charlist/1` raises on invalid UTF-8.

@@ -33,7 +33,8 @@ defmodule Sikio.StarterDriftTest do
     "priv/gettext/de/LC_MESSAGES/errors.po.tpl",
     "priv/repo/migrations/20260913120000_create_users.exs.tpl",
     "priv/repo/migrations/20260913120100_add_ithibati.exs.tpl",
-    "priv/repo/migrations/20260918000000_add_challenges.exs.tpl"
+    "priv/repo/migrations/20260918000000_add_challenges.exs.tpl",
+    "test/__APP___web/transport_garbage_test.exs.tpl"
   ]
 
   setup_all do
@@ -89,7 +90,8 @@ defmodule Sikio.StarterDriftTest do
     """
   end
 
-  # `code/2` drops heredocs after `@moduledoc` and `@doc` but must keep `~H` heredocs.
+  # `code/2` drops `@moduledoc`, `@doc` and `@shortdoc`, one line or heredoc, but must keep `~H`
+  # heredocs.
   # Dropping a render function would make two different templates compare equal.
   test "prose is dropped and markup is not", ctx do
     path = Path.join(System.tmp_dir!(), "drift_#{System.unique_integer([:positive])}.ex")
@@ -99,6 +101,9 @@ defmodule Sikio.StarterDriftTest do
       @moduledoc \"\"\"
       A paragraph nobody compares.
       \"\"\"
+
+      @doc "A sentence nobody compares."
+      @shortdoc "A summary nobody compares."
 
       # A comment nobody compares either.
       def render(assigns) do
@@ -115,6 +120,7 @@ defmodule Sikio.StarterDriftTest do
 
     assert "<p>markup that counts</p>" in kept
     refute "A paragraph nobody compares." in kept
+    refute Enum.any?(kept, &String.contains?(&1, "nobody compares."))
     refute Enum.any?(kept, &String.starts_with?(&1, "#"))
   end
 end

@@ -72,8 +72,8 @@ defmodule Sikio.StarterDrift do
     |> String.replace(app, "app")
   end
 
-  # Drops `@moduledoc`/`@doc` heredocs and comment lines. A `"""` inside code would break this.
-  # No generated file has one, and a test checks that.
+  # Drops `@moduledoc`, `@doc` and `@shortdoc`, on one line or as heredocs, and comment lines.
+  # A `"""` inside code would break this. No generated file has one, and a test checks that.
   defp drop_prose(lines) do
     {kept, _inside} =
       Enum.reduce(lines, {[], false}, fn line, {kept, inside} ->
@@ -83,7 +83,7 @@ defmodule Sikio.StarterDrift do
           inside and trimmed == ~s(""") -> {kept, false}
           inside -> {kept, true}
           String.starts_with?(trimmed, "#") -> {kept, false}
-          String.ends_with?(trimmed, ~s(""")) and doc_opener?(trimmed) -> {kept, true}
+          doc_opener?(trimmed) -> {kept, String.ends_with?(trimmed, ~s("""))}
           true -> {[line | kept], false}
         end
       end)
@@ -92,5 +92,5 @@ defmodule Sikio.StarterDrift do
   end
 
   defp doc_opener?(line),
-    do: String.starts_with?(line, "@moduledoc") or String.starts_with?(line, "@doc")
+    do: Enum.any?(~w(@moduledoc @doc @shortdoc), &String.starts_with?(line, &1))
 end

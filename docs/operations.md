@@ -107,19 +107,21 @@ address. Any reverse proxy must support WebSockets and set `X-Forwarded-Proto`. 
 HTTPS on port 443. Expose only the proxy publicly. With Caddy on the same host,
 `PHX_BIND_IP=127.0.0.1` keeps the HTTP port off the network.
 
-Authentication requests are rate-limited per client address. Sikio reads the client address
-from `X-Forwarded-For` only on a connection from a trusted proxy. IPv6 addresses are counted per
-`/64` prefix. The loopback is always trusted, so a proxy on the same host needs no configuration.
-A peer with a private address (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`) is
-trusted for one hop: Sikio uses the entry that proxy appended. This covers Caddy reaching a
-container through the Docker gateway or a shared network. A client that reaches Sikio directly
-from a private network can choose its address, so expose Sikio only through the proxy.
+Authentication requests are rate-limited per client address. IPv6 addresses are counted per
+`/64` prefix. Sikio reads the client address from `X-Forwarded-For` only on a connection from
+the loopback, a private address (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`)
+or `TRUSTED_PROXIES`. The client is the rightmost entry that is neither the loopback nor in
+`TRUSTED_PROXIES`. Caddy on the same host, on the Docker host or in a shared Docker network
+needs no configuration.
 
-List a chain of proxies, or a proxy with a public address, in `TRUSTED_PROXIES`,
-comma-separated. From those peers and the loopback, Sikio walks the header from the right past
-every trusted entry. An entry is an address or a CIDR range. An entry that is neither stops the
-boot. On connections from any other peer, `X-Forwarded-For` is ignored and the peer address is
-counted.
+List a proxy with a public address, such as a CDN, in `TRUSTED_PROXIES`, comma-separated. An
+entry is an address or a CIDR range. An entry that is neither stops the boot. On connections
+from any other peer, `X-Forwarded-For` is ignored and the peer address is counted.
+
+Run Sikio only behind an HTTP proxy that sets `X-Forwarded-For`. A TCP forwarder or NAT that
+hands on internet clients from a private address adds no header, so every client writes its
+own address and gets its own rate-limit budget. Kubernetes with SNAT, a TCP load balancer,
+rootless Podman and a port published without a proxy are such forwarders.
 
 Creating invitations is also rate-limited, per account rather than per address. The limit is 20
 in a 24-hour window. It is set in the application config `:auth_rate_limits`, not by an
