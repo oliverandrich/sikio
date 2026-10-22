@@ -74,6 +74,8 @@ defmodule SikioWeb.LibraryEvents do
     {sidebar, reach} =
       Shared.fetch(socket.assigns.current_account, System.monotonic_time(), message)
 
+    # The shared load serves every page of the account, so the page keeps its own choice.
+    sidebar = Map.put(sidebar, :shown, socket.assigns.sidebar.shown)
     socket |> assign(:sidebar, sidebar) |> passed_on(message, reach)
   end
 

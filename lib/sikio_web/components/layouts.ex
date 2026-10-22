@@ -199,7 +199,18 @@ defmodule SikioWeb.Layouts do
     tab = assigns.tab || if(assigns.section in [:places, :add, :subscriptions], do: :library)
     # The gear menu holds the settings and the pages under them.
     settings? = assigns.section in [:settings, :account, :invitations, :accounts, :platforms]
-    assigns = assign(assigns, counts: counts, tab: tab, settings?: settings?)
+
+    subscriptions =
+      assigns.sidebar &&
+        SikioWeb.Sidebar.subscriptions(assigns.sidebar, counts, assigns.filters["source"])
+
+    assigns =
+      assign(assigns,
+        counts: counts,
+        tab: tab,
+        settings?: settings?,
+        subscriptions: subscriptions
+      )
 
     ~H"""
     <div class="min-h-svh pb-[calc(var(--nav-bar)+var(--safe-bottom))] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] lg:pb-0">
@@ -380,6 +391,7 @@ defmodule SikioWeb.Layouts do
               >
                 {gettext("Subscriptions")}
               </h2>
+              <.subscriptions_switch id="subscriptions" shown={@sidebar.shown} class="ml-auto" />
               <.link
                 id="manage-subscriptions"
                 navigate={~p"/subscriptions"}
@@ -391,8 +403,15 @@ defmodule SikioWeb.Layouts do
                 <Lucideicons.pencil aria-hidden="true" class="size-3.5" />
               </.link>
             </div>
+            <p
+              :if={@sidebar.sources != [] and @subscriptions == []}
+              id="subscriptions-none"
+              class="px-2.5 py-1.5 text-label text-muted"
+            >
+              {gettext("No subscription has new items.")}
+            </p>
             <.sidebar_link
-              :for={source <- @sidebar.sources}
+              :for={source <- @subscriptions}
               id={"source-#{source.feed_id}"}
               to={
                 SikioWeb.LibraryPaths.place_path("source", to_string(source.feed_id), @sidebar.titles)
@@ -620,6 +639,35 @@ defmodule SikioWeb.Layouts do
         {@count}
       </span>
     </.link>
+    """
+  end
+
+  @doc """
+  Renders the switch between all subscriptions and those with new items.
+  `SikioWeb.Sidebar` handles its `show_subscriptions` event on every member page.
+  """
+  attr :id, :string, required: true, doc: "the prefix of both buttons' ids"
+  attr :shown, :string, required: true, doc: "\"all\" or \"new\""
+  attr :class, :any, default: nil
+
+  def subscriptions_switch(assigns) do
+    ~H"""
+    <div
+      role="group"
+      aria-label={gettext("Subscriptions shown")}
+      class={["flex items-center rounded-full bg-line/60 p-0.5 text-meta font-medium", @class]}
+    >
+      <button
+        :for={{shown, label} <- [{"new", gettext("New")}, {"all", gettext("All")}]}
+        id={"#{@id}-#{shown}"}
+        type="button"
+        phx-click={JS.push("show_subscriptions", value: %{shown: shown})}
+        aria-pressed={to_string(@shown == shown)}
+        class="rounded-full px-2 py-0.5 text-muted hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-sm"
+      >
+        {label}
+      </button>
+    </div>
     """
   end
 

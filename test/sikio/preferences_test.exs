@@ -2,7 +2,8 @@
 
 defmodule Sikio.PreferencesTest do
   @moduledoc """
-  Tests an account's preferences: the start page, Play on and the language.
+  Tests an account's preferences: the start page, Play on, the language and which
+  subscriptions the lists show.
   """
   use Sikio.DataCase, async: true
 
@@ -61,5 +62,18 @@ defmodule Sikio.PreferencesTest do
   test "a blank language follows the browser again", c do
     {:ok, _} = Preferences.update(c.alice, %{locale: "de"})
     assert {:ok, %{locale: nil}} = Preferences.update(c.alice, %{locale: ""})
+  end
+
+  # The subscription lists show every subscription unless the account chose the new ones only.
+  test "the subscription lists show all or only those with new items", c do
+    assert %{subscriptions_shown: "all"} = Preferences.get(c.alice)
+
+    assert {:ok, %{subscriptions_shown: "new"}} =
+             Preferences.update(c.alice, %{subscriptions_shown: "new"})
+
+    assert %{subscriptions_shown: "new"} = Preferences.get(c.alice)
+    assert %{subscriptions_shown: "all"} = Preferences.get(c.bob)
+    assert {:error, changeset} = Preferences.update(c.alice, %{subscriptions_shown: "some"})
+    assert %{subscriptions_shown: [_]} = errors_on(changeset)
   end
 end

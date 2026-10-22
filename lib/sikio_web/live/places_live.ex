@@ -18,11 +18,12 @@ defmodule SikioWeb.PlacesLive do
 
   @impl true
   def render(assigns) do
+    counts = Library.tally(assigns.sidebar.counts, %{}, assigns.sidebar.tag_feeds)
+
     assigns =
-      assign(
-        assigns,
-        :counts,
-        Library.tally(assigns.sidebar.counts, %{}, assigns.sidebar.tag_feeds)
+      assign(assigns,
+        counts: counts,
+        subscriptions: SikioWeb.Sidebar.subscriptions(assigns.sidebar, counts, nil)
       )
 
     ~H"""
@@ -61,12 +62,18 @@ defmodule SikioWeb.PlacesLive do
         heading={gettext("Subscriptions")}
       >
         <:action>
-          <.link id="places-manage" navigate={~p"/subscriptions"} class="text-link">
-            {gettext("Manage")}
-          </.link>
+          <span class="flex items-center gap-3">
+            <Layouts.subscriptions_switch id="places-subscriptions" shown={@sidebar.shown} />
+            <.link id="places-manage" navigate={~p"/subscriptions"} class="text-link">
+              {gettext("Manage")}
+            </.link>
+          </span>
         </:action>
+        <p :if={@subscriptions == []} id="places-subscriptions-none" class="px-4 py-3 text-muted">
+          {gettext("No subscription has new items.")}
+        </p>
         <.group_link
-          :for={source <- @sidebar.sources}
+          :for={source <- @subscriptions}
           to={LibraryPaths.place_path("source", to_string(source.feed_id), @sidebar.titles)}
           detail={nonzero(Map.get(@counts.sources, source.feed_id, 0))}
         >

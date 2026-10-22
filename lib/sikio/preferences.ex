@@ -2,7 +2,8 @@
 
 defmodule Sikio.Preferences do
   @moduledoc """
-  An account's preferences: the start page, Play on and the interface language.
+  An account's preferences: the start page, Play on, the interface language and which
+  subscriptions the lists show.
   """
   import Ecto.Query
 
@@ -14,6 +15,12 @@ defmodule Sikio.Preferences do
   @doc "Whether the player continues with the queue when an item ends. Defaults to true."
   def play_on?(%User{id: user_id}),
     do: Repo.one(from p in Preference, where: p.user_id == ^user_id, select: p.play_on) != false
+
+  @doc "Returns which subscriptions the lists show, `all` or `new`. Defaults to `all`."
+  def subscriptions_shown(%User{id: user_id}),
+    do:
+      Repo.one(from p in Preference, where: p.user_id == ^user_id, select: p.subscriptions_shown) ||
+        "all"
 
   @doc "Returns the account's chosen interface language, or nil for the browser's."
   def locale(%User{id: user_id}),

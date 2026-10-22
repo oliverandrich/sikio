@@ -27,6 +27,8 @@ Its own section becomes the version's release notes.
 - Administrators switch podcasts, YouTube, PeerTube and the Mediathek on or off under Settings →
   Platforms. A platform that is off is not searched and takes no new subscriptions or items;
   existing subscriptions keep refreshing.
+- The subscription lists in the sidebar and on the phone's Library page switch between all
+  subscriptions and those with new items. The account keeps the choice.
 
 ### Changed
 
@@ -61,6 +63,8 @@ Its own section becomes the version's release notes.
 - A migration adds the administrator flag and grants it to the account that claimed the
   instance. An instance whose first account was deleted has no administrator until
   `bin/grant-admin` names one.
+- A migration adds the subscription list's choice to the preferences. Every account starts
+  with all subscriptions shown.
 
 ## [0.8.0] - 2026-10-18
 
