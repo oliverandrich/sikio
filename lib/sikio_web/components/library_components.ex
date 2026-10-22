@@ -468,7 +468,9 @@ defmodule SikioWeb.LibraryComponents do
     <%!-- From lg the detail is a card; below lg it has no card styling.
     The player slot spans the full width in both. --%>
     <article class="@container flex flex-col gap-4 lg:rounded-xl lg:bg-surface lg:p-6 lg:ring-1 lg:ring-line">
-      <div class="flex items-start gap-3">
+      <%!-- Below the `@md` container width the actions wrap into a row of their own, so the source
+           name and the meta line keep the card's width. --%>
+      <div class="flex flex-wrap items-start gap-x-3 gap-y-2">
         <%!-- The source icon, proxied as in the sidebar, or the source's initial. --%>
         <span
           id="item-source-mark"
@@ -480,7 +482,7 @@ defmodule SikioWeb.LibraryComponents do
             <span :if={!icon}>{initial(source_name(@entry))}</span>
           </.with_source_icon>
         </span>
-        <div class="flex min-w-0 grow flex-col">
+        <div class="flex min-w-0 flex-1 flex-col @max-md:basis-[calc(100%-2.75rem)]">
           <p class="truncate text-label font-semibold text-ink">{source_name(@entry)}</p>
           <p
             id="playback-status"
@@ -512,7 +514,10 @@ defmodule SikioWeb.LibraryComponents do
           </p>
         </div>
         <%!-- The header shows the next step for the item; the menu holds the other actions. --%>
-        <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center gap-1">
+        <div
+          id="item-actions"
+          class="-mt-1 -mr-2 flex shrink-0 items-center gap-1 @max-md:mt-0 @max-md:-ml-2 @max-md:w-[calc(100%+1rem)] @max-md:justify-between"
+        >
           <.card_action
             :if={!@queued}
             id="queue"

@@ -40,6 +40,8 @@ Its own section becomes the version's release notes.
   next and Play last is gone.
 - An action that takes the shown item out of the list shows the next item, or the one above
   the last. Queueing, archiving, marking and starring work through the inbox one by one.
+- On a narrow item card the actions take a row of their own below the source and meta line.
+  The source name and the meta line no longer wrap on a phone.
 
 ### Fixed
 

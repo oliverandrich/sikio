@@ -46,6 +46,26 @@ defmodule SikioWeb.CardActionsTest do
     end)
   end
 
+  # A narrow card puts the actions in a row below the source and meta line, which keep its width.
+  # Beside the list at 1280 px the card is wide enough for one row.
+  test "a narrow card puts its actions in a row of their own", context do
+    %{conn: conn, video: video} = context
+
+    conn
+    |> resize(390, 844)
+    |> open(item_path(video))
+    |> assert_has("#item-actions > #mark-completed")
+    |> script(head(), fn head ->
+      assert head["actionsTop"] >= head["metaBottom"], "the actions sit below the meta line"
+      assert head["metaLines"] == 1, "the meta line does not wrap"
+      assert head["actionsWidth"] >= head["cardWidth"] - 16, "the actions span the card"
+    end)
+    |> resize(1280, 800)
+    |> script(head(), fn head ->
+      assert head["actionsTop"] < head["metaBottom"], "the actions sit beside the meta line"
+    end)
+  end
+
   # The other actions are in the `#item-more` menu. It opens, runs an action and closes.
   test "the menu at the card's head acts and closes", context do
     %{conn: conn, video: video} = context
@@ -59,6 +79,17 @@ defmodule SikioWeb.CardActionsTest do
     |> click("#dequeue")
     |> assert_has("#item-actions > #queue")
     |> refute_has("#item-more[open]")
+  end
+
+  defp head do
+    """
+    const card = document.querySelector('#item-detail article').getBoundingClientRect()
+    const actions = document.getElementById('item-actions').getBoundingClientRect()
+    const meta = document.getElementById('playback-status')
+    const tops = new Set([...meta.children].filter(c => c.offsetParent).map(c => Math.round(c.getBoundingClientRect().top)))
+    return {actionsTop: Math.round(actions.top), metaBottom: Math.round(meta.getBoundingClientRect().bottom),
+            metaLines: tops.size, actionsWidth: Math.round(actions.width), cardWidth: Math.round(card.width)}
+    """
   end
 
   defp measure do
