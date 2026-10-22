@@ -20,6 +20,10 @@ defmodule SikioWeb.MediaComponents do
   def source_name(%{source_name: name}) when is_binary(name), do: name
   def source_name(%{feed: feed}), do: feed.title
 
+  @doc "Sorts subscriptions by their displayed name, ignoring case."
+  def by_name(subscriptions),
+    do: Enum.sort_by(subscriptions, &String.downcase(source_name(&1) || ""))
+
   @video_kinds [:youtube, :peertube, :mediathek]
   @native_video_kinds [:peertube, :mediathek]
 

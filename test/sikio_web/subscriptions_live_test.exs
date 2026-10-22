@@ -35,6 +35,34 @@ defmodule SikioWeb.SubscriptionsLiveTest do
     refute has_element?(view, "#search-form")
   end
 
+  # The page lists by name, ignoring case, like the sidebar. The other order lists the newest
+  # subscription first. The account keeps the choice.
+  test "the page lists by name or by the newest subscription first", %{conn: conn, user: user} do
+    for title <- ["beta", "Charlie", "Alpha"] do
+      {:ok, preview} = Parser.parse(podcast(title), feed_url())
+      {:ok, _} = Library.subscribe(user, preview)
+    end
+
+    names = fn view ->
+      view
+      |> render()
+      |> Floki.parse_document!()
+      |> Floki.find("#subscriptions article p:first-child a")
+      |> Enum.map(&String.trim(Floki.text(&1)))
+    end
+
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    assert names.(view) == ["Alpha", "beta", "Charlie"]
+    assert has_element?(view, ~s|#subscriptions-order-name[aria-pressed="true"]|)
+
+    view |> element("#subscriptions-order-added") |> render_click()
+    assert names.(view) == ["Alpha", "Charlie", "beta"]
+
+    {:ok, view, _} = live(conn, ~p"/subscriptions")
+    assert names.(view) == ["Alpha", "Charlie", "beta"]
+    assert has_element?(view, ~s|#subscriptions-order-added[aria-pressed="true"]|)
+  end
+
   # A YouTube channel whose hub subscription is verified shows Live; one still polling says so.
   # Other sources carry neither, since only YouTube has a hub.
   test "YouTube channels show whether their hub announces new videos", %{conn: conn, user: user} do

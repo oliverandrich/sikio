@@ -647,22 +647,46 @@ defmodule SikioWeb.Layouts do
   `SikioWeb.Sidebar` handles its `show_subscriptions` event on every member page.
   """
   attr :id, :string, required: true, doc: "the prefix of both buttons' ids"
-  attr :shown, :string, required: true, doc: "\"all\" or \"new\""
+  attr :shown, :string, required: true, doc: "`all` or `new`"
   attr :class, :any, default: nil
 
   def subscriptions_switch(assigns) do
     ~H"""
+    <.choice
+      id={@id}
+      label={gettext("Subscriptions shown")}
+      event="show_subscriptions"
+      current={@shown}
+      options={[{"new", gettext("New")}, {"all", gettext("All")}]}
+      class={@class}
+    />
+    """
+  end
+
+  @doc """
+  Renders a row of buttons of which one is pressed. A press pushes `event` with its `value`.
+  Each button's id is the `id` prefix and its value.
+  """
+  attr :id, :string, required: true
+  attr :label, :string, required: true, doc: "the group's name for screen readers"
+  attr :event, :string, required: true
+  attr :current, :string, required: true, doc: "the pressed button's value"
+  attr :options, :list, required: true, doc: "`{value, label}` pairs"
+  attr :class, :any, default: nil
+
+  def choice(assigns) do
+    ~H"""
     <div
       role="group"
-      aria-label={gettext("Subscriptions shown")}
+      aria-label={@label}
       class={["flex items-center rounded-full bg-line/60 p-0.5 text-meta font-medium", @class]}
     >
       <button
-        :for={{shown, label} <- [{"new", gettext("New")}, {"all", gettext("All")}]}
-        id={"#{@id}-#{shown}"}
+        :for={{value, label} <- @options}
+        id={"#{@id}-#{value}"}
         type="button"
-        phx-click={JS.push("show_subscriptions", value: %{shown: shown})}
-        aria-pressed={to_string(@shown == shown)}
+        phx-click={JS.push(@event, value: %{value: value})}
+        aria-pressed={to_string(@current == value)}
         class="rounded-full px-2 py-0.5 text-muted hover:text-ink aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-sm"
       >
         {label}

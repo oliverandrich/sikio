@@ -76,4 +76,16 @@ defmodule Sikio.PreferencesTest do
     assert {:error, changeset} = Preferences.update(c.alice, %{subscriptions_shown: "some"})
     assert %{subscriptions_shown: [_]} = errors_on(changeset)
   end
+
+  # The subscriptions page lists by name unless the account chose the order they were added in.
+  test "the subscriptions page orders by name or by date added", c do
+    assert %{subscriptions_order: "name"} = Preferences.get(c.alice)
+
+    assert {:ok, %{subscriptions_order: "added"}} =
+             Preferences.update(c.alice, %{subscriptions_order: "added"})
+
+    assert %{subscriptions_order: "name"} = Preferences.get(c.bob)
+    assert {:error, changeset} = Preferences.update(c.alice, %{subscriptions_order: "size"})
+    assert %{subscriptions_order: [_]} = errors_on(changeset)
+  end
 end

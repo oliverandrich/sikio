@@ -15,6 +15,7 @@ defmodule Sikio.Preferences.Preference do
 
   @start_views ~w(queue inbox)
   @subscriptions_shown ~w(all new)
+  @subscriptions_orders ~w(name added)
 
   schema "preferences" do
     belongs_to :user, User
@@ -27,6 +28,8 @@ defmodule Sikio.Preferences.Preference do
     field :locale, :string
     # Which subscriptions the lists show: all, or those with unfinished items.
     field :subscriptions_shown, :string, default: "all"
+    # The order of the subscriptions page: by name, or the newest subscription first.
+    field :subscriptions_order, :string, default: "name"
     timestamps(type: :utc_datetime_usec)
   end
 
@@ -36,10 +39,18 @@ defmodule Sikio.Preferences.Preference do
   @doc "Casts and validates the preferences. `locales` are the supported language codes."
   def changeset(preference, attrs, locales) do
     preference
-    |> cast(attrs, [:play_on, :start_view, :start_tag_id, :locale, :subscriptions_shown])
-    |> validate_required([:play_on, :start_view, :subscriptions_shown])
+    |> cast(attrs, [
+      :play_on,
+      :start_view,
+      :start_tag_id,
+      :locale,
+      :subscriptions_shown,
+      :subscriptions_order
+    ])
+    |> validate_required([:play_on, :start_view, :subscriptions_shown, :subscriptions_order])
     |> validate_inclusion(:start_view, @start_views)
     |> validate_inclusion(:subscriptions_shown, @subscriptions_shown)
+    |> validate_inclusion(:subscriptions_order, @subscriptions_orders)
     |> validate_inclusion(:locale, locales)
     |> foreign_key_constraint(:start_tag_id)
   end

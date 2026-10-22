@@ -20,7 +20,7 @@ defmodule SikioWeb.Sidebar do
   def on_mount(:default, _params, _session, socket),
     do: {:cont, socket |> refresh() |> attach_hook(:sidebar, :handle_event, &switched/3)}
 
-  defp switched("show_subscriptions", %{"shown" => shown}, socket) do
+  defp switched("show_subscriptions", %{"value" => shown}, socket) do
     case Preferences.update(socket.assigns.current_account, %{subscriptions_shown: shown}) do
       {:ok, preference} ->
         {:halt, update(socket, :sidebar, &%{&1 | shown: preference.subscriptions_shown})}
@@ -60,10 +60,7 @@ defmodule SikioWeb.Sidebar do
 
   @doc "Returns the account's counts, sources and tags."
   def load(account) do
-    sources =
-      account
-      |> Library.subscriptions()
-      |> Enum.sort_by(&String.downcase(MediaComponents.source_name(&1) || ""))
+    sources = account |> Library.subscriptions() |> MediaComponents.by_name()
 
     tags = Tags.list(account)
 

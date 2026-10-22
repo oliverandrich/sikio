@@ -8,12 +8,20 @@ defmodule SikioWeb.SubscriptionsLive do
   use SikioWeb, :live_view
 
   import SikioWeb.MediaComponents,
-    only: [initial: 1, refresh_problem: 1, source_label: 1, source_name: 1, with_source_icon: 1]
+    only: [
+      by_name: 1,
+      initial: 1,
+      refresh_problem: 1,
+      source_label: 1,
+      source_name: 1,
+      with_source_icon: 1
+    ]
 
   alias Sikio.Feeds.Feed
   alias Sikio.Feeds.Hub
   alias Sikio.Feeds.Refresh
   alias Sikio.Library
+  alias Sikio.Preferences
   alias SikioWeb.LibraryPaths
   alias SikioWeb.Sidebar
   alias SikioWeb.SubscriptionSettings
@@ -29,6 +37,13 @@ defmodule SikioWeb.SubscriptionsLive do
   end
 
   @impl true
+  def handle_event("order_subscriptions", %{"value" => order}, socket) do
+    case Preferences.update(socket.assigns.current_account, %{subscriptions_order: order}) do
+      {:ok, _preference} -> {:noreply, load_subscriptions(socket)}
+      {:error, _changeset} -> {:noreply, socket}
+    end
+  end
+
   def handle_event("pause", %{"id" => id, "paused" => paused}, socket) do
     case Library.pause(socket.assigns.current_account, id, paused == "true") do
       {:ok, _} -> {:noreply, load_subscriptions(socket)}
@@ -104,10 +119,15 @@ defmodule SikioWeb.SubscriptionsLive do
     do: {:noreply, socket |> load_subscriptions() |> Sidebar.refresh()}
 
   defp load_subscriptions(socket) do
-    subscriptions = Library.subscriptions(socket.assigns.current_account)
+    account = socket.assigns.current_account
+    order = Preferences.get(account).subscriptions_order
+    subscriptions = Library.subscriptions(account)
+    # `Library.subscriptions/1` lists the newest subscription first.
+    subscriptions = if order == "name", do: by_name(subscriptions), else: subscriptions
 
     socket
     |> assign(
+      order: order,
       subscription_count: length(subscriptions),
       any_active: Enum.any?(subscriptions, &(!&1.paused)),
       live: Hub.live(Enum.map(subscriptions, & &1.feed_id))
@@ -180,6 +200,16 @@ defmodule SikioWeb.SubscriptionsLive do
           {gettext("Refresh all")}
           <Lucideicons.rotate_cw aria-hidden="true" class="size-4" />
         </button>
+        <%!-- The order ends the row, above the list's right edge. --%>
+        <Layouts.choice
+          :if={@subscription_count > 1}
+          id="subscriptions-order"
+          label={gettext("Order")}
+          event="order_subscriptions"
+          current={@order}
+          options={[{"name", gettext("Name")}, {"added", gettext("Added")}]}
+          class="ml-auto self-center"
+        />
       </div>
       <section class="mt-8">
         <p

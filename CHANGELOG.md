@@ -46,6 +46,8 @@ Its own section becomes the version's release notes.
   The source name and the meta line no longer wrap on a phone.
 - On wide screens the player in an item's card sticks to the top of the detail as its notes
   scroll, as it does on a phone. A stuck video takes at most 40 % of the window height.
+- The subscriptions page lists by name, like the sidebar, or with the newest subscription
+  first. The account keeps the choice.
 
 ### Fixed
 
@@ -65,6 +67,8 @@ Its own section becomes the version's release notes.
   `bin/grant-admin` names one.
 - A migration adds the subscription list's choice to the preferences. Every account starts
   with all subscriptions shown.
+- A migration adds the subscriptions page's order to the preferences. Every account starts
+  with the order by name.
 
 ## [0.8.0] - 2026-10-18
 
