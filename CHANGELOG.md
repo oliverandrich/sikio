@@ -42,6 +42,8 @@ Its own section becomes the version's release notes.
   the last. Queueing, archiving, marking and starring work through the inbox one by one.
 - On a narrow item card the actions take a row of their own below the source and meta line.
   The source name and the meta line no longer wrap on a phone.
+- On wide screens the player in an item's card sticks to the top of the detail as its notes
+  scroll, as it does on a phone. A stuck video takes at most 40 % of the window height.
 
 ### Fixed
 

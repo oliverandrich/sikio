@@ -2,7 +2,7 @@
 
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {placement, stuckFrom} from "./dock_place.mjs"
+import {placement, stickMargin, stuckFrom} from "./dock_place.mjs"
 
 // On a phone the panel is pinned when the detail shows the playing item. Otherwise it floats.
 test("on a narrow screen the panel sits in the detail that shows what plays", () => {
@@ -27,4 +27,11 @@ test("the slot is stuck as the last of the observer's entries says", () => {
   assert.equal(stuckFrom([{isIntersecting: true}]), true)
   assert.equal(stuckFrom([{isIntersecting: true}, {isIntersecting: false}]), false)
   assert.equal(stuckFrom([{isIntersecting: false}, {isIntersecting: true}]), true)
+})
+
+// On a phone the page scrolls under the top bar. From lg the detail column scrolls on its own.
+// The margin moves the root's bottom edge up to the sticking edge.
+test("the panel sticks below the top bar on a phone and to the detail's top from lg", () => {
+  assert.equal(stickMargin({wide: false, bar: 56, viewport: 844, column: 900}), -788)
+  assert.equal(stickMargin({wide: true, bar: 56, viewport: 900, column: 900}), -900)
 })

@@ -391,6 +391,23 @@
 #player-panel[data-place="compact"] video + .audio-face { margin-top: .5rem; }
 #player-panel[data-place="compact"] .audio-times { font-size: 10px; }
 
+/* From lg the detail column scrolls on its own. A pinned player that scrolled past its slot
+   sticks to the column's top, over the card's notes. A stuck video takes at most 40 % of the
+   window. Before playback the card's audio player sticks the same way, so starting it moves
+   nothing. */
+@media (width >= 64rem) {
+  #player-panel[data-place="pinned"][data-stuck] {
+    position-visibility: always; top: 0;
+    background: var(--color-surface); border-bottom: 1px solid var(--color-line);
+  }
+  #player-panel[data-place="pinned"][data-stuck] :is(iframe, video) { max-height: 40dvh; }
+  /* Sticky offsets count from inside the column's padding, `lg:py-6` in library_live.ex.
+     The negative top cancels it, so the slot sticks where the panel does. */
+  #player-slot:not([data-pinned]):has(#audio-cue) {
+    position: sticky; top: -1.5rem; z-index: 10; background: var(--color-surface);
+  }
+}
+
 /* Below lg the main navigation is a bottom tab bar; --nav-bar is its height, Apple's 49pt.
    The tab bar, the page's bottom padding and the panel's bottom offset use it.
    --top-bar is the top bar's height; a pinned video sticks below it.

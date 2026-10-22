@@ -209,6 +209,7 @@ defmodule SikioWeb.PlayerTest do
 
   # From lg a pinned video's height is 9/16 of its width, capped at the window height.
   # The panel has no overflow.
+  # Clicking scrolls the play button into view, so the test scrolls back to the slot first.
   test "from lg a video grows to the window's height and the panel never scrolls", context do
     %{conn: conn, account: account} = context
     video = video_with_notes(conn, account)
@@ -218,6 +219,8 @@ defmodule SikioWeb.PlayerTest do
     |> open(item_path(video))
     |> click("#start-playback")
     |> assert_has(~s|#player-panel[data-place="pinned"] video|)
+    |> script("document.getElementById('item-detail').scrollTop = 0")
+    |> refute_has("#player-panel[data-stuck]")
     |> script(
       """
       const panel = document.getElementById('player-panel')
@@ -591,6 +594,86 @@ defmodule SikioWeb.PlayerTest do
       )
     end
 
+    # Scrolled past its slot, the pinned player sticks to the top of the detail column.
+    # Before playback the card's own player does the same, so starting it moves nothing.
+    test "audio sticks to the top of the detail as its notes scroll", context do
+      %{conn: conn, entry: entry} = context
+      notes = String.duplicate("<p>Something worth reading while it plays.</p>", 80)
+      Repo.update!(Ecto.Changeset.change(entry, description: notes, description_format: :html))
+
+      conn
+      |> resize(1440, 900)
+      |> open(item_path(entry))
+      |> assert_has("#player-slot #audio-cue")
+      |> script(scrolled_past_the_slot())
+      |> eventually(at_the_top("player-slot"), message: "the card's player sticks")
+      |> click("#start-playback")
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-face]|)
+      |> script(scrolled_past_the_slot())
+      |> eventually(at_the_top("player-panel"), message: "the player sticks")
+      |> script("document.getElementById('item-detail').scrollTop = 0")
+      |> eventually(
+        """
+        const a = document.getElementById('player-panel').getBoundingClientRect(),
+              b = document.getElementById('player-slot').getBoundingClientRect()
+        return Math.abs(a.top - b.top) <= 1
+        """,
+        message: "the player returns to its slot"
+      )
+    end
+
+    # A stuck player still reserves its height on the slot when the window changes.
+    # The audio controls are taller in a narrow card.
+    test "a stuck player's slot follows its height through a resize", context do
+      %{conn: conn, entry: entry} = context
+      notes = String.duplicate("<p>Something worth reading while it plays.</p>", 80)
+      Repo.update!(Ecto.Changeset.change(entry, description: notes, description_format: :html))
+
+      conn
+      |> resize(1440, 900)
+      |> open(item_path(entry))
+      |> click("#start-playback")
+      |> assert_has(~s|#player-panel[data-place="pinned"] [data-audio-face]|)
+      |> script(scrolled_past_the_slot())
+      |> eventually(at_the_top("player-panel"), message: "the player sticks")
+      |> resize(1024, 900)
+      |> eventually(
+        """
+        const panel = document.getElementById('player-panel').getBoundingClientRect().height
+        return panel > 150 &&
+               Math.abs(document.getElementById('player-slot').getBoundingClientRect().height - panel) <= 1
+        """,
+        message: "the slot has the panel's height"
+      )
+    end
+
+    # A stuck video takes at most 40 % of the window, so the notes keep most of it.
+    test "a video sticks to the top of the detail at 40 % of the window", context do
+      %{conn: conn, account: account} = context
+      video = video_with_notes(conn, account)
+
+      conn
+      |> resize(1440, 900)
+      |> open(item_path(video))
+      |> click("#start-playback")
+      |> assert_has(~s|#player-panel[data-place="pinned"] video|)
+      |> script(scrolled_past_the_slot())
+      |> eventually(at_the_top("player-panel"), message: "the video sticks")
+      |> script(
+        "return document.querySelector('#player-panel video').getBoundingClientRect().height",
+        fn height -> assert height <= 0.4 * 900 + 1 end
+      )
+      |> script("return document.getElementById('player-slot').offsetHeight", fn slot ->
+        Process.put(:stuck_slot, slot)
+      end)
+      # The stuck video's slot keeps the height the video has on it, so the notes do not move.
+      |> script("document.getElementById('item-detail').scrollTop = 0")
+      |> refute_has("#player-panel[data-stuck]")
+      |> script("return document.getElementById('player-panel').offsetHeight", fn panel ->
+        assert_in_delta panel, Process.get(:stuck_slot), 1
+      end)
+    end
+
     # The compact player's title opens the playing item in the current list, if it contains it.
     # Regression: the title linked to a URL without a list, which switched to all items.
     test "its title shows what plays without leaving the list", context do
@@ -831,4 +914,22 @@ defmodule SikioWeb.PlayerTest do
 
   defp padding,
     do: "return getComputedStyle(document.querySelector('#page-content')).paddingBottom"
+
+  # Scrolls the slot 600 px past the column's top, so the column clips all of it.
+  defp scrolled_past_the_slot do
+    """
+    const detail = document.getElementById('item-detail')
+    const slot = document.getElementById('player-slot').getBoundingClientRect().top
+    detail.scrollTop += slot - detail.getBoundingClientRect().top + 600
+    """
+  end
+
+  defp at_the_top(id) do
+    """
+    const box = document.getElementById('#{id}')
+    return Math.round(box.getBoundingClientRect().top) ===
+             Math.round(document.getElementById('item-detail').getBoundingClientRect().top) &&
+           getComputedStyle(box).visibility === 'visible'
+    """
+  end
 end
