@@ -403,7 +403,7 @@ defmodule SikioWeb.LibraryLive do
 
   def handle_event("favourite", %{"id" => id, "starred" => starred}, socket)
       when is_boolean(starred),
-      do: changed(socket, Library.favourite(socket.assigns.current_account, id, starred))
+      do: changed(socket, id, Library.favourite(socket.assigns.current_account, id, starred))
 
   # Sent by assets/js/share.mjs where the browser has no share sheet and the link was copied, or
   # could not be.
@@ -414,11 +414,11 @@ defmodule SikioWeb.LibraryLive do
     do: {:noreply, put_flash(socket, :error, gettext("The link could not be copied."))}
 
   def handle_event("queue", %{"id" => id}, socket),
-    do: changed(socket, Playback.enqueue(socket.assigns.current_account, id, :last))
+    do: changed(socket, id, Playback.enqueue(socket.assigns.current_account, id, :last))
 
   # Sent after a drag or an arrow-key move. The broadcast reloads the queue in its new order.
   def handle_event("reorder", %{"id" => id, "index" => index}, socket) when is_integer(index),
-    do: changed(socket, Playback.move(socket.assigns.current_account, id, index))
+    do: changed(socket, id, Playback.move(socket.assigns.current_account, id, index))
 
   # A singly saved item leaves the library, and the detail closes. Its playback state stays.
   def handle_event("remove_entry", %{"id" => id}, socket) do
@@ -471,13 +471,14 @@ defmodule SikioWeb.LibraryLive do
   end
 
   def handle_event("dequeue", %{"id" => id}, socket),
-    do: changed(socket, Playback.dequeue(socket.assigns.current_account, id))
+    do: changed(socket, id, Playback.dequeue(socket.assigns.current_account, id))
 
   def handle_event("mark", %{"id" => id, "status" => status}, socket)
       when status in ["new", "heard", "archived"],
       do:
         changed(
           socket,
+          id,
           Playback.mark(socket.assigns.current_account, id, String.to_existing_atom(status))
         )
 
@@ -490,15 +491,34 @@ defmodule SikioWeb.LibraryLive do
     do: handle_event("favourite", %{"id" => entry.id, "starred" => !entry.favourite}, socket)
 
   # The change triggers a PubSub broadcast. Its handler reloads the list and the sidebar.
-  defp changed(socket, result) do
+  defp changed(socket, id, result) do
     case result do
       {:ok, _} ->
-        {:noreply, socket}
+        {:noreply, onward(socket, id)}
 
       _ ->
         {:noreply, put_flash(socket, :error, gettext("This item is no longer in your library."))}
     end
   end
+
+  # Triaging a list removes the shown item from it, so the detail moves to the next row.
+  # Without a next row it takes the one above. Reloads from playback keep the detail.
+  defp onward(%{assigns: %{selected: selected}} = socket, id) when not is_nil(selected) do
+    %{current_account: account, filters: filters, entries: entries} = socket.assigns
+
+    if to_string(selected.id) == to_string(id) and not Library.listed?(account, filters, id) do
+      next = neighbour(entries, Rows.position(socket))
+      push_patch(socket, to: address(socket, filters, next))
+    else
+      socket
+    end
+  end
+
+  defp onward(socket, _id), do: socket
+
+  defp neighbour(_entries, nil), do: nil
+  defp neighbour(entries, 0), do: Enum.at(entries, 1)
+  defp neighbour(entries, index), do: Enum.at(entries, index + 1) || Enum.at(entries, index - 1)
 
   @impl SikioWeb.LibraryEvents
   @doc """

@@ -336,6 +336,53 @@ defmodule SikioWeb.LibraryLiveTest do
     {video, subscription}
   end
 
+  # Working through a list, an action that takes the shown item out of it shows the next row.
+  # The last row hands over to the row above it.
+  describe "a detail action that takes its item out of the list" do
+    setup c do
+      [first, second] = Library.entries(c.user, %{"status" => "inbox"})
+      %{first: first, second: second}
+    end
+
+    defp inbox(c, entry),
+      do: live(c.conn, SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, entry))
+
+    test "shows the next row after queueing", c do
+      {:ok, view, _} = inbox(c, c.first)
+
+      view |> element("#item-actions > #queue") |> render_click()
+      assert_patch(view, SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, c.second))
+      assert has_element?(view, "#item-detail[data-entry-id='#{c.second.id}']")
+      refute has_element?(view, "#entries-#{c.first.id}")
+    end
+
+    # The inbox holds two items, so the m key empties it, and the detail with it.
+    test "shows the next row after archiving, and none after the m key empties the list", c do
+      {:ok, view, _} = inbox(c, c.first)
+      view |> element("#item-actions > #archive") |> render_click()
+      assert_patch(view, SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, c.second))
+
+      render_hook(view, "toggle_mark", %{})
+      assert_patch(view, "/inbox")
+      refute has_element?(view, "#item-detail h2")
+    end
+
+    test "shows the row above after the last row", c do
+      {:ok, view, _} = inbox(c, c.second)
+
+      view |> element("#item-actions > #queue") |> render_click()
+      assert_patch(view, SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, c.first))
+    end
+
+    test "keeps the detail where the list still holds the item", c do
+      {:ok, view, _} = live(c.conn, item_path(c.first))
+
+      view |> element("#item-actions > #queue") |> render_click()
+      assert has_element?(view, "#item-detail[data-entry-id='#{c.first.id}']")
+      assert has_element?(view, "#playback-status", "In the queue")
+    end
+  end
+
   # `played_out` arrives when the detail's item ended with nothing queued after it.
   # The detail closes if the list no longer holds the item. Otherwise it stays.
   describe "an item played out with nothing after it" do
