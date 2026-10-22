@@ -57,7 +57,7 @@ defmodule SikioWeb.CardActionsTest do
     |> click("#item-more summary")
     |> assert_has("#item-more[open] #dequeue")
     |> click("#dequeue")
-    |> assert_has("#item-actions > #queue-menu")
+    |> assert_has("#item-actions > #queue")
     |> refute_has("#item-more[open]")
   end
 

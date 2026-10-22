@@ -36,6 +36,8 @@ Its own section becomes the version's release notes.
 - Sikio requires Ithibati 0.9.0.
 - A member takes back only the invitations they sent. An administrator takes back any.
 - On wide screens, the pages under Settings show a breadcrumb back to the settings.
+- An item's Add to queue button appends it to the queue, as the search does. The menu with Play
+  next and Play last is gone.
 
 ### Fixed
 

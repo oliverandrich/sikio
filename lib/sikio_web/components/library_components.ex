@@ -221,38 +221,8 @@ defmodule SikioWeb.LibraryComponents do
     """
   end
 
-  attr :entry, :map, required: true
-  attr :again, :boolean, required: true, doc: "the item was heard and goes in once more"
-
-  # Menu that adds the item at the start or the end of the queue.
-  def queue_menu(assigns) do
-    ~H"""
-    <.item_menu
-      id="queue-menu"
-      label={if @again, do: gettext("Queue again"), else: gettext("Add to queue")}
-      named
-    >
-      <:icon><Lucideicons.list_plus aria-hidden="true" class="size-4.5" /></:icon>
-      <.menu_item id="queue-first" push={{"queue", %{id: @entry.id, at: "first"}}} menu="queue-menu">
-        <:icon><Lucideicons.list_start aria-hidden="true" class="size-4" /></:icon>
-        {gettext("Play next")}
-      </.menu_item>
-      <.menu_item id="queue-last" push={{"queue", %{id: @entry.id, at: "last"}}} menu="queue-menu">
-        <:icon><Lucideicons.list_end aria-hidden="true" class="size-4" /></:icon>
-        {gettext("Play last")}
-      </.menu_item>
-    </.item_menu>
-    """
-  end
-
   attr :id, :string, required: true
   attr :label, :string, required: true
-
-  attr :named, :boolean,
-    default: false,
-    doc: "shows its label beside a chevron, as the actions do"
-
-  slot :icon
   slot :inner_block, required: true
 
   # A `<details>` menu in the card header. The card re-renders during playback, so
@@ -268,20 +238,11 @@ defmodule SikioWeb.LibraryComponents do
       phx-key="Escape"
     >
       <summary
-        aria-label={!@named && @label}
-        title={!@named && @label}
-        class={[
-          "flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-full text-label font-medium text-muted hover:bg-ground hover:text-ink focus-visible:outline-2 focus-visible:outline-accent [[open]>&]:bg-ground [[open]>&]:text-ink",
-          if(@named, do: "px-3", else: "w-9 justify-center")
-        ]}
+        aria-label={@label}
+        title={@label}
+        class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full text-label font-medium text-muted hover:bg-ground hover:text-ink focus-visible:outline-2 focus-visible:outline-accent [[open]>&]:bg-ground [[open]>&]:text-ink"
       >
-        <%= if @named do %>
-          {render_slot(@icon)}
-          <span class="@max-2xl:sr-only">{@label}</span>
-          <Lucideicons.chevron_down aria-hidden="true" class="size-3.5 @max-2xl:hidden" />
-        <% else %>
-          <Lucideicons.ellipsis aria-hidden="true" class="size-4.5" />
-        <% end %>
+        <Lucideicons.ellipsis aria-hidden="true" class="size-4.5" />
       </summary>
       <%!-- z-50 keeps the menu above the dock's player, which covers the slot at z-40. --%>
       <div class="absolute top-full right-0 z-50 mt-1 flex w-max min-w-48 flex-col rounded-control border border-line bg-surface p-1 shadow-lg">
@@ -552,7 +513,15 @@ defmodule SikioWeb.LibraryComponents do
         </div>
         <%!-- The header shows the next step for the item; the menu holds the other actions. --%>
         <div id="item-actions" class="-mt-1 -mr-2 flex shrink-0 items-center gap-1">
-          <.queue_menu :if={!@queued} entry={@entry} again={@status == :heard} />
+          <.card_action
+            :if={!@queued}
+            id="queue"
+            label={if @status == :heard, do: gettext("Queue again"), else: gettext("Add to queue")}
+            phx-click="queue"
+            phx-value-id={@entry.id}
+          >
+            <:icon><Lucideicons.list_plus aria-hidden="true" class="size-4.5" /></:icon>
+          </.card_action>
           <.card_action
             :if={@queued and @status != :heard}
             id="mark-completed"

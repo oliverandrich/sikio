@@ -20,19 +20,19 @@ defmodule SikioWeb.LibraryDetailTest do
 
   setup :sign_in_with_episode
 
-  # The card's buttons queue first or last, dequeue, archive, mark new and mark heard.
+  # The card's buttons queue, dequeue, archive, mark new and mark heard.
   test "the card queues, marks and archives its item", c do
     {:ok, view, _} = live(c.conn, item_path(c.entry))
 
-    view |> element("#queue-first") |> render_click()
+    view |> element("#queue") |> render_click()
     assert Playback.queue(c.user) == [c.entry.id]
     assert has_element?(view, "#playback-status", "In the queue")
 
     view |> element("#dequeue") |> render_click()
     assert Playback.queue(c.user) == []
-    assert has_element?(view, "#queue-last")
+    assert has_element?(view, "#queue")
 
-    view |> element("#queue-last") |> render_click()
+    view |> element("#queue") |> render_click()
     view |> element("#archive") |> render_click()
     assert %{playback: %{status: :archived, queue_rank: nil}} = Library.entry(c.user, c.entry.id)
     assert has_element?(view, "#mark-new")
@@ -79,33 +79,44 @@ defmodule SikioWeb.LibraryDetailTest do
     assert [%{favourite: false}] = Library.entries(c.user)
   end
 
+  # Like the search, the card's queue button appends the item behind what is queued.
+  test "the card's queue button appends its item to the queue", c do
+    {:ok, preview} = Parser.parse(podcast("Queued before"), feed_url())
+    {:ok, subscription} = Library.subscribe(c.user, preview)
+    [queued] = Library.entries(c.user, %{"source" => to_string(subscription.feed_id)})
+    {:ok, _} = Playback.enqueue(c.user, queued.id, :last)
+    {:ok, view, _} = live(c.conn, item_path(c.entry))
+
+    view |> element("#item-actions > #queue") |> render_click()
+    assert Playback.queue(c.user) == [queued.id, c.entry.id]
+  end
+
   # The card head shows the next action for the current status. A menu holds the rest.
   # New items offer queue and archive. Queued items offer mark heard.
   # Heard and archived items offer queueing again.
   test "the card's head offers what comes next for its item", c do
     {:ok, view, _} = live(c.conn, item_path(c.entry))
 
-    assert has_element?(view, "#item-actions > #queue-menu #queue-first")
-    assert has_element?(view, "#item-actions > #queue-menu #queue-last")
+    assert has_element?(view, "#item-actions > #queue", "Add to queue")
     assert has_element?(view, "#item-actions > #archive")
     assert has_element?(view, "#item-more #mark-completed")
     assert has_element?(view, "#item-more #open-original")
 
-    view |> element("#queue-last") |> render_click()
+    view |> element("#queue") |> render_click()
     assert has_element?(view, "#playback-status", "In the queue")
     assert has_element?(view, "#item-actions > #mark-completed")
     assert has_element?(view, "#item-more #dequeue")
     assert has_element?(view, "#item-more #archive")
-    refute has_element?(view, "#queue-menu")
+    refute has_element?(view, "#queue")
 
     view |> element("#mark-completed") |> render_click()
-    assert has_element?(view, "#item-actions > #queue-menu", "Queue again")
+    assert has_element?(view, "#item-actions > #queue", "Queue again")
     assert has_element?(view, "#item-more #mark-new")
     refute has_element?(view, "#archive")
 
     view |> element("#mark-new") |> render_click()
     view |> element("#archive") |> render_click()
-    assert has_element?(view, "#item-actions > #queue-menu #queue-first")
+    assert has_element?(view, "#item-actions > #queue", "Add to queue")
     assert has_element?(view, "#item-more #mark-completed")
     assert has_element?(view, "#item-more #mark-new")
   end

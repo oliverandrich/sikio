@@ -784,7 +784,7 @@ msgstr "← Deine Abos"
 msgid "Add a source"
 msgstr "Quelle hinzufügen"
 
-#: lib/sikio_web/live/player_dock_live.ex:377
+#: lib/sikio_web/live/player_dock_live.ex:384
 #, elixir-autogen, elixir-format
 msgid "Close player"
 msgstr "Player schließen"
@@ -844,7 +844,7 @@ msgstr "Als gesehen markieren"
 msgid "New"
 msgstr "Neu"
 
-#: lib/sikio_web/live/player_dock_live.ex:322
+#: lib/sikio_web/live/player_dock_live.ex:335
 #, elixir-autogen, elixir-format
 msgid "Now playing"
 msgstr "Läuft gerade"
@@ -856,7 +856,7 @@ msgstr "Füge einen YouTube-Kanal, ein Video oder eine Podcast-Webseite ein. Ode
 
 #: lib/sikio_web/components/audio_face.ex:44
 #: lib/sikio_web/components/media_components.ex:59
-#: lib/sikio_web/live/player_dock_live.ex:440
+#: lib/sikio_web/live/player_dock_live.ex:447
 #, elixir-autogen, elixir-format
 msgid "Play"
 msgstr "Abspielen"
@@ -872,15 +872,15 @@ msgid "Space for something good."
 msgstr "Platz für etwas Gutes."
 
 #: lib/sikio_web/live/library_live.ex:235
-#: lib/sikio_web/live/library_live.ex:393
+#: lib/sikio_web/live/library_live.ex:397
 #: lib/sikio_web/live/library_live.ex:499
-#: lib/sikio_web/live/player_dock_live.ex:132
-#: lib/sikio_web/live/player_dock_live.ex:188
+#: lib/sikio_web/live/player_dock_live.ex:133
+#: lib/sikio_web/live/player_dock_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "This item is no longer in your library."
 msgstr "Dieser Eintrag ist nicht mehr in deiner Mediathek."
 
-#: lib/sikio_web/live/player_dock_live.ex:122
+#: lib/sikio_web/live/player_dock_live.ex:123
 #, elixir-autogen, elixir-format
 msgid "This source is no longer in your library."
 msgstr "Diese Quelle ist nicht mehr in deiner Mediathek."
@@ -896,47 +896,47 @@ msgstr "Nicht verfügbare Quelle"
 msgid "Watched"
 msgstr "Gesehen"
 
-#: lib/sikio_web/live/player_dock_live.ex:411
+#: lib/sikio_web/live/player_dock_live.ex:418
 #, elixir-autogen, elixir-format
 msgid "Connection lost. Playback paused; your latest position will save when reconnected."
 msgstr "Verbindung verloren. Die Wiedergabe pausiert; deine letzte Position wird gespeichert, sobald die Verbindung zurück ist."
 
-#: lib/sikio_web/live/player_dock_live.ex:416
+#: lib/sikio_web/live/player_dock_live.ex:423
 #, elixir-autogen, elixir-format
 msgid "Reconnect before switching or closing, so your place can be saved."
 msgstr "Stelle die Verbindung wieder her, bevor du wechselst oder schließt, damit deine Position gespeichert werden kann."
 
-#: lib/sikio_web/live/player_dock_live.ex:420
+#: lib/sikio_web/live/player_dock_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "This audio could not be loaded. The publisher may be unavailable or the format unsupported. Try again later."
 msgstr "Dieses Audio konnte nicht geladen werden. Der Anbieter ist eventuell nicht erreichbar oder das Format wird nicht unterstützt. Versuche es später erneut."
 
-#: lib/sikio_web/live/player_dock_live.ex:433
+#: lib/sikio_web/live/player_dock_live.ex:440
 #, elixir-autogen, elixir-format
 msgid "This video cannot be embedded. You can open it on YouTube."
 msgstr "Dieses Video lässt sich nicht einbetten. Du kannst es auf YouTube öffnen."
 
-#: lib/sikio_web/live/player_dock_live.ex:432
+#: lib/sikio_web/live/player_dock_live.ex:439
 #, elixir-autogen, elixir-format
 msgid "This video is private or has been removed."
 msgstr "Dieses Video ist privat oder wurde entfernt."
 
-#: lib/sikio_web/live/player_dock_live.ex:447
+#: lib/sikio_web/live/player_dock_live.ex:454
 #, elixir-autogen, elixir-format
 msgid "YouTube cannot play this video. Try opening it on YouTube."
 msgstr "YouTube kann dieses Video nicht abspielen. Versuche, es auf YouTube zu öffnen."
 
-#: lib/sikio_web/live/player_dock_live.ex:430
+#: lib/sikio_web/live/player_dock_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "YouTube could not be loaded. Check your connection or content blocker."
 msgstr "YouTube konnte nicht geladen werden. Prüfe deine Verbindung oder deinen Inhaltsblocker."
 
-#: lib/sikio_web/live/player_dock_live.ex:435
+#: lib/sikio_web/live/player_dock_live.ex:442
 #, elixir-autogen, elixir-format
 msgid "YouTube could not identify this site. Check browser privacy settings or open it on YouTube."
 msgstr "YouTube konnte diese Seite nicht zuordnen. Prüfe die Datenschutzeinstellungen des Browsers oder öffne es auf YouTube."
 
-#: lib/sikio_web/live/player_dock_live.ex:409
+#: lib/sikio_web/live/player_dock_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "Your progress changed elsewhere. Press Play to continue here."
 msgstr "Dein Fortschritt hat sich anderswo geändert. Drücke Abspielen, um hier weiterzuhören."
@@ -1141,7 +1141,7 @@ msgid_plural "%{count} items"
 msgstr[0] "%{count} Eintrag"
 msgstr[1] "%{count} Einträge"
 
-#: lib/sikio_web/components/library_components.ex:419
+#: lib/sikio_web/components/library_components.ex:380
 #, elixir-autogen, elixir-format
 msgid "Progress"
 msgstr "Fortschritt"
@@ -1156,7 +1156,7 @@ msgstr "Auf YouTube öffnen"
 msgid "Selected item"
 msgstr "Ausgewählter Eintrag"
 
-#: lib/sikio_web/components/library_components.ex:730
+#: lib/sikio_web/components/library_components.ex:699
 #, elixir-autogen, elixir-format
 msgid "The publisher sent no notes for this item."
 msgstr "Zu diesem Eintrag hat der Herausgeber keine Notizen geschickt."
@@ -1232,7 +1232,7 @@ msgstr "Sept."
 msgid "%{day} %{month}"
 msgstr "%{day}. %{month}"
 
-#: lib/sikio_web/components/library_components.ex:446
+#: lib/sikio_web/components/library_components.ex:407
 #, elixir-autogen, elixir-format
 msgid "%{minutes} min left"
 msgstr "noch %{minutes} min"
@@ -1306,8 +1306,8 @@ msgstr "Seite der Folge öffnen"
 msgid "Open on PeerTube"
 msgstr "Auf PeerTube öffnen"
 
-#: lib/sikio_web/components/library_components.ex:400
-#: lib/sikio_web/live/player_dock_live.ex:443
+#: lib/sikio_web/components/library_components.ex:361
+#: lib/sikio_web/live/player_dock_live.ex:450
 #, elixir-autogen, elixir-format
 msgid "%{position} of %{duration}"
 msgstr "%{position} von %{duration}"
@@ -1322,7 +1322,7 @@ msgstr "15 Sekunden zurück"
 msgid "30 seconds forward"
 msgstr "30 Sekunden vor"
 
-#: lib/sikio_web/live/player_dock_live.ex:441
+#: lib/sikio_web/live/player_dock_live.ex:448
 #, elixir-autogen, elixir-format
 msgid "Pause"
 msgstr "Pause"
@@ -1337,12 +1337,12 @@ msgstr "Wiedergabegeschwindigkeit"
 msgid "Position"
 msgstr "Position"
 
-#: lib/sikio_web/live/player_dock_live.ex:418
+#: lib/sikio_web/live/player_dock_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "The browser did not start it. Press play."
 msgstr "Der Browser hat nicht gestartet. Drücke Abspielen."
 
-#: lib/sikio_web/components/library_components.ex:463
+#: lib/sikio_web/components/library_components.ex:424
 #, elixir-autogen, elixir-format
 msgid "Chapters"
 msgstr "Kapitel"
@@ -1384,7 +1384,7 @@ msgid "Next or previous item"
 msgstr "Nächster oder vorheriger Eintrag"
 
 #: lib/sikio_web/components/layouts.ex:499
-#: lib/sikio_web/live/player_dock_live.ex:368
+#: lib/sikio_web/live/player_dock_live.ex:375
 #, elixir-autogen, elixir-format
 msgid "Play or pause"
 msgstr "Abspielen oder anhalten"
@@ -1651,8 +1651,8 @@ msgid_plural "%{count} items in this list will be archived. They stay out of you
 msgstr[0] "%{count} Eintrag in dieser Liste wird archiviert. Er erscheint nicht in deinem Verlauf."
 msgstr[1] "%{count} Einträge in dieser Liste werden archiviert. Sie erscheinen nicht in deinem Verlauf."
 
-#: lib/sikio_web/components/library_components.ex:569
-#: lib/sikio_web/components/library_components.ex:631
+#: lib/sikio_web/components/library_components.ex:538
+#: lib/sikio_web/components/library_components.ex:600
 #: lib/sikio_web/live/mark_all.ex:76
 #, elixir-autogen, elixir-format
 msgid "Archive"
@@ -1674,12 +1674,12 @@ msgstr "Alles hier archivieren?"
 msgid "Archived"
 msgstr "Archiviert"
 
-#: lib/sikio_web/live/library_live.ex:353
+#: lib/sikio_web/live/library_live.ex:357
 #, elixir-autogen, elixir-format
 msgid "Nothing here is left to archive."
 msgstr "Hier gibt es nichts mehr abzulegen."
 
-#: lib/sikio_web/components/library_components.ex:642
+#: lib/sikio_web/components/library_components.ex:611
 #, elixir-autogen, elixir-format
 msgid "Back to the inbox"
 msgstr "Zurück in die Inbox"
@@ -1689,8 +1689,8 @@ msgstr "Zurück in die Inbox"
 msgid "History"
 msgstr "Verlauf"
 
-#: lib/sikio_web/components/library_components.ex:547
-#: lib/sikio_web/components/library_components.ex:549
+#: lib/sikio_web/components/library_components.ex:508
+#: lib/sikio_web/components/library_components.ex:510
 #, elixir-autogen, elixir-format
 msgid "In the queue"
 msgstr "In der Queue"
@@ -1711,16 +1711,6 @@ msgstr "Noch nichts gehört."
 #, elixir-autogen, elixir-format
 msgid "Nothing in the queue."
 msgstr "Nichts in der Queue."
-
-#: lib/sikio_web/components/library_components.ex:242
-#, elixir-autogen, elixir-format
-msgid "Play last"
-msgstr "Ans Ende"
-
-#: lib/sikio_web/components/library_components.ex:238
-#, elixir-autogen, elixir-format
-msgid "Play next"
-msgstr "Als Nächstes"
 
 #: lib/sikio_web/components/layouts.ex:443
 #: lib/sikio_web/components/media_components.ex:179
@@ -1778,28 +1768,28 @@ msgstr "Abo bearbeiten"
 msgid "Save"
 msgstr "Speichern"
 
-#: lib/sikio_web/components/library_components.ex:605
+#: lib/sikio_web/components/library_components.ex:574
 #, elixir-autogen, elixir-format
 msgid "More actions"
 msgstr "Weitere Aktionen"
 
-#: lib/sikio_web/components/library_components.ex:232
+#: lib/sikio_web/components/library_components.ex:519
 #, elixir-autogen, elixir-format
 msgid "Queue again"
 msgstr "Nochmal in die Queue"
 
-#: lib/sikio_web/components/library_components.ex:613
+#: lib/sikio_web/components/library_components.ex:582
 #, elixir-autogen, elixir-format
 msgid "Remove from the queue"
 msgstr "Aus der Queue nehmen"
 
-#: lib/sikio_web/components/library_components.ex:232
+#: lib/sikio_web/components/library_components.ex:519
 #: lib/sikio_web/live/add_source_live.ex:1392
 #, elixir-autogen, elixir-format
 msgid "Add to queue"
 msgstr "In die Queue"
 
-#: lib/sikio_web/live/player_dock_live.ex:270
+#: lib/sikio_web/live/player_dock_live.ex:271
 #, elixir-autogen, elixir-format
 msgid "Your progress changed in another player. Open the episode to continue here."
 msgstr "Dein Fortschritt hat sich in einem anderen Player geändert. Öffne die Folge, um hier weiterzuhören."
@@ -2032,7 +2022,7 @@ msgstr "Sikio fragt in Abständen nach neuen Videos."
 msgid "Live channels are also checked once a day."
 msgstr "Live-Kanäle werden zusätzlich einmal am Tag abgefragt."
 
-#: lib/sikio_web/components/library_components.ex:662
+#: lib/sikio_web/components/library_components.ex:631
 #, elixir-autogen, elixir-format
 msgid "Remove from library"
 msgstr "Aus der Bibliothek entfernen"
@@ -2148,12 +2138,12 @@ msgstr "Offen"
 msgid "Sound only"
 msgstr "Nur Ton"
 
-#: lib/sikio_web/live/player_dock_live.ex:425
+#: lib/sikio_web/live/player_dock_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "This video could not be loaded. The instance may be unavailable. Try again later."
 msgstr "Dieses Video konnte nicht geladen werden. Die Instanz ist eventuell nicht erreichbar. Versuche es später erneut."
 
-#: lib/sikio_web/live/player_dock_live.ex:241
+#: lib/sikio_web/live/player_dock_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "This video's instance could not be reached. Try again later."
 msgstr "Die Instanz dieses Videos war nicht erreichbar. Versuche es später erneut."
@@ -2264,8 +2254,8 @@ msgstr "Zu den Favoriten hinzufügen oder daraus entfernen"
 
 #: lib/sikio_web/components/library_components.ex:154
 #: lib/sikio_web/components/library_components.ex:156
-#: lib/sikio_web/components/library_components.ex:582
-#: lib/sikio_web/components/library_components.ex:583
+#: lib/sikio_web/components/library_components.ex:551
+#: lib/sikio_web/components/library_components.ex:552
 #, elixir-autogen, elixir-format
 msgid "Favourite"
 msgstr "Favorit"
@@ -2286,18 +2276,18 @@ msgid "Star an item to keep it here."
 msgstr "Markiere einen Eintrag mit dem Stern, um ihn hier zu sammeln."
 
 #: lib/sikio_web/live/invitations_live.ex:241
-#: lib/sikio_web/live/library_live.ex:407
+#: lib/sikio_web/live/library_live.ex:411
 #, elixir-autogen, elixir-format
 msgid "Link copied."
 msgstr "Link kopiert."
 
-#: lib/sikio_web/components/library_components.ex:599
-#: lib/sikio_web/components/library_components.ex:600
+#: lib/sikio_web/components/library_components.ex:568
+#: lib/sikio_web/components/library_components.ex:569
 #, elixir-autogen, elixir-format
 msgid "Share"
 msgstr "Teilen"
 
-#: lib/sikio_web/live/library_live.ex:410
+#: lib/sikio_web/live/library_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "The link could not be copied."
 msgstr "Der Link konnte nicht kopiert werden."
@@ -2697,7 +2687,7 @@ msgstr[1] "Seine %{count} Einträge verschwinden aus allen Bibliotheken, samt Fo
 msgid "Remove %{title} for everyone?"
 msgstr "%{title} für alle entfernen?"
 
-#: lib/sikio_web/components/library_components.ex:672
+#: lib/sikio_web/components/library_components.ex:641
 #: lib/sikio_web/live/library_live.ex:1046
 #: lib/sikio_web/live/subscription_settings.ex:314
 #: lib/sikio_web/live/subscription_settings.ex:335
