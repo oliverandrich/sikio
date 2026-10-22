@@ -227,6 +227,16 @@ defmodule SikioWeb.MediaComponents do
     gettext("%{day} %{month} %{year}", day: datetime.day, month: month, year: datetime.year)
   end
 
+  @doc """
+  Returns the browser's UTC offset in minutes from LiveView connect params, or 0.
+  The static render has no connect params and uses UTC. Offsets beyond 14 hours count as 0.
+  """
+  def time_zone_offset(%{"time_zone_offset" => offset})
+      when is_integer(offset) and abs(offset) <= 14 * 60,
+      do: offset
+
+  def time_zone_offset(_params), do: 0
+
   @doc "Formats a date like `date/1`, omitting the year when it is the current year."
   def short_date(datetime, today \\ Date.utc_today()) do
     if datetime.year == today.year do

@@ -41,21 +41,26 @@ defmodule SikioWeb.ExtensionConnectTest do
     "/extension/connect?" <> URI.encode_query(query)
   end
 
-  defp signed_in(account, confirmed) do
+  defp signed_in(account, confirmed?) do
     conn = build_conn() |> init_test_session(%{}) |> Gate.log_in(account)
-
-    if confirmed,
-      do:
-        conn
-        |> put_session(:confirmed_account_id, account.id)
-        |> put_session(:confirmed_at, System.system_time(:second)),
-      else: conn
+    if confirmed?, do: confirmed(conn, account), else: conn
   end
 
-  # The sign-in window may open signed out. The passkey sign-in there returns to the page and
-  # counts as the confirmation, so nobody confirms twice in a row.
-  test "a sign-in in the window returns to the page and counts as the confirmation", c do
-    conn = get(build_conn(), c.connect)
+  # The sign-in window may open signed out. Only the page's own sign-in link remembers it, and
+  # the sign-in after it returns there. That sign-in counts as the confirmation for connecting,
+  # and for nothing else.
+  test "the page's sign-in link returns to it and counts for connecting only", c do
+    {:ok, view, _} = live(build_conn(), c.connect)
+    refute has_element?(view, "#extension-connect button")
+
+    [href] =
+      view
+      |> element("#extension-sign-in a")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.attribute("href")
+
+    conn = get(build_conn(), href)
     assert redirected_to(conn) == "/login"
 
     {:ok, signed} =
@@ -64,9 +69,23 @@ defmodule SikioWeb.ExtensionConnectTest do
       |> Auth.authenticate(c.ada)
 
     assert json_response(signed, 200)["redirect"] == c.connect
+    refute get_session(signed, :confirmed_at)
 
     {:ok, view, _} = live(build_conn() |> init_test_session(get_session(signed)), c.connect)
     assert has_element?(view, "#extension-connect button", "Connect")
+  end
+
+  # A crafted link must not redirect a later ordinary sign-in.
+  test "a signed-out visit alone remembers nothing", c do
+    conn = get(build_conn(), c.connect)
+    assert html_response(conn, 200) =~ "Sign in"
+    refute get_session(conn, :extension_return)
+  end
+
+  test "parameters that are not text count as missing", c do
+    path = c.connect <> "&state[a]=1"
+    conn = get(signed_in(c.ada, true), path)
+    assert html_response(conn, 200) =~ "Connect a browser extension"
   end
 
   test "without a recent confirmation the page asks for the passkey first", c do
@@ -101,25 +120,18 @@ defmodule SikioWeb.ExtensionConnectTest do
     %{"code" => code, "state" => "st4te"} = URI.decode_query(URI.parse(to).query)
     assert String.starts_with?(to, c.redirect <> "?")
 
-    conn =
+    exchange = fn ->
       post(build_conn(), "/api/v1/token", %{
         "code" => code,
         "code_verifier" => verifier(),
         "redirect_uri" => c.redirect
       })
+    end
 
-    assert %{"token" => token} = json_response(conn, 200)
+    assert %{"token" => token} = json_response(exchange.(), 200)
     assert {:ok, %User{id: id}} = Extensions.authenticate(token)
     assert id == c.ada.id
-
-    again =
-      post(build_conn(), "/api/v1/token", %{
-        "code" => code,
-        "code_verifier" => verifier(),
-        "redirect_uri" => c.redirect
-      })
-
-    assert json_response(again, 400) == %{"error" => "invalid_grant"}
+    assert json_response(exchange.(), 400) == %{"error" => "invalid_grant"}
   end
 
   test "declining tells the extension so", c do
@@ -153,9 +165,9 @@ defmodule SikioWeb.ExtensionConnectTest do
     assert html =~ "Confirm your identity"
   end
 
-  # An abandoned visit must not take over a later ordinary sign-in.
+  # An abandoned sign-in must not take over a later ordinary one.
   test "a remembered connect page expires after ten minutes", c do
-    conn = get(build_conn(), c.connect)
+    conn = get(build_conn(), "/extension/sign-in?" <> URI.encode_query(%{"return" => c.connect}))
     {at, path} = get_session(conn, :extension_return)
     assert path == c.connect
 
@@ -166,7 +178,10 @@ defmodule SikioWeb.ExtensionConnectTest do
 
     {:ok, signed} = Auth.authenticate(stale, c.ada)
     assert json_response(signed, 200)["redirect"] == "/"
-    refute get_session(signed, :confirmed_at)
+  end
+
+  test "the sign-in link returns only to the connect page" do
+    assert build_conn() |> get("/extension/sign-in?return=/accounts") |> response(404)
   end
 
   test "a request without a valid challenge goes back to the extension", c do

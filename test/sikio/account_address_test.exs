@@ -81,12 +81,14 @@ defmodule Sikio.AccountAddressTest do
     assert {:ok, _account, "ada@moved.example"} = AccountAddress.confirm(c.ada, token)
   end
 
-  test "a withdrawn request confirms nothing", c do
-    {:ok, _request, token} = AccountAddress.request(c.ada, "ada@new.example")
+  test "a request whose token cannot be delivered stores nothing", c do
+    {:ok, _request, _token} = AccountAddress.request(c.ada, "first@example.org")
+    failing = fn _address, _token -> {:error, :smtp_unavailable} end
 
-    assert :ok = AccountAddress.withdraw(c.ada)
-    assert AccountAddress.pending(c.ada) == nil
-    assert AccountAddress.confirm(c.ada, token) == {:error, :not_found}
+    assert AccountAddress.request(c.ada, "second@example.org", failing) ==
+             {:error, {:undelivered, :smtp_unavailable}}
+
+    assert %{address: "first@example.org"} = AccountAddress.pending(c.ada)
   end
 
   test "an expired request confirms nothing and is deleted", c do

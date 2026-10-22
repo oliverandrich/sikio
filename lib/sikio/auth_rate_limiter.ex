@@ -15,13 +15,16 @@ defmodule Sikio.AuthRateLimiter do
   # what changing one's address needs.
   # `api` counts the browser extension's requests per account. A lookup fetches the page's
   # sources, so the budget keeps a token from driving the fetcher.
+  # `api_address` counts token exchanges and requests without a valid token per client address.
+  # A group of its own keeps many addresses from crowding out the accounts' `api` counters.
   @defaults [
     recovery: {10, 60},
     ceremony: {120, 60},
     setup: {10, 60},
     invite: {20, 86_400},
     address: {5, 86_400},
-    api: {120, 60}
+    api: {120, 60},
+    api_address: {120, 60}
   ]
 
   @doc """

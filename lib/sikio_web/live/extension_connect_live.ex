@@ -9,32 +9,43 @@ defmodule SikioWeb.ExtensionConnectLive do
   five minutes, since the token gives lasting access. The page then hands the extension a
   one-time code at its redirect URI; `SikioWeb.ExtensionTokenController` exchanges it.
 
+  The page is public. Signed out, it links to the sign-in through `SikioWeb.ExtensionReturn`,
+  which brings the window back and counts that sign-in as the confirmation.
+
   The page redirects only to an extension's own redirect URI, which `Sikio.Extensions` checks.
   A redirect happens through LiveView, not a form, since `form-action 'self'` would block it.
   """
   use SikioWeb, :live_view
 
   alias Sikio.Extensions
+  alias SikioWeb.ExtensionReturn
   alias SikioWeb.Reauth
+
+  @fields ["redirect_uri", "state", "code_challenge", "client"]
 
   @impl true
   def mount(params, session, socket) do
-    params = Map.take(params, ["redirect_uri", "state", "code_challenge", "client"])
-    return = "/extension/connect?" <> URI.encode_query(params)
-    # `Reauth.recent?/2` reads these again on each click, so the five minutes still count.
-    confirmation = Map.take(session, ["confirmed_account_id", "confirmed_at"])
+    # A value that is not text, such as `state[a]=1`, counts as missing.
+    params =
+      for {key, value} <- params, key in @fields, is_binary(value), into: %{}, do: {key, value}
 
-    {:ok,
-     assign(socket,
-       page_title: gettext("Connect a browser extension"),
-       params: params,
-       request: request(params),
-       client: Extensions.label(params["client"]),
-       confirmation: confirmation,
-       confirmed?: Reauth.recent?(confirmation, socket.assigns.current_account),
-       confirm_path: ~p"/account/confirm/extension?#{[return: return]}",
-       error: nil
-     )}
+    return = "/extension/connect?" <> URI.encode_query(params)
+    # These are read again on each click, so the five minutes still count.
+    confirmation =
+      Map.take(session, ["confirmed_account_id", "confirmed_at", "extension_confirmed"])
+
+    socket =
+      assign(socket,
+        page_title: gettext("Connect a browser extension"),
+        params: params,
+        request: request(params),
+        client: Extensions.label(params["client"]),
+        confirmation: confirmation,
+        confirm_path: ~p"/account/confirm/extension?#{[return: return]}",
+        sign_in_path: ~p"/extension/sign-in?#{[return: return]}"
+      )
+
+    {:ok, assign(socket, confirmed?: confirmed?(socket.assigns))}
   end
 
   # A foreign redirect URI gets no redirect at all. A valid one with a bad challenge goes back
@@ -49,13 +60,10 @@ defmodule SikioWeb.ExtensionConnectLive do
 
   @impl true
   def handle_event("connect", _params, %{assigns: %{request: :valid}} = socket) do
-    %{params: params, current_account: account} = socket.assigns
-
     if confirmed?(socket.assigns) do
-      case Extensions.authorize(account, params) do
-        {:ok, code} -> {:noreply, back(socket, code: code)}
-        {:error, _reason} -> {:noreply, assign(socket, error: invalid())}
-      end
+      # `request/1` checked what `authorize/2` checks, so it issues a code.
+      {:ok, code} = Extensions.authorize(socket.assigns.current_account, socket.assigns.params)
+      {:noreply, back(socket, code: code)}
     else
       # The confirmation ran out while the page was open, so it asks for the passkey again.
       {:noreply, assign(socket, confirmed?: false)}
@@ -70,17 +78,16 @@ defmodule SikioWeb.ExtensionConnectLive do
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
-  # Read again on each click, so a confirmation that runs out takes effect.
+  defp confirmed?(%{current_account: nil}), do: false
+
   defp confirmed?(%{confirmation: confirmation, current_account: account}),
-    do: Reauth.recent?(confirmation, account)
+    do: Reauth.recent?(confirmation, account) or ExtensionReturn.confirmed?(confirmation, account)
 
   # The extension's identity API catches this navigation and closes the window.
   defp back(socket, values) do
     query = URI.encode_query(values ++ [state: socket.assigns.params["state"] || ""])
     redirect(socket, external: socket.assigns.params["redirect_uri"] <> "?" <> query)
   end
-
-  defp invalid, do: gettext("This extension cannot be connected. Its request is incomplete.")
 
   @impl true
   def render(assigns) do
@@ -89,8 +96,16 @@ defmodule SikioWeb.ExtensionConnectLive do
       <div :if={@request == :foreign} role="alert" class="text-danger">
         {gettext("This extension cannot be connected. Its sign-in address is not an extension's.")}
       </div>
-      <div :if={@request == :incomplete} role="alert" class="text-danger">{invalid()}</div>
-      <div :if={@request == :valid && !@confirmed?}>
+      <div :if={@request == :incomplete} role="alert" class="text-danger">
+        {gettext("This extension cannot be connected. Its request is incomplete.")}
+      </div>
+      <div :if={@request == :valid && !@current_account} id="extension-sign-in">
+        <p>{gettext("Sign in to connect %{client} to your account.", client: @client)}</p>
+        <.link href={@sign_in_path} class="mt-4 inline-block font-semibold text-link">
+          {gettext("Sign in")}
+        </.link>
+      </div>
+      <div :if={@request == :valid && @current_account && !@confirmed?}>
         <p>{gettext("Confirm with your passkey before %{client} connects.", client: @client)}</p>
         <.link
           id="extension-confirm"
@@ -122,7 +137,6 @@ defmodule SikioWeb.ExtensionConnectLive do
           do: gettext("Do not connect"),
           else: gettext("Back to the extension")}
       </button>
-      <div :if={@error} role="alert" class="mt-4 text-danger">{@error}</div>
     </Layouts.auth>
     """
   end

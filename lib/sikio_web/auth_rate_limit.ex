@@ -41,12 +41,19 @@ defmodule SikioWeb.AuthRateLimit do
   Over budget, halts with 429, the wait in `Retry-After` and `{"error": "rate_limited"}`.
   """
   def limit(conn, subject, group) do
-    {limit, seconds} = AuthRateLimiter.budget(group)
-
-    case AuthRateLimiter.check(key(subject, group), limit, seconds) do
+    case check(subject, group) do
       :ok -> conn
       {:error, retry_after} -> rate_limited(conn, retry_after)
     end
+  end
+
+  @doc """
+  Counts one attempt against `group`'s budget for `subject`, an account or a connection.
+  Returns `:ok` or `{:error, retry_after}` in seconds.
+  """
+  def check(subject, group) do
+    {limit, seconds} = AuthRateLimiter.budget(group)
+    AuthRateLimiter.check(key(subject, group), limit, seconds)
   end
 
   defp rate_limited(conn, retry_after) do

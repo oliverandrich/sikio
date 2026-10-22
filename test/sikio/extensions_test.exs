@@ -17,20 +17,16 @@ defmodule Sikio.ExtensionsTest do
   setup do
     ada = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     grace = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
-    verifier = String.duplicate("v", 43)
 
     %{
       ada: ada,
       grace: grace,
-      verifier: verifier,
-      challenge: challenge(verifier),
+      verifier: verifier(),
+      challenge: challenge(),
       firefox: firefox_redirect(),
       chrome: chrome_redirect()
     }
   end
-
-  defp challenge(verifier),
-    do: :crypto.hash(:sha256, verifier) |> Base.url_encode64(padding: false)
 
   defp grant(c, attrs \\ %{}) do
     Extensions.authorize(

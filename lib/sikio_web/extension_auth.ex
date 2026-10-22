@@ -6,7 +6,7 @@ defmodule SikioWeb.ExtensionAuth do
 
   A valid token assigns `current_account`. Each request counts against the account's `api`
   budget in `Sikio.AuthRateLimiter`, since a lookup fetches the page's sources. A request
-  without a valid token counts against the same budget per client address, so nobody guesses
+  without a valid token counts against `api_address` per client address, so nobody guesses
   tokens without limit.
   """
   import Plug.Conn
@@ -20,9 +20,9 @@ defmodule SikioWeb.ExtensionAuth do
   def call(conn, _opts) do
     with {:ok, token} <- bearer(conn),
          {:ok, account} <- Extensions.authenticate(token) do
-      conn |> assign(:current_account, account) |> limited(account)
+      conn |> assign(:current_account, account) |> AuthRateLimit.limit(account, :api)
     else
-      _ -> conn |> limited(conn) |> refused()
+      _ -> conn |> AuthRateLimit.limit(conn, :api_address) |> refused()
     end
   end
 
@@ -39,9 +39,6 @@ defmodule SikioWeb.ExtensionAuth do
         :error
     end
   end
-
-  # `subject` is the account, or the connection for its client address.
-  defp limited(conn, subject), do: AuthRateLimit.limit(conn, subject, :api)
 
   defp refused(%{halted: true} = conn), do: conn
 

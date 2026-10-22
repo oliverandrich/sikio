@@ -13,7 +13,6 @@ defmodule SikioWeb.AccountAddressLive do
   use SikioWeb, :live_view
 
   alias Sikio.AccountAddress
-  alias Sikio.AuthRateLimiter
   alias Sikio.Identity
   alias SikioWeb.AddressMail
   alias SikioWeb.AuthRateLimit
@@ -28,7 +27,7 @@ defmodule SikioWeb.AccountAddressLive do
         # `Reauth.recent?/2` reads these again on submit, so the five minutes still count.
         confirmation: Map.take(session, ["confirmed_account_id", "confirmed_at"]),
         # Minutes the browser is ahead of UTC, for the expiry date.
-        time_zone_offset: time_zone_offset(get_connect_params(socket)),
+        time_zone_offset: MediaComponents.time_zone_offset(get_connect_params(socket)),
         address: "",
         error: nil
       )
@@ -45,23 +44,17 @@ defmodule SikioWeb.AccountAddressLive do
     end
   end
 
-  defp time_zone_offset(%{"time_zone_offset" => offset}) when is_integer(offset), do: offset
-  defp time_zone_offset(_params), do: 0
-
   @impl true
   def handle_event("validate", %{"address" => address}, socket),
     do: {:noreply, assign(socket, address: address, error: nil)}
 
   # The budget is checked first, so invalid attempts count too, as for invitations.
   def handle_event("request", %{"address" => address}, socket) do
-    {limit, seconds} = AuthRateLimiter.budget(:address)
-    key = AuthRateLimit.key(socket.assigns.current_account, :address)
-
     cond do
       not confirmed?(socket) ->
         {:noreply, redirect(socket, to: ~p"/account/confirm/address")}
 
-      match?({:error, _}, AuthRateLimiter.check(key, limit, seconds)) ->
+      match?({:error, _}, AuthRateLimit.check(socket.assigns.current_account, :address)) ->
         {:noreply, assign(socket, address: address, error: too_many())}
 
       true ->
@@ -69,23 +62,21 @@ defmodule SikioWeb.AccountAddressLive do
     end
   end
 
-  # A request whose link could not be mailed would wait for nothing, so it is withdrawn.
+  # The request is stored only once its link is mailed; a failed mail keeps an earlier one.
   defp requested(socket, address) do
     account = socket.assigns.current_account
 
-    case AccountAddress.request(account, address) do
-      {:ok, request, token} ->
-        link = url(~p"/account/address/confirm") <> "#" <> token
+    deliver = fn address, token ->
+      AddressMail.deliver_link(address, url(~p"/account/address/confirm") <> "#" <> token)
+    end
 
-        case AddressMail.deliver_link(request.address, link) do
-          {:ok, _sent} ->
-            assign(socket, pending: request, address: "", error: nil)
+    case AccountAddress.request(account, address, deliver) do
+      {:ok, request, _token} ->
+        assign(socket, pending: request, address: "", error: nil)
 
-          {:error, _reason} ->
-            :ok = AccountAddress.withdraw(account)
-            error = gettext("The link could not be sent. Try again.")
-            assign(socket, pending: nil, address: address, error: error)
-        end
+      {:error, {:undelivered, _reason}} ->
+        error = gettext("The link could not be sent. Try again.")
+        assign(socket, address: address, error: error)
 
       {:error, reason} ->
         assign(socket, address: address, error: refusal(reason))

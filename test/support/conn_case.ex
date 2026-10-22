@@ -42,10 +42,22 @@ defmodule SikioWeb.ConnCase do
 
   setup tags do
     Sikio.DataCase.setup_sandbox(tags)
-    # Each test's account starts with fresh invitation, address and API budgets; see
-    # `Sikio.TestConfig`.
-    for group <- [:invite, :address, :api], do: Sikio.TestConfig.clear_counters(group)
+    # Each test starts with fresh invitation, address and API budgets; see `Sikio.TestConfig`.
+    # The API's address budget is shared by every test's loopback address.
+    for group <- [:invite, :address, :api, :api_address],
+        do: Sikio.TestConfig.clear_counters(group)
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
+  end
+
+  @doc """
+  Puts a passkey confirmation from now into the session, as `/account/verify` leaves it.
+  Signing in renews the session, so this comes after `Gate.log_in/2`.
+  """
+  def confirmed(conn, account) do
+    conn
+    |> Plug.Conn.put_session(:confirmed_account_id, account.id)
+    |> Plug.Conn.put_session(:confirmed_at, System.system_time(:second))
   end
 
   @doc "Returns an entry's path in the unfiltered library list, as `SikioWeb.LibraryPaths` builds it."

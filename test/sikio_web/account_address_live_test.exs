@@ -29,18 +29,16 @@ defmodule SikioWeb.AccountAddressLiveTest do
     %{ada: ada, conn: signed_in(ada)}
   end
 
-  # Signing in renews the session, so the confirmation is put in afterwards, as `/account/verify`
-  # leaves it.
-  defp signed_in(account, confirmed \\ true) do
+  defp signed_in(account, confirmed? \\ true) do
     conn = build_conn() |> init_test_session(%{}) |> Gate.log_in(account)
-
-    if confirmed,
-      do:
-        conn
-        |> Plug.Conn.put_session(:confirmed_account_id, account.id)
-        |> Plug.Conn.put_session(:confirmed_at, System.system_time(:second)),
-      else: conn
+    if confirmed?, do: confirmed(conn, account), else: conn
   end
+
+  defp failing_mailer,
+    do:
+      TestConfig.put_env(:sikio, Sikio.Mailer,
+        adapter: SikioWeb.InvitationDeliveryTest.FailingAdapter
+      )
 
   test "the settings lead to the address in email mode only", c do
     {:ok, view, _} = live(c.conn, ~p"/account/settings")
@@ -118,9 +116,7 @@ defmodule SikioWeb.AccountAddressLiveTest do
   test "a notice that cannot be sent is said", c do
     {:ok, _request, token} = AccountAddress.request(c.ada, "ada@new.example")
 
-    TestConfig.put_env(:sikio, Sikio.Mailer,
-      adapter: SikioWeb.InvitationDeliveryTest.FailingAdapter
-    )
+    failing_mailer()
 
     {:ok, view, _} = live(c.conn, ~p"/account/address/confirm")
     render_hook(view, "address-token", %{"token" => token})
@@ -146,9 +142,7 @@ defmodule SikioWeb.AccountAddressLiveTest do
 
   # A request whose link could not be mailed would wait for nothing, so it is withdrawn.
   test "a link that cannot be mailed leaves no request", c do
-    TestConfig.put_env(:sikio, Sikio.Mailer,
-      adapter: SikioWeb.InvitationDeliveryTest.FailingAdapter
-    )
+    failing_mailer()
 
     {:ok, view, _} = live(c.conn, ~p"/account/address")
     html = view |> form("#address-form", %{"address" => "ada@new.example"}) |> render_submit()
@@ -156,6 +150,19 @@ defmodule SikioWeb.AccountAddressLiveTest do
     assert html =~ "could not be sent"
     refute has_element?(view, "#address-pending")
     assert AccountAddress.pending(c.ada) == nil
+  end
+
+  # A link that cannot be mailed replaces nothing; the earlier link keeps working.
+  test "a failed mail keeps the earlier request", c do
+    {:ok, _request, _token} = AccountAddress.request(c.ada, "first@example.org")
+
+    failing_mailer()
+
+    {:ok, view, _} = live(c.conn, ~p"/account/address")
+    view |> form("#address-form", %{"address" => "second@example.org"}) |> render_submit()
+
+    assert %{address: "first@example.org"} = AccountAddress.pending(c.ada)
+    assert has_element?(view, "#address-pending", "first@example.org")
   end
 
   # Another account, signed in with the link, changes nothing.

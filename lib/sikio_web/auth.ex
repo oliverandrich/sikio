@@ -204,13 +204,13 @@ defmodule SikioWeb.Auth do
       Reauth.pending?(conn) ->
         Reauth.complete(conn, account)
 
-      # A sign-in in the extension's window returns to its connect page. A passkey or recovery
-      # code was just used, so it counts as the confirmation that connecting needs.
-      Reauth.extension_connect?(return) ->
+      # A sign-in from the extension's connect page returns there. A passkey or recovery code
+      # was just used, so it counts as the confirmation for connecting, and nothing else.
+      return ->
         {:ok,
          conn
          |> signed_in(account)
-         |> Reauth.confirmed_now(account)
+         |> SikioWeb.ExtensionReturn.confirm(account)
          |> json(%{redirect: return})}
 
       true ->

@@ -15,7 +15,7 @@ defmodule SikioWeb.ApiController do
   alias Sikio.Feeds.Feed
   alias Sikio.Library
 
-  # Discovery fetches pages and feeds; a lookup waits no longer than `/add` would.
+  # Discovery fetches pages and feeds; each request waits for them at most this long.
   @timeout 30_000
 
   def subscriptions(conn, _params) do
@@ -29,16 +29,11 @@ defmodule SikioWeb.ApiController do
 
   def lookup(conn, %{"url" => url}) when is_binary(url) do
     account = conn.assigns.current_account
-    # Both run against one deadline, so a slow page holds the request no longer than `/add`.
-    [sources, item] =
-      [fn -> Discovery.discover(url) end, fn -> Discovery.item(url) end]
-      |> Enum.map(fn fun -> Task.async(fn -> resolved(fun) end) end)
-      |> Task.yield_many(timeout: @timeout, on_timeout: :kill_task)
-      |> Enum.map(fn {_task, result} -> result end)
+    [sources, item] = within([fn -> Discovery.discover(url) end, fn -> Discovery.item(url) end])
 
     feeds =
       case sources do
-        {:ok, {:ok, feeds}} -> feeds
+        {:ok, feeds} -> feeds
         _failed -> []
       end
 
@@ -46,7 +41,7 @@ defmodule SikioWeb.ApiController do
 
     item =
       case item do
-        {:ok, {:ok, found}} -> item(account, found)
+        {:ok, found} -> item(account, found)
         _failed -> nil
       end
 
@@ -55,11 +50,25 @@ defmodule SikioWeb.ApiController do
 
   def lookup(conn, _params), do: error(conn, 400, "invalid_request")
 
-  # A page that cannot be read offers nothing. A raise or a timeout must not fail the request.
+  # Runs the Discovery calls side by side against one deadline, so a slow page holds the request
+  # for `@timeout` at most. A page that cannot be read offers nothing: a raise, an exit or the
+  # deadline gives `{:error, :failed}` instead of failing the request.
+  defp within(funs) do
+    funs
+    |> Enum.map(fn fun -> Task.async(fn -> resolved(fun) end) end)
+    |> Task.yield_many(timeout: @timeout, on_timeout: :kill_task)
+    |> Enum.map(fn
+      {_task, {:ok, result}} -> result
+      {_task, _late} -> {:error, :failed}
+    end)
+  end
+
   defp resolved(fun) do
     fun.()
   rescue
     _error -> {:error, :failed}
+  catch
+    _kind, _reason -> {:error, :failed}
   end
 
   # Only the feed the extension chose is subscribed, never another one the page offers.
@@ -71,7 +80,7 @@ defmodule SikioWeb.ApiController do
         error(conn, 404, "not_found")
 
       feed ->
-        existed? = MapSet.member?(Library.subscribed_urls(account, [url]), url)
+        existed? = Library.subscribed?(account, url)
         account |> Library.subscribe(feed) |> subscribed(conn, existed?)
     end
   end
@@ -79,9 +88,9 @@ defmodule SikioWeb.ApiController do
   def subscribe(conn, _params), do: error(conn, 400, "invalid_request")
 
   defp offered(url) do
-    case Discovery.discover(url) do
-      {:ok, feeds} -> Enum.find(feeds, &(&1.url == url))
-      {:error, _reason} -> nil
+    case within([fn -> Discovery.discover(url) end]) do
+      [{:ok, feeds}] -> Enum.find(feeds, &(&1.url == url))
+      [_failed] -> nil
     end
   end
 
@@ -96,14 +105,14 @@ defmodule SikioWeb.ApiController do
   def add(conn, %{"url" => url, "at" => at}) when is_binary(url) and at in ["inbox", "queue"] do
     account = conn.assigns.current_account
 
-    case Discovery.item(url) do
-      {:ok, %{preview: preview, external_id: id}} ->
+    case within([fn -> Discovery.item(url) end]) do
+      [{:ok, %{preview: preview, external_id: id}}] ->
         case Library.save(account, preview, id, String.to_existing_atom(at)) do
           {:ok, entry} -> saved(conn, entry, Library.place(account, preview.url, id))
           {:error, reason} -> failed(conn, reason)
         end
 
-      {:error, _reason} ->
+      [_failed] ->
         error(conn, 404, "not_found")
     end
   end

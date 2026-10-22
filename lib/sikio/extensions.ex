@@ -18,6 +18,7 @@ defmodule Sikio.Extensions do
   alias Sikio.Extensions.Grant
   alias Sikio.Extensions.Token
   alias Sikio.Repo
+  alias Sikio.Secrets
 
   @code_seconds 60
 
@@ -58,11 +59,11 @@ defmodule Sikio.Extensions do
         {:error, :code_challenge}
 
       true ->
-        code = secret()
+        code = Secrets.token()
 
         Repo.insert!(%Grant{
           user_id: id,
-          code_digest: digest(code),
+          code_digest: Secrets.digest(code),
           code_challenge: params["code_challenge"],
           redirect_uri: params["redirect_uri"],
           label: label(params["client"]),
@@ -86,16 +87,17 @@ defmodule Sikio.Extensions do
     # failed check as well, so a code serves one attempt only.
     {:ok, result} =
       Repo.transaction(fn ->
-        with %Grant{} = grant <- Repo.one(from g in Grant, where: g.code_digest == ^digest(code)),
+        with %Grant{} = grant <-
+               Repo.one(from g in Grant, where: g.code_digest == ^Secrets.digest(code)),
              {1, _} <- Repo.delete_all(from g in Grant, where: g.id == ^grant.id),
              true <- DateTime.after?(grant.expires_at, DateTime.utc_now()),
              true <- grant.redirect_uri == redirect_uri,
              true <- Plug.Crypto.secure_compare(challenge(verifier), grant.code_challenge) do
-          token = secret()
+          token = Secrets.token()
 
           Repo.insert!(%Token{
             user_id: grant.user_id,
-            token_digest: digest(token),
+            token_digest: Secrets.digest(token),
             label: grant.label
           })
 
@@ -118,7 +120,7 @@ defmodule Sikio.Extensions do
   def authenticate(token) when is_binary(token) do
     query =
       from t in Token,
-        where: t.token_digest == ^digest(token),
+        where: t.token_digest == ^Secrets.digest(token),
         join: u in assoc(t, :user),
         select: {t, u}
 
@@ -177,8 +179,4 @@ defmodule Sikio.Extensions do
 
   defp challenge(verifier),
     do: :crypto.hash(:sha256, verifier) |> Base.url_encode64(padding: false)
-
-  defp secret, do: :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
-
-  defp digest(value), do: :crypto.hash(:sha256, value)
 end

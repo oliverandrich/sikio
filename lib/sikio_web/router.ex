@@ -65,18 +65,10 @@ defmodule SikioWeb.Router do
     post "/items", ApiController, :add
   end
 
-  # The extension's sign-in window. A signed-out visit remembers the page for the sign-in.
-  pipeline :extension_return do
-    plug SikioWeb.ExtensionReturn
-  end
-
+  # The connect page's sign-in link remembers the page, so the sign-in returns there.
   scope "/extension", SikioWeb do
-    pipe_through [:browser, :extension_return]
-
-    live_session :extension,
-      on_mount: [{Ithibati.Web.Gate, {:require_account, to: "/login"}}, {SikioWeb.Locale, :set}] do
-      live "/connect", ExtensionConnectLive
-    end
+    pipe_through :browser
+    get "/sign-in", ExtensionController, :sign_in
   end
 
   pipeline :authenticated do
@@ -122,6 +114,8 @@ defmodule SikioWeb.Router do
       live "/invite", InviteLive
       # Public, so a signed-out visit keeps the token that follows `#`; see AddressConfirmLive.
       live "/account/address/confirm", AddressConfirmLive
+      # Public, so a signed-out visit offers its own sign-in; see ExtensionConnectLive.
+      live "/extension/connect", ExtensionConnectLive
     end
 
     live_session :members,

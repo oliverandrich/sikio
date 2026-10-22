@@ -20,12 +20,8 @@ defmodule SikioWeb.AccountSecurityTest do
 
     account = Repo.get_by!(User, username: username)
 
-    session =
-      get_session(signed)
-      |> Map.put("confirmed_at", System.system_time(:second))
-      |> Map.put("confirmed_account_id", account.id)
-
-    %{conn: Plug.Test.init_test_session(build_conn(), session), account: account}
+    conn = build_conn() |> Plug.Test.init_test_session(get_session(signed)) |> confirmed(account)
+    %{conn: conn, account: account}
   end
 
   test "the settings lead to both protected account pages", %{conn: conn} do

@@ -20,29 +20,35 @@ defmodule Sikio.AccountAddress do
   alias Sikio.Accounts.User
   alias Sikio.Identity
   alias Sikio.Repo
+  alias Sikio.Secrets
 
   @days 7
 
   @doc """
-  Stores a request for `address` and returns `{:ok, request, token}`.
+  Stores a request for `address` once `deliver` sent its token, and returns
+  `{:ok, request, token}`.
+
+  `deliver` receives the normalized address and the token and returns `{:ok, _}` or
+  `{:error, reason}`. A failed delivery stores nothing and returns `{:error, {:undelivered,
+  reason}}`, so an earlier request and its link keep working.
 
   Returns `{:error, changeset}` for an address the format rejects, `{:error, :unchanged}` for the
   account's own address, `{:error, :taken}` for another account's, `{:error, :invited}` for one an
   open invitation names, and `{:error, :username_mode}` outside email mode.
   """
-  def request(%User{} = account, address) do
+  def request(%User{} = account, address, deliver \\ fn _address, _token -> {:ok, :kept} end) do
     with :ok <- email_mode(),
          {:ok, address} <- valid(account, address),
-         :ok <- available(account, address) do
-      token = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
-
+         :ok <- available(account, address),
+         token = Secrets.token(),
+         {:ok, _sent} <- delivered(deliver.(address, token)) do
       # One statement replaces an earlier request, so two submits at once cannot collide.
       {:ok, request} =
         Repo.insert(
           %AddressRequest{
             user_id: account.id,
             address: address,
-            token_digest: digest(token),
+            token_digest: Secrets.digest(token),
             expires_at: DateTime.add(DateTime.utc_now(), @days, :day)
           },
           on_conflict: {:replace, [:address, :token_digest, :expires_at, :inserted_at]},
@@ -53,6 +59,9 @@ defmodule Sikio.AccountAddress do
       {:ok, request, token}
     end
   end
+
+  defp delivered({:ok, sent}), do: {:ok, sent}
+  defp delivered({:error, reason}), do: {:error, {:undelivered, reason}}
 
   @doc "Returns the account's current request that `token` belongs to, or nil."
   def requested(%User{id: id}, token) when is_binary(token),
@@ -88,12 +97,6 @@ defmodule Sikio.AccountAddress do
       {:ok, {changed, old}} -> {:ok, changed, old}
       error -> error
     end
-  end
-
-  @doc "Deletes the account's request, if any. Its link then confirms nothing."
-  def withdraw(%User{id: id}) do
-    Repo.delete_all(from r in AddressRequest, where: r.user_id == ^id)
-    :ok
   end
 
   @doc "Deletes expired requests and returns how many."
@@ -146,11 +149,9 @@ defmodule Sikio.AccountAddress do
   defp requested_query(id, token),
     do:
       from(r in AddressRequest,
-        where: r.user_id == ^id and r.token_digest == ^digest(token),
+        where: r.user_id == ^id and r.token_digest == ^Secrets.digest(token),
         where: ^current()
       )
 
   defp current, do: dynamic([r], r.expires_at > ^DateTime.utc_now())
-
-  defp digest(token), do: :crypto.hash(:sha256, token)
 end

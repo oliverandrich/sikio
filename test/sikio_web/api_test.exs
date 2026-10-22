@@ -119,6 +119,16 @@ defmodule SikioWeb.ApiTest do
     assert subscribe.() |> json_response(200) |> get_in(["subscription", "feed_url"]) == c.feed
   end
 
+  # An exit inside the fetch, such as a pool timeout, must not fail the request.
+  test "a lookup survives an exit while the page is fetched", c do
+    Req.Test.stub(HTTP, fn _conn -> exit(:pool_timeout) end)
+
+    assert c.token
+           |> api()
+           |> post("/api/v1/lookup", %{"url" => c.page})
+           |> json_response(200) == %{"sources" => [], "item" => nil}
+  end
+
   test "a page with nothing to add has no source and no item", c do
     assert c.token
            |> api()
@@ -187,11 +197,20 @@ defmodule SikioWeb.ApiRateLimitTest do
   end
 
   # Guessing tokens costs a lookup each, so failed requests count per client address.
+  # They count in a group of their own, so they cannot crowd out the accounts' counters.
   test "requests with unknown tokens are limited per address" do
-    TestConfig.put_budget(:api, {1, 60})
+    TestConfig.put_budget(:api_address, {1, 60})
     guess = fn -> build_conn() |> put_req_header("authorization", "Bearer nope") end
 
     assert guess.() |> get("/api/v1/subscriptions") |> json_response(401)
     assert guess.() |> get("/api/v1/subscriptions") |> json_response(429)
+  end
+
+  test "token exchanges are limited per address" do
+    TestConfig.put_budget(:api_address, {1, 60})
+    exchange = fn -> build_conn() |> post("/api/v1/token", %{"code" => "x"}) end
+
+    assert exchange.() |> json_response(400)
+    assert exchange.() |> json_response(429)
   end
 end

@@ -68,7 +68,8 @@ defmodule Sikio.Library do
   Subscribing again changes nothing. A platform that is off returns `{:error, :platform_off}`.
   """
   def subscribe(%User{} = account, preview, opts \\ []) do
-    if followed?(account, preview) or Platforms.allow(preview.kind) == :ok,
+    # A source the account follows is found again whatever its platform's switch says now.
+    if subscribed?(account, preview.url) or Platforms.allow(preview.kind) == :ok,
       do: subscribe_allowed(account, preview, opts),
       else: {:error, :platform_off}
   end
@@ -106,8 +107,8 @@ defmodule Sikio.Library do
   def place(%{status: status}) when status not in [nil, :new], do: "all"
   def place(_new), do: "inbox"
 
-  # A source the account follows is found again whatever its platform's switch says now.
-  defp followed?(account, %{url: url}),
+  @doc "Returns whether the account subscribes to the feed at `url`."
+  def subscribed?(%User{} = account, url),
     do: MapSet.member?(subscribed_urls(account, [url]), url)
 
   defp subscribe_allowed(%User{id: user_id}, preview, opts) do

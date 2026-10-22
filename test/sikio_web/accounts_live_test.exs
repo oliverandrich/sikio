@@ -60,13 +60,6 @@ defmodule SikioWeb.AccountsLiveTest do
     refute has_element?(view, "#settings-admin")
   end
 
-  # A confirmation from the last five minutes, as `/account/verify` leaves it in the session.
-  defp confirmed(conn, account) do
-    conn
-    |> Plug.Conn.put_session(:confirmed_account_id, account.id)
-    |> Plug.Conn.put_session(:confirmed_at, System.system_time(:second))
-  end
-
   test "an administrator grants and revokes the role on a row", %{conn: conn} do
     admin = account(%{admin: true})
     member = account()

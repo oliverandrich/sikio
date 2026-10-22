@@ -35,8 +35,9 @@ the request beside the account. The link carries its token after `#`, like an in
 so no request or access log contains it. Only the same account, signed in, confirms it with a
 button on the link's page. Signed out, the page asks for a sign-in and the tab keeps the token,
 so the page confirms after the sign-in. Asking for an address allows 5 requests per account a
-day. A request whose link could not be mailed is withdrawn. Until then the old address stays in force. The request expires after seven
-days, and a new request replaces the earlier link. An address of another account or of an open
+day. A request is stored only once its link is mailed, so a failed mail keeps an earlier link.
+Until the confirmation the old address stays in force. The request expires after seven days, and
+a new request replaces the earlier link. An address of another account or of an open
 invitation is refused. After the change the old address gets a notice. Sign-in uses passkeys
 without an identifier, so sessions and passkeys stay valid. A password manager keeps showing the
 old address as the passkey's name. Sikio cannot rename a stored passkey.
@@ -75,12 +76,13 @@ accepted: `https://<id>.extensions.allizom.org/` for Firefox and `https://<id>.c
 for Chrome. Any other address gets no code.
 
 Connecting needs a reauthentication within the last five minutes, checked when the code is
-issued, since the token gives lasting access. A signed-out visit leads to the sign-in and returns
-to the page afterwards, within ten minutes. That sign-in used a passkey or a recovery code, so it
-counts as the reauthentication. A sign-in that uses the last recovery code shows the new codes
-first and does not return. A request with a malformed challenge goes back to the extension with
-`invalid_request`. The page then redirects to the extension
-with a one-time code. The code expires after a minute and serves once, with its verifier and
+issued, since the token gives lasting access. The page is public. Signed out, it links to
+`/extension/sign-in`, which remembers the page, and the sign-in returns there within ten
+minutes. Only that link remembers the page, so a crafted link alone redirects no later sign-in.
+That sign-in used a passkey or a recovery code, so it counts as the reauthentication for
+connecting, and for nothing else. A sign-in that uses the last recovery code shows the new
+codes first and does not return. A request with a malformed challenge goes back to the extension
+with `invalid_request`. The page then redirects to the extension with a one-time code. The code expires after a minute and serves once, with its verifier and
 the same redirect URI. A failed exchange deletes it.
 
 The extension exchanges the code at `POST /api/v1/token` with `code`, `code_verifier` and
@@ -98,13 +100,14 @@ code allows 10 attempts per client address in a 60-second window. A rate-limited
 to `/setup` with `Retry-After` and a message naming the wait. Creating invitations allows 20
 per signed-in account in a 24-hour window. Asking for a new address allows 5 per account in a
 24-hour window, since each request mails a typed address too. The extension API allows 120
-requests per account in a 60-second window; see [Extension API](api.md). Configure `:auth_rate_limits` on
-the application with positive counts and seconds. A group missing from the configured list keeps
+requests per account in a 60-second window, and 120 token exchanges and requests without a valid
+token per client address; see [Extension API](api.md). Configure `:auth_rate_limits` on the
+application with positive counts and seconds. A group missing from the configured list keeps
 its default. The defaults are:
 
 ```elixir
 [recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}, invite: {20, 86_400},
- address: {5, 86_400}, api: {120, 60}]
+ address: {5, 86_400}, api: {120, 60}, api_address: {120, 60}]
 ```
 
 The invitation limit counts per account, not per browser. Counting per session, username or

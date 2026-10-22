@@ -10,6 +10,12 @@ defmodule SikioWeb.ExtensionTokenController do
   use SikioWeb, :controller
 
   alias Sikio.Extensions
+  alias SikioWeb.AuthRateLimit
+
+  # Each exchange costs a transaction, so exchanges count per client address.
+  plug :limited
+
+  defp limited(conn, _opts), do: AuthRateLimit.limit(conn, conn, :api_address)
 
   def create(conn, %{"code" => code, "code_verifier" => verifier, "redirect_uri" => uri}) do
     case Extensions.exchange(code, verifier, uri) do

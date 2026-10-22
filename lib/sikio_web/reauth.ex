@@ -34,13 +34,8 @@ defmodule SikioWeb.Reauth do
 
   def extension_connect?(_path), do: false
 
-  @doc """
-  Records a passkey confirmation of `account` in the session, as `complete/3` does.
-
-  A sign-in that returns to the extension's connect page used a passkey or a recovery code a
-  moment ago.
-  """
-  def confirmed_now(conn, %{id: id}) do
+  # Records a passkey confirmation of `account` in the session.
+  defp confirmed_now(conn, %{id: id}) do
     conn
     |> put_session(:confirmed_account_id, id)
     |> put_session(:confirmed_at, System.system_time(:second))
@@ -48,14 +43,18 @@ defmodule SikioWeb.Reauth do
 
   def recent?(session, account) do
     case {session["confirmed_account_id"], session["confirmed_at"]} do
-      {id, at} when id == account.id and is_integer(at) ->
-        age = System.system_time(:second) - at
-        age >= 0 and age <= 300
-
-      _ ->
-        false
+      {id, at} when id == account.id -> fresh?(at)
+      _ -> false
     end
   end
+
+  @doc "Returns whether a confirmation made at `at`, in system seconds, is within five minutes."
+  def fresh?(at) when is_integer(at) do
+    age = System.system_time(:second) - at
+    age >= 0 and age <= 300
+  end
+
+  def fresh?(_at), do: false
 
   def confirmed?(conn), do: recent?(get_session(conn), conn.assigns.current_account)
 

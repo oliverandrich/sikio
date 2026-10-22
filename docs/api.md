@@ -33,8 +33,10 @@ Authorization: Bearer <token>
 
 The scheme is case-insensitive. A missing, unknown or disconnected token answers 401 with
 `{"error": "invalid_token"}` and `WWW-Authenticate: Bearer`. An account may send 120 requests a
-minute, and so may a client address without a valid token. More answer 429 with
-`{"error": "rate_limited"}` and `Retry-After` in seconds. The extension calls Sikio from its own
+minute. A client address may send 120 token exchanges and requests without a valid token a
+minute. More answer 429 with `{"error": "rate_limited"}` and `Retry-After` in seconds.
+`lookup`, subscribing and adding read the page within 30 seconds; a page that takes longer
+counts as one without a source or item. The extension calls Sikio from its own
 context with a host permission, so Sikio sends no CORS headers.
 
 ### `GET /api/v1/subscriptions`

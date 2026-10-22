@@ -55,14 +55,6 @@ defmodule SikioWeb.LibraryLive do
      )}
   end
 
-  # The browser's UTC offset in minutes, from the connect params.
-  # The static render has no connect params and uses UTC.
-  defp time_zone_offset(%{"time_zone_offset" => offset})
-       when is_integer(offset) and abs(offset) <= 14 * 60,
-       do: offset
-
-  defp time_zone_offset(_params), do: 0
-
   # The list is reloaded only when the filters change. Rows use `:key`, so a new selection
   # sends only the two rows whose `selected` changed.
   @impl true
@@ -241,7 +233,7 @@ defmodule SikioWeb.LibraryLive do
               filters
 
             # Starting playback queues an item, but marking it removes it again.
-            entry.playback && entry.playback.queue_rank ->
+            Library.place(entry.playback) == "queue" ->
               Library.normalize_filters(%{"status" => "queue"})
 
             followed?(socket, entry.feed_id) ->
@@ -418,7 +410,7 @@ defmodule SikioWeb.LibraryLive do
 
   # Sent after a drag or an arrow-key move. The broadcast reloads the queue in its new order.
   def handle_event("reorder", %{"id" => id, "index" => index}, socket) when is_integer(index),
-    do: changed(socket, id, Playback.move(socket.assigns.current_account, id, index))
+    do: changed(socket, nil, Playback.move(socket.assigns.current_account, id, index))
 
   # A singly saved item leaves the library, and the detail closes. Its playback state stays.
   def handle_event("remove_entry", %{"id" => id}, socket) do
