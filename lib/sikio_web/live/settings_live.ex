@@ -24,6 +24,7 @@ defmodule SikioWeb.SettingsLive do
      assign(socket,
        preference: Preferences.get(account),
        saved?: false,
+       email?: Sikio.Identity.email?(),
        passkeys: length(Passkeys.list_keys(account)),
        codes: RecoveryCodes.remaining(account)
      )}
@@ -139,6 +140,9 @@ defmodule SikioWeb.SettingsLive do
           </.group>
         </form>
         <.group id="settings-account" heading={gettext("Account & security")} tag="nav">
+          <.group_link :if={@email?} to={~p"/account/address"} detail={@current_account.username}>
+            {gettext("Email address")}
+          </.group_link>
           <.group_link to={~p"/account/passkeys"} detail={@passkeys}>
             {gettext("Passkeys")}
           </.group_link>

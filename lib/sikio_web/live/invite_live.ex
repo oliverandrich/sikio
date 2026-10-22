@@ -4,7 +4,7 @@ defmodule SikioWeb.InviteLive do
   @moduledoc """
   The page for an invitation link.
 
-  The token is in the link's fragment, which no request sends. `assets/js/invitation_link.mjs`
+  The token is in the link's fragment, which no request sends. `assets/js/token_link.mjs`
   removes it from the address before the socket joins. The hook pushes it after the join.
   Until then the page shows a waiting line.
 
@@ -87,7 +87,7 @@ defmodule SikioWeb.InviteLive do
   def render(assigns) do
     ~H"""
     <Layouts.auth flash={@flash} title={gettext("You’re invited")}>
-      <div id="invitation-link" phx-hook="InvitationLink"></div>
+      <div id="invitation-link" phx-hook="TokenLink"></div>
 
       <p :if={@status == :waiting} class="text-center text-label text-muted">
         {gettext("Opening your invitation…")}

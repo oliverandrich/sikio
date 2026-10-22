@@ -113,6 +113,7 @@ msgstr "Wiederherstellungscodes kopiert."
 msgid "Save your recovery codes"
 msgstr "Speichere deine Wiederherstellungscodes"
 
+#: lib/sikio_web/live/address_confirm_live.ex:106
 #: lib/sikio_web/live/sign_in_live.ex:101
 #, elixir-autogen, elixir-format
 msgid "Sign in"
@@ -380,7 +381,7 @@ msgstr "Melde dich erneut an, bevor du einen Passkey hinzufügst."
 
 #: lib/sikio_web/live/account_security_live.ex:56
 #: lib/sikio_web/live/account_security_live.ex:134
-#: lib/sikio_web/live/settings_live.ex:149
+#: lib/sikio_web/live/settings_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "Recovery codes"
 msgstr "Wiederherstellungscodes"
@@ -490,7 +491,7 @@ msgstr "Stattdessen einen Wiederherstellungscode verwenden"
 
 #: lib/sikio_web/live/invitations_live.ex:172
 #: lib/sikio_web/live/invitations_live.ex:177
-#: lib/sikio_web/live/settings_live.ex:151
+#: lib/sikio_web/live/settings_live.ex:155
 #, elixir-autogen, elixir-format
 msgid "Invitations"
 msgstr "Einladungen"
@@ -521,7 +522,7 @@ msgstr "%{count} aktuelle Einträge verfügbar"
 msgid "%{imported} imported · %{existing} already subscribed · %{failed} failed"
 msgstr "%{imported} importiert · %{existing} bereits abonniert · %{failed} fehlgeschlagen"
 
-#: lib/sikio_web/live/subscriptions_live.ex:259
+#: lib/sikio_web/live/subscriptions_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr "Aktiv"
@@ -660,7 +661,7 @@ msgstr "Verwende eine öffentliche http- oder https-URL. Lokale und private Adre
 msgid "Podcast"
 msgstr "Podcast"
 
-#: lib/sikio_web/live/subscriptions_live.ex:259
+#: lib/sikio_web/live/subscriptions_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Polling paused"
 msgstr "Abfrage pausiert"
@@ -732,8 +733,8 @@ msgstr "Diese Seite oder dieser Feed ist zu groß für den Import. Versuche eine
 
 #: lib/sikio_web/live/subscription_settings.ex:303
 #: lib/sikio_web/live/subscription_settings.ex:323
-#: lib/sikio_web/live/subscriptions_live.ex:323
 #: lib/sikio_web/live/subscriptions_live.ex:324
+#: lib/sikio_web/live/subscriptions_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Unsubscribe"
 msgstr "Abo entfernen"
@@ -759,7 +760,7 @@ msgstr "YouTube"
 msgid "YouTube did not reveal this channel. Try its channel URL; private or unavailable videos cannot be resolved."
 msgstr "YouTube hat diesen Kanal nicht preisgegeben. Versuche die Kanal-URL; private oder nicht verfügbare Videos lassen sich nicht auflösen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:219
+#: lib/sikio_web/live/subscriptions_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Your collection starts with one good source."
 msgstr "Deine Sammlung beginnt mit einer guten Quelle."
@@ -807,7 +808,7 @@ msgstr "Angefangen"
 #: lib/sikio_web/live/places_live.ex:17
 #: lib/sikio_web/live/places_live.ex:36
 #: lib/sikio_web/live/places_live.ex:38
-#: lib/sikio_web/live/settings_live.ex:86
+#: lib/sikio_web/live/settings_live.ex:87
 #: lib/sikio_web/live/subscriptions_live.ex:168
 #, elixir-autogen, elixir-format
 msgid "Library"
@@ -1004,7 +1005,12 @@ msgstr "Diese Instanz verlangt einen Setup-Code, bevor das erste Konto entsteht.
 msgid "Too many attempts. Try again in %{seconds} seconds."
 msgstr "Zu viele Versuche. Versuch es in %{seconds} Sekunden erneut."
 
+#: lib/sikio_web/live/account_address_live.ex:27
+#: lib/sikio_web/live/account_address_live.ex:119
+#: lib/sikio_web/live/account_address_live.ex:124
+#: lib/sikio_web/live/address_confirm_live.ex:89
 #: lib/sikio_web/live/invite_live.ex:156
+#: lib/sikio_web/live/settings_live.ex:144
 #: lib/sikio_web/live/sign_in_live.ex:150
 #, elixir-autogen, elixir-format
 msgid "Email address"
@@ -1263,7 +1269,7 @@ msgstr "Der Feed ist größer, als Sikio liest."
 msgid "The server could not be reached. Sikio will try again."
 msgstr "Der Server war nicht erreichbar. Sikio versucht es erneut."
 
-#: lib/sikio_web/live/subscriptions_live.ex:269
+#: lib/sikio_web/live/subscriptions_live.ex:270
 #, elixir-autogen, elixir-format
 msgid "Imported items are safe."
 msgstr "Bereits geladene Einträge bleiben erhalten."
@@ -1582,7 +1588,7 @@ msgid "Delete tag"
 msgstr "Tag löschen"
 
 #: lib/sikio_web/live/subscription_settings.ex:231
-#: lib/sikio_web/live/subscriptions_live.ex:211
+#: lib/sikio_web/live/subscriptions_live.ex:210
 #: lib/sikio_web/live/tag_settings.ex:102
 #, elixir-autogen, elixir-format
 msgid "Name"
@@ -1641,7 +1647,7 @@ msgid "You’re all caught up."
 msgstr "Du bist auf dem neuesten Stand."
 
 #: lib/sikio_web/live/account_security_live.ex:56
-#: lib/sikio_web/live/settings_live.ex:143
+#: lib/sikio_web/live/settings_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "Passkeys"
 msgstr "Passkeys"
@@ -1699,7 +1705,7 @@ msgstr "In der Queue"
 
 #: lib/sikio_web/components/layouts.ex:459
 #: lib/sikio_web/components/media_components.ex:182
-#: lib/sikio_web/live/settings_live.ex:71
+#: lib/sikio_web/live/settings_live.ex:72
 #, elixir-autogen, elixir-format
 msgid "Inbox"
 msgstr "Inbox"
@@ -1716,7 +1722,7 @@ msgstr "Nichts in der Queue."
 
 #: lib/sikio_web/components/layouts.ex:462
 #: lib/sikio_web/components/media_components.ex:183
-#: lib/sikio_web/live/settings_live.ex:71
+#: lib/sikio_web/live/settings_live.ex:72
 #, elixir-autogen, elixir-format
 msgid "Queue"
 msgstr "Queue"
@@ -1759,8 +1765,8 @@ msgstr "in der Inbox"
 
 #: lib/sikio_web/live/library_live.ex:879
 #: lib/sikio_web/live/library_live.ex:880
-#: lib/sikio_web/live/subscriptions_live.ex:300
 #: lib/sikio_web/live/subscriptions_live.ex:301
+#: lib/sikio_web/live/subscriptions_live.ex:302
 #, elixir-autogen, elixir-format
 msgid "Edit subscription"
 msgstr "Abo bearbeiten"
@@ -1846,8 +1852,8 @@ msgstr "In die Inbox"
 
 #: lib/sikio_web/live/library_live.ex:892
 #: lib/sikio_web/live/library_live.ex:893
-#: lib/sikio_web/live/subscriptions_live.ex:312
 #: lib/sikio_web/live/subscriptions_live.ex:313
+#: lib/sikio_web/live/subscriptions_live.ex:314
 #, elixir-autogen, elixir-format
 msgid "Open website"
 msgstr "Website öffnen"
@@ -1906,19 +1912,19 @@ msgstr "OPML-Datei wählen"
 msgid "or drop it here"
 msgstr "oder hierher ziehen"
 
-#: lib/sikio_web/live/subscriptions_live.ex:408
+#: lib/sikio_web/live/subscriptions_live.ex:409
 #, elixir-autogen, elixir-format
 msgid "A shared feed may still update for other subscribers while your polling is paused."
 msgstr "Ein gemeinsamer Feed kann für andere weiter aktualisiert werden, während deine Abfrage pausiert."
 
-#: lib/sikio_web/live/subscriptions_live.ex:415
+#: lib/sikio_web/live/subscriptions_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "Active sources refresh at most every hour, less often when they rarely publish."
 msgid_plural "Active sources refresh at most every %{count} hours, less often when they rarely publish."
 msgstr[0] "Aktive Quellen werden höchstens jede Stunde aktualisiert, seltener, wenn sie selten veröffentlichen."
 msgstr[1] "Aktive Quellen werden höchstens alle %{count} Stunden aktualisiert, seltener, wenn sie selten veröffentlichen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:423
+#: lib/sikio_web/live/subscriptions_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "Active sources refresh at most every minute, less often when they rarely publish."
 msgid_plural "Active sources refresh at most every %{count} minutes, less often when they rarely publish."
@@ -1930,96 +1936,97 @@ msgstr[1] "Aktive Quellen werden höchstens alle %{count} Minuten aktualisiert, 
 msgid "Show Shorts"
 msgstr "Shorts anzeigen"
 
-#: lib/sikio_web/live/settings_live.ex:100
+#: lib/sikio_web/live/settings_live.ex:101
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr "Sprache"
 
 #: lib/sikio_web/live/platforms_live.ex:109
-#: lib/sikio_web/live/settings_live.ex:164
+#: lib/sikio_web/live/settings_live.ex:168
 #, elixir-autogen, elixir-format
 msgid "Saved."
 msgstr "Gespeichert."
 
 #: lib/sikio_web/components/layouts.ex:299
+#: lib/sikio_web/live/account_address_live.ex:120
 #: lib/sikio_web/live/account_security_live.ex:57
 #: lib/sikio_web/live/accounts_live.ex:125
 #: lib/sikio_web/live/invitations_live.ex:173
 #: lib/sikio_web/live/platforms_live.ex:66
-#: lib/sikio_web/live/settings_live.ex:85
-#: lib/sikio_web/live/settings_live.ex:88
+#: lib/sikio_web/live/settings_live.ex:86
+#: lib/sikio_web/live/settings_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "Einstellungen"
 
-#: lib/sikio_web/live/settings_live.ex:102
+#: lib/sikio_web/live/settings_live.ex:103
 #, elixir-autogen, elixir-format
 msgid "The browser's language"
 msgstr "Sprache des Browsers"
 
-#: lib/sikio_web/live/settings_live.ex:50
+#: lib/sikio_web/live/settings_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "The settings could not be saved."
 msgstr "Die Einstellungen konnten nicht gespeichert werden."
 
-#: lib/sikio_web/live/settings_live.ex:92
+#: lib/sikio_web/live/settings_live.ex:93
 #, elixir-autogen, elixir-format
 msgid "Start page"
 msgstr "Startseite"
 
-#: lib/sikio_web/live/settings_live.ex:141
+#: lib/sikio_web/live/settings_live.ex:142
 #, elixir-autogen, elixir-format
 msgid "Account & security"
 msgstr "Konto & Sicherheit"
 
-#: lib/sikio_web/live/settings_live.ex:91
+#: lib/sikio_web/live/settings_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "Allgemein"
 
-#: lib/sikio_web/live/settings_live.ex:113
+#: lib/sikio_web/live/settings_live.ex:114
 #, elixir-autogen, elixir-format
 msgid "Play on with the queue"
 msgstr "Mit der Queue weiterspielen"
 
-#: lib/sikio_web/live/settings_live.ex:110
+#: lib/sikio_web/live/settings_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Playback"
 msgstr "Wiedergabe"
 
-#: lib/sikio_web/live/settings_live.ex:114
+#: lib/sikio_web/live/settings_live.ex:115
 #, elixir-autogen, elixir-format
 msgid "When an item ends, the next one in the queue starts."
 msgstr "Nach dem Ende eines Eintrags startet der nächste in der Queue."
 
-#: lib/sikio_web/live/settings_live.ex:147
+#: lib/sikio_web/live/settings_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "1 left"
 msgid_plural "%{count} left"
 msgstr[0] "1 übrig"
 msgstr[1] "%{count} übrig"
 
-#: lib/sikio_web/live/subscriptions_live.ex:384
+#: lib/sikio_web/live/subscriptions_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "Google's hub announces new videos as they appear."
 msgstr "Der Hub von Google meldet neue Videos, sobald sie erscheinen."
 
-#: lib/sikio_web/live/subscriptions_live.ex:387
+#: lib/sikio_web/live/subscriptions_live.ex:388
 #, elixir-autogen, elixir-format
 msgid "Live"
 msgstr "Live"
 
-#: lib/sikio_web/live/subscriptions_live.ex:394
+#: lib/sikio_web/live/subscriptions_live.ex:395
 #, elixir-autogen, elixir-format
 msgid "Polling"
 msgstr "Abfrage"
 
-#: lib/sikio_web/live/subscriptions_live.ex:392
+#: lib/sikio_web/live/subscriptions_live.ex:393
 #, elixir-autogen, elixir-format
 msgid "Sikio asks for new videos at intervals."
 msgstr "Sikio fragt in Abständen nach neuen Videos."
 
-#: lib/sikio_web/live/subscriptions_live.ex:407
+#: lib/sikio_web/live/subscriptions_live.ex:408
 #, elixir-autogen, elixir-format
 msgid "Live channels are also checked once a day."
 msgstr "Live-Kanäle werden zusätzlich einmal am Tag abgefragt."
@@ -2423,12 +2430,12 @@ msgstr "Der Import wurde abgebrochen. Was er schon übernommen hat, bleibt; ein 
 msgid "Refresh all"
 msgstr "Alle aktualisieren"
 
-#: lib/sikio_web/live/subscriptions_live.ex:353
+#: lib/sikio_web/live/subscriptions_live.ex:354
 #, elixir-autogen, elixir-format
 msgid "Refresh now"
 msgstr "Jetzt aktualisieren"
 
-#: lib/sikio_web/live/subscriptions_live.ex:353
+#: lib/sikio_web/live/subscriptions_live.ex:354
 #, elixir-autogen, elixir-format
 msgid "Refreshing"
 msgstr "Wird aktualisiert"
@@ -2559,12 +2566,12 @@ msgstr[1] "%{count} Konten auf dieser Instanz."
 #: lib/sikio_web/live/accounts_live.ex:29
 #: lib/sikio_web/live/accounts_live.ex:124
 #: lib/sikio_web/live/accounts_live.ex:129
-#: lib/sikio_web/live/settings_live.ex:159
+#: lib/sikio_web/live/settings_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "Accounts"
 msgstr "Konten"
 
-#: lib/sikio_web/live/settings_live.ex:156
+#: lib/sikio_web/live/settings_live.ex:160
 #, elixir-autogen, elixir-format
 msgid "Administration"
 msgstr "Verwaltung"
@@ -2744,7 +2751,7 @@ msgstr "Füge einen Link ein oder suche nach einem Namen. Auf dieser Instanz: %{
 #: lib/sikio_web/live/platforms_live.ex:65
 #: lib/sikio_web/live/platforms_live.ex:70
 #: lib/sikio_web/live/platforms_live.ex:78
-#: lib/sikio_web/live/settings_live.ex:160
+#: lib/sikio_web/live/settings_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "Platforms"
 msgstr "Plattformen"
@@ -2790,12 +2797,127 @@ msgstr "Kein Abo hat neue Folgen."
 msgid "Subscriptions shown"
 msgstr "Angezeigte Abos"
 
-#: lib/sikio_web/live/subscriptions_live.ex:211
+#: lib/sikio_web/live/subscriptions_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Added"
 msgstr "Hinzugefügt"
 
-#: lib/sikio_web/live/subscriptions_live.ex:208
+#: lib/sikio_web/live/subscriptions_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "Order"
 msgstr "Sortierung"
+
+#: lib/sikio_web/live/account_address_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "A link to %{address} is waiting to be followed until %{date}."
+msgstr "Ein Link an %{address} wartet bis %{date} darauf, geöffnet zu werden."
+
+#: lib/sikio_web/live/account_address_live.ex:100
+#, elixir-autogen, elixir-format
+msgid "An open invitation names this address. Withdraw it first, or wait for it."
+msgstr "Eine offene Einladung nennt diese Adresse. Zieh sie zuerst zurück oder warte, bis sie abläuft."
+
+#: lib/sikio_web/live/address_confirm_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "Change the address"
+msgstr "Adresse ändern"
+
+#: lib/sikio_web/address_mail.ex:22
+#, elixir-autogen, elixir-format
+msgid "Confirm that this address identifies your Sikio account from now on:"
+msgstr "Bestätige, dass diese Adresse ab jetzt dein Sikio-Konto bezeichnet:"
+
+#: lib/sikio_web/address_mail.ex:21
+#, elixir-autogen, elixir-format
+msgid "Confirm your new address for Sikio"
+msgstr "Bestätige deine neue Adresse für Sikio"
+
+#: lib/sikio_web/live/account_address_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "Enter a valid email address."
+msgstr "Gib eine gültige E-Mail-Adresse ein."
+
+#: lib/sikio_web/live/address_confirm_live.ex:93
+#, elixir-autogen, elixir-format
+msgid "Identify your account by %{address} from now on?"
+msgstr "Soll %{address} ab jetzt dein Konto bezeichnen?"
+
+#: lib/sikio_web/address_mail.ex:36
+#, elixir-autogen, elixir-format
+msgid "If you did not change it, sign in with your passkey and change it back."
+msgstr "Wenn du sie nicht geändert hast, melde dich mit deinem Passkey an und ändere sie zurück."
+
+#: lib/sikio_web/address_mail.ex:23
+#, elixir-autogen, elixir-format
+msgid "Ignore this mail if you did not ask for it."
+msgstr "Ignoriere diese Mail, wenn du nicht danach gefragt hast."
+
+#: lib/sikio_web/live/account_address_live.ex:139
+#, elixir-autogen, elixir-format
+msgid "New email address"
+msgstr "Neue E-Mail-Adresse"
+
+#: lib/sikio_web/live/account_address_live.ex:143
+#, elixir-autogen, elixir-format
+msgid "Send the link"
+msgstr "Link senden"
+
+#: lib/sikio_web/live/account_address_live.ex:86
+#, elixir-autogen, elixir-format
+msgid "The link could not be sent. Try again."
+msgstr "Der Link konnte nicht gesendet werden. Versuch es noch einmal."
+
+#: lib/sikio_web/live/account_address_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "This address already identifies your account."
+msgstr "Diese Adresse bezeichnet dein Konto bereits."
+
+#: lib/sikio_web/live/account_address_live.ex:97
+#, elixir-autogen, elixir-format
+msgid "This address already names another account."
+msgstr "Diese Adresse bezeichnet schon ein anderes Konto."
+
+#: lib/sikio_web/live/address_confirm_live.ex:113
+#, elixir-autogen, elixir-format
+msgid "This link is no longer valid. It may have expired, been replaced, or belong to another account."
+msgstr "Dieser Link gilt nicht mehr. Er ist abgelaufen, wurde ersetzt oder gehört zu einem anderen Konto."
+
+#: lib/sikio_web/address_mail.ex:31
+#, elixir-autogen, elixir-format
+msgid "Your Sikio account has a new address"
+msgstr "Dein Sikio-Konto hat eine neue Adresse"
+
+#: lib/sikio_web/address_mail.ex:32
+#, elixir-autogen, elixir-format
+msgid "Your Sikio account is identified by %{address} from now on."
+msgstr "Dein Sikio-Konto wird ab jetzt durch %{address} bezeichnet."
+
+#: lib/sikio_web/live/address_confirm_live.ex:72
+#, elixir-autogen, elixir-format
+msgid "Your account is identified by %{address} now."
+msgstr "Dein Konto wird jetzt durch %{address} bezeichnet."
+
+#: lib/sikio_web/live/account_address_live.ex:130
+#, elixir-autogen, elixir-format
+msgid "Your account is identified by this address. A new one takes effect once you follow the link sent there. Your passkeys and sessions stay."
+msgstr "Dein Konto wird durch diese Adresse bezeichnet. Eine neue gilt, sobald du den Link öffnest, der an sie geht. Deine Passkeys und Sitzungen bleiben."
+
+#: lib/sikio_web/live/account_address_live.ex:104
+#, elixir-autogen, elixir-format
+msgid "Too many requests for a new address. Try again tomorrow."
+msgstr "Zu viele Anfragen für eine neue Adresse. Versuch es morgen wieder."
+
+#: lib/sikio_web/live/address_confirm_live.ex:80
+#, elixir-autogen, elixir-format
+msgid "Your account is identified by %{address} now. The old address could not be told."
+msgstr "Dein Konto wird jetzt durch %{address} bezeichnet. Die alte Adresse konnte nicht benachrichtigt werden."
+
+#: lib/sikio_web/live/address_confirm_live.ex:100
+#, elixir-autogen, elixir-format
+msgid "Sign in with the account that asked for the new address."
+msgstr "Melde dich mit dem Konto an, das die neue Adresse angefragt hat."
+
+#: lib/sikio_web/live/address_confirm_live.ex:109
+#, elixir-autogen, elixir-format
+msgid "Then open the link from the mail again."
+msgstr "Öffne danach den Link aus der Mail noch einmal."

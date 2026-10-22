@@ -29,6 +29,18 @@ field itself is fixed at compile time. An instance in email mode without mail co
 stops at boot. A failed delivery shows an error, and the link can still be shared by hand. See
 [Operations](operations.md) for the environment variables.
 
+In email mode a member changes their address under Settings → Email address. Asking needs a
+reauthentication within the last five minutes. Sikio mails a link to the new address and keeps
+the request beside the account. The link carries its token after `#`, like an invitation link,
+so no request or access log contains it. Only the same account, signed in, confirms it with a
+button on the link's page. Signed out, the page asks for a sign-in and the tab keeps the token,
+so the page confirms after the sign-in. Asking for an address allows 5 requests per account a
+day. A request whose link could not be mailed is withdrawn. Until then the old address stays in force. The request expires after seven
+days, and a new request replaces the earlier link. An address of another account or of an open
+invitation is refused. After the change the old address gets a notice. Sign-in uses passkeys
+without an identifier, so sessions and passkeys stay valid. A password manager keeps showing the
+old address as the passkey's name. Sikio cannot rename a stored passkey.
+
 Sessions are revocable. The session cookie is encrypted, because it carries new recovery codes
 until they are displayed. A session lasts sixty days from sign-in. The cookie's `max_age`
 matches that lifetime, so the session persists after the browser closes. Recovery codes are
@@ -60,9 +72,15 @@ address in a 60-second fixed window. IPv6 addresses count per `/64` prefix. Exce
 get HTTP 429 with `Retry-After`, and the page shows a translated message. Exchanging a setup
 code allows 10 attempts per client address in a 60-second window. A rate-limited exchange redirects
 to `/setup` with `Retry-After` and a message naming the wait. Creating invitations allows 20
-per signed-in account in a 24-hour window. Configure `:auth_rate_limits` on the application as
-`[recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}, invite: {20, 86_400}]`
-(positive counts and seconds). A group missing from the configured list keeps its default.
+per signed-in account in a 24-hour window. Asking for a new address allows 5 per account in a
+24-hour window, since each request mails a typed address too. Configure `:auth_rate_limits` on
+the application with positive counts and seconds. A group missing from the configured list keeps
+its default. The defaults are:
+
+```elixir
+[recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}, invite: {20, 86_400},
+ address: {5, 86_400}]
+```
 
 The invitation limit counts per account, not per browser. Counting per session, username or
 address would let one account reset its count. The limit is checked before the form is
@@ -96,7 +114,8 @@ bin/sikio rpc 'Sikio.AuthCleanup.run()'
 It returns deletion counts for expired sessions, expired challenges and expired, unaccepted
 invitations. It disconnects the LiveViews of each expired session. Valid credentials, recovery
 codes and accepted invitations remain. `Sikio.Accounts.Cleanup` runs it every fifteen minutes on
-Oban's `maintenance` queue, so a deployment needs no cron entry.
+Oban's `maintenance` queue, so a deployment needs no cron entry. The same job deletes expired
+address requests.
 
 Phoenix request logs filter parameters whose names contain `password`, `secret`, `token`, `code`
 or `credential`. The setting is `:filter_parameters`. This covers recovery codes and WebAuthn

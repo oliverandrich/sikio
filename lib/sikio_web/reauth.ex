@@ -9,7 +9,8 @@ defmodule SikioWeb.Reauth do
   @targets %{
     "passkeys" => "/account/passkeys",
     "recovery-codes" => "/account/recovery-codes",
-    "accounts" => "/accounts"
+    "accounts" => "/accounts",
+    "address" => "/account/address"
   }
 
   @doc "Returns `{:ok, path}` for a known purpose, else `:error`."

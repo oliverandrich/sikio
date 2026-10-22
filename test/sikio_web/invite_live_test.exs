@@ -25,7 +25,7 @@ defmodule SikioWeb.InviteLiveTest do
 
     assert html =~ "Opening your invitation"
     refute html =~ "Accept with a passkey"
-    assert has_element?(view, "#invitation-link[phx-hook=InvitationLink]")
+    assert has_element?(view, "#invitation-link[phx-hook=TokenLink]")
   end
 
   test "an open invitation asks the invitee for a username", %{conn: conn} do

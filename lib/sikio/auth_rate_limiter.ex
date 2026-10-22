@@ -11,7 +11,15 @@ defmodule Sikio.AuthRateLimiter do
 
   # `invite` uses a one-day window. The threat is a compromised account sending mail through the
   # operator's credentials at a steady rate, not a burst. Twenty a day exceeds legitimate use.
-  @defaults [recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}, invite: {20, 86_400}]
+  # `address` mails a confirmation link to any typed address the same way. Five a day exceed
+  # what changing one's address needs.
+  @defaults [
+    recovery: {10, 60},
+    ceremony: {120, 60},
+    setup: {10, 60},
+    invite: {20, 86_400},
+    address: {5, 86_400}
+  ]
 
   @doc """
   Returns the `{limit, seconds}` budget for one group of auth requests.

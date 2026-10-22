@@ -84,6 +84,8 @@ defmodule SikioWeb.Router do
       live "/recover", SignInLive, :recover
       live "/setup", SignInLive, :setup
       live "/invite", InviteLive
+      # Public, so a signed-out visit keeps the token that follows `#`; see AddressConfirmLive.
+      live "/account/address/confirm", AddressConfirmLive
     end
 
     live_session :members,
@@ -128,6 +130,7 @@ defmodule SikioWeb.Router do
       live "/subscriptions/library", LibraryTransferLive
       live "/account/verify", VerifyIdentityLive
       live "/account/settings", SettingsLive
+      live "/account/address", AccountAddressLive
       live "/account/passkeys", AccountSecurityLive, :passkeys
       live "/account/recovery-codes", AccountSecurityLive, :recovery_codes
       # `AccountsLive` checks the administrator role itself. A live_session of its own would
