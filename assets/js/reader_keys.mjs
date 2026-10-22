@@ -20,9 +20,10 @@ export function shownEntry(event) {
 }
 
 // After play-on, returns the next entry id for the detail, or null.
-// Only when the ended entry is selected and the rendered list contains the next one.
-export function followed({selected, from, to, listed}) {
-  return to && listed && selected === from ? to : null
+// Only when the ended entry is selected. The server's "show" keeps the list when it holds the
+// next entry, and opens the queue otherwise, as playing from the inbox moves entries there.
+export function followed({selected, from, to}) {
+  return to && selected === from ? to : null
 }
 
 // From lg the detail column sits beside the list, so an empty selection gets the first row.
@@ -85,8 +86,7 @@ export const ReaderKeys = {
     // when no entry follows.
     this.onPlayedOn = ({detail: {from, to}}) => {
       const selected = this.el.dataset.selected
-      const listed = Boolean(to && document.getElementById(`entries-${to}`))
-      const id = followed({selected, from, to, listed})
+      const id = followed({selected, from, to})
       if (id) this.pushEvent("show", {id})
       // The server checks whether the list still contains the ended entry.
       // The list in the DOM may not have reloaded yet.

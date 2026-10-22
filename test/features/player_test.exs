@@ -119,6 +119,33 @@ defmodule SikioWeb.PlayerTest do
     assert path =~ ~r|^/queue/#{following.id}-|
   end
 
+  # Playing an inbox item queues it, so the inbox no longer lists it or what follows.
+  # The detail follows into the queue instead of keeping the ended item.
+  # Regression: the detail kept the ended item, and the next one played in the compact player.
+  test "from the inbox the detail follows the queue to the next item", context do
+    %{conn: conn, account: account, entry: entry} = context
+    {:ok, preview} = Parser.parse(podcast("Next up"), feed_url("next"))
+    {:ok, subscription} = Library.subscribe(account, preview)
+    [following] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+    {:ok, _} = Sikio.Playback.enqueue(account, following.id, :last)
+
+    conn
+    |> resize(1280, 900)
+    |> open(SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, entry))
+    |> click("#start-playback")
+    |> assert_attached(~s|#player-control[data-entry-id="#{entry.id}"]|)
+    |> script("""
+    const audio = document.querySelector('#player-panel audio')
+    audio.dispatchEvent(new Event('loadedmetadata'))
+    audio.dispatchEvent(new Event('ended'))
+    """)
+    |> assert_attached(~s|#player-control[data-entry-id="#{following.id}"]|)
+    |> assert_has(~s|#item-detail[data-entry-id="#{following.id}"]|)
+    |> assert_has(~s|#player-panel[data-place="pinned"]|)
+    |> current_path()
+    |> then(&assert(&1 =~ ~r|^/queue/#{following.id}-|))
+  end
+
   # Returns the path the browser ends on and the item that follows.
   defp follow_the_queue(%{conn: conn, account: account, entry: entry}, {width, height}) do
     following = queued_after(account, entry)

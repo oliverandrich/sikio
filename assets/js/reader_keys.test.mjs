@@ -80,11 +80,11 @@ test("a plain click on the mini player's title names the entry to show", () => {
   assert.equal(shownEntry({button: 0, target: {closest: () => null}}), null)
 })
 
-// The detail follows the player only from the ended item, and only to an item the list contains.
-test("the detail follows the queue to the next item it lists", () => {
-  assert.equal(followed({selected: "1", from: "1", to: "2", listed: true}), "2")
-  assert.equal(followed({selected: "1", from: "1", to: "2", listed: false}), null)
-  assert.equal(followed({selected: "3", from: "1", to: "2", listed: true}), null)
-  assert.equal(followed({selected: undefined, from: "1", to: "2", listed: true}), null)
-  assert.equal(followed({selected: "1", from: "1", to: undefined, listed: false}), null)
+// The detail follows the player only from the ended item. An item the list lacks is shown too:
+// the server then opens it in the queue, which holds it.
+test("the detail follows the queue to the next item from the ended one", () => {
+  assert.equal(followed({selected: "1", from: "1", to: "2"}), "2")
+  assert.equal(followed({selected: "3", from: "1", to: "2"}), null)
+  assert.equal(followed({selected: undefined, from: "1", to: "2"}), null)
+  assert.equal(followed({selected: "1", from: "1", to: undefined}), null)
 })

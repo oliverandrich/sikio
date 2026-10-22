@@ -58,6 +58,9 @@ Its own section becomes the version's release notes.
   split inside the emoji.
 - The compact player's title opens the playing item in the queue when the current list lacks it.
   It opened the item's source before.
+- When play-on starts the next queued item from the ended item's detail, the detail follows it,
+  in the queue if the current list lacks it. Played from the inbox, the detail kept the ended
+  item and the next one played in the compact player.
 
 ### Upgrading
 
