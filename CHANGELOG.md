@@ -34,6 +34,8 @@ Its own section becomes the version's release notes.
   Passkeys and sessions stay.
 - A browser extension connects to an account from its own sign-in window, after a passkey
   confirmation. Settings → Browser extensions lists and disconnects connected extensions.
+- The extension API v1 lists the account's sources, looks up what a page offers and what the
+  account has of it, subscribes and adds items. [docs/api.md](docs/api.md) describes it.
 
 ### Changed
 

@@ -75,6 +75,7 @@ workflow.
   [from a release under systemd](docs/install/systemd.md).
 - [Operations](docs/operations.md): settings, logs, accounts, updates and background work.
 - [Authentication](docs/authentication.md): accounts, invitations and security.
+- [Extension API](docs/api.md): the browser extension's sign-in and requests.
 - [Localization](docs/localization.md): language selection and translations.
 - [Contributing](CONTRIBUTING.md): development setup, mise commands and tests.
 - [Changelog](CHANGELOG.md): changes per version and the steps each update requires.

@@ -85,7 +85,7 @@ the same redirect URI. A failed exchange deletes it.
 
 The extension exchanges the code at `POST /api/v1/token` with `code`, `code_verifier` and
 `redirect_uri`. The answer is `{"token": ...}`, or status 400 with
-`{"error": "invalid_grant"}`. The token serves the extension API only. Settings → Browser
+`{"error": "invalid_grant"}`. The token serves the [extension API](api.md) only. Settings → Browser
 extensions lists connected extensions with their name and last use and disconnects them. A
 disconnected token stops working at its next request. The database keeps digests of codes and
 tokens only.
@@ -97,13 +97,14 @@ get HTTP 429 with `Retry-After`, and the page shows a translated message. Exchan
 code allows 10 attempts per client address in a 60-second window. A rate-limited exchange redirects
 to `/setup` with `Retry-After` and a message naming the wait. Creating invitations allows 20
 per signed-in account in a 24-hour window. Asking for a new address allows 5 per account in a
-24-hour window, since each request mails a typed address too. Configure `:auth_rate_limits` on
+24-hour window, since each request mails a typed address too. The extension API allows 120
+requests per account in a 60-second window; see [Extension API](api.md). Configure `:auth_rate_limits` on
 the application with positive counts and seconds. A group missing from the configured list keeps
 its default. The defaults are:
 
 ```elixir
 [recovery: {10, 60}, ceremony: {120, 60}, setup: {10, 60}, invite: {20, 86_400},
- address: {5, 86_400}]
+ address: {5, 86_400}, api: {120, 60}]
 ```
 
 The invitation limit counts per account, not per browser. Counting per session, username or

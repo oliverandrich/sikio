@@ -48,9 +48,21 @@ defmodule SikioWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :extension do
+    plug SikioWeb.ExtensionAuth
+  end
+
   scope "/api/v1", SikioWeb do
     pipe_through :api
     post "/token", ExtensionTokenController, :create
+  end
+
+  scope "/api/v1", SikioWeb do
+    pipe_through [:api, :extension]
+    get "/subscriptions", ApiController, :subscriptions
+    post "/lookup", ApiController, :lookup
+    post "/subscriptions", ApiController, :subscribe
+    post "/items", ApiController, :add
   end
 
   # The extension's sign-in window. A signed-out visit remembers the page for the sign-in.

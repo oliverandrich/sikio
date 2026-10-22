@@ -73,14 +73,42 @@ defmodule Sikio.Library do
       else: {:error, :platform_off}
   end
 
+  @doc "Returns the URLs among `urls` of feeds the account subscribes to, as a set."
+  def subscribed_urls(%User{id: user_id}, urls) when is_list(urls) do
+    from(s in Subscription,
+      join: f in assoc(s, :feed),
+      where: s.user_id == ^user_id and f.url in ^urls,
+      select: f.url
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
+  Returns the list that holds the account's entry `external_id` of the feed at `feed_url`:
+  `"queue"`, `"inbox"`, `"heard"` or `"all"`. Returns nil for an entry the account lacks.
+  """
+  def place(%User{id: user_id}, feed_url, external_id) do
+    query =
+      from [e, _s, p, f] in scoped_entries(user_id),
+        where: f.url == ^feed_url and e.external_id == ^external_id,
+        select: {e.id, p}
+
+    case Repo.one(query) do
+      {_id, playback} -> place(playback)
+      nil -> nil
+    end
+  end
+
+  @doc "Returns the list that shows an entry with this playback state, as the filters read it."
+  def place(%{queue_rank: rank}) when not is_nil(rank), do: "queue"
+  def place(%{status: :heard}), do: "heard"
+  def place(%{status: status}) when status not in [nil, :new], do: "all"
+  def place(_new), do: "inbox"
+
   # A source the account follows is found again whatever its platform's switch says now.
-  defp followed?(%User{id: user_id}, %{url: url}),
-    do:
-      Repo.exists?(
-        from s in Subscription,
-          join: f in assoc(s, :feed),
-          where: s.user_id == ^user_id and f.url == ^url
-      )
+  defp followed?(account, %{url: url}),
+    do: MapSet.member?(subscribed_urls(account, [url]), url)
 
   defp subscribe_allowed(%User{id: user_id}, preview, opts) do
     existing = Keyword.get(opts, :existing, :newest)

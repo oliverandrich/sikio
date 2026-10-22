@@ -33,19 +33,28 @@ defmodule SikioWeb.AuthRateLimit do
   @impl true
   def call(conn, _opts) do
     group = if conn.request_path == "/auth/recovery", do: :recovery, else: :ceremony
+    limit(conn, conn, group)
+  end
+
+  @doc """
+  Counts the request against `group` for `subject`, an account or the connection's address.
+  Over budget, halts with 429, the wait in `Retry-After` and `{"error": "rate_limited"}`.
+  """
+  def limit(conn, subject, group) do
     {limit, seconds} = AuthRateLimiter.budget(group)
 
-    case AuthRateLimiter.check(key(conn, group), limit, seconds) do
-      :ok ->
-        conn
-
-      {:error, retry_after} ->
-        conn
-        |> put_resp_header("retry-after", Integer.to_string(retry_after))
-        |> put_resp_header("cache-control", "no-store")
-        |> put_status(429)
-        |> Phoenix.Controller.json(%{error: "rate_limited"})
-        |> halt()
+    case AuthRateLimiter.check(key(subject, group), limit, seconds) do
+      :ok -> conn
+      {:error, retry_after} -> rate_limited(conn, retry_after)
     end
+  end
+
+  defp rate_limited(conn, retry_after) do
+    conn
+    |> put_resp_header("retry-after", Integer.to_string(retry_after))
+    |> put_resp_header("cache-control", "no-store")
+    |> put_status(429)
+    |> Phoenix.Controller.json(%{error: "rate_limited"})
+    |> halt()
   end
 end

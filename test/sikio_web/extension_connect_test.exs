@@ -20,8 +20,6 @@ defmodule SikioWeb.ExtensionConnectTest do
   alias Sikio.Repo
   alias SikioWeb.Auth
 
-  @verifier String.duplicate("v", 43)
-
   setup do
     ada = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
     redirect = firefox_redirect()
@@ -34,8 +32,7 @@ defmodule SikioWeb.ExtensionConnectTest do
         %{
           "redirect_uri" => redirect,
           "state" => "st4te",
-          "code_challenge" =>
-            :crypto.hash(:sha256, @verifier) |> Base.url_encode64(padding: false),
+          "code_challenge" => challenge(),
           "client" => "Firefox"
         },
         extra
@@ -107,7 +104,7 @@ defmodule SikioWeb.ExtensionConnectTest do
     conn =
       post(build_conn(), "/api/v1/token", %{
         "code" => code,
-        "code_verifier" => @verifier,
+        "code_verifier" => verifier(),
         "redirect_uri" => c.redirect
       })
 
@@ -118,7 +115,7 @@ defmodule SikioWeb.ExtensionConnectTest do
     again =
       post(build_conn(), "/api/v1/token", %{
         "code" => code,
-        "code_verifier" => @verifier,
+        "code_verifier" => verifier(),
         "redirect_uri" => c.redirect
       })
 
@@ -213,14 +210,7 @@ defmodule SikioWeb.ExtensionConnectTest do
   end
 
   test "the settings list connected extensions and disconnect one", c do
-    {:ok, code} =
-      Extensions.authorize(c.ada, %{
-        "redirect_uri" => c.redirect,
-        "code_challenge" => :crypto.hash(:sha256, @verifier) |> Base.url_encode64(padding: false),
-        "client" => "Firefox on macOS"
-      })
-
-    {:ok, token} = Extensions.exchange(code, @verifier, c.redirect)
+    token = token(c.ada, "Firefox on macOS")
     conn = signed_in(c.ada, false)
 
     {:ok, view, _} = live(conn, ~p"/account/settings")

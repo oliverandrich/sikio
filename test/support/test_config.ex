@@ -27,7 +27,7 @@ defmodule Sikio.TestConfig do
   @doc """
   Clears one rate-limit group's counters.
 
-  The counters outlive each test. The invitation and address counters are keyed by account id.
+  The counters outlive each test. The invitation, address and API counters are keyed by account id.
   SQLite rolls its id sequence back with each test's transaction.
   A later test's account can therefore reuse an earlier test's id and inherit its count.
   Clearing only lowers counts, so concurrent tests are never refused because of it.

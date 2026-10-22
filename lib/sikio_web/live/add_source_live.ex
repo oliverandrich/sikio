@@ -700,7 +700,7 @@ defmodule SikioWeb.AddSourceLive do
 
     with {:ok, %{id: entry_id}} <- Library.save(account, preview, id, at),
          %{} = entry <- Library.entry(account, entry_id) do
-      place = place(entry.playback)
+      place = Library.place(entry.playback)
 
       message =
         case place do
@@ -725,12 +725,6 @@ defmodule SikioWeb.AddSourceLive do
          |> show_rows()}
     end
   end
-
-  # The list that shows an entry with this playback state, as `Library` filters them.
-  defp place(%{queue_rank: rank}) when not is_nil(rank), do: "queue"
-  defp place(%{status: :heard}), do: "heard"
-  defp place(%{status: status}) when status not in [nil, :new], do: "all"
-  defp place(_new), do: "inbox"
 
   defp subscribe(socket, preview, opts) do
     account = socket.assigns.current_account

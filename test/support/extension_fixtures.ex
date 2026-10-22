@@ -16,6 +16,25 @@ defmodule Sikio.ExtensionFixtures do
     "https://#{id}.chromiumapp.org/"
   end
 
+  @doc "The PKCE verifier the fixtures use, and its S256 challenge."
+  def verifier, do: String.duplicate("v", 43)
+  def challenge, do: :crypto.hash(:sha256, verifier()) |> Base.url_encode64(padding: false)
+
+  @doc "Connects an extension named `client` to `account` and returns its token."
+  def token(account, client \\ "Firefox") do
+    redirect = firefox_redirect()
+
+    {:ok, code} =
+      Sikio.Extensions.authorize(account, %{
+        "redirect_uri" => redirect,
+        "code_challenge" => challenge(),
+        "client" => client
+      })
+
+    {:ok, token} = Sikio.Extensions.exchange(code, verifier(), redirect)
+    token
+  end
+
   @doc "Returns an address that is no extension's."
   def foreign_redirect, do: "https://site#{Sikio.DataCase.unique()}.example/"
 end

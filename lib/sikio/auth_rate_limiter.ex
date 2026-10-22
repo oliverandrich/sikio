@@ -13,12 +13,15 @@ defmodule Sikio.AuthRateLimiter do
   # operator's credentials at a steady rate, not a burst. Twenty a day exceeds legitimate use.
   # `address` mails a confirmation link to any typed address the same way. Five a day exceed
   # what changing one's address needs.
+  # `api` counts the browser extension's requests per account. A lookup fetches the page's
+  # sources, so the budget keeps a token from driving the fetcher.
   @defaults [
     recovery: {10, 60},
     ceremony: {120, 60},
     setup: {10, 60},
     invite: {20, 86_400},
-    address: {5, 86_400}
+    address: {5, 86_400},
+    api: {120, 60}
   ]
 
   @doc """
