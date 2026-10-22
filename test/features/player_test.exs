@@ -625,8 +625,7 @@ defmodule SikioWeb.PlayerTest do
     # Before playback the card's own player does the same, so starting it moves nothing.
     test "audio sticks to the top of the detail as its notes scroll", context do
       %{conn: conn, entry: entry} = context
-      notes = String.duplicate("<p>Something worth reading while it plays.</p>", 80)
-      Repo.update!(Ecto.Changeset.change(entry, description: notes, description_format: :html))
+      audio_with_notes(entry)
 
       conn
       |> resize(1440, 900)
@@ -653,8 +652,7 @@ defmodule SikioWeb.PlayerTest do
     # The audio controls are taller in a narrow card.
     test "a stuck player's slot follows its height through a resize", context do
       %{conn: conn, entry: entry} = context
-      notes = String.duplicate("<p>Something worth reading while it plays.</p>", 80)
-      Repo.update!(Ecto.Changeset.change(entry, description: notes, description_format: :html))
+      audio_with_notes(entry)
 
       conn
       |> resize(1440, 900)
@@ -958,5 +956,11 @@ defmodule SikioWeb.PlayerTest do
              Math.round(document.getElementById('item-detail').getBoundingClientRect().top) &&
            getComputedStyle(box).visibility === 'visible'
     """
+  end
+
+  # Gives an episode notes long enough to scroll the detail.
+  defp audio_with_notes(entry) do
+    notes = String.duplicate("<p>Something worth reading while it plays.</p>", 80)
+    Repo.update!(Ecto.Changeset.change(entry, description: notes, description_format: :html))
   end
 end

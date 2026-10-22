@@ -44,10 +44,15 @@ function place() {
   if (list) list.style.paddingBottom = reserve
 
   // From lg the detail column scrolls and clips the slot, so it is the observer's root.
-  const root = WIDE.matches ? detail : null
-  const below = stickMargin({wide: WIDE.matches, bar: document.querySelector("#masthead")?.offsetHeight ?? 0,
-    viewport: innerHeight, column: detail?.clientHeight ?? 0})
-  stick(where === "pinned" ? slot : null, panel, root, below)
+  // Only a pinned panel sticks, so the other places measure nothing for it.
+  if (where === "pinned") {
+    const root = WIDE.matches ? detail : null
+    const below = stickMargin({wide: WIDE.matches, bar: document.querySelector("#masthead")?.offsetHeight ?? 0,
+      viewport: innerHeight, column: detail?.clientHeight ?? 0})
+    stick(slot, panel, root, below)
+  } else {
+    stick(null, panel)
+  }
   if (slot) {
     const pinned = panel && where === "pinned"
     slot.style.height = pinned ? `${room}px` : ""

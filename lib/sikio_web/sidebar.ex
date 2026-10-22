@@ -17,8 +17,16 @@ defmodule SikioWeb.Sidebar do
   alias Sikio.Tags
   alias SikioWeb.MediaComponents
 
-  def on_mount(:default, _params, _session, socket),
-    do: {:cont, socket |> refresh() |> attach_hook(:sidebar, :handle_event, &switched/3)}
+  # The choice is read once here; reloads keep it, and `switched/3` changes it.
+  def on_mount(:default, _params, _session, socket) do
+    shown = Preferences.get(socket.assigns.current_account).subscriptions_shown
+
+    {:cont,
+     socket
+     |> assign(:sidebar, %{shown: shown})
+     |> refresh()
+     |> attach_hook(:sidebar, :handle_event, &switched/3)}
+  end
 
   defp switched("show_subscriptions", %{"value" => shown}, socket) do
     case Preferences.update(socket.assigns.current_account, %{subscriptions_shown: shown}) do
@@ -32,16 +40,15 @@ defmodule SikioWeb.Sidebar do
 
   defp switched(_event, _params, socket), do: {:cont, socket}
 
-  @doc "Reloads the counts, sources, tags and the subscriptions shown into the `:sidebar` assign."
-  def refresh(socket) do
-    account = socket.assigns.current_account
+  @doc "Reloads the counts, sources and tags into the `:sidebar` assign."
+  def refresh(socket), do: reloaded(socket, load(socket.assigns.current_account))
 
-    assign(
-      socket,
-      :sidebar,
-      Map.put(load(account), :shown, Preferences.subscriptions_shown(account))
-    )
-  end
+  @doc """
+  Assigns a freshly loaded `sidebar`, keeping the page's choice of subscriptions shown.
+  `SikioWeb.LibraryEvents` passes the load it shares with the account's other pages.
+  """
+  def reloaded(socket, sidebar),
+    do: assign(socket, :sidebar, Map.put(sidebar, :shown, socket.assigns.sidebar.shown))
 
   @doc """
   Returns the subscriptions the lists show, with `counts` from `Sikio.Library.tally/3`.

@@ -12,14 +12,12 @@ defmodule SikioWeb.SetupController do
   use SikioWeb, :controller
 
   alias Ithibati.Identity.Instance
-  alias Sikio.AuthRateLimiter
   alias SikioWeb.AuthRateLimit
 
   def create(conn, params) do
     conn = put_resp_header(conn, "cache-control", "no-store")
-    {limit, seconds} = AuthRateLimiter.budget(:setup)
 
-    case AuthRateLimiter.check(AuthRateLimit.key(conn, :setup), limit, seconds) do
+    case AuthRateLimit.check(conn, :setup) do
       :ok -> exchange(conn, params["setup_code"])
       {:error, retry_after} -> too_many(conn, retry_after)
     end

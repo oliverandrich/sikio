@@ -12,7 +12,6 @@ defmodule SikioWeb.InvitationsLive do
 
   require Logger
 
-  alias Sikio.AuthRateLimiter
   alias Sikio.Identity
   alias Sikio.Invitations
   alias SikioWeb.AuthRateLimit
@@ -47,10 +46,7 @@ defmodule SikioWeb.InvitationsLive do
   # The rate limit runs before the changeset, so invalid attempts also count.
   # Otherwise invalid submissions would not consume the budget.
   def handle_event("invite", params, socket) do
-    {limit, seconds} = AuthRateLimiter.budget(:invite)
-    key = AuthRateLimit.key(socket.assigns.current_account, :invite)
-
-    case AuthRateLimiter.check(key, limit, seconds) do
+    case AuthRateLimit.check(socket.assigns.current_account, :invite) do
       :ok -> create(socket, Map.take(params, ["username", "note"]))
       {:error, retry_after} -> {:noreply, assign(socket, error: too_many(retry_after))}
     end

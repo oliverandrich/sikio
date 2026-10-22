@@ -276,16 +276,16 @@ defmodule SikioWeb.PlayerDockLive do
       socket |> assign(:entry, %{socket.assigns.entry | playback: progress}) |> assign_chapters()
 
   # Starting playback queues an item, but marking it removes it again, so its source remains.
-  defp title_path(%{playback: %{queue_rank: rank}} = entry) when not is_nil(rank),
-    do: LibraryPaths.library_path(%{"status" => "queue"}, entry)
-
-  defp title_path(entry),
-    do:
-      LibraryPaths.library_path(
-        %{"source" => to_string(entry.feed_id)},
-        entry,
-        %{entry.feed_id => source_name(entry)}
-      )
+  defp title_path(entry) do
+    if Library.place(entry.playback) == "queue",
+      do: LibraryPaths.library_path(%{"status" => "queue"}, entry),
+      else:
+        LibraryPaths.library_path(
+          %{"source" => to_string(entry.feed_id)},
+          entry,
+          %{entry.feed_id => source_name(entry)}
+        )
+  end
 
   # Uses the privacy-enhanced host. `enablejsapi` allows reading the position back.
   # YouTube accepts postMessage calls from this page only when `origin` is set.

@@ -15,7 +15,6 @@ defmodule SikioWeb.LibraryEvents do
   It gets the event, the feeds it reaches as a list of ids or `:all`, and the socket.
   It returns the same tuples as `handle_info/2`. The view's own `handle_info/2` does not get them.
   """
-  import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4, connected?: 1, put_private: 3]
 
   alias Sikio.Library.Events
@@ -74,9 +73,7 @@ defmodule SikioWeb.LibraryEvents do
     {sidebar, reach} =
       Shared.fetch(socket.assigns.current_account, System.monotonic_time(), message)
 
-    # The shared load serves every page of the account, so the page keeps its own choice.
-    sidebar = Map.put(sidebar, :shown, socket.assigns.sidebar.shown)
-    socket |> assign(:sidebar, sidebar) |> passed_on(message, reach)
+    socket |> SikioWeb.Sidebar.reloaded(sidebar) |> passed_on(message, reach)
   end
 
   defp library_event?({:playback_progressed, _state}), do: true

@@ -344,14 +344,14 @@ defmodule SikioWeb.LibraryLiveTest do
       %{first: first, second: second}
     end
 
-    defp inbox(c, entry),
-      do: live(c.conn, SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, entry))
+    defp inbox_path(entry), do: SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, entry)
+    defp inbox(c, entry), do: live(c.conn, inbox_path(entry))
 
     test "shows the next row after queueing", c do
       {:ok, view, _} = inbox(c, c.first)
 
       view |> element("#item-actions > #queue") |> render_click()
-      assert_patch(view, SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, c.second))
+      assert_patch(view, inbox_path(c.second))
       assert has_element?(view, "#item-detail[data-entry-id='#{c.second.id}']")
       refute has_element?(view, "#entries-#{c.first.id}")
     end
@@ -360,7 +360,7 @@ defmodule SikioWeb.LibraryLiveTest do
     test "shows the next row after archiving, and none after the m key empties the list", c do
       {:ok, view, _} = inbox(c, c.first)
       view |> element("#item-actions > #archive") |> render_click()
-      assert_patch(view, SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, c.second))
+      assert_patch(view, inbox_path(c.second))
 
       render_hook(view, "toggle_mark", %{})
       assert_patch(view, "/inbox")
@@ -371,7 +371,7 @@ defmodule SikioWeb.LibraryLiveTest do
       {:ok, view, _} = inbox(c, c.second)
 
       view |> element("#item-actions > #queue") |> render_click()
-      assert_patch(view, SikioWeb.LibraryPaths.library_path(%{"status" => "inbox"}, c.first))
+      assert_patch(view, inbox_path(c.first))
     end
 
     test "keeps the detail where the list still holds the item", c do

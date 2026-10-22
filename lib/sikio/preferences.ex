@@ -16,12 +16,6 @@ defmodule Sikio.Preferences do
   def play_on?(%User{id: user_id}),
     do: Repo.one(from p in Preference, where: p.user_id == ^user_id, select: p.play_on) != false
 
-  @doc "Returns which subscriptions the lists show, `all` or `new`. Defaults to `all`."
-  def subscriptions_shown(%User{id: user_id}),
-    do:
-      Repo.one(from p in Preference, where: p.user_id == ^user_id, select: p.subscriptions_shown) ||
-        "all"
-
   @doc "Returns the account's chosen interface language, or nil for the browser's."
   def locale(%User{id: user_id}),
     do: Repo.one(from p in Preference, where: p.user_id == ^user_id, select: p.locale)

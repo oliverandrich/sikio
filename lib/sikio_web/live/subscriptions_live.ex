@@ -32,6 +32,7 @@ defmodule SikioWeb.SubscriptionsLive do
      socket
      # Feed ids whose queued refresh has not reported yet. A reload forgets them.
      |> assign(page_title: gettext("Subscriptions"), refreshing: MapSet.new())
+     |> assign(order: Preferences.get(socket.assigns.current_account).subscriptions_order)
      |> stream_configure(:subscriptions, dom_id: &"subscription-#{&1.id}")
      |> load_subscriptions()}
   end
@@ -39,8 +40,12 @@ defmodule SikioWeb.SubscriptionsLive do
   @impl true
   def handle_event("order_subscriptions", %{"value" => order}, socket) do
     case Preferences.update(socket.assigns.current_account, %{subscriptions_order: order}) do
-      {:ok, _preference} -> {:noreply, load_subscriptions(socket)}
-      {:error, _changeset} -> {:noreply, socket}
+      {:ok, preference} ->
+        {:noreply,
+         socket |> assign(order: preference.subscriptions_order) |> load_subscriptions()}
+
+      {:error, _changeset} ->
+        {:noreply, socket}
     end
   end
 
@@ -120,14 +125,13 @@ defmodule SikioWeb.SubscriptionsLive do
 
   defp load_subscriptions(socket) do
     account = socket.assigns.current_account
-    order = Preferences.get(account).subscriptions_order
+    order = socket.assigns.order
     subscriptions = Library.subscriptions(account)
     # `Library.subscriptions/1` lists the newest subscription first.
     subscriptions = if order == "name", do: by_name(subscriptions), else: subscriptions
 
     socket
     |> assign(
-      order: order,
       subscription_count: length(subscriptions),
       any_active: Enum.any?(subscriptions, &(!&1.paused)),
       live: Hub.live(Enum.map(subscriptions, & &1.feed_id))
