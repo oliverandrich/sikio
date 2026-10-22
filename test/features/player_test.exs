@@ -624,6 +624,39 @@ defmodule SikioWeb.PlayerTest do
       |> assert_path("/all/#{first.id}-part-1")
     end
 
+    # Outside the current list the title opens the queue, which holds the playing item.
+    # Regression: the title opened the item's source, though the queue holds it.
+    test "its title opens the queue when the list lacks what plays", context do
+      %{conn: conn, account: account} = context
+      {:ok, preview} = Parser.parse(podcast("Two Parts"), feed_url("two"))
+
+      entries =
+        for n <- 1..2,
+            do: %{
+              hd(preview.entries)
+              | external_id: "two-#{n}",
+                title: "Part #{n}",
+                published_at: DateTime.add(hd(preview.entries).published_at, -n, :day)
+            }
+
+      {:ok, subscription} = Library.subscribe(account, %{preview | entries: entries})
+      [first, _second] = Library.entries(account, %{"source" => to_string(subscription.feed_id)})
+
+      # Playing moves the first item from the inbox to the queue.
+      conn
+      |> resize(1280, 900)
+      |> open("/all")
+      |> click("#entries-#{first.id} a")
+      |> click("#start-playback")
+      |> assert_attached(~s|#player-control[data-entry-id="#{first.id}"]|)
+      |> click("#view-inbox")
+      |> refute_has("#entries-#{first.id}")
+      |> assert_has(~s|#player-panel[data-place="compact"] .player-title|)
+      |> click("#player-panel .player-title")
+      |> assert_has("#item-detail h2", text: "Part 1")
+      |> assert_path("/queue/#{first.id}-part-1")
+    end
+
     # Starting items in sequence hands the player on each time, and the last one still closes.
     # Each start waits for the previous player to save its position.
     test "starts one item after another and still closes", context do

@@ -20,6 +20,7 @@ defmodule SikioWeb.PlayerDockLive do
   alias Sikio.Library
   alias Sikio.Library.Events
   alias Sikio.Playback
+  alias SikioWeb.LibraryPaths
 
   # Declared here, because a LiveView rendered from the root layout belongs to no `live_session`.
   # Without `SikioWeb.Locale`, the dock renders in English while the page uses the session locale.
@@ -274,6 +275,18 @@ defmodule SikioWeb.PlayerDockLive do
     do:
       socket |> assign(:entry, %{socket.assigns.entry | playback: progress}) |> assign_chapters()
 
+  # Starting playback queues an item, but marking it removes it again, so its source remains.
+  defp title_path(%{playback: %{queue_rank: rank}} = entry) when not is_nil(rank),
+    do: LibraryPaths.library_path(%{"status" => "queue"}, entry)
+
+  defp title_path(entry),
+    do:
+      LibraryPaths.library_path(
+        %{"source" => to_string(entry.feed_id)},
+        entry,
+        %{entry.feed_id => source_name(entry)}
+      )
+
   # Uses the privacy-enhanced host. `enablejsapi` allows reading the position back.
   # YouTube accepts postMessage calls from this page only when `origin` is set.
   # `cc_load_policy=0` requests no captions. YouTube does not always honor it.
@@ -338,13 +351,7 @@ defmodule SikioWeb.PlayerDockLive do
               {source_name(@entry)}
             </p>
             <.link
-              navigate={
-                SikioWeb.LibraryPaths.library_path(
-                  %{"source" => to_string(@entry.feed_id)},
-                  @entry,
-                  %{@entry.feed_id => source_name(@entry)}
-                )
-              }
+              navigate={title_path(@entry)}
               data-show-entry={@entry.id}
               class="player-title mt-1 block text-label leading-snug font-semibold break-words"
             >{@entry.title}</.link>

@@ -41,6 +41,8 @@ Its own section becomes the version's release notes.
 
 - Plain-text notes with an emoji such as 📅 no longer crash the library view. Their lines were
   split inside the emoji.
+- The compact player's title opens the playing item in the queue when the current list lacks it.
+  It opened the item's source before.
 
 ### Upgrading
 

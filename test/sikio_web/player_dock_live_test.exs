@@ -65,6 +65,17 @@ defmodule SikioWeb.PlayerDockLiveTest do
     assert has_element?(dock, ~s|[phx-hook="MediaPlayer"][data-artwork^="/pictures/"]|)
   end
 
+  # Starting playback queues the item, so its title links into the queue rather than its source.
+  test "the title links to the playing item in the queue", c do
+    {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
+    render_hook(dock, "start", %{id: c.entry.id})
+
+    assert has_element?(
+             dock,
+             ~s|.player-title[href="/queue/#{c.entry.id}-#{SikioWeb.LibraryPaths.slug(c.entry.title)}"]|
+           )
+  end
+
   test "one active player saves and closes without losing progress", c do
     {:ok, dock, _} = live_isolated(c.conn, PlayerDockLive)
     render_hook(dock, "start", %{id: c.entry.id})

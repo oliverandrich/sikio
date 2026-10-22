@@ -240,6 +240,10 @@ defmodule SikioWeb.LibraryLive do
             Library.listed?(account, filters, entry.id) ->
               filters
 
+            # Starting playback queues an item, but marking it removes it again.
+            entry.playback && entry.playback.queue_rank ->
+              Library.normalize_filters(%{"status" => "queue"})
+
             followed?(socket, entry.feed_id) ->
               Library.normalize_filters(%{"source" => to_string(entry.feed_id)})
 
