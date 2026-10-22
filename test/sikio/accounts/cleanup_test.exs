@@ -35,6 +35,21 @@ defmodule Sikio.Accounts.CleanupTest do
     assert Repo.get(AddressRequest, current.id)
   end
 
+  test "the job deletes an extension code nobody exchanged in time" do
+    ada = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+
+    Repo.insert!(%Sikio.Extensions.Grant{
+      user_id: ada.id,
+      code_digest: :crypto.strong_rand_bytes(32),
+      code_challenge: String.duplicate("c", 43),
+      redirect_uri: Sikio.ExtensionFixtures.chrome_redirect(),
+      label: "Chrome",
+      expires_at: DateTime.add(DateTime.utc_now(), -1)
+    })
+
+    assert {:ok, %{extension_grants: 1}} = perform_job(Cleanup, %{})
+  end
+
   # Asserts that the Oban crontab includes the worker, since an unscheduled worker never runs.
   #
   # Reads `Sikio.Application.oban/0`, not `Oban.config/0`. `testing: :manual` removes plugins and

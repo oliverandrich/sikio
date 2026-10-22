@@ -66,6 +66,30 @@ The reauthentication uses a passkey or recovery code of the current account. Add
 checks it both when the challenge is created and when registration completes. All settings
 pages and messages are available in English and German.
 
+## Browser extensions
+
+A browser extension connects to an account through an authorization code with PKCE (RFC 7636,
+S256). The extension opens `/extension/connect` with `redirect_uri`, `state`, `code_challenge`
+and `client` through `identity.launchWebAuthFlow`. Only an extension's own redirect URI is
+accepted: `https://<id>.extensions.allizom.org/` for Firefox and `https://<id>.chromiumapp.org/`
+for Chrome. Any other address gets no code.
+
+Connecting needs a reauthentication within the last five minutes, checked when the code is
+issued, since the token gives lasting access. A signed-out visit leads to the sign-in and returns
+to the page afterwards, within ten minutes. That sign-in used a passkey or a recovery code, so it
+counts as the reauthentication. A sign-in that uses the last recovery code shows the new codes
+first and does not return. A request with a malformed challenge goes back to the extension with
+`invalid_request`. The page then redirects to the extension
+with a one-time code. The code expires after a minute and serves once, with its verifier and
+the same redirect URI. A failed exchange deletes it.
+
+The extension exchanges the code at `POST /api/v1/token` with `code`, `code_verifier` and
+`redirect_uri`. The answer is `{"token": ...}`, or status 400 with
+`{"error": "invalid_grant"}`. The token serves the extension API only. Settings → Browser
+extensions lists connected extensions with their name and last use and disconnects them. A
+disconnected token stops working at its next request. The database keeps digests of codes and
+tokens only.
+
 ## Authentication limits and maintenance
 `AuthRateLimit` allows 10 recovery requests and 120 other ceremony requests per client
 address in a 60-second fixed window. IPv6 addresses count per `/64` prefix. Exceeded requests
@@ -115,7 +139,7 @@ It returns deletion counts for expired sessions, expired challenges and expired,
 invitations. It disconnects the LiveViews of each expired session. Valid credentials, recovery
 codes and accepted invitations remain. `Sikio.Accounts.Cleanup` runs it every fifteen minutes on
 Oban's `maintenance` queue, so a deployment needs no cron entry. The same job deletes expired
-address requests.
+address requests and extension codes.
 
 Phoenix request logs filter parameters whose names contain `password`, `secret`, `token`, `code`
 or `credential`. The setting is `:filter_parameters`. This covers recovery codes and WebAuthn

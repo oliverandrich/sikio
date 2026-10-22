@@ -43,6 +43,30 @@ defmodule SikioWeb.Router do
     plug SikioWeb.AuthRateLimit
   end
 
+  # The browser extension's API: JSON without a session; the extension proves itself.
+  pipeline :api do
+    plug :accepts, ["json"]
+  end
+
+  scope "/api/v1", SikioWeb do
+    pipe_through :api
+    post "/token", ExtensionTokenController, :create
+  end
+
+  # The extension's sign-in window. A signed-out visit remembers the page for the sign-in.
+  pipeline :extension_return do
+    plug SikioWeb.ExtensionReturn
+  end
+
+  scope "/extension", SikioWeb do
+    pipe_through [:browser, :extension_return]
+
+    live_session :extension,
+      on_mount: [{Ithibati.Web.Gate, {:require_account, to: "/login"}}, {SikioWeb.Locale, :set}] do
+      live "/connect", ExtensionConnectLive
+    end
+  end
+
   pipeline :authenticated do
     plug Ithibati.Web.Gate, {:require_account, to: "/login"}
   end
@@ -131,6 +155,7 @@ defmodule SikioWeb.Router do
       live "/account/verify", VerifyIdentityLive
       live "/account/settings", SettingsLive
       live "/account/address", AccountAddressLive
+      live "/account/extensions", ExtensionsLive
       live "/account/passkeys", AccountSecurityLive, :passkeys
       live "/account/recovery-codes", AccountSecurityLive, :recovery_codes
       # `AccountsLive` checks the administrator role itself. A live_session of its own would

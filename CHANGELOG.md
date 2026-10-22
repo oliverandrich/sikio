@@ -32,6 +32,8 @@ Its own section becomes the version's release notes.
 - In email mode a member changes their address under Settings → Email address. The link goes to
   the new address, and only the same account confirms it. The old address gets a notice.
   Passkeys and sessions stay.
+- A browser extension connects to an account from its own sign-in window, after a passkey
+  confirmation. Settings → Browser extensions lists and disconnects connected extensions.
 
 ### Changed
 
@@ -76,6 +78,8 @@ Its own section becomes the version's release notes.
 - A migration adds the subscriptions page's order to the preferences. Every account starts
   with the order by name.
 - A migration adds the table of address requests, `address_requests`.
+- A migration adds the tables of browser extension tokens and codes, `extension_tokens` and
+  `extension_grants`.
 
 ## [0.8.0] - 2026-10-18
 

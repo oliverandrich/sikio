@@ -16,8 +16,35 @@ defmodule SikioWeb.Reauth do
   @doc "Returns `{:ok, path}` for a known purpose, else `:error`."
   def target(purpose), do: Map.fetch(@targets, purpose)
 
-  @doc "Returns whether `path` is a page a confirmation returns to."
-  def target?(path), do: path in Map.values(@targets)
+  @doc """
+  Returns whether `path` is a page a confirmation returns to.
+
+  Connecting an extension returns to `/extension/connect` with the extension's parameters, so
+  that path counts with any query.
+  """
+  def target?(path), do: path in Map.values(@targets) or extension_connect?(path)
+
+  @doc "Returns whether `path` is the extension's connect page, with a query and nothing else."
+  def extension_connect?(path) when is_binary(path) do
+    match?(
+      %URI{scheme: nil, host: nil, path: "/extension/connect", fragment: nil},
+      URI.parse(path)
+    )
+  end
+
+  def extension_connect?(_path), do: false
+
+  @doc """
+  Records a passkey confirmation of `account` in the session, as `complete/3` does.
+
+  A sign-in that returns to the extension's connect page used a passkey or a recovery code a
+  moment ago.
+  """
+  def confirmed_now(conn, %{id: id}) do
+    conn
+    |> put_session(:confirmed_account_id, id)
+    |> put_session(:confirmed_at, System.system_time(:second))
+  end
 
   def recent?(session, account) do
     case {session["confirmed_account_id"], session["confirmed_at"]} do
@@ -42,11 +69,7 @@ defmodule SikioWeb.Reauth do
       %{id: id} when id == account.id ->
         target = get_session(conn, :reauth_target)
 
-        conn =
-          conn
-          |> delete_session(:reauth_target)
-          |> put_session(:confirmed_account_id, id)
-          |> put_session(:confirmed_at, System.system_time(:second))
+        conn = conn |> delete_session(:reauth_target) |> confirmed_now(account)
 
         conn = if codes, do: put_session(conn, :recovery_codes, codes), else: conn
         {:ok, json(conn, %{redirect: if(codes, do: "/recovery-codes", else: target)})}

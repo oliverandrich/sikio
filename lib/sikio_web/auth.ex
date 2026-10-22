@@ -198,9 +198,24 @@ defmodule SikioWeb.Auth do
 
   @impl true
   def authenticate(conn, account) do
-    if Reauth.pending?(conn),
-      do: Reauth.complete(conn, account),
-      else: {:ok, conn |> signed_in(account) |> json(%{redirect: "/"})}
+    return = SikioWeb.ExtensionReturn.returning(get_session(conn, :extension_return))
+
+    cond do
+      Reauth.pending?(conn) ->
+        Reauth.complete(conn, account)
+
+      # A sign-in in the extension's window returns to its connect page. A passkey or recovery
+      # code was just used, so it counts as the confirmation that connecting needs.
+      Reauth.extension_connect?(return) ->
+        {:ok,
+         conn
+         |> signed_in(account)
+         |> Reauth.confirmed_now(account)
+         |> json(%{redirect: return})}
+
+      true ->
+        {:ok, conn |> signed_in(account) |> json(%{redirect: "/"})}
+    end
   end
 
   defp signed_in(conn, account) do

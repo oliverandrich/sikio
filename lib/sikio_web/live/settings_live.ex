@@ -152,6 +152,7 @@ defmodule SikioWeb.SettingsLive do
           >
             {gettext("Recovery codes")}
           </.group_link>
+          <.group_link to={~p"/account/extensions"}>{gettext("Browser extensions")}</.group_link>
           <.group_link to={~p"/invitations"}>{gettext("Invitations")}</.group_link>
         </.group>
         <.group

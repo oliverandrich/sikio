@@ -21,6 +21,13 @@ defmodule SikioWeb.AccountSecurityController do
       else: conn |> redirect(to: ~p"/account/confirm/recovery-codes") |> halt()
   end
 
+  # The extension's connect page carries its parameters in the query, so it returns there.
+  def confirm(conn, %{"purpose" => "extension", "return" => path}) do
+    if Reauth.extension_connect?(path),
+      do: conn |> put_session(:reauth_target, path) |> redirect(to: ~p"/account/verify"),
+      else: send_resp(conn, 404, "Not Found")
+  end
+
   def confirm(conn, %{"purpose" => purpose}) do
     case Reauth.target(purpose) do
       {:ok, path} ->

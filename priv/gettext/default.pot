@@ -314,7 +314,7 @@ msgstr ""
 msgid "Add a passkey"
 msgstr ""
 
-#: lib/sikio_web/controllers/account_security_controller.ex:58
+#: lib/sikio_web/controllers/account_security_controller.ex:65
 #: lib/sikio_web/live/account_security_live.ex:98
 #, elixir-autogen, elixir-format
 msgid "Add another passkey before removing your last one."
@@ -366,17 +366,17 @@ msgstr ""
 msgid "Passkey name"
 msgstr ""
 
-#: lib/sikio_web/controllers/account_security_controller.ex:48
+#: lib/sikio_web/controllers/account_security_controller.ex:55
 #, elixir-autogen, elixir-format
 msgid "Passkey removed."
 msgstr ""
 
-#: lib/sikio_web/controllers/account_security_controller.ex:40
+#: lib/sikio_web/controllers/account_security_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "Passkey renamed."
 msgstr ""
 
-#: lib/sikio_web/controllers/account_security_controller.ex:76
+#: lib/sikio_web/controllers/account_security_controller.ex:83
 #, elixir-autogen, elixir-format
 msgid "Please confirm that your previous recovery codes will stop working."
 msgstr ""
@@ -408,7 +408,7 @@ msgstr ""
 msgid "Save name"
 msgstr ""
 
-#: lib/sikio_web/controllers/account_security_controller.ex:64
+#: lib/sikio_web/controllers/account_security_controller.ex:71
 #, elixir-autogen, elixir-format
 msgid "This passkey is no longer available."
 msgstr ""
@@ -441,6 +441,7 @@ msgstr ""
 msgid "Confirm with a recovery code"
 msgstr ""
 
+#: lib/sikio_web/live/extension_connect_live.ex:100
 #: lib/sikio_web/live/verify_identity_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Confirm your identity"
@@ -498,7 +499,7 @@ msgstr ""
 
 #: lib/sikio_web/live/invitations_live.ex:172
 #: lib/sikio_web/live/invitations_live.ex:177
-#: lib/sikio_web/live/settings_live.ex:155
+#: lib/sikio_web/live/settings_live.ex:156
 #, elixir-autogen, elixir-format
 msgid "Invitations"
 msgstr ""
@@ -1947,7 +1948,7 @@ msgid "Language"
 msgstr ""
 
 #: lib/sikio_web/live/platforms_live.ex:109
-#: lib/sikio_web/live/settings_live.ex:168
+#: lib/sikio_web/live/settings_live.ex:169
 #, elixir-autogen, elixir-format
 msgid "Saved."
 msgstr ""
@@ -1956,6 +1957,7 @@ msgstr ""
 #: lib/sikio_web/live/account_address_live.ex:120
 #: lib/sikio_web/live/account_security_live.ex:57
 #: lib/sikio_web/live/accounts_live.ex:125
+#: lib/sikio_web/live/extensions_live.ex:39
 #: lib/sikio_web/live/invitations_live.ex:173
 #: lib/sikio_web/live/platforms_live.ex:66
 #: lib/sikio_web/live/settings_live.ex:86
@@ -2571,12 +2573,12 @@ msgstr[1] ""
 #: lib/sikio_web/live/accounts_live.ex:29
 #: lib/sikio_web/live/accounts_live.ex:124
 #: lib/sikio_web/live/accounts_live.ex:129
-#: lib/sikio_web/live/settings_live.ex:163
+#: lib/sikio_web/live/settings_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "Accounts"
 msgstr ""
 
-#: lib/sikio_web/live/settings_live.ex:160
+#: lib/sikio_web/live/settings_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "Administration"
 msgstr ""
@@ -2756,7 +2758,7 @@ msgstr ""
 #: lib/sikio_web/live/platforms_live.ex:65
 #: lib/sikio_web/live/platforms_live.ex:70
 #: lib/sikio_web/live/platforms_live.ex:78
-#: lib/sikio_web/live/settings_live.ex:164
+#: lib/sikio_web/live/settings_live.ex:165
 #, elixir-autogen, elixir-format
 msgid "Platforms"
 msgstr ""
@@ -2925,4 +2927,78 @@ msgstr ""
 #: lib/sikio_web/live/address_confirm_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "Then open the link from the mail again."
+msgstr ""
+
+#: lib/sikio_web/live/extension_connect_live.ex:105
+#, elixir-autogen, elixir-format
+msgid "%{client} can then add sources and items to your library and see what you subscribe to."
+msgstr ""
+
+#: lib/sikio_web/live/extensions_live.ex:17
+#: lib/sikio_web/live/extensions_live.ex:38
+#: lib/sikio_web/live/extensions_live.ex:43
+#: lib/sikio_web/live/settings_live.ex:155
+#, elixir-autogen, elixir-format
+msgid "Browser extensions"
+msgstr ""
+
+#: lib/sikio_web/live/extension_connect_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "Confirm with your passkey before %{client} connects."
+msgstr ""
+
+#: lib/sikio_web/live/extension_connect_live.ex:111
+#, elixir-autogen, elixir-format
+msgid "Connect"
+msgstr ""
+
+#: lib/sikio_web/live/extension_connect_live.ex:29
+#: lib/sikio_web/live/extension_connect_live.ex:88
+#, elixir-autogen, elixir-format
+msgid "Connect a browser extension"
+msgstr ""
+
+#: lib/sikio_web/live/extensions_live.ex:60
+#, elixir-autogen, elixir-format
+msgid "Connected %{date}"
+msgstr ""
+
+#: lib/sikio_web/live/extensions_live.ex:76
+#, elixir-autogen, elixir-format
+msgid "Disconnect"
+msgstr ""
+
+#: lib/sikio_web/live/extension_connect_live.ex:122
+#, elixir-autogen, elixir-format
+msgid "Do not connect"
+msgstr ""
+
+#: lib/sikio_web/live/extensions_live.ex:45
+#, elixir-autogen, elixir-format
+msgid "Extensions connected here add sources and items to your library."
+msgstr ""
+
+#: lib/sikio_web/live/extensions_live.ex:49
+#, elixir-autogen, elixir-format
+msgid "No browser extension is connected."
+msgstr ""
+
+#: lib/sikio_web/live/extension_connect_live.ex:83
+#, elixir-autogen, elixir-format
+msgid "This extension cannot be connected. Its request is incomplete."
+msgstr ""
+
+#: lib/sikio_web/live/extension_connect_live.ex:90
+#, elixir-autogen, elixir-format
+msgid "This extension cannot be connected. Its sign-in address is not an extension's."
+msgstr ""
+
+#: lib/sikio_web/live/extensions_live.ex:64
+#, elixir-autogen, elixir-format
+msgid "last used %{date}"
+msgstr ""
+
+#: lib/sikio_web/live/extension_connect_live.ex:123
+#, elixir-autogen, elixir-format
+msgid "Back to the extension"
 msgstr ""
