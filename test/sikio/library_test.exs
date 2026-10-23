@@ -527,6 +527,132 @@ defmodule Sikio.LibraryTest do
     assert id == saved.id
   end
 
+  # A website's feed link and Apple's directory may give two URLs of one feed. A new feed is
+  # fetched at the URL in its `atom:link rel="self"`, so both URLs reach one feed and one entry.
+  describe "a feed with a self URL" do
+    setup do
+      canonical = feed_url("feed/mp3/")
+      %{canonical: canonical, alias_url: String.replace(canonical, "/feed/", "/index.php/feed/")}
+    end
+
+    # Serves `feeds` by host and path. The request goes to the pinned address, so the `host`
+    # header carries the host.
+    defp serve(feeds) do
+      Req.Test.stub(HTTP, fn conn ->
+        [host] = Plug.Conn.get_req_header(conn, "host")
+
+        case Map.fetch(feeds, "https://" <> host <> conn.request_path) do
+          {:ok, {:redirect, to}} ->
+            conn |> Plug.Conn.put_resp_header("location", to) |> Plug.Conn.send_resp(301, "")
+
+          {:ok, body} ->
+            Plug.Conn.send_resp(conn, 200, body)
+
+          :error ->
+            Plug.Conn.send_resp(conn, 404, "")
+        end
+      end)
+    end
+
+    defp assert_fetched_at_alias(%{alias_url: alias_url}),
+      do: assert({:ok, %{url: ^alias_url}} = Discovery.fetch(alias_url))
+
+    test "subscribing at another URL of a saved entry's feed adds no second entry", ctx do
+      named = podcast_naming(ctx.canonical)
+      serve(%{ctx.canonical => named, ctx.alias_url => named})
+
+      {:ok, linked} = Discovery.fetch(ctx.canonical)
+      {:ok, saved} = Library.save(ctx.alice, linked, "episode-1", :queue)
+
+      {:ok, [listed]} = Discovery.discover(ctx.alias_url)
+      {:ok, subscription} = Library.subscribe(ctx.alice, listed, existing: :all)
+
+      assert subscription.feed_id == saved.feed_id
+      assert [%{id: id}] = Library.entries(ctx.alice, %{"status" => ""})
+      assert id == saved.id
+      assert Library.entries(ctx.alice, %{"status" => "inbox"}) == []
+    end
+
+    # A feed on a shared host may give another publisher's feed as its self URL. Fetching it
+    # gives that feed's own content, so nothing reaches the other feed's subscribers.
+    test "gives the content served at the self URL, never the content that names it", ctx do
+      serve(%{
+        ctx.canonical => podcast_naming(ctx.canonical),
+        ctx.alias_url =>
+          ctx.canonical |> podcast_naming() |> String.replace("One &amp; two", "Planted")
+      })
+
+      {:ok, victim} = Discovery.fetch(ctx.canonical)
+      {:ok, _} = Library.subscribe(ctx.bob, victim)
+
+      {:ok, fetched} = Discovery.fetch(ctx.alias_url)
+      assert fetched.url == ctx.canonical
+      {:ok, _} = Library.subscribe(ctx.alice, fetched)
+
+      assert [%{title: "One & two"}] = Library.entries(ctx.bob, %{"status" => ""})
+    end
+
+    test "keeps the fetched URL when the self URL serves no feed", ctx do
+      serve(%{ctx.alias_url => podcast_naming(ctx.canonical)})
+      assert_fetched_at_alias(ctx)
+    end
+
+    # A feed stored at its other URL keeps its row and its subscribers.
+    test "a stored feed keeps its URL", ctx do
+      named = podcast_naming(ctx.canonical)
+      serve(%{ctx.canonical => named, ctx.alias_url => named})
+      {:ok, stored} = Parser.parse(named, ctx.alias_url)
+      {:ok, _} = Library.subscribe(ctx.alice, stored)
+
+      assert_fetched_at_alias(ctx)
+    end
+
+    # A feed at the self URL with other entries is another feed, such as a variant of the show.
+    test "keeps the fetched URL when the feed at the self URL holds other entries", ctx do
+      serve(%{
+        ctx.alias_url => podcast_naming(ctx.canonical),
+        ctx.canonical => podcast_naming(ctx.canonical, podcast_later())
+      })
+
+      assert_fetched_at_alias(ctx)
+    end
+
+    # A redirect would key the feed to a URL the self URL does not give.
+    test "keeps the fetched URL when the self URL redirects", ctx do
+      for elsewhere <- [feed_url("feed"), String.replace(ctx.canonical, "/mp3/", "/aac/")] do
+        serve(%{
+          ctx.alias_url => podcast_naming(ctx.canonical),
+          ctx.canonical => {:redirect, elsewhere},
+          elsewhere => podcast_naming(ctx.canonical)
+        })
+
+        assert_fetched_at_alias(ctx)
+      end
+    end
+
+    # A stored feed whose URL now redirects is still the stored feed.
+    test "keeps a stored feed whose URL redirects", ctx do
+      moved = String.replace(ctx.alias_url, "/index.php/", "/moved/")
+      named = podcast_naming(ctx.canonical)
+      serve(%{ctx.alias_url => {:redirect, moved}, moved => named, ctx.canonical => named})
+      {:ok, stored} = Parser.parse(named, ctx.alias_url)
+      {:ok, _} = Library.subscribe(ctx.alice, stored)
+
+      assert {:ok, %{url: url}} = Discovery.fetch(ctx.alias_url)
+      assert url == moved
+    end
+
+    # Two feeds that give each other as self URL stay apart.
+    test "keeps the fetched URL when the feed at the self URL gives another self URL", ctx do
+      serve(%{
+        ctx.alias_url => podcast_naming(ctx.canonical),
+        ctx.canonical => podcast_naming(ctx.alias_url)
+      })
+
+      assert_fetched_at_alias(ctx)
+    end
+  end
+
   # A channel's latest upload may be a Short, which the subscription hides by default. The newest
   # entry it shows goes to the inbox instead.
   test "subscribing brings the newest visible entry, not a hidden Short", ctx do

@@ -551,13 +551,42 @@ defmodule Sikio.Feeds.Discovery do
     end
   end
 
-  @doc "Fetches and parses a known feed URL. The result includes ETag and Last-Modified."
+  @doc """
+  Fetches and parses a known feed URL. The result includes ETag and Last-Modified.
+
+  A feed not stored yet may come from its self URL instead, with that URL's validators.
+  """
   def fetch(url, headers \\ []) do
     case poll(url, headers) do
       {:not_modified, _wait} -> :not_modified
+      {{:ok, feed}, _wait} -> {:ok, at_self_url(feed, url)}
       {result, _wait} -> result
     end
   end
+
+  # Feeds are stored by URL, and a feed may answer at two URLs of its host. Fetching a new feed
+  # at its self URL keeps both URLs on one row. The row's content then comes from the self URL,
+  # never from the URL that gave it. A feed there with another self URL, kind or set of entries
+  # is another feed, and so is a self URL that redirects. A feed stored at the requested or the
+  # redirected URL keeps that URL.
+  defp at_self_url(%{self_url: self_url, url: url} = feed, requested)
+       when is_binary(self_url) do
+    with true <- self_url != HTTP.resolve(url, url),
+         false <- Sikio.Feeds.stored?([requested, url]),
+         {{:ok, %{url: ^self_url, self_url: ^self_url} = named}, _wait} <- poll(self_url, []),
+         true <- same_entries?(feed, named) do
+      named
+    else
+      _ -> feed
+    end
+  end
+
+  defp at_self_url(feed, _requested), do: feed
+
+  defp same_entries?(feed, named),
+    do: feed.kind == named.kind and external_ids(feed) == external_ids(named)
+
+  defp external_ids(feed), do: MapSet.new(feed.entries, & &1.external_id)
 
   @doc """
   Fetches a feed as `fetch/2` does and also returns the server's requested wait.
@@ -1237,8 +1266,10 @@ defmodule Sikio.Feeds.Discovery do
   end
 
   defp webpage(uri) do
-    case HTTP.get(URI.to_string(uri)) do
-      {:ok, %{status: 200} = response} -> webpage_response(response)
+    url = URI.to_string(uri)
+
+    case HTTP.get(url) do
+      {:ok, %{status: 200} = response} -> webpage_response(response, url)
       {:error, reason} -> {:error, reason}
       _ -> {:error, :unavailable}
     end
@@ -1247,10 +1278,10 @@ defmodule Sikio.Feeds.Discovery do
   # Three checks, cheapest first. A response that parses as a feed is used directly.
   # Otherwise NodeInfo is checked, because PeerTube names the correct feed.
   # Link discovery runs last, because it is the least reliable.
-  defp webpage_response(response) do
+  defp webpage_response(response, url) do
     case Parser.parse(response.body, response.url) do
       {:ok, feed} ->
-        {:ok, [feed |> with_shorts() |> Map.merge(validators(response))]}
+        {:ok, [feed |> with_shorts() |> Map.merge(validators(response)) |> at_self_url(url)]}
 
       _ ->
         # A PeerTube instance without a feed for this URL returns its error. Link discovery on its

@@ -32,6 +32,9 @@ defmodule Sikio.Feeds do
   defp replaced_feed_fields(attrs),
     do: Enum.filter([:icon_url, :page_url], &is_binary(attrs[&1])) ++ @feed_fields
 
+  @doc "Returns whether a feed is stored at one of `urls`."
+  def stored?(urls) when is_list(urls), do: Repo.exists?(from f in Feed, where: f.url in ^urls)
+
   @doc "Returns the id of the feed that holds the entry, or `nil` for an unknown entry."
   def feed_id_of(entry_id) when is_integer(entry_id),
     do: Repo.one(from e in Entry, where: e.id == ^entry_id, select: e.feed_id)

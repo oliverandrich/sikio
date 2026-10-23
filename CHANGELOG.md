@@ -65,6 +65,10 @@ Its own section becomes the version's release notes.
 - When play-on starts the next queued item from the ended item's detail, the detail follows it,
   in the queue if the current list lacks it. Played from the inbox, the detail kept the ended
   item and the next one played in the compact player.
+- A saved episode no longer shows twice after subscribing to its podcast at another URL. A
+  website's feed link and Apple's directory may give two URLs of one feed. A new feed is now
+  fetched at the https URL in its `atom:link rel="self"` on the same host. The feed there must
+  give the same URL and hold the same episodes. A feed already stored keeps its URL.
 
 ### Upgrading
 

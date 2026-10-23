@@ -99,6 +99,62 @@ defmodule Sikio.Feeds.ParserTest do
     assert {:ok, %{ttl: nil}} = Parser.parse(youtube(), youtube_feed_url())
   end
 
+  @fetched "https://example.org/index.php/feed/"
+  @self "https://example.org/feed/"
+
+  defp self_url(feed, url \\ @fetched) do
+    {:ok, %{self_url: self_url}} = Parser.parse(feed, url)
+    self_url
+  end
+
+  # Discovery fetches a new feed at this URL. Feed content is shared, so a URL on another host
+  # or over plain HTTP gives none.
+  test "reads the https URL in atom:link rel=\"self\" on the feed's own host" do
+    assert self_url(podcast_naming(@self)) == @self
+    assert self_url(podcast_naming("/feed/")) == @self
+    assert self_url(podcast_naming("/feed/"), "https://EXAMPLE.org/index.php/feed/") == @self
+    # Apple's directory often lists the http URL of a feed served over https as well.
+    assert self_url(podcast_naming(@self), "http://example.org/feed") == @self
+
+    assert self_url(podcast()) == nil
+    assert self_url(podcast_naming("http://example.org/feed/")) == nil
+    assert self_url(podcast_naming("http://example.org/feed/"), "http://example.org/rss") == nil
+    assert self_url(podcast_naming("https://other.example.org/feed/")) == nil
+    assert self_url(podcast_naming("https://example.org:80/feed/")) == nil
+  end
+
+  test "reads the self link in the Atom namespace under any prefix" do
+    any_prefix =
+      podcast_naming(@self)
+      |> String.replace("atom:link", "atom10:link")
+      |> String.replace("xmlns:atom=", "xmlns:atom10=")
+      |> String.replace(~s|rel="self"|, ~s|rel="Self"|)
+
+    default_namespace =
+      String.replace(
+        podcast(),
+        "<channel>",
+        ~s|<channel><link xmlns="http://www.w3.org/2005/Atom" rel="self" href="/feed/" />|
+      )
+
+    other_namespace =
+      podcast_naming(@self)
+      |> String.replace("atom:link", "foo:link")
+      |> String.replace("<channel>", ~s|<channel xmlns:foo="https://example.org/foo">|)
+
+    redeclared =
+      String.replace(
+        podcast_naming(@self),
+        "<atom:link ",
+        ~s|<atom:link xmlns:atom="https://example.org/foo" |
+      )
+
+    assert self_url(any_prefix) == @self
+    assert self_url(default_namespace) == @self
+    assert self_url(other_namespace) == nil
+    assert self_url(redeclared) == nil
+  end
+
   test "names no website the channel does not give, or gives as something else" do
     without = String.replace(podcast(), "<link>#{podcast_site()}</link>", "")
     assert {:ok, %{page_url: nil}} = Parser.parse(without, "https://example.org/rss")

@@ -171,6 +171,16 @@ defmodule Sikio.FeedFixtures do
     |> String.replace(~r|<content:encoded>.*?</content:encoded>|s, "")
   end
 
+  @doc "The podcast fixture, or `feed`, with `href` in `atom:link rel=\"self\"`."
+  def podcast_naming(href, feed \\ podcast()) do
+    feed
+    |> String.replace(
+      ~s|<rss version="2.0"|,
+      ~s|<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"|
+    )
+    |> String.replace("<channel>", ~s|<channel><atom:link rel="self" href="#{href}" />|)
+  end
+
   @doc "The podcast fixture with `duration` as the episode's `itunes:duration`."
   def podcast_lasting(duration) do
     String.replace(

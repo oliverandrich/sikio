@@ -75,7 +75,7 @@ defmodule Sikio.Feeds.Parser do
   defp rss_feed_of_kind(channel, items, attrs, url) do
     case rss_kind(channel, items, attrs) do
       nil -> {:error, :invalid_feed}
-      kind -> {:ok, rss_feed(kind, channel, items, url)}
+      kind -> {:ok, rss_feed(kind, channel, items, attrs, url)}
     end
   end
 
@@ -213,12 +213,13 @@ defmodule Sikio.Feeds.Parser do
   defp channel_id(id) when byte_size(id) == 22, do: "UC" <> id
   defp channel_id(id), do: id
 
-  defp rss_feed(kind, channel, items, url) do
+  defp rss_feed(kind, channel, items, attrs, url) do
     reader = if kind == :peertube, do: &peertube_entry/2, else: &podcast_entry/2
     entries = items |> Enum.map(&reader.(&1, url)) |> Enum.reject(&is_nil/1)
 
     %{
       url: url,
+      self_url: self_url(channel, attrs, url),
       title: value(channel, "title"),
       kind: kind,
       icon_url: image_url(channel, url),
@@ -227,6 +228,52 @@ defmodule Sikio.Feeds.Parser do
       entries: Enum.take(entries, 500)
     }
   end
+
+  @atom "http://www.w3.org/2005/Atom"
+
+  # The https URL in Atom's `<link rel="self">` on the feed's host, or nil. The port matches,
+  # or the feed was fetched over http on port 80 and the URL uses port 443. Feed content is
+  # shared between accounts, so a URL on another host is ignored. Feeds bind Atom to `atom`,
+  # `atom10` or no prefix.
+  defp self_url({_, channel_attrs, content}, rss_attrs, url) do
+    at = URI.parse(url)
+    host = String.downcase(at.host || "")
+    outer = channel_attrs ++ rss_attrs
+
+    Enum.find_value(content, fn
+      {name, attrs, _} = node ->
+        # An inner `xmlns` declaration overrides an outer one.
+        with key when is_binary(key) <- namespace_key(name),
+             true <- List.keyfind(attrs ++ outer, key, 0) == {key, @atom} and self_rel?(node),
+             href when is_binary(href) <- HTTP.resolve(attr(node, "href"), url),
+             %URI{scheme: "https", host: ^host} = uri <- URI.parse(href),
+             true <- same_port?(at, uri) do
+          href
+        else
+          _ -> nil
+        end
+
+      _text ->
+        nil
+    end)
+  end
+
+  defp self_url(nil, _rss_attrs, _url), do: nil
+
+  # A feed fetched over http may give its https URL on the default port.
+  defp same_port?(%URI{scheme: "http", port: 80}, %URI{port: 443}), do: true
+  defp same_port?(at, uri), do: uri.port == at.port
+
+  # The attribute that binds a link element's namespace. RSS's own `<link>` is outside the Atom
+  # namespace and carries no `rel`.
+  defp namespace_key("link"), do: "xmlns"
+
+  defp namespace_key(name) do
+    if String.ends_with?(name, ":link"),
+      do: "xmlns:" <> binary_part(name, 0, byte_size(name) - byte_size(":link"))
+  end
+
+  defp self_rel?(node), do: node |> attr("rel") |> String.trim() |> String.downcase() == "self"
 
   # The channel's `<ttl>` in minutes. Anything but a positive integer is ignored.
   defp ttl(channel) do
