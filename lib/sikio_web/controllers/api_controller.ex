@@ -14,6 +14,7 @@ defmodule SikioWeb.ApiController do
   alias Sikio.Feeds
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Feed
+  alias Sikio.Feeds.HTTP
   alias Sikio.Library
 
   # Discovery fetches pages and feeds; each request waits for them at most this long.
@@ -91,10 +92,13 @@ defmodule SikioWeb.ApiController do
 
   def subscribe(conn, _params), do: error(conn, 400, "invalid_request")
 
+  # Both sides are compared in `HTTP.resolve/2` form, which Discovery's aliases already have.
   defp offered(url) do
-    case within([fn -> Discovery.discover(url) end]) do
-      [{:ok, feeds}] -> Enum.find(feeds, &(url in [&1.url | Map.get(&1, :aliases, [])]))
-      [_failed] -> nil
+    with wanted when is_binary(wanted) <- HTTP.resolve(url, url),
+         [{:ok, feeds}] <- within([fn -> Discovery.discover(wanted) end]) do
+      Enum.find(feeds, &(wanted in [HTTP.resolve(&1.url, &1.url) | Map.get(&1, :aliases, [])]))
+    else
+      _ -> nil
     end
   end
 

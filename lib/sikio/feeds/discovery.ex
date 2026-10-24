@@ -555,28 +555,43 @@ defmodule Sikio.Feeds.Discovery do
   Fetches and parses a known feed URL. The result includes ETag and Last-Modified.
 
   A feed not stored yet may come from its self URL instead, with that URL's validators.
+  The other URLs that led to the feed are its `aliases`.
   """
   def fetch(url, headers \\ []) do
     case poll(url, headers) do
       {:not_modified, _wait} -> :not_modified
-      {{:ok, feed}, _wait} -> {:ok, at_self_url(feed, url)}
+      {{:ok, feed}, _wait} -> {:ok, settled(feed, url)}
       {result, _wait} -> result
     end
   end
+
+  # A page or a directory may link the requested URL or a self URL's predecessor, so both stay.
+  defp settled(feed, requested) do
+    named = at_self_url(feed, requested)
+    own = HTTP.resolve(named.url, named.url)
+
+    [requested, feed.url]
+    |> Enum.map(&HTTP.resolve(&1, &1))
+    |> Enum.reject(&(&1 in [nil, own]))
+    |> Enum.uniq()
+    |> then(&with_aliases(named, &1))
+  end
+
+  defp with_aliases(feed, []), do: feed
+  defp with_aliases(feed, aliases), do: Map.put(feed, :aliases, aliases)
 
   # Feeds are stored by URL, and a feed may answer at two URLs of its host. Fetching a new feed
   # at its self URL keeps both URLs on one row. The row's content then comes from the self URL,
   # never from the URL that gave it. A feed there with another self URL, kind or set of entries
   # is another feed, and so is a self URL that redirects. A feed stored at the requested or the
-  # redirected URL keeps that URL. The other URLs stay with the feed as `aliases`, because a page
-  # or a directory may still link the feed there.
+  # redirected URL keeps that URL.
   defp at_self_url(%{self_url: self_url, url: url} = feed, requested)
        when is_binary(self_url) do
     with true <- self_url != HTTP.resolve(url, url),
          false <- Sikio.Feeds.stored?([requested, url]),
          {{:ok, %{url: ^self_url, self_url: ^self_url} = named}, _wait} <- poll(self_url, []),
          true <- same_entries?(feed, named) do
-      Map.put(named, :aliases, Enum.uniq([requested, url]) -- [self_url])
+      named
     else
       _ -> feed
     end
@@ -1282,7 +1297,7 @@ defmodule Sikio.Feeds.Discovery do
   defp webpage_response(response, url) do
     case Parser.parse(response.body, response.url) do
       {:ok, feed} ->
-        {:ok, [feed |> with_shorts() |> Map.merge(validators(response)) |> at_self_url(url)]}
+        {:ok, [feed |> with_shorts() |> Map.merge(validators(response)) |> settled(url)]}
 
       _ ->
         # A PeerTube instance without a feed for this URL returns its error. Link discovery on its

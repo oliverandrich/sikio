@@ -20,6 +20,8 @@ Its own section becomes the version's release notes.
 
 - The extension API subscribes through a URL other than a feed's self URL. A page may link the
   feed there. Such a request answered 404 before.
+- The extension API also subscribes through a feed URL that redirects, or whose host differs in
+  case.
 
 ### Upgrading
 

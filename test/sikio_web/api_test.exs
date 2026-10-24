@@ -162,6 +162,35 @@ defmodule SikioWeb.ApiTest do
            |> get_in(["subscription", "feed_url"]) == canonical
   end
 
+  # The extension sends the URL as the page writes it. It may redirect to the feed, or differ
+  # from the stored URL in the host's case.
+  test "a feed URL that redirects or is spelled differently subscribes to the feed", c do
+    old = String.replace(c.feed, "/feed.xml", "/old.xml")
+    body = String.replace(podcast(), podcast_page(), c.page)
+
+    Req.Test.stub(HTTP, fn conn ->
+      case conn.request_path do
+        "/old.xml" ->
+          conn |> Plug.Conn.put_resp_header("location", c.feed) |> Plug.Conn.send_resp(301, "")
+
+        "/feed.xml" ->
+          Plug.Conn.send_resp(conn, 200, body)
+      end
+    end)
+
+    subscribe = fn url ->
+      c.token |> api() |> post("/api/v1/subscriptions", %{"feed_url" => url})
+    end
+
+    assert old |> subscribe.() |> json_response(201) |> get_in(["subscription", "feed_url"]) ==
+             c.feed
+
+    assert String.replace(c.feed, "https://show", "HTTPS://SHOW")
+           |> subscribe.()
+           |> json_response(200)
+           |> get_in(["subscription", "aliases"]) == [old]
+  end
+
   # An exit inside the fetch, such as a pool timeout, must not fail the request.
   test "a lookup survives an exit while the page is fetched", c do
     Req.Test.stub(HTTP, fn _conn -> exit(:pool_timeout) end)
