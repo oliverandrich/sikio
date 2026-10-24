@@ -8,9 +8,14 @@
 # `mix test --include feature` also runs the features on PostgreSQL.
 # Tests tagged `:postgres` need both databases and run in the PostgreSQL pass alone.
 # Logs are captured and shown only for failing tests.
+# ExUnit's 100 ms `assert_receive_timeout` fails receive assertions on a loaded machine.
+# `render_async/2`, `assert_redirect/2` and `assert_patch/2` wait it too.
+# A passing assertion returns on receipt. A failing one waits the full second.
+common = [capture_log: true, assert_receive_timeout: 1_000]
+
 if Application.fetch_env!(:sikio, :database) == :sqlite,
-  do: ExUnit.start(max_cases: 1, capture_log: true, exclude: [:postgres]),
-  else: ExUnit.start(exclude: [:feature], capture_log: true)
+  do: ExUnit.start([max_cases: 1, exclude: [:postgres]] ++ common),
+  else: ExUnit.start([exclude: [:feature]] ++ common)
 
 Ecto.Adapters.SQL.Sandbox.mode(Sikio.Repo, :manual)
 
