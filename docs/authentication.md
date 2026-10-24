@@ -1,6 +1,6 @@
 # Authentication
 
-Ithibati is pinned to 0.9.0. On an empty database, `/setup` first asks for a setup code. The
+Ithibati is pinned to 0.11.0. On an empty database, `/setup` first asks for a setup code. The
 operator issues it on the host with `bin/setup-code`. Then it asks for a username and a passkey.
 Only the code's digest is stored. A valid code yields a session authorization for ten minutes.
 Creating the first account consumes the code. Issuing a new code invalidates the previous code
