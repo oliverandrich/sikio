@@ -11,6 +11,8 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-24
+
 ### Added
 
 - The account that claimed the instance is its administrator. `bin/grant-admin USERNAME` makes
@@ -42,7 +44,7 @@ Its own section becomes the version's release notes.
 - A proxy with a private address no longer needs `TRUSTED_PROXIES`. Caddy on the Docker host
   or in a shared network works without configuration. Sikio walks the `X-Forwarded-For` header
   past configured proxies, so a CDN in `TRUSTED_PROXIES` in front of such a Caddy also works.
-- Sikio requires Ithibati 0.9.0.
+- Sikio requires Ithibati 0.11.0.
 - A member takes back only the invitations they sent. An administrator takes back any.
 - On wide screens, the pages under Settings show a breadcrumb back to the settings.
 - An item's Add to queue button appends it to the queue, as the search does. The menu with Play
