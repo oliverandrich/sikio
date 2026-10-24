@@ -11,12 +11,7 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
-### Security
-
-- Sikio ships plug_crypto 2.2.1. It fixes EEF-CVE-2026-105963, which could write the secret key
-  base to the logs when given bad arguments.
-
-## [0.9.0] - 2026-10-24
+## [0.9.1] - 2026-10-24
 
 ### Added
 
@@ -77,6 +72,11 @@ Its own section becomes the version's release notes.
   fetched at the https URL in its `atom:link rel="self"` on the same host. The feed there must
   give the same URL and hold the same episodes. A feed already stored keeps its URL.
 
+### Security
+
+- Sikio ships plug_crypto 2.2.1. It fixes EEF-CVE-2026-105963, which could write the secret key
+  base to the logs when given bad arguments.
+
 ### Upgrading
 
 - `TRUSTED_PROXIES` keeps working. For a single private proxy it can go, and so can the fixed
@@ -93,6 +93,10 @@ Its own section becomes the version's release notes.
 - A migration adds the table of address requests, `address_requests`.
 - A migration adds the tables of browser extension tokens and codes, `extension_tokens` and
   `extension_grants`.
+
+## [0.9.0] - 2026-10-24
+
+Tagged, but not released. Its release build failed. Its changes ship in 0.9.1.
 
 ## [0.8.0] - 2026-10-18
 

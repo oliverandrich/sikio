@@ -251,7 +251,7 @@ again.
 
 ## Administrators
 
-The account that claims the instance is its administrator. Upgrading to 0.9.0 makes the claiming
+The account that claims the instance is its administrator. Upgrading to 0.9.1 makes the claiming
 account an administrator if it still exists. An instance whose first account was deleted has
 none. On the host, this makes an account an administrator:
 
