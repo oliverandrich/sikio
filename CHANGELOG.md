@@ -11,6 +11,11 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Security
+
+- Sikio ships plug_crypto 2.2.1. It fixes EEF-CVE-2026-105963, which could write the secret key
+  base to the logs when given bad arguments.
+
 ## [0.9.0] - 2026-10-24
 
 ### Added
