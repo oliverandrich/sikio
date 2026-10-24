@@ -17,6 +17,7 @@ defmodule Sikio.Feeds do
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
+  alias Sikio.Feeds.FeedAlias
   alias Sikio.Feeds.HTTP
   alias Sikio.Feeds.Hub
   alias Sikio.Feeds.Schedule
@@ -32,8 +33,23 @@ defmodule Sikio.Feeds do
   defp replaced_feed_fields(attrs),
     do: Enum.filter([:icon_url, :page_url], &is_binary(attrs[&1])) ++ @feed_fields
 
-  @doc "Returns whether a feed is stored at one of `urls`."
+  @doc """
+  Returns whether a feed is stored at one of `urls`.
+
+  Aliases do not count, so `Discovery.fetch/2` at an alias polls the stored self URL.
+  """
   def stored?(urls) when is_list(urls), do: Repo.exists?(from f in Feed, where: f.url in ^urls)
+
+  @doc "Returns the aliases of the feeds with `feed_ids`, as a map from feed id to sorted URLs."
+  def aliases(feed_ids) when is_list(feed_ids) do
+    from(a in FeedAlias,
+      where: a.feed_id in ^feed_ids,
+      order_by: a.url,
+      select: {a.feed_id, a.url}
+    )
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
 
   @doc "Returns the id of the feed that holds the entry, or `nil` for an unknown entry."
   def feed_id_of(entry_id) when is_integer(entry_id),
@@ -88,6 +104,16 @@ defmodule Sikio.Feeds do
   defp newest(feed_id),
     do: Repo.one(from e in Entry, where: e.feed_id == ^feed_id, select: max(e.published_at))
 
+  # A URL another feed already holds as an alias stays with that feed.
+  defp name_aliases(_feed_id, []), do: :ok
+
+  defp name_aliases(feed_id, urls) do
+    now = DateTime.utc_now()
+    rows = for url <- urls, do: %{feed_id: feed_id, url: url, inserted_at: now}
+    Repo.insert_all(FeedAlias, rows, on_conflict: :nothing, conflict_target: [:url])
+    :ok
+  end
+
   # Returns the feed and the number of entries inserted or changed.
   defp store_entries(preview, on_new, wait \\ nil) do
     Repo.transaction(fn ->
@@ -99,6 +125,8 @@ defmodule Sikio.Feeds do
              returning: true
            ) do
         {:ok, feed} ->
+          # A refresh's preview carries no aliases.
+          name_aliases(feed.id, Map.get(preview, :aliases, []))
           {written, new} = import_entries(feed.id, preview.entries)
           announce(on_new, feed.id, new)
           {%{feed | next_check_at: schedule_next(feed.id, attrs.last_checked_at, wait)}, written}

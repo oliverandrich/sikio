@@ -44,12 +44,15 @@ context with a host permission, so Sikio sends no CORS headers.
 The account's sources, for matching pages without asking Sikio:
 
 ```json
-{"subscriptions": [{"feed_url": "...", "kind": "youtube", "title": "...",
+{"subscriptions": [{"feed_url": "...", "aliases": [], "kind": "youtube", "title": "...",
   "page_url": "...", "channel_id": "UC..."}]}
 ```
 
 `kind` is `podcast`, `youtube`, `peertube` or `mediathek`. `channel_id` is set for YouTube
-only. Fetch the list after connecting, every 15 minutes and after each change.
+only. `aliases` lists other URLs the feed was fetched at. A new feed may be stored at the URL
+its `atom:link rel="self"` names, while a page links another one. Match a page's feed link
+against `feed_url` and `aliases`. Fetch the list after connecting, every 15 minutes and after
+each change.
 
 ### `POST /api/v1/lookup`
 
@@ -79,8 +82,9 @@ Subscribes to a source from `lookup`:
 ```
 
 The answer is 201 with `{"subscription": {...}}`, shaped like an entry of `GET subscriptions`.
-Subscribing again keeps the subscription and answers 200. A `feed_url` that names no feed
-answers 404; Sikio never subscribes to another feed instead.
+Subscribing again keeps the subscription and answers 200. An alias of a feed subscribes to
+that feed, and the answer names its `feed_url`. A `feed_url` that names no feed answers 404;
+Sikio never subscribes to another feed instead.
 
 ### `POST /api/v1/items`
 

@@ -119,6 +119,49 @@ defmodule SikioWeb.ApiTest do
     assert subscribe.() |> json_response(200) |> get_in(["subscription", "feed_url"]) == c.feed
   end
 
+  # A page may link a feed at a URL other than the one its `atom:link rel="self"` gives. Sikio
+  # stores the feed at the self URL. The extension matches and subscribes with the linked URL.
+  test "a feed fetched at another URL than its self URL is known by both", c do
+    canonical = feed_url("feed/mp3/")
+    alias_url = String.replace(canonical, "/feed/", "/index.php/feed/")
+    named = podcast_naming(canonical)
+
+    Req.Test.stub(HTTP, fn conn ->
+      if conn.request_path in ["/feed/mp3/", "/index.php/feed/mp3/"],
+        do: Plug.Conn.send_resp(conn, 200, named),
+        else: Plug.Conn.send_resp(conn, 404, "")
+    end)
+
+    subscribe = fn ->
+      c.token |> api() |> post("/api/v1/subscriptions", %{"feed_url" => alias_url})
+    end
+
+    assert subscribe.() |> json_response(201) |> get_in(["subscription", "feed_url"]) == canonical
+
+    assert subscribe.() |> json_response(200) |> get_in(["subscription", "aliases"]) == [
+             alias_url
+           ]
+
+    assert %{"subscriptions" => [%{"feed_url" => ^canonical, "aliases" => [^alias_url]}]} =
+             c.token |> api() |> get("/api/v1/subscriptions") |> json_response(200)
+  end
+
+  # The account followed the feed at its self URL before Sikio knew the other URL.
+  test "subscribing through another URL of a followed feed answers 200", c do
+    canonical = feed_url("feed/mp3/")
+    alias_url = String.replace(canonical, "/feed/", "/index.php/feed/")
+    named = podcast_naming(canonical)
+    {:ok, stored} = Parser.parse(named, canonical)
+    {:ok, _} = Library.subscribe(c.ada, stored)
+    Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, named) end)
+
+    assert c.token
+           |> api()
+           |> post("/api/v1/subscriptions", %{"feed_url" => alias_url})
+           |> json_response(200)
+           |> get_in(["subscription", "feed_url"]) == canonical
+  end
+
   # An exit inside the fetch, such as a pool timeout, must not fail the request.
   test "a lookup survives an exit while the page is fetched", c do
     Req.Test.stub(HTTP, fn _conn -> exit(:pool_timeout) end)

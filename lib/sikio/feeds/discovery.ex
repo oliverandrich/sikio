@@ -568,14 +568,15 @@ defmodule Sikio.Feeds.Discovery do
   # at its self URL keeps both URLs on one row. The row's content then comes from the self URL,
   # never from the URL that gave it. A feed there with another self URL, kind or set of entries
   # is another feed, and so is a self URL that redirects. A feed stored at the requested or the
-  # redirected URL keeps that URL.
+  # redirected URL keeps that URL. The other URLs stay with the feed as `aliases`, because a page
+  # or a directory may still link the feed there.
   defp at_self_url(%{self_url: self_url, url: url} = feed, requested)
        when is_binary(self_url) do
     with true <- self_url != HTTP.resolve(url, url),
          false <- Sikio.Feeds.stored?([requested, url]),
          {{:ok, %{url: ^self_url, self_url: ^self_url} = named}, _wait} <- poll(self_url, []),
          true <- same_entries?(feed, named) do
-      named
+      Map.put(named, :aliases, Enum.uniq([requested, url]) -- [self_url])
     else
       _ -> feed
     end

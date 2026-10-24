@@ -573,6 +573,31 @@ defmodule Sikio.LibraryTest do
       assert Library.entries(ctx.alice, %{"status" => "inbox"}) == []
     end
 
+    # The browser extension matches the URL a page links, which may be the other URL.
+    test "a feed taken from its self URL keeps the URL it was fetched at", ctx do
+      named = podcast_naming(ctx.canonical)
+      serve(%{ctx.canonical => named, ctx.alias_url => named})
+
+      {:ok, fetched} = Discovery.fetch(ctx.alias_url)
+      {:ok, %{feed_id: feed_id}} = Library.subscribe(ctx.alice, fetched)
+
+      assert Feeds.aliases([feed_id]) == %{feed_id => [ctx.alias_url]}
+    end
+
+    # A feed stored before Sikio kept the other URLs gains one when added there again.
+    test "subscribing at the other URL of a stored feed keeps that URL", ctx do
+      named = podcast_naming(ctx.canonical)
+      serve(%{ctx.canonical => named, ctx.alias_url => named})
+      {:ok, stored} = Discovery.fetch(ctx.canonical)
+      {:ok, %{feed_id: feed_id}} = Library.subscribe(ctx.bob, stored)
+      assert Feeds.aliases([feed_id]) == %{}
+
+      {:ok, fetched} = Discovery.fetch(ctx.alias_url)
+      {:ok, %{feed_id: ^feed_id}} = Library.subscribe(ctx.alice, fetched)
+
+      assert Feeds.aliases([feed_id]) == %{feed_id => [ctx.alias_url]}
+    end
+
     # A feed on a shared host may give another publisher's feed as its self URL. Fetching it
     # gives that feed's own content, so nothing reaches the other feed's subscribers.
     test "gives the content served at the self URL, never the content that names it", ctx do

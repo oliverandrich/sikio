@@ -12,6 +12,7 @@ defmodule Sikio.FeedRemovalTest do
   alias Sikio.Accounts.User
   alias Sikio.Feeds.Entry
   alias Sikio.Feeds.Feed
+  alias Sikio.Feeds.FeedAlias
   alias Sikio.Feeds.Parser
   alias Sikio.Library
   alias Sikio.Library.Events
@@ -52,6 +53,7 @@ defmodule Sikio.FeedRemovalTest do
     saver = account()
     {feed_id, entry} = held_by([admin, follower], [saver])
     {:ok, _} = Library.favourite(follower, entry.id, true)
+    Repo.insert!(%FeedAlias{feed_id: feed_id, url: feed_url()})
     Events.subscribe(saver)
 
     assert {:ok, %Feed{id: ^feed_id}} = Removals.remove_feed(admin, feed_id)
@@ -59,6 +61,7 @@ defmodule Sikio.FeedRemovalTest do
     refute Repo.get(Feed, feed_id)
     assert Repo.all(from e in Entry, where: e.feed_id == ^feed_id) == []
     assert Repo.all(from s in Subscription, where: s.feed_id == ^feed_id) == []
+    assert Repo.all(from a in FeedAlias, where: a.feed_id == ^feed_id) == []
     assert Repo.all(from s in SavedEntry, where: s.entry_id == ^entry.id) == []
     assert Repo.all(from f in Favourite, where: f.entry_id == ^entry.id) == []
     # A saver follows nothing, yet their open lists and player learn of it.

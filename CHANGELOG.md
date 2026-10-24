@@ -11,6 +11,21 @@ Its own section becomes the version's release notes.
 
 ## [Unreleased]
 
+### Added
+
+- The extension API's subscriptions list names `aliases`: other URLs a feed was fetched at.
+  [docs/api.md](docs/api.md) describes the field.
+
+### Fixed
+
+- The extension API subscribes through a URL other than a feed's self URL. A page may link the
+  feed there. Such a request answered 404 before.
+
+### Upgrading
+
+- A migration adds the table of feed aliases, `feed_aliases`. A feed stored earlier gains its
+  other URL when a member adds the feed through that URL.
+
 ## [0.9.1] - 2026-10-24
 
 ### Added

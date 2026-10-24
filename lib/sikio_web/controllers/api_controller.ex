@@ -11,6 +11,7 @@ defmodule SikioWeb.ApiController do
   """
   use SikioWeb, :controller
 
+  alias Sikio.Feeds
   alias Sikio.Feeds.Discovery
   alias Sikio.Feeds.Feed
   alias Sikio.Library
@@ -19,9 +20,12 @@ defmodule SikioWeb.ApiController do
   @timeout 30_000
 
   def subscriptions(conn, _params) do
+    subscriptions = Library.subscriptions(conn.assigns.current_account)
+    aliases = Feeds.aliases(Enum.map(subscriptions, & &1.feed_id))
+
     sources =
-      for subscription <- Library.subscriptions(conn.assigns.current_account) do
-        identifiers(subscription.feed)
+      for subscription <- subscriptions do
+        identifiers(subscription.feed, Map.get(aliases, subscription.feed_id, []))
       end
 
     json(conn, %{subscriptions: sources})
@@ -80,7 +84,7 @@ defmodule SikioWeb.ApiController do
         error(conn, 404, "not_found")
 
       feed ->
-        existed? = Library.subscribed?(account, url)
+        existed? = Library.subscribed?(account, feed.url)
         account |> Library.subscribe(feed) |> subscribed(conn, existed?)
     end
   end
@@ -89,15 +93,17 @@ defmodule SikioWeb.ApiController do
 
   defp offered(url) do
     case within([fn -> Discovery.discover(url) end]) do
-      [{:ok, feeds}] -> Enum.find(feeds, &(&1.url == url))
+      [{:ok, feeds}] -> Enum.find(feeds, &(url in [&1.url | Map.get(&1, :aliases, [])]))
       [_failed] -> nil
     end
   end
 
-  defp subscribed({:ok, subscription}, conn, existed?) do
+  defp subscribed({:ok, %{feed_id: feed_id} = subscription}, conn, existed?) do
+    aliases = Map.get(Feeds.aliases([feed_id]), feed_id, [])
+
     conn
     |> put_status(if existed?, do: 200, else: 201)
-    |> json(%{subscription: identifiers(subscription.feed)})
+    |> json(%{subscription: identifiers(subscription.feed, aliases)})
   end
 
   defp subscribed({:error, reason}, conn, _existed?), do: failed(conn, reason)
@@ -120,9 +126,10 @@ defmodule SikioWeb.ApiController do
   def add(conn, _params), do: error(conn, 400, "invalid_request")
 
   # The identifiers the extension matches a page against. A YouTube feed names its channel.
-  defp identifiers(feed) do
+  defp identifiers(feed, aliases) do
     %{
       feed_url: feed.url,
+      aliases: aliases,
       kind: feed.kind,
       title: feed.title,
       page_url: feed.page_url,
