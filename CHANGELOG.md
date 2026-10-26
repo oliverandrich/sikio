@@ -15,6 +15,8 @@ Its own section becomes the version's release notes.
 
 - The extension API's subscriptions list names `aliases`: other URLs a feed was fetched at.
   [docs/api.md](docs/api.md) describes the field.
+- `POST /api/v1/subscriptions/match` tells the extension which of a page's feed URLs and
+  YouTube channels the account subscribes to. The answer is current, without a cached list.
 
 ### Fixed
 

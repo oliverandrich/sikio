@@ -93,6 +93,88 @@ defmodule SikioWeb.ApiTest do
     assert %{"sources" => [%{"subscribed" => true}], "item" => %{"place" => "queue"}} = lookup.()
   end
 
+  describe "POST /api/v1/subscriptions/match" do
+    defp match(token, feed_urls, channel_ids \\ []) do
+      body = %{"feed_urls" => feed_urls, "channel_ids" => channel_ids}
+      token |> api() |> post("/api/v1/subscriptions/match", body)
+    end
+
+    defp subscribe_feed(c),
+      do: c.token |> api() |> post("/api/v1/subscriptions", %{"feed_url" => c.feed})
+
+    # The extension sends the sources it detected on a page, never the page itself.
+    test "names the sent feed URLs and channel ids the account subscribes to", c do
+      assert subscribe_feed(c) |> json_response(201)
+      channel_feed = youtube_feed_url()
+      {:ok, preview} = Parser.parse(youtube(), channel_feed)
+      {:ok, _} = Library.subscribe(c.ada, preview)
+      channel = URI.decode_query(URI.parse(channel_feed).query)["channel_id"]
+      other = String.replace(c.feed, "/feed.xml", "/other.xml")
+
+      assert c.token |> match([c.feed, other], [channel, "UCunknown"]) |> json_response(200) ==
+               %{"feed_urls" => [c.feed], "channel_ids" => [channel]}
+    end
+
+    # A page may write the feed's URL with http, a trailing slash, another case in the host, the
+    # default port, an empty query or a fragment.
+    test "a feed URL matches in another spelling, as written", c do
+      assert subscribe_feed(c) |> json_response(201)
+
+      spellings = [
+        String.replace(c.feed, "https://", "http://"),
+        c.feed <> "/",
+        String.replace(c.feed, "https://show", "https://SHOW"),
+        String.replace(c.feed, ".example.org/", ".example.org:443/"),
+        c.feed <> "?",
+        c.feed <> "#latest"
+      ]
+
+      assert c.token |> match(spellings) |> json_response(200) ==
+               %{"feed_urls" => spellings, "channel_ids" => []}
+    end
+
+    test "a feed URL matches through an alias of a subscribed feed", c do
+      canonical = feed_url("feed/mp3/")
+      alias_url = String.replace(canonical, "/feed/", "/index.php/feed/")
+      named = podcast_naming(canonical)
+      Req.Test.stub(HTTP, fn conn -> Plug.Conn.send_resp(conn, 200, named) end)
+
+      assert c.token
+             |> api()
+             |> post("/api/v1/subscriptions", %{"feed_url" => alias_url})
+             |> json_response(201)
+
+      assert c.token |> match([alias_url]) |> json_response(200) ==
+               %{"feed_urls" => [alias_url], "channel_ids" => []}
+    end
+
+    test "another account's subscriptions do not count", c do
+      assert subscribe_feed(c) |> json_response(201)
+      bea = Repo.insert!(User.changeset(%User{}, %{username: unique_username()}))
+
+      assert bea |> token() |> match([c.feed]) |> json_response(200) ==
+               %{"feed_urls" => [], "channel_ids" => []}
+    end
+
+    test "missing, malformed or oversized lists are refused", c do
+      refused = %{"error" => "invalid_request"}
+      post_match = &(c.token |> api() |> post("/api/v1/subscriptions/match", &1))
+
+      assert post_match.(%{}) |> json_response(400) == refused
+      assert post_match.(%{"feed_urls" => [c.feed]}) |> json_response(400) == refused
+
+      assert post_match.(%{"feed_urls" => c.feed, "channel_ids" => []}) |> json_response(400) ==
+               refused
+
+      assert post_match.(%{"feed_urls" => [1], "channel_ids" => []}) |> json_response(400) ==
+               refused
+
+      too_many = for n <- 1..51, do: "#{c.feed}?n=#{n}"
+      assert c.token |> match(too_many) |> json_response(400) == refused
+      assert c.token |> match(Enum.take(too_many, 50)) |> json_response(200)
+    end
+  end
+
   # RFC 6750 names the scheme case-insensitively.
   test "the scheme may be written in any case", c do
     conn = build_conn() |> put_req_header("authorization", "bearer " <> c.token)

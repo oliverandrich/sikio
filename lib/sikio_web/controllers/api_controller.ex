@@ -4,10 +4,10 @@ defmodule SikioWeb.ApiController do
   @moduledoc """
   The browser extension's API v1. `SikioWeb.ExtensionAuth` has assigned the account.
 
-  The extension detects pages locally and matches them against `subscriptions`. It calls
-  `lookup` only for a page it detected, and adds with `subscribe` and `add`. Lookup and adding
-  resolve the page with `Sikio.Feeds.Discovery`, as `/add` does. Errors are
-  `{"error": code}`; docs/api.md lists them.
+  The extension detects pages locally and asks `match` which of their sources the account
+  subscribes to. It calls `lookup` only for a page it detected, and adds with `subscribe` and
+  `add`. Lookup and adding resolve the page with `Sikio.Feeds.Discovery`, as `/add` does.
+  Errors are `{"error": code}`; docs/api.md lists them.
   """
   use SikioWeb, :controller
 
@@ -19,18 +19,32 @@ defmodule SikioWeb.ApiController do
 
   # Discovery fetches pages and feeds; each request waits for them at most this long.
   @timeout 30_000
+  # A page links a handful of feeds; `match` takes at most this many of each kind.
+  @match_limit 50
 
   def subscriptions(conn, _params) do
-    subscriptions = Library.subscriptions(conn.assigns.current_account)
-    aliases = Feeds.aliases(Enum.map(subscriptions, & &1.feed_id))
-
     sources =
-      for subscription <- subscriptions do
-        identifiers(subscription.feed, Map.get(aliases, subscription.feed_id, []))
-      end
+      for {subscription, aliases} <-
+            Library.subscriptions_with_aliases(conn.assigns.current_account),
+          do: identifiers(subscription.feed, aliases)
 
     json(conn, %{subscriptions: sources})
   end
+
+  # Answers the sent values as written, so the extension needs no mapping back.
+  def match(conn, %{"feed_urls" => urls, "channel_ids" => ids}) do
+    if strings?(urls) and strings?(ids) do
+      {urls, ids} = Library.matching(conn.assigns.current_account, urls, ids)
+      json(conn, %{feed_urls: urls, channel_ids: ids})
+    else
+      error(conn, 400, "invalid_request")
+    end
+  end
+
+  def match(conn, _params), do: error(conn, 400, "invalid_request")
+
+  defp strings?(list),
+    do: is_list(list) and length(list) <= @match_limit and Enum.all?(list, &is_binary/1)
 
   def lookup(conn, %{"url" => url}) when is_binary(url) do
     account = conn.assigns.current_account

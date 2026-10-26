@@ -41,7 +41,8 @@ context with a host permission, so Sikio sends no CORS headers.
 
 ### `GET /api/v1/subscriptions`
 
-The account's sources, for matching pages without asking Sikio:
+The account's sources with their identifiers. To check the sources of a page, use
+[`match`](#post-apiv1subscriptionsmatch) instead:
 
 ```json
 {"subscriptions": [{"feed_url": "...", "aliases": [], "kind": "youtube", "title": "...",
@@ -50,9 +51,27 @@ The account's sources, for matching pages without asking Sikio:
 
 `kind` is `podcast`, `youtube`, `peertube` or `mediathek`. `channel_id` is set for YouTube
 only. `aliases` lists other URLs the feed was fetched at. A new feed may be stored at the URL
-its `atom:link rel="self"` names, while a page links another one. Match a page's feed link
-against `feed_url` and `aliases`. Fetch the list after connecting, every 15 minutes and after
-each change.
+its `atom:link rel="self"` names, while a page links another one.
+
+### `POST /api/v1/subscriptions/match`
+
+Which of a page's sources the account subscribes to. Send the feed URLs and YouTube channel ids
+the extension detected on a page, never the page URL. Sikio reads no page for this.
+
+```json
+{"feed_urls": ["https://..."], "channel_ids": ["UC..."]}
+```
+
+```json
+{"feed_urls": ["https://..."], "channel_ids": []}
+```
+
+The answer lists the sent values the account subscribes to, as they were sent. A feed URL
+matches a subscribed feed's `feed_url` or one of its `aliases`. The comparison ignores the
+scheme, the host's case, a default port, a trailing slash, an empty query and a fragment. Both
+lists are required and hold at most 50 strings each. Anything else answers 400 with
+`{"error": "invalid_request"}`. Each call counts against the account's 120 requests a minute,
+so a client keeps the answer for a page until the page or a subscription changes.
 
 ### `POST /api/v1/lookup`
 

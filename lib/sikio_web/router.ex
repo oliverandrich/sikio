@@ -60,6 +60,7 @@ defmodule SikioWeb.Router do
   scope "/api/v1", SikioWeb do
     pipe_through [:api, :extension]
     get "/subscriptions", ApiController, :subscriptions
+    post "/subscriptions/match", ApiController, :match
     post "/lookup", ApiController, :lookup
     post "/subscriptions", ApiController, :subscribe
     post "/items", ApiController, :add

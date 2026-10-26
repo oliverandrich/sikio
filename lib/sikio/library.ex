@@ -443,6 +443,58 @@ defmodule Sikio.Library do
     )
   end
 
+  @doc """
+  Returns the account's subscriptions as in `subscriptions/1`, each with its feed's aliases, as
+  `{subscription, aliases}`.
+  """
+  def subscriptions_with_aliases(%User{} = user) do
+    subscriptions = subscriptions(user)
+    aliases = Feeds.aliases(Enum.map(subscriptions, & &1.feed_id))
+    Enum.map(subscriptions, &{&1, Map.get(aliases, &1.feed_id, [])})
+  end
+
+  @doc """
+  Returns the values among `feed_urls` and `channel_ids` that name a source the account
+  subscribes to, as `{feed_urls, channel_ids}`, each as given. A feed URL matches a subscribed
+  feed's URL or one of its aliases. The comparison ignores the scheme, the host's case, a default
+  port, a trailing slash, an empty query and a fragment.
+  """
+  def matching(%User{} = user, feed_urls, channel_ids) do
+    subscribed = subscriptions_with_aliases(user)
+
+    keys =
+      for {subscription, aliases} <- subscribed,
+          url <- [subscription.feed.url | aliases],
+          into: MapSet.new(),
+          do: feed_key(url)
+
+    channels =
+      for {subscription, _aliases} <- subscribed,
+          id = Feed.channel_id(subscription.feed),
+          into: MapSet.new(),
+          do: id
+
+    {Enum.filter(feed_urls, &MapSet.member?(keys, feed_key(&1))),
+     Enum.filter(channel_ids, &MapSet.member?(channels, &1))}
+  end
+
+  # Pages write a feed's URL with http or https, a trailing slash or another case in the host.
+  # The normalised form cannot be compared in SQL on both databases, so a few hundred
+  # subscriptions are compared here.
+  defp feed_key(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host, port: port, path: path, query: query}
+      when is_binary(host) ->
+        port = if port == URI.default_port(scheme || ""), do: "", else: ":#{port}"
+        path = String.trim_trailing(path || "", "/")
+        query = if query in [nil, ""], do: "", else: "?" <> query
+        String.downcase(host) <> port <> path <> query
+
+      _other ->
+        url
+    end
+  end
+
   @doc "Returns the account's subscription to the feed, shaped as in `subscriptions/1`, or nil."
   def subscription_to(%User{id: user_id}, feed_id) do
     Repo.one(
