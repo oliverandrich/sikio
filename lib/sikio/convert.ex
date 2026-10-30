@@ -211,6 +211,9 @@ defmodule Sikio.Convert do
     end)
   end
 
+  # Sobelow flags the interpolated SELECT. Table and column names come from the catalogue in
+  # `tables/0`, never from input, and SQL cannot bind identifiers as parameters.
+  # sobelow_skip ["SQL.Stream"]
   defp copy_table(source, target, {table, columns}) do
     names = Enum.map_join(columns, ", ", fn {column, _} -> ~s|"#{column}"| end)
     converters = Enum.map(columns, &converter(source, target, table, &1))
