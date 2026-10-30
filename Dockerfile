@@ -5,9 +5,9 @@
 #
 # The release workflow passes the Elixir and OTP versions from mise.toml; these defaults serve a
 # build by hand. The Debian date is one hexpm/elixir has built for both amd64 and arm64.
-ARG ELIXIR_VERSION=1.20.4
-ARG OTP_VERSION=29.1.1
-ARG DEBIAN_VERSION=trixie-20260918-slim
+ARG ELIXIR_VERSION=1.20.5
+ARG OTP_VERSION=29.1.2
+ARG DEBIAN_VERSION=trixie-20261027-slim
 
 ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"

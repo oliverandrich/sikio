@@ -18,6 +18,10 @@ Its own section becomes the version's release notes.
 - `POST /api/v1/subscriptions/match` tells the extension which of a page's feed URLs and
   YouTube channels the account subscribes to. The answer is current, without a cached list.
 
+### Changed
+
+- Releases and the image are built with Elixir 1.20.5 on Erlang/OTP 29.1.2.
+
 ### Fixed
 
 - The extension API subscribes through a URL other than a feed's self URL. A page may link the
