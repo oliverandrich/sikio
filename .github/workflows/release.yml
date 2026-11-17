@@ -59,7 +59,7 @@ jobs:
         with:
           persist-credentials: false
       # No cache in a workflow that publishes: a poisoned one would end up in the release.
-      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           cache: false
           install_args: erlang elixir
